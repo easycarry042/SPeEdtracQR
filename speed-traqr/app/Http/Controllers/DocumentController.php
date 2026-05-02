@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Department;
+use App\Models\DocumentScan;
 use Illuminate\Http\Request;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Facades\Storage;
@@ -52,7 +53,7 @@ class DocumentController extends Controller
         ]);
 
         // Generate QR code as SVG string
-        $qrCode = QrCode::size(300)->generate(route('public.track', $trackingNumber));
+        $qrCode = QrCode::size(300)->generate(route('track.show', $trackingNumber));
 
         // Store QR code as file (optional)
         $qrPath = 'qrcodes/' . $trackingNumber . '.svg';
@@ -61,7 +62,7 @@ class DocumentController extends Controller
         return response()->json([
             'document' => $document,
             'qr_code_url' => Storage::url($qrPath),
-            'tracking_url' => route('public.track', $trackingNumber)
+            'tracking_url' => route('track.show', $trackingNumber)
         ], 201);
     }
 

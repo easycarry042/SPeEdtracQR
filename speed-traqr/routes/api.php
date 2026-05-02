@@ -1,14 +1,9 @@
 <?php
 
-use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ScanController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [AuthController::class, 'login']); // you'll need to create AuthController
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::apiResource('documents', DocumentController::class);
-    Route::get('documents/history/{trackingNumber}', [DocumentController::class, 'history']);
-    Route::post('documents/scan', [DocumentController::class, 'scan']);
-    Route::get('dashboard', [DashboardController::class, 'index']);
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::post('/scan', [ScanController::class, 'store'])->name('api.scan.store');
+    Route::post('/scan/sync', [ScanController::class, 'sync'])->name('api.scan.sync');
 });

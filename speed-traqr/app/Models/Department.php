@@ -8,7 +8,13 @@ class Department extends Model
 {
     protected $fillable = [
         'name',
+        'code',
         'email',
         'sla_hours',
     ];
+
+    public function documents()
+    {
+        return $this->hasMany(Document::class, 'current_department_id');
+    }
 }

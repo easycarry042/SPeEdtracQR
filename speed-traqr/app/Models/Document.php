@@ -12,8 +12,25 @@ class Document extends Model
     use SoftDeletes, LogsActivity;
 
     protected $fillable = [
-        'tracking_number', 'document_type', 'citizen_name', 'status',
-        'current_department_id', 'created_by', 'remarks', 'completed_at'
+        'tracking_number',
+        'document_type',
+        'citizen_name',
+        'citizen_contact',
+        'description',
+        'purpose',
+        'status',
+        'current_department_id',
+        'created_by',
+        'remarks',
+        'qr_code_path',
+        'attachment_path',
+        'received_at',
+        'completed_at',
+    ];
+
+    protected $casts = [
+        'received_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -38,7 +55,7 @@ class Document extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    // Generate unique tracking number
+    // Backward-compatible helper. Primary generation lives in QrCodeService.
     public static function generateTrackingNumber()
     {
         return 'SPD-' . date('Ymd') . '-' . strtoupper(uniqid());

@@ -7,8 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class DocumentScan extends Model
 {
     protected $fillable = [
-        'document_id', 'scanned_by', 'department_id', 'action',
-        'scanned_at', 'location_ip', 'synced'
+        'document_id',
+        'scanned_by',
+        'department_id',
+        'action',
+        'scanned_at',
+        'location_ip',
+        'remarks',
+        'sync_status',
+        'offline_uuid',
+        'synced',
     ];
 
     protected $casts = [
