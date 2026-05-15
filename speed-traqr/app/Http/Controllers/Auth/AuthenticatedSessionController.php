@@ -21,6 +21,7 @@ class AuthenticatedSessionController extends Controller
 
     /**
      * Handle an incoming authentication request.
+     * Redirects to the appropriate dashboard based on the user's Spatie role.
      */
     public function store(LoginRequest $request): RedirectResponse
     {
@@ -28,6 +29,16 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        return $this->redirectByRole($request->user());
+    }
+
+    private function redirectByRole($user): RedirectResponse
+    {
+        if ($user->hasRole('admin')) {
+            return redirect()->intended(route('admin.dashboard', absolute: false));
+        }
+
+        // Default: staff and any other authenticated role
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

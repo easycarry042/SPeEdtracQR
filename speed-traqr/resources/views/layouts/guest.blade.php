@@ -194,6 +194,44 @@
 
             .switch-link:hover { text-decoration: underline; }
 
+            .auth-divider {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 16px 0 12px;
+                color: #8ca07e;
+                font-size: 18px;
+            }
+
+            .auth-divider::before,
+            .auth-divider::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: #d8e8c0;
+            }
+
+            .citizen-button {
+                display: block;
+                width: 100%;
+                border: 2px solid #46a542;
+                border-radius: 7px;
+                background: transparent;
+                color: #2d7a2a;
+                padding: 12px 16px;
+                font-size: 26px;
+                font-weight: 600;
+                text-align: center;
+                text-decoration: none;
+                cursor: pointer;
+                transition: background 0.15s, color 0.15s;
+            }
+
+            .citizen-button:hover {
+                background: #46a542;
+                color: #fff;
+            }
+
             @media (max-width: 900px) {
                 .auth-grid { grid-template-columns: 1fr; }
                 .auth-left {
