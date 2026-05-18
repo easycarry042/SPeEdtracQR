@@ -3,7 +3,7 @@
         <div class="auth-grid">
             <div class="auth-left">
                 <div class="auth-brand">
-                    <div class="brand-badge"></div>
+                    <img src="{{ asset('images/logo.png') }}" alt="SPeED TraQR Logo" class="auth-logo">
                     <h1 class="brand-title">SPeED <span>TraQR</span></h1>
                     <p class="brand-subtitle">Secure document tracking and QR verification.</p>
                 </div>
@@ -28,7 +28,7 @@
                                 required
                                 autofocus
                                 autocomplete="username"
-                                class="form-input" />
+                                class="form-input " />
                         </div>
                         <x-input-error :messages="$errors->get('email')" class="brand-subtitle" />
                     </div>
@@ -48,8 +48,8 @@
 
                     <div class="auth-row">
                         <label for="show_password" class="checkbox-wrap">
-                            <input id="show_password" type="checkbox">
-                            <span>Show Password</span>
+                            <input id="show_password" type="checkbox" class="checkbox">
+                            <span class="pass-toggle">Show Password</span>
                         </label>
 
                         @if (Route::has('password.request'))
@@ -62,6 +62,16 @@
                     <button type="submit" class="auth-button">
                         Login
                     </button>
+
+                    {{-- Divider --}}
+                    <div class="auth-divider">
+                        <span>or</span>
+                    </div>
+
+                    {{-- Citizen access — no account required --}}
+                    <a href="{{ route('citizen.dashboard') }}" class="citizen-button">
+                        Continue as Guest (Citizen Access)
+                    </a>
 
                     <a class="switch-link" href="{{ route('register') }}">No account yet? Register here</a>
                 </form>

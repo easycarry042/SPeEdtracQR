@@ -1,3 +1,56 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "tailwindcss";
+
+@layer components {
+    /* LOGIN PAGE DESIGN */
+    .auth-logo {
+        @apply w-[340px];
+    }
+
+    .auth-heading {
+        @apply !text-3xl text-center font-black text-[#245501];
+    }
+
+    .auth-subheading {
+        @apply !text-lg text-center;
+    }
+
+    .form-label {
+        @apply !text-base;
+    }
+
+    .form-input {
+        @apply !text-base;
+    }
+
+    .pass-toggle {
+        @apply !text-base;
+    }
+
+    .checkbox {
+        @apply !w-5 !h-5 rounded-xl border-[#245501] text-[#245501] focus:ring-[#245501];
+    }
+
+    .auth-link {
+        @apply !text-base;
+    }
+
+    .auth-button {
+        @apply !text-base;
+    }
+
+    .switch-link {
+        @apply !text-base !text-center;
+    }
+
+    /* DASHBOARD */
+    .nav-bar {
+        @apply bg-[#E4FCC8] rounded-r-[20px]
+    }
+
+    .nav-icon {
+        @apply h-[40px] w-[40px];
+    }
+}

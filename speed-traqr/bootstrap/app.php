@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Register role-guard alias so routes can use middleware('role:admin') etc.
+        $middleware->alias([
+            'role' => \App\Http\Middleware\EnsureHasRole::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
