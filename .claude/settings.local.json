@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "Bash(php -l app/Http/Controllers/Admin/UserController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/DepartmentController.php)",
+      "Bash(php -l app/Http/Middleware/EnsureUserIsActive.php)",
+      "Bash(php -l app/Http/Requests/Auth/LoginRequest.php)",
+      "Bash(php -l app/Http/Controllers/ScanController.php)"
     ]
   }
 }

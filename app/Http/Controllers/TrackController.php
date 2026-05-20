@@ -52,12 +52,28 @@ class TrackController extends Controller
             ];
         })->values();
 
-        return view('track.show', [
+        $isPublicView = ! auth()->check();
+        $view = $isPublicView ? 'track.show-citizen' : 'track.show';
+
+        return view($view, [
             'document' => $document,
             'documents' => $documents,
             'routingSteps' => $routingSteps,
             'timeline' => $timeline,
-            'isPublicView' => ! auth()->check(),
+            'isPublicView' => $isPublicView,
+        ]);
+    }
+
+    public function status($trackingNumber)
+    {
+        $document = Document::where('tracking_number', $trackingNumber)
+            ->with('currentDepartment')
+            ->firstOrFail();
+
+        return response()->json([
+            'status'             => $document->status,
+            'current_department' => $document->currentDepartment->name ?? null,
+            'updated_at'         => $document->updated_at?->toISOString(),
         ]);
     }
 }

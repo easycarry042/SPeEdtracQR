@@ -9,6 +9,10 @@ use App\Http\Controllers\TrackController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ScanController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\DepartmentController as AdminDepartmentController;
+use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\MovementController;
 use App\Http\Controllers\CitizenController;
 
 /*
@@ -35,6 +39,7 @@ Route::get('/', function () {
 
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
+Route::get('/track/{trackingNumber}/status', [TrackController::class, 'status'])->name('track.status');
 Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])->name('track.show');
 
 /*
@@ -59,6 +64,25 @@ Route::middleware(['auth', 'verified', 'role:admin'])
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+        // User management
+        Route::get('users',                         [AdminUserController::class, 'index'])->name('users.index');
+        Route::get('users/create',                  [AdminUserController::class, 'create'])->name('users.create');
+        Route::post('users',                        [AdminUserController::class, 'store'])->name('users.store');
+        Route::get('users/{user}/edit',             [AdminUserController::class, 'edit'])->name('users.edit');
+        Route::put('users/{user}',                  [AdminUserController::class, 'update'])->name('users.update');
+        Route::patch('users/{user}/toggle-active',  [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
+
+        // Department management
+        Route::get('departments',                   [AdminDepartmentController::class, 'index'])->name('departments.index');
+        Route::get('departments/create',            [AdminDepartmentController::class, 'create'])->name('departments.create');
+        Route::post('departments',                  [AdminDepartmentController::class, 'store'])->name('departments.store');
+        Route::get('departments/{department}/edit', [AdminDepartmentController::class, 'edit'])->name('departments.edit');
+        Route::put('departments/{department}',      [AdminDepartmentController::class, 'update'])->name('departments.update');
+        Route::delete('departments/{department}',   [AdminDepartmentController::class, 'destroy'])->name('departments.destroy');
+
+        // Audit log
+        Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
     });
 
 /*
@@ -87,6 +111,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');
+
+    Route::get('/movements', [MovementController::class, 'index'])->name('movements.index');
 });
 
 require __DIR__.'/auth.php';

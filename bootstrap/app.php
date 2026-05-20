@@ -14,8 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Register role-guard alias so routes can use middleware('role:admin') etc.
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureHasRole::class,
+            'role'        => \App\Http\Middleware\EnsureHasRole::class,
+            'active.user' => \App\Http\Middleware\EnsureUserIsActive::class,
         ]);
+
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnsureUserIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

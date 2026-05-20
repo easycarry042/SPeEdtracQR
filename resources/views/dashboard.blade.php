@@ -4,11 +4,73 @@
     </x-slot>
 
     <div class="mx-auto max-w-7xl space-y-8">
-        <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
             <x-stat-card label="Pending Request" :value="$pendingRequest" icon="hourglass" />
             <x-stat-card label="Completed" :value="$completed" icon="check" />
+            <div class="group relative overflow-hidden rounded-2xl border {{ $atRiskCount > 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200/90 bg-white' }} p-6 shadow-md transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold leading-tight {{ $atRiskCount > 0 ? 'text-amber-800' : 'text-emerald-900' }}">At Risk</p>
+                        <p class="mt-3 text-4xl font-bold tracking-tight {{ $atRiskCount > 0 ? 'text-amber-700' : 'text-gray-900' }}">{{ $atRiskCount }}</p>
+                    </div>
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {{ $atRiskCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-emerald-800' }}">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        @if($atRiskDocuments->isNotEmpty())
+        <section class="space-y-4">
+            <div class="flex items-center gap-3">
+                <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <h2 class="text-2xl font-bold text-amber-800 sm:text-3xl">At-Risk Documents</h2>
+                <span class="rounded-full bg-amber-100 px-3 py-0.5 text-sm font-semibold text-amber-800">{{ $atRiskCount }} document{{ $atRiskCount !== 1 ? 's' : '' }} need attention</span>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-md">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-amber-100">
+                        <thead>
+                            <tr class="bg-amber-50">
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Tracking ID</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Type</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Citizen</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Department</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">SLA</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Time Left / Over</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-amber-50 bg-white">
+                            @foreach($atRiskDocuments as $doc)
+                                <tr class="{{ $doc->sla_overdue ? 'bg-red-50' : '' }}">
+                                    <td class="px-4 py-3 text-sm font-mono font-semibold text-emerald-800">
+                                        <a href="{{ url('/track/' . $doc->tracking_number) }}" class="hover:underline">{{ $doc->tracking_number }}</a>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->document_type }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->citizen_name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->currentDepartment->name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">{{ $doc->currentDepartment->sla_hours ?? '—' }}h</td>
+                                    <td class="px-4 py-3 text-sm font-semibold">
+                                        @if($doc->sla_overdue)
+                                            <span class="text-red-600">Overdue by {{ round($doc->sla_elapsed_hours - ($doc->currentDepartment->sla_hours ?? 0)) }}h</span>
+                                        @else
+                                            <span class="text-amber-700">~{{ round($doc->sla_remaining_hours) }}h remaining</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        @endif
 
         <section class="space-y-4">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CheckSlaJob;
+use App\Jobs\CheckSlaWarningJob;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentScan;
@@ -26,12 +27,13 @@ class ScanController extends Controller
         $this->ensureCanScan();
 
         $validated = $request->validate([
-            'tracking_number' => 'required|string',
-            'department_id' => 'required|exists:departments,id',
-            'action' => 'required|in:in,out',
-            'remarks' => 'nullable|string',
-            'scanned_at' => 'nullable|date',
-            'offline_uuid' => 'nullable|string',
+            'tracking_number'    => 'required|string',
+            'department_id'      => 'required|exists:departments,id',
+            'action'             => 'required|in:in,out',
+            'remarks'            => 'nullable|string',
+            'scanned_at'         => 'nullable|date',
+            'offline_uuid'       => 'nullable|string',
+            'next_department_id' => 'nullable|exists:departments,id',
         ]);
 
         $document = Document::where('tracking_number', $validated['tracking_number'])->first();
@@ -52,6 +54,8 @@ class ScanController extends Controller
             $document->save();
 
             $slaHours = optional($document->currentDepartment)->sla_hours ?? 48;
+            $warningHours = (int) floor($slaHours * 0.75);
+            CheckSlaWarningJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($warningHours));
             CheckSlaJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($slaHours));
         } else {
             $rule = RoutingRule::where('document_type', $document->document_type)
@@ -59,13 +63,21 @@ class ScanController extends Controller
                 ->orderBy('step_order')
                 ->first();
 
-            if ($rule) {
+            $manualNextId = $validated['next_department_id'] ?? null;
+
+            if ($manualNextId) {
+                $nextDepartment = Department::find($manualNextId);
+                $document->current_department_id = $manualNextId;
+                $document->status = 'in_transit';
+            } elseif ($rule) {
                 $nextDepartment = Department::find($rule->to_department_id);
                 $document->current_department_id = $rule->to_department_id;
                 $document->status = 'in_transit';
             } else {
-                $document->status = 'completed';
-                $document->completed_at = now();
+                return response()->json([
+                    'message'              => 'No routing rule found for this document type. Please select the next department.',
+                    'requires_destination' => true,
+                ], 422);
             }
             $document->save();
         }

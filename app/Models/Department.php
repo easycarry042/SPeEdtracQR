@@ -11,6 +11,7 @@ class Department extends Model
         'code',
         'email',
         'sla_hours',
+        'deleted_at',
     ];
 
     public function documents()

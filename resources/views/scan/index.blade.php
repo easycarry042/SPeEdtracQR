@@ -43,6 +43,20 @@
                     <input id="remarks" class="w-full rounded-lg border border-gray-300 px-3 py-2" />
                 </div>
 
+                {{-- Next department: shown for OUT scans only --}}
+                <div id="nextDeptWrap" class="mt-3 hidden">
+                    <label class="mb-1 block text-sm font-semibold text-gray-700">
+                        Next Department
+                        <span class="ml-1 text-xs font-normal text-gray-400">(required if no routing rule is configured)</span>
+                    </label>
+                    <select id="next_department_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">— Auto (use routing rule) —</option>
+                        @foreach($departments as $department)
+                            <option value="{{ $department->id }}">{{ $department->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div id="reader" class="mt-4 overflow-hidden rounded-lg border border-gray-300"></div>
 
                 <div class="mt-3 flex gap-2">
@@ -85,6 +99,8 @@
                     btn.classList.remove('bg-gray-300');
                     btn.classList.add('bg-red-600');
                 }
+                // Show next-department picker only for OUT
+                document.getElementById('nextDeptWrap').classList.toggle('hidden', action !== 'out');
             });
         });
 
@@ -131,13 +147,15 @@
         }
 
         async function submitScan(trackingNumber) {
+            const nextDeptVal = document.getElementById('next_department_id').value;
             const payload = {
-                tracking_number: trackingNumber,
-                department_id: document.getElementById('department_id').value,
+                tracking_number:    trackingNumber,
+                department_id:      document.getElementById('department_id').value,
                 action,
-                remarks: document.getElementById('remarks').value,
-                scanned_at: new Date().toISOString(),
-                offline_uuid: crypto.randomUUID(),
+                remarks:            document.getElementById('remarks').value,
+                scanned_at:         new Date().toISOString(),
+                offline_uuid:       crypto.randomUUID(),
+                next_department_id: (action === 'out' && nextDeptVal) ? nextDeptVal : null,
             };
 
             if (!navigator.onLine) {
@@ -154,10 +172,18 @@
             });
             const data = await res.json();
             if (res.ok) {
-                const next = data.next_department ? ` Next: ${data.next_department.name}` : '';
+                const next = data.next_department ? ` → Next: <strong>${data.next_department.name}</strong>` : '';
                 setResult('success', `${data.message}${next}`);
+                // Reset next-dept picker after successful scan
+                document.getElementById('next_department_id').value = '';
             } else {
-                setResult('error', data.message || 'Scan failed.');
+                if (data.requires_destination) {
+                    setResult('warn', 'No routing rule found. Please select the next department from the dropdown and scan again.');
+                    document.getElementById('nextDeptWrap').classList.remove('hidden');
+                    document.getElementById('next_department_id').focus();
+                } else {
+                    setResult('error', data.message || 'Scan failed.');
+                }
             }
         }
 
