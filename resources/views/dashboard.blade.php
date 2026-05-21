@@ -42,26 +42,39 @@
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Type</th>
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Citizen</th>
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Department</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">SLA</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Time Left / Over</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800 min-w-[160px]">SLA Usage</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-amber-50 bg-white">
                             @foreach($atRiskDocuments as $doc)
-                                <tr class="{{ $doc->sla_overdue ? 'bg-red-50' : '' }}">
+                                @php
+                                    $slaHours   = $doc->currentDepartment->sla_hours ?? 0;
+                                    $elapsed    = $doc->sla_elapsed_hours ?? 0;
+                                    $pct        = $slaHours > 0 ? min(round(($elapsed / $slaHours) * 100), 100) : 0;
+                                    $overdue    = $doc->sla_overdue ?? false;
+                                    $barColor   = $overdue ? 'bg-red-500' : ($pct >= 75 ? 'bg-amber-500' : 'bg-emerald-500');
+                                    $remaining  = $slaHours > 0 ? round($slaHours - $elapsed) : 0;
+                                    $overBy     = $slaHours > 0 ? round($elapsed - $slaHours) : 0;
+                                @endphp
+                                <tr class="{{ $overdue ? 'bg-red-50/60' : '' }}">
                                     <td class="px-4 py-3 text-sm font-mono font-semibold text-emerald-800">
                                         <a href="{{ url('/track/' . $doc->tracking_number) }}" class="hover:underline">{{ $doc->tracking_number }}</a>
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->document_type }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->citizen_name ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->currentDepartment->name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-500">{{ $doc->currentDepartment->sla_hours ?? '—' }}h</td>
-                                    <td class="px-4 py-3 text-sm font-semibold">
-                                        @if($doc->sla_overdue)
-                                            <span class="text-red-600">Overdue by {{ round($doc->sla_elapsed_hours - ($doc->currentDepartment->sla_hours ?? 0)) }}h</span>
-                                        @else
-                                            <span class="text-amber-700">~{{ round($doc->sla_remaining_hours) }}h remaining</span>
-                                        @endif
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="h-2 w-24 flex-shrink-0 overflow-hidden rounded-full bg-gray-200">
+                                                <div class="h-2 rounded-full {{ $barColor }} transition-all duration-500" style="width:{{ $pct }}%"></div>
+                                            </div>
+                                            @if($overdue)
+                                                <span class="text-xs font-semibold text-red-600 whitespace-nowrap">+{{ $overBy }}h over</span>
+                                            @else
+                                                <span class="text-xs font-semibold text-amber-700 whitespace-nowrap">~{{ $remaining }}h left</span>
+                                            @endif
+                                        </div>
+                                        <p class="mt-0.5 text-xs text-gray-400">{{ $slaHours }}h SLA · {{ $pct }}% used</p>
                                     </td>
                                 </tr>
                             @endforeach

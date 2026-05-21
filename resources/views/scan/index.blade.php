@@ -74,7 +74,15 @@
                     <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXX" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono uppercase tracking-widest">
                     <button id="manualSubmit" class="rounded-lg bg-[#1a5c1a] px-4 py-2 font-bold text-white">Submit</button>
                 </div>
-                <div id="result" class="mt-3 text-sm"></div>
+                {{-- Scan result toast --}}
+                <div id="result" class="mt-3 hidden">
+                    <div id="resultInner" class="flex items-start gap-3 rounded-xl border p-4 text-sm font-semibold shadow-sm">
+                        <div id="resultIcon" class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                            <svg id="resultIconSvg" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"></svg>
+                        </div>
+                        <span id="resultText" class="flex-1 leading-snug"></span>
+                    </div>
+                </div>
             </div>
 
             <div class="rounded-xl border border-[#e0e0e0] bg-white p-5">
@@ -153,8 +161,35 @@
         }
 
         function setResult(type, message) {
-            const cls = type === 'success' ? 'bg-green-100 text-green-800' : (type === 'warn' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800');
-            document.getElementById('result').innerHTML = `<div class="rounded-md px-3 py-2 ${cls}">${message}</div>`;
+            const wrap   = document.getElementById('result');
+            const inner  = document.getElementById('resultInner');
+            const icon   = document.getElementById('resultIcon');
+            const svg    = document.getElementById('resultIconSvg');
+            const text   = document.getElementById('resultText');
+
+            const styles = {
+                success: {
+                    inner: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                    icon:  'bg-emerald-100 text-emerald-700',
+                    path:  '<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>',
+                },
+                warn: {
+                    inner: 'border-amber-200 bg-amber-50 text-amber-900',
+                    icon:  'bg-amber-100 text-amber-700',
+                    path:  '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>',
+                },
+                error: {
+                    inner: 'border-red-200 bg-red-50 text-red-900',
+                    icon:  'bg-red-100 text-red-700',
+                    path:  '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>',
+                },
+            };
+            const s = styles[type] || styles.error;
+            inner.className = `flex items-start gap-3 rounded-xl border p-4 text-sm font-semibold shadow-sm ${s.inner}`;
+            icon.className  = `mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${s.icon}`;
+            svg.innerHTML   = s.path;
+            text.innerHTML  = message;
+            wrap.classList.remove('hidden');
         }
 
         async function submitScan(trackingNumber) {

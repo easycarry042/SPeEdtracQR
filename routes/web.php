@@ -23,7 +23,7 @@ use App\Http\Controllers\CitizenController;
 
 Route::get('/', function () {
     if (! auth()->check()) {
-        return redirect()->route('login');
+        return view('welcome');
     }
 
     return auth()->user()->hasRole('super_admin')

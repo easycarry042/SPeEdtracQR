@@ -80,6 +80,7 @@
 
                     @if($isAdmin || $isDeptAdmin)
                     <div class="my-1 mx-1 h-px bg-emerald-200/60 transition-[margin] duration-300 group-hover:mx-2"></div>
+                    <span class="max-w-0 overflow-hidden whitespace-nowrap px-3 pb-0.5 pt-1 text-[10px] font-bold uppercase tracking-widest text-emerald-700/60 opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100 select-none">Admin</span>
                     <a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.users*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
@@ -116,7 +117,13 @@
 
         <div class="flex min-w-0 flex-1 flex-col">
             @auth
-                <header class="sticky top-0 z-30 flex items-center justify-end gap-3 border-b border-emerald-200/40 bg-[#f1f2f1]/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
+                <header class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-emerald-300/50 bg-[#f1f2f1]/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8" style="box-shadow:0 1px 0 0 rgba(16,101,52,0.08)">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="hidden text-xs font-semibold tracking-wide text-emerald-800/60 sm:block">SPeED TraQR</span>
+                        <span class="hidden h-3.5 w-px bg-emerald-300/60 sm:block"></span>
+                        <span class="hidden truncate text-xs text-gray-500 sm:block">Document Tracking System</span>
+                    </div>
+                    <div class="flex items-center gap-3">
                     <a href="{{ route('documents.create') }}" class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-200/90 text-emerald-900 shadow-sm ring-1 ring-emerald-300/40 transition hover:scale-105 hover:bg-emerald-300/90 hover:shadow-md active:scale-95" title="New document">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
@@ -181,6 +188,7 @@
                             });
                         });
                     </script>
+                    </div>{{-- end flex items-center gap-3 --}}
                 </header>
             @endauth
 
