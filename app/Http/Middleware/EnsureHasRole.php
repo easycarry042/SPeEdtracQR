@@ -27,12 +27,9 @@ class EnsureHasRole
 
     private function redirectToOwnDashboard($user): Response
     {
-        if ($user->hasRole('admin')) {
-            return redirect()->route('admin.dashboard')
-                ->with('error', 'You do not have permission to access that area.');
-        }
+        $route = $user->hasRole('super_admin') ? 'admin.dashboard' : 'dashboard';
 
-        return redirect()->route('dashboard')
+        return redirect()->route($route)
             ->with('error', 'You do not have permission to access that area.');
     }
 }

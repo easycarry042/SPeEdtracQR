@@ -34,7 +34,8 @@
 
                 <nav class="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-1 py-4 transition-[padding] duration-300 ease-out group-hover:px-2">
                     @php
-                        $isAdmin        = $user?->hasRole('admin') ?? false;
+                        $isAdmin     = $user?->hasRole('super_admin') ?? false;
+                        $isDeptAdmin = $user?->hasRole('department_admin') ?? false;
                         $dashboardRoute = $isAdmin ? route('admin.dashboard') : route('dashboard');
                         $dashboardActive = $isAdmin
                             ? request()->routeIs('admin.dashboard')
@@ -77,7 +78,7 @@
                         <span class="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Movements</span>
                     </a>
 
-                    @if($isAdmin)
+                    @if($isAdmin || $isDeptAdmin)
                     <div class="my-1 mx-1 h-px bg-emerald-200/60 transition-[margin] duration-300 group-hover:mx-2"></div>
                     <a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.users*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
@@ -85,6 +86,8 @@
                         </span>
                         <span class="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Users</span>
                     </a>
+                    @endif
+                    @if($isAdmin)
                     <a href="{{ route('admin.departments.index') }}" class="{{ request()->routeIs('admin.departments*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.departments*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L2 9v2h20V9L12 3zM4 13v5h3v-5H4zm5 0v5h3v-5H9zm5 0v5h3v-5h-3zm5 0v5h-2v-5h2zm-15 7h16v2H4v-2z"/></svg>

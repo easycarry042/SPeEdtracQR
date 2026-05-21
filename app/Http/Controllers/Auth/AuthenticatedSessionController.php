@@ -34,11 +34,14 @@ class AuthenticatedSessionController extends Controller
 
     private function redirectByRole($user): RedirectResponse
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasRole('super_admin')) {
             return redirect()->intended(route('admin.dashboard', absolute: false));
         }
 
-        // Default: staff and any other authenticated role
+        if ($user->hasRole('receiving_staff')) {
+            return redirect()->intended(route('scan.index', absolute: false));
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

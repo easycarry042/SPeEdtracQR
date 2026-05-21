@@ -12,7 +12,7 @@ class AdminController extends Controller
     public function dashboard()
     {
         $totalDocuments   = Document::count();
-        $totalStaff       = User::role('staff')->count();
+        $totalStaff       = User::role(['staff', 'receiving_staff', 'department_admin'])->count();
         $totalDepartments = Department::count();
         $pendingDocuments = Document::whereIn('status', ['pending', 'in_transit', 'returned'])->count();
 

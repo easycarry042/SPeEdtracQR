@@ -103,9 +103,24 @@ class DocumentWebController extends Controller
         return view('documents.qr-sticker', compact('document', 'trackingUrl'));
     }
 
+    public function complete(string $trackingNumber)
+    {
+        $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
+
+        if ($document->status === 'completed') {
+            return response()->json(['message' => 'Document is already completed.'], 422);
+        }
+
+        $document->update([
+            'status'       => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        return response()->json(['message' => "Document {$trackingNumber} marked as completed."]);
+    }
+
     private function authorizeDocumentView(Document $document): void
     {
-        // Authenticated staff can open confirmation / sticker / reprint for any document.
         if (! auth()->check()) {
             abort(403);
         }
@@ -113,9 +128,8 @@ class DocumentWebController extends Controller
 
     private function ensureCanCreate(): void
     {
-        // Any authenticated user may create submissions (route middleware enforces auth).
-        if (! auth()->check()) {
-            abort(403, 'You must be signed in to create document submissions.');
+        if (! auth()->user()?->hasAnyRole(['staff', 'super_admin'])) {
+            abort(403, 'Only staff members can create document submissions.');
         }
     }
 }

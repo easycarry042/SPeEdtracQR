@@ -9,14 +9,18 @@ return new class extends Migration
     public function up()
     {
         Schema::table('departments', function (Blueprint $table) {
-            $table->integer('sla_hours')->default(48)->after('email');
+            if (! Schema::hasColumn('departments', 'sla_hours')) {
+                $table->integer('sla_hours')->default(48)->after('email');
+            }
         });
     }
 
     public function down()
     {
         Schema::table('departments', function (Blueprint $table) {
-            $table->dropColumn('sla_hours');
+            if (Schema::hasColumn('departments', 'sla_hours')) {
+                $table->dropColumn('sla_hours');
+            }
         });
     }
 };

@@ -15,7 +15,7 @@ class UserSeeder extends Seeder
         // Clear permission cache so freshly seeded roles are visible
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $adminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $staffRole = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
 
         // ── Admin ──────────────────────────────────────────────────────────────
@@ -24,8 +24,8 @@ class UserSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@speedtraqr.com'],
             [
-                'name'     => 'System Admin',
-                'password' => bcrypt('admin1234'),
+                'name'     => 'Super Admin',
+                'password' => bcrypt('password123'),
             ]
         );
         $admin->syncRoles([$adminRole]);
@@ -77,7 +77,7 @@ class UserSeeder extends Seeder
             $user->syncRoles([$staffRole]);
         }
 
-        $this->command->info('✓ Admin seeded  → admin@speedtraqr.com  / admin1234');
-        $this->command->info('✓ Staff seeded  → *@speedtraqr.com       / staff1234');
+        $this->command->info('✓ Super Admin  → admin@speedtraqr.com  / password123');
+        $this->command->info('✓ Staff        → *@speedtraqr.com       / staff1234');
     }
 }

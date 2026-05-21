@@ -26,7 +26,7 @@ Route::get('/', function () {
         return redirect()->route('login');
     }
 
-    return auth()->user()->hasRole('admin')
+    return auth()->user()->hasRole('super_admin')
         ? redirect()->route('admin.dashboard')
         : redirect()->route('dashboard');
 });
@@ -59,19 +59,12 @@ Route::prefix('citizen')->name('citizen.')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'verified', 'role:admin'])
+// Super Admin only
+Route::middleware(['auth', 'verified', 'role:super_admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
-
-        // User management
-        Route::get('users',                         [AdminUserController::class, 'index'])->name('users.index');
-        Route::get('users/create',                  [AdminUserController::class, 'create'])->name('users.create');
-        Route::post('users',                        [AdminUserController::class, 'store'])->name('users.store');
-        Route::get('users/{user}/edit',             [AdminUserController::class, 'edit'])->name('users.edit');
-        Route::put('users/{user}',                  [AdminUserController::class, 'update'])->name('users.update');
-        Route::patch('users/{user}/toggle-active',  [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
 
         // Department management
         Route::get('departments',                   [AdminDepartmentController::class, 'index'])->name('departments.index');
@@ -83,6 +76,19 @@ Route::middleware(['auth', 'verified', 'role:admin'])
 
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+    });
+
+// Super Admin + Department Admin: user management (controller enforces dept scoping)
+Route::middleware(['auth', 'verified', 'role:super_admin,department_admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('users',                        [AdminUserController::class, 'index'])->name('users.index');
+        Route::get('users/create',                 [AdminUserController::class, 'create'])->name('users.create');
+        Route::post('users',                       [AdminUserController::class, 'store'])->name('users.store');
+        Route::get('users/{user}/edit',            [AdminUserController::class, 'edit'])->name('users.edit');
+        Route::put('users/{user}',                 [AdminUserController::class, 'update'])->name('users.update');
+        Route::patch('users/{user}/toggle-active', [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
     });
 
 /*
@@ -105,6 +111,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents', [DocumentWebController::class, 'store'])->name('documents.store');
     Route::get('/documents/{document}/created', [DocumentWebController::class, 'created'])->name('documents.created');
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
+    Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
 
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
     Route::get('/analytics/data', [AnalyticsController::class, 'chartData'])->name('analytics.data');

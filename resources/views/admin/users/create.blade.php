@@ -52,7 +52,7 @@
                             <option value="">Select a role…</option>
                             @foreach($roles as $role)
                                 <option value="{{ $role->name }}" @selected(old('role') === $role->name)>
-                                    {{ ucfirst($role->name) }}
+                                    {{ ucwords(str_replace('_', ' ', $role->name)) }}
                                 </option>
                             @endforeach
                         </select>
@@ -60,15 +60,22 @@
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700">Department</label>
-                        <select name="department_id"
-                                class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
-                            <option value="">None</option>
-                            @foreach($departments as $dept)
-                                <option value="{{ $dept->id }}" @selected(old('department_id') == $dept->id)>
-                                    {{ $dept->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        @if($deptLocked)
+                            <input type="text" value="{{ $departments->first()?->name ?? '—' }}" disabled
+                                   class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 shadow-sm cursor-not-allowed">
+                            <input type="hidden" name="department_id" value="{{ $departments->first()?->id }}">
+                            <p class="mt-1 text-xs text-gray-400">Assigned to your department automatically.</p>
+                        @else
+                            <select name="department_id"
+                                    class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
+                                <option value="">None</option>
+                                @foreach($departments as $dept)
+                                    <option value="{{ $dept->id }}" @selected(old('department_id') == $dept->id)>
+                                        {{ $dept->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
                     </div>
                 </div>
 

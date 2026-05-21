@@ -57,6 +57,17 @@
                     </select>
                 </div>
 
+                {{-- Mark as complete: shown when no routing rule exists --}}
+                <div id="completeWrap" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-sm font-semibold text-amber-800">Is this the final stop?</p>
+                    <p class="mt-0.5 text-xs text-amber-700">If no next department applies, you can close this document here.</p>
+                    <input type="hidden" id="pendingTrackingNumber" value="">
+                    <button id="completeDocBtn"
+                            class="mt-3 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-700">
+                        Mark as Completed
+                    </button>
+                </div>
+
                 <div id="reader" class="mt-4 overflow-hidden rounded-lg border border-gray-300"></div>
 
                 <div class="mt-3 flex gap-2">
@@ -174,13 +185,15 @@
             if (res.ok) {
                 const next = data.next_department ? ` → Next: <strong>${data.next_department.name}</strong>` : '';
                 setResult('success', `${data.message}${next}`);
-                // Reset next-dept picker after successful scan
                 document.getElementById('next_department_id').value = '';
+                document.getElementById('completeWrap').classList.add('hidden');
             } else {
                 if (data.requires_destination) {
-                    setResult('warn', 'No routing rule found. Please select the next department from the dropdown and scan again.');
+                    setResult('warn', 'No routing rule found. Select the next department below, or mark as completed if this is the final stop.');
                     document.getElementById('nextDeptWrap').classList.remove('hidden');
                     document.getElementById('next_department_id').focus();
+                    document.getElementById('completeWrap').classList.remove('hidden');
+                    document.getElementById('pendingTrackingNumber').value = trackingNumber;
                 } else {
                     setResult('error', data.message || 'Scan failed.');
                 }
@@ -210,6 +223,23 @@
                 await refreshOfflineBadge();
             }
         }
+
+        document.getElementById('completeDocBtn').addEventListener('click', async () => {
+            const tracking = document.getElementById('pendingTrackingNumber').value;
+            if (! tracking) return;
+            const res = await fetch(`/documents/${tracking}/complete`, {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setResult('success', data.message);
+                document.getElementById('completeWrap').classList.add('hidden');
+                document.getElementById('nextDeptWrap').classList.add('hidden');
+            } else {
+                setResult('error', data.message || 'Failed to complete document.');
+            }
+        });
 
         document.getElementById('syncNowBtn').addEventListener('click', syncNow);
         window.addEventListener('online', syncNow);

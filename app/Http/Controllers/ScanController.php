@@ -183,8 +183,8 @@ class ScanController extends Controller
 
     private function ensureCanScan(): void
     {
-        if (! auth()->check()) {
-            abort(403, 'You must be signed in to scan documents.');
+        if (! auth()->user()?->hasAnyRole(['staff', 'receiving_staff', 'super_admin'])) {
+            abort(403, 'You do not have permission to scan documents.');
         }
     }
 }

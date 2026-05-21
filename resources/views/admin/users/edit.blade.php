@@ -58,7 +58,7 @@
                                 class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none @error('role') border-red-400 @enderror">
                             @foreach($roles as $role)
                                 <option value="{{ $role->name }}" @selected(old('role', $user->roles->first()?->name) === $role->name)>
-                                    {{ ucfirst($role->name) }}
+                                    {{ ucwords(str_replace('_', ' ', $role->name)) }}
                                 </option>
                             @endforeach
                         </select>
@@ -66,20 +66,25 @@
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700">Department</label>
-                        <select name="department_id"
-                                class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
-                            <option value="">None</option>
-                            @foreach($departments as $dept)
-                                <option value="{{ $dept->id }}" @selected(old('department_id', $user->department_id) == $dept->id)>
-                                    {{ $dept->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        @if($deptLocked)
+                            <input type="text" value="{{ $departments->first()?->name ?? '—' }}" disabled
+                                   class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 shadow-sm cursor-not-allowed">
+                            <input type="hidden" name="department_id" value="{{ $departments->first()?->id }}">
+                        @else
+                            <select name="department_id"
+                                    class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
+                                <option value="">None</option>
+                                @foreach($departments as $dept)
+                                    <option value="{{ $dept->id }}" @selected(old('department_id', $user->department_id) == $dept->id)>
+                                        {{ $dept->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
                     </div>
                 </div>
 
                 <div class="flex items-center justify-between border-t border-gray-100 pt-4">
-                    {{-- Deactivate / Activate toggle --}}
                     @if($user->id !== auth()->id())
                         <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="m-0">
                             @csrf @method('PATCH')

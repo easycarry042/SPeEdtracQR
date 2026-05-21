@@ -27,25 +27,27 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission]);
         }
 
-        $clerkRole = Role::firstOrCreate(['name' => 'clerk']);
-        $clerkRole->syncPermissions(['create documents', 'scan documents']);
+        $staffRole = Role::firstOrCreate(['name' => 'staff']);
+        $staffRole->syncPermissions(['create documents', 'scan documents', 'view reports']);
 
-        $departmentHeadRole = Role::firstOrCreate(['name' => 'department_head']);
-        $departmentHeadRole->syncPermissions(['scan documents', 'view reports']);
+        $receivingRole = Role::firstOrCreate(['name' => 'receiving_staff']);
+        $receivingRole->syncPermissions(['scan documents']);
 
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $adminRole->syncPermissions(Permission::pluck('name')->all());
+        $deptAdminRole = Role::firstOrCreate(['name' => 'department_admin']);
+        $deptAdminRole->syncPermissions(['manage users', 'view reports', 'view all documents']);
+
+        $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
+        $superAdminRole->syncPermissions(Permission::pluck('name')->all());
 
         $admin = User::firstOrCreate(
             ['email' => 'admin@speedtraqr.com'],
             [
-                'name' => 'Admin',
-                'password' => bcrypt('password123'),
+                'name'      => 'Super Admin',
+                'password'  => bcrypt('password123'),
+                'is_active' => true,
             ]
         );
 
-        if (method_exists($admin, 'assignRole')) {
-            $admin->assignRole('admin');
-        }
+        $admin->syncRoles(['super_admin']);
     }
 }

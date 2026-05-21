@@ -7,13 +7,22 @@ use App\Models\Department;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    // Roles a Department Admin is allowed to assign
+    private const DEPT_ADMIN_ASSIGNABLE_ROLES = ['staff', 'receiving_staff'];
+
     public function index(Request $request)
     {
         $query = User::with(['roles', 'department'])->orderBy('name');
+
+        if ($this->isDeptAdmin()) {
+            $query->where('department_id', $this->authDeptId())
+                  ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', ['super_admin', 'department_admin']));
+        }
 
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
@@ -26,18 +35,19 @@ class UserController extends Controller
             $query->whereHas('roles', fn ($q) => $q->where('name', $request->role));
         }
 
-        $users       = $query->paginate(20)->withQueryString();
-        $roles       = Role::orderBy('name')->get();
+        $users = $query->paginate(20)->withQueryString();
+        $roles = $this->assignableRoles();
 
         return view('admin.users.index', compact('users', 'roles'));
     }
 
     public function create()
     {
-        $roles       = Role::orderBy('name')->get();
-        $departments = Department::orderBy('name')->get();
+        $roles       = $this->assignableRoles();
+        $departments = $this->assignableDepartments();
+        $deptLocked  = $this->isDeptAdmin();
 
-        return view('admin.users.create', compact('roles', 'departments'));
+        return view('admin.users.create', compact('roles', 'departments', 'deptLocked'));
     }
 
     public function store(Request $request)
@@ -46,15 +56,21 @@ class UserController extends Controller
             'name'          => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
             'password'      => 'required|string|min:8|confirmed',
-            'role'          => 'required|exists:roles,name',
+            'role'          => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
         ]);
+
+        $this->authorizeRole($validated['role']);
+
+        $deptId = $this->isDeptAdmin()
+            ? $this->authDeptId()
+            : ($validated['department_id'] ?? null);
 
         $user = User::create([
             'name'          => $validated['name'],
             'email'         => $validated['email'],
             'password'      => Hash::make($validated['password']),
-            'department_id' => $validated['department_id'] ?? null,
+            'department_id' => $deptId,
             'is_active'     => true,
         ]);
 
@@ -66,26 +82,37 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
-        $roles       = Role::orderBy('name')->get();
-        $departments = Department::orderBy('name')->get();
+        $this->authorizeDeptAccess($user);
 
-        return view('admin.users.edit', compact('user', 'roles', 'departments'));
+        $roles       = $this->assignableRoles();
+        $departments = $this->assignableDepartments();
+        $deptLocked  = $this->isDeptAdmin();
+
+        return view('admin.users.edit', compact('user', 'roles', 'departments', 'deptLocked'));
     }
 
     public function update(Request $request, User $user)
     {
+        $this->authorizeDeptAccess($user);
+
         $validated = $request->validate([
             'name'          => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email,' . $user->id,
             'password'      => 'nullable|string|min:8|confirmed',
-            'role'          => 'required|exists:roles,name',
+            'role'          => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
         ]);
+
+        $this->authorizeRole($validated['role']);
+
+        $deptId = $this->isDeptAdmin()
+            ? $this->authDeptId()
+            : ($validated['department_id'] ?? null);
 
         $user->update([
             'name'          => $validated['name'],
             'email'         => $validated['email'],
-            'department_id' => $validated['department_id'] ?? null,
+            'department_id' => $deptId,
         ]);
 
         if (! empty($validated['password'])) {
@@ -100,6 +127,8 @@ class UserController extends Controller
 
     public function toggleActive(User $user)
     {
+        $this->authorizeDeptAccess($user);
+
         if ($user->id === auth()->id()) {
             return back()->with('error', 'You cannot deactivate your own account.');
         }
@@ -109,5 +138,49 @@ class UserController extends Controller
         $action = $user->is_active ? 'activated' : 'deactivated';
 
         return back()->with('success', "Account for {$user->name} has been {$action}.");
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private function isDeptAdmin(): bool
+    {
+        return auth()->user()->hasRole('department_admin');
+    }
+
+    private function authDeptId(): ?int
+    {
+        return auth()->user()->department_id;
+    }
+
+    private function assignableRoles()
+    {
+        if ($this->isDeptAdmin()) {
+            return Role::whereIn('name', self::DEPT_ADMIN_ASSIGNABLE_ROLES)->orderBy('name')->get();
+        }
+
+        return Role::orderBy('name')->get();
+    }
+
+    private function assignableDepartments()
+    {
+        if ($this->isDeptAdmin()) {
+            return Department::where('id', $this->authDeptId())->get();
+        }
+
+        return Department::orderBy('name')->get();
+    }
+
+    private function authorizeRole(string $role): void
+    {
+        if ($this->isDeptAdmin() && ! in_array($role, self::DEPT_ADMIN_ASSIGNABLE_ROLES)) {
+            abort(403, 'You cannot assign this role.');
+        }
+    }
+
+    private function authorizeDeptAccess(User $user): void
+    {
+        if ($this->isDeptAdmin() && $user->department_id !== $this->authDeptId()) {
+            abort(403, 'You can only manage users in your own department.');
+        }
     }
 }
