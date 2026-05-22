@@ -1,6 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="text-4xl font-extrabold text-[#1a5c1a]">Scan Document</h2>
+        <div>
+            <h2 class="text-4xl font-extrabold text-[#1a5c1a]">Scan Document</h2>
+            @if(!$isOrgWide && $dept)
+                <p class="mt-1 text-sm text-emerald-700">Scanning as <span class="font-semibold">{{ $dept->name }}</span></p>
+            @endif
+        </div>
     </x-slot>
 
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -23,11 +28,14 @@
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-semibold text-gray-700">Department</label>
-                        <select id="department_id" class="w-full rounded-lg border border-gray-300 px-3 py-2">
+                        <select id="department_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 {{ !$isOrgWide ? 'bg-gray-100' : '' }}" @disabled(!$isOrgWide)>
                             @foreach($departments as $department)
                                 <option value="{{ $department->id }}" @selected((int)$userDepartmentId === (int)$department->id)>{{ $department->name }}</option>
                             @endforeach
                         </select>
+                        @if(!$isOrgWide)
+                            <p class="mt-1 text-xs text-gray-500">Department is fixed to your account.</p>
+                        @endif
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-semibold text-gray-700">Action</label>
@@ -43,6 +51,13 @@
                     <input id="remarks" class="w-full rounded-lg border border-gray-300 px-3 py-2" />
                 </div>
 
+                <div class="mt-3">
+                    <label class="mb-1 block text-sm font-semibold text-gray-700">Photo (optional)</label>
+                    <input id="scanAttachment" type="file" accept="image/*"
+                           class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
+                    <p class="mt-1 text-xs text-gray-500">Attach a photo of the document when scanning (requires internet).</p>
+                </div>
+
                 {{-- Next department: shown for OUT scans only --}}
                 <div id="nextDeptWrap" class="mt-3 hidden">
                     <label class="mb-1 block text-sm font-semibold text-gray-700">
@@ -51,7 +66,7 @@
                     </label>
                     <select id="next_department_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <option value="">— Auto (use routing rule) —</option>
-                        @foreach($departments as $department)
+                        @foreach($allDepartments as $department)
                             <option value="{{ $department->id }}">{{ $department->name }}</option>
                         @endforeach
                     </select>
@@ -101,6 +116,7 @@
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const scanUrl = @json(route('api.scan.store'));
         let action = 'in';
         let queueCount = 0;
 
@@ -194,6 +210,9 @@
 
         async function submitScan(trackingNumber) {
             const nextDeptVal = document.getElementById('next_department_id').value;
+            const attachmentInput = document.getElementById('scanAttachment');
+            const hasFile = attachmentInput?.files?.length > 0;
+
             const payload = {
                 tracking_number:    trackingNumber,
                 department_id:      document.getElementById('department_id').value,
@@ -205,23 +224,43 @@
             };
 
             if (!navigator.onLine) {
+                if (hasFile) {
+                    setResult('warn', 'Photos cannot be uploaded offline. Submit without a photo, or wait until you are online.');
+                    return;
+                }
                 await addPending(payload);
                 await refreshOfflineBadge();
                 setResult('warn', 'Offline detected: scan queued.');
                 return;
             }
 
-            const res = await fetch('/api/scan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            let res;
+            if (hasFile) {
+                const formData = new FormData();
+                Object.entries(payload).forEach(([key, value]) => {
+                    if (value !== null && value !== '') formData.append(key, value);
+                });
+                formData.append('attachment', attachmentInput.files[0]);
+                res = await fetch(scanUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                    body: formData,
+                });
+            } else {
+                res = await fetch(scanUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+            }
+
             const data = await res.json();
             if (res.ok) {
                 const next = data.next_department ? ` → Next: <strong>${data.next_department.name}</strong>` : '';
                 setResult('success', `${data.message}${next}`);
                 document.getElementById('next_department_id').value = '';
                 document.getElementById('completeWrap').classList.add('hidden');
+                if (attachmentInput) attachmentInput.value = '';
             } else {
                 if (data.requires_destination) {
                     setResult('warn', 'No routing rule found. Select the next department below, or mark as completed if this is the final stop.');

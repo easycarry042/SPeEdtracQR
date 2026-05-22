@@ -10,6 +10,7 @@
 </head>
 @php
     $user = auth()->user();
+    $user?->loadMissing('department', 'roles');
     $name = $user->name ?? 'User';
     $parts = preg_split('/\s+/', trim($name));
     $initials = strtoupper(
@@ -17,6 +18,9 @@
             ? mb_substr($parts[0], 0, 1).mb_substr(end($parts), 0, 1)
             : mb_substr($name, 0, 2)
     );
+    $departmentName = $user?->department?->name;
+    $roleLabel = $user?->roles->first()?->name;
+    $roleLabel = $roleLabel ? str_replace('_', ' ', ucwords($roleLabel, '_')) : null;
 @endphp
 <body class="min-h-screen bg-[#f1f2f1] antialiased text-gray-900">
     <div class="flex min-h-screen">
@@ -47,12 +51,15 @@
                         </span>
                         <span class="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Dashboard</span>
                     </a>
+                    @if($isAdmin || $isDeptAdmin)
                     <a href="{{ route('analytics') }}" class="{{ request()->routeIs('analytics*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('analytics*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="10" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
                         </span>
                         <span class="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Analytics</span>
                     </a>
+                    @endif
+                    @unless($isAdmin)
                     <a href="{{ route('track.index') }}" class="{{ request()->routeIs('track.*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('track.*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M5 4l13 8-13 8V4z"/></svg>
@@ -61,10 +68,11 @@
                     </a>
                     <a href="{{ route('scan.index') }}" class="{{ request()->routeIs('scan.*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('scan.*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
-                            <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M5 19H3a2 2 0 01-2-2v-2m8-4h.₀₁M1₂ ₁₂h.₀₁M₁₆ ₁₂h.₀₁M₈ ₁₂h.₀₁"/></svg>
+                            <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M5 19H3a2 2 0 01-2-2v-2m8-4h.01M12 12h.01M16 12h.01M8 12h.01"/></svg>
                         </span>
                         <span class="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Scan</span>
                     </a>
+                    @endunless
                     <a href="{{ route('history') }}" class="{{ request()->routeIs('history*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('history*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
@@ -118,18 +126,25 @@
         <div class="flex min-w-0 flex-1 flex-col">
             @auth
                 <header class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-emerald-300/50 bg-[#f1f2f1]/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8" style="box-shadow:0 1px 0 0 rgba(16,101,52,0.08)">
-                    <div class="flex items-center gap-2 min-w-0">
+                    <div class="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
                         <span class="hidden text-xs font-semibold tracking-wide text-emerald-800/60 sm:block">SPeED TraQR</span>
-                        <span class="hidden h-3.5 w-px bg-emerald-300/60 sm:block"></span>
-                        <span class="hidden truncate text-xs text-gray-500 sm:block">Document Tracking System</span>
+                        @if($departmentName)
+                            <span class="inline-flex max-w-[14rem] items-center truncate rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 sm:max-w-xs" title="Your department">
+                                {{ $departmentName }}
+                            </span>
+                        @elseif($roleLabel && ($user?->hasRole('super_admin') ?? false))
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">All departments</span>
+                        @endif
                     </div>
                     <div class="flex items-center gap-3">
+                    @if(!$isAdmin)
                     <a href="{{ route('documents.create') }}" class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-200/90 text-emerald-900 shadow-sm ring-1 ring-emerald-300/40 transition hover:scale-105 hover:bg-emerald-300/90 hover:shadow-md active:scale-95" title="New document">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 11v6M9 14h6"/>
                         </svg>
                     </a>
+                    @endif
 
                     {{-- Notification dropdown --}}
                     <div class="relative" id="notifDropdown">
@@ -140,12 +155,29 @@
                                 title="Notifications"
                                 aria-haspopup="true">
                             <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2z"/></svg>
+                            @if(($headerNotifications ?? collect())->isNotEmpty())
+                                <span class="absolute right-1 top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{{ $headerNotifications->count() }}</span>
+                            @endif
                         </button>
                         <div id="notifPanel"
                              class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl shadow-gray-900/15"
                              style="z-index:9999;">
                             <p class="border-b border-gray-100 px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Notifications</p>
-                            <p class="px-4 py-6 text-center text-sm text-gray-500">You&apos;re all caught up — no new notifications.</p>
+                            @forelse($headerNotifications ?? [] as $notification)
+                                <form method="POST" action="{{ route('notifications.read', $notification) }}" class="border-b border-gray-50 last:border-0">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit" class="w-full px-4 py-3 text-left hover:bg-emerald-50">
+                                        <p class="text-sm font-semibold text-gray-900">{{ $notification->message }}</p>
+                                        @if($notification->document)
+                                            <p class="mt-0.5 text-xs text-gray-500">{{ $notification->document->document_type }}</p>
+                                        @endif
+                                        <p class="mt-1 text-[11px] text-emerald-700">Tap to open inbox</p>
+                                    </button>
+                                </form>
+                            @empty
+                                <p class="px-4 py-6 text-center text-sm text-gray-500">You&apos;re all caught up — no new notifications.</p>
+                            @endforelse
                         </div>
                     </div>
 
@@ -160,8 +192,17 @@
                             <svg class="h-4 w-4 text-emerald-900/70" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                         </button>
                         <div id="profilePanel"
-                             class="dropdown-panel hidden absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-1 shadow-xl shadow-gray-900/10"
+                             class="dropdown-panel hidden absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-1 shadow-xl shadow-gray-900/10"
                              style="z-index:9999;">
+                            <div class="border-b border-gray-200 px-4 py-3">
+                                <p class="truncate text-sm font-semibold text-gray-900">{{ $name }}</p>
+                                @if($departmentName)
+                                    <p class="mt-0.5 text-xs text-emerald-700">{{ $departmentName }}</p>
+                                @endif
+                                @if($roleLabel)
+                                    <p class="text-xs text-gray-500">{{ $roleLabel }}</p>
+                                @endif
+                            </div>
                             <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Manage Profile</a>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf

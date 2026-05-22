@@ -7,19 +7,30 @@ use App\Jobs\CheckSlaWarningJob;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentScan;
-use App\Models\RoutingRule;
+use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ScanController extends Controller
 {
     public function index()
     {
-        $departments = Department::orderBy('name')->get();
-        $sessionScans = collect(session('scanner.recent', []))->take(10);
-        $userDepartmentId = auth()->user()?->department_id;
+        if (auth()->user()?->hasRole('super_admin')) {
+            return redirect()->route('admin.dashboard');
+        }
 
-        return view('scan.index', compact('departments', 'sessionScans', 'userDepartmentId'));
+        $user = auth()->user();
+        $isOrgWide = DepartmentScope::isOrgWide($user);
+        $departments = $isOrgWide
+            ? Department::orderBy('name')->get()
+            : Department::where('id', $user?->department_id)->get();
+        $allDepartments = Department::orderBy('name')->get();
+        $sessionScans = collect(session('scanner.recent', []))->take(10);
+        $userDepartmentId = $user?->department_id;
+        $dept = $user?->department;
+
+        return view('scan.index', compact('departments', 'allDepartments', 'sessionScans', 'userDepartmentId', 'isOrgWide', 'dept'));
     }
 
     public function store(Request $request)
@@ -27,14 +38,17 @@ class ScanController extends Controller
         $this->ensureCanScan();
 
         $validated = $request->validate([
-            'tracking_number'    => 'required|string',
-            'department_id'      => 'required|exists:departments,id',
-            'action'             => 'required|in:in,out',
-            'remarks'            => 'nullable|string',
-            'scanned_at'         => 'nullable|date',
-            'offline_uuid'       => 'nullable|string',
+            'tracking_number' => 'required|string',
+            'department_id' => 'required|exists:departments,id',
+            'action' => 'required|in:in,out',
+            'remarks' => 'nullable|string',
+            'scanned_at' => 'nullable|date',
+            'offline_uuid' => 'nullable|string',
             'next_department_id' => 'nullable|exists:departments,id',
+            'attachment' => 'nullable|image|max:10240',
         ]);
+
+        $this->ensureDepartmentForScan((int) $validated['department_id']);
 
         $document = Document::where('tracking_number', $validated['tracking_number'])->first();
         if (! $document) {
@@ -45,7 +59,29 @@ class ScanController extends Controller
             return response()->json(['message' => 'Document already completed.'], 422);
         }
 
+        if ($validated['action'] === 'out'
+            && (int) $document->current_department_id !== (int) $validated['department_id']) {
+            return response()->json([
+                'message' => 'This document is not currently at your department.',
+            ], 422);
+        }
+
         $scan = $this->recordScan($document, $validated);
+
+        if ($request->hasFile('attachment')) {
+            $path = $request->file('attachment')->store('document-attachments', 'public');
+            if (Schema::hasColumn('document_scans', 'attachment_path')) {
+                $scan->update(['attachment_path' => $path]);
+            }
+            if (Schema::hasTable('document_attachments')) {
+                $document->attachments()->create([
+                    'file_path' => $path,
+                    'uploaded_by' => auth()->id(),
+                    'department_id' => (int) $validated['department_id'],
+                    'sort_order' => $document->attachments()->count(),
+                ]);
+            }
+        }
         $nextDepartment = null;
 
         if ($validated['action'] === 'in') {
@@ -58,24 +94,20 @@ class ScanController extends Controller
             CheckSlaWarningJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($warningHours));
             CheckSlaJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($slaHours));
         } else {
-            $rule = RoutingRule::where('document_type', $document->document_type)
-                ->where('from_department_id', $validated['department_id'])
-                ->orderBy('step_order')
-                ->first();
-
             $manualNextId = $validated['next_department_id'] ?? null;
+            $routedNext = $document->getNextDepartment();
 
             if ($manualNextId) {
                 $nextDepartment = Department::find($manualNextId);
                 $document->current_department_id = $manualNextId;
                 $document->status = 'in_transit';
-            } elseif ($rule) {
-                $nextDepartment = Department::find($rule->to_department_id);
-                $document->current_department_id = $rule->to_department_id;
+            } elseif ($routedNext) {
+                $nextDepartment = $routedNext;
+                $document->current_department_id = $routedNext->id;
                 $document->status = 'in_transit';
             } else {
                 return response()->json([
-                    'message'              => 'No routing rule found for this document type. Please select the next department.',
+                    'message' => 'No next step in this document\'s route. Select the next department or mark the document complete.',
                     'requires_destination' => true,
                 ], 422);
             }
@@ -112,9 +144,18 @@ class ScanController extends Controller
         $synced = [];
         $failed = [];
         foreach ($payload['scans'] as $item) {
+            try {
+                $this->ensureDepartmentForScan((int) $item['department_id']);
+            } catch (HttpException $e) {
+                $failed[] = ['offline_uuid' => $item['offline_uuid'] ?? null, 'reason' => $e->getMessage()];
+
+                continue;
+            }
+
             $document = Document::where('tracking_number', $item['tracking_number'])->first();
             if (! $document || $document->status === 'completed') {
                 $failed[] = ['offline_uuid' => $item['offline_uuid'] ?? null, 'reason' => 'Document not valid for scan'];
+
                 continue;
             }
 
@@ -127,7 +168,7 @@ class ScanController extends Controller
 
     private function recordScan(Document $document, array $data): DocumentScan
     {
-        if (!empty($data['offline_uuid']) && Schema::hasColumn('document_scans', 'offline_uuid')) {
+        if (! empty($data['offline_uuid']) && Schema::hasColumn('document_scans', 'offline_uuid')) {
             $existing = DocumentScan::where('offline_uuid', $data['offline_uuid'])->first();
             if ($existing) {
                 return $existing;
@@ -183,8 +224,17 @@ class ScanController extends Controller
 
     private function ensureCanScan(): void
     {
-        if (! auth()->user()?->hasAnyRole(['staff', 'receiving_staff', 'super_admin'])) {
+        if (! auth()->user()?->hasAnyRole(['staff', 'receiving_staff', 'department_admin'])) {
             abort(403, 'You do not have permission to scan documents.');
+        }
+    }
+
+    private function ensureDepartmentForScan(int $departmentId): void
+    {
+        $allowed = DepartmentScope::departmentId();
+
+        if ($allowed !== null && $departmentId !== $allowed) {
+            abort(403, 'You can only record scans for your own department.');
         }
     }
 }

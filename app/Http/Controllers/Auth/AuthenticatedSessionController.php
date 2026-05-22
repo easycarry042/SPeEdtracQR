@@ -39,7 +39,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->hasRole('receiving_staff')) {
-            return redirect()->intended(route('scan.index', absolute: false));
+            return redirect()->intended(route('documents.create', absolute: false));
         }
 
         return redirect()->intended(route('dashboard', absolute: false));
@@ -56,6 +56,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('login');
     }
 }

@@ -2,63 +2,45 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
-use App\Models\Department;
 use App\Models\DocumentScan;
-use Illuminate\Support\Facades\DB;
+use App\Support\DepartmentScope;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    use ScopesByDepartment;
+
     public function index()
     {
-        $user       = auth()->user();
-        $isOrgWide  = $user->hasRole('super_admin');
-        $deptId     = $user->department_id;
+        $user = auth()->user();
+        $isOrgWide = DepartmentScope::isOrgWide($user);
+        $dept = $user->department;
 
-        $docScope = function ($q) use ($isOrgWide, $deptId) {
-            if (! $isOrgWide && $deptId) {
-                $q->where(function ($inner) use ($deptId) {
-                    $inner->where('current_department_id', $deptId)
-                          ->orWhereHas('scans', fn ($s) => $s->where('department_id', $deptId));
-                });
-            }
-        };
+        $totalRequests = $this->scopeDocuments(Document::query())->count();
+        $pendingRequest = $this->scopeDocuments(Document::query())->whereIn('status', ['pending', 'in_transit', 'returned'])->count();
+        $completed = $this->scopeDocuments(Document::query())->where('status', 'completed')->count();
 
-        $scanScope = function ($q) use ($isOrgWide, $deptId) {
-            if (! $isOrgWide && $deptId) {
-                $q->where('department_id', $deptId);
-            }
-        };
+        $recentActivity = $this->scopeDocuments(
+            Document::with('currentDepartment')->latest('created_at')
+        )->take(10)->get();
 
-        $totalRequests  = Document::tap($docScope)->count();
-        $pendingRequest = Document::tap($docScope)->whereIn('status', ['pending', 'in_transit', 'returned'])->count();
-        $completed      = Document::tap($docScope)->where('status', 'completed')->count();
+        $recentScans = $this->scopeScans(
+            DocumentScan::with(['document', 'department', 'user'])->latest('scanned_at')
+        )->take(10)->get();
 
-        $recentActivity = Document::with('currentDepartment')
-            ->tap($docScope)
-            ->latest('created_at')
-            ->take(10)
-            ->get();
-
-        $recentScans = DocumentScan::with(['document', 'department', 'user'])
-            ->tap($scanScope)
-            ->latest('scanned_at')
-            ->take(10)
-            ->get();
-
-        $statusSummary = Document::tap($docScope)
+        $statusSummary = $this->scopeDocuments(Document::query())
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $inTransitQuery = Document::with(['currentDepartment', 'scans'])
-            ->whereIn('status', ['in_transit', 'pending'])
-            ->whereNotNull('current_department_id');
-
-        if (! $isOrgWide && $deptId) {
-            $inTransitQuery->where('current_department_id', $deptId);
-        }
+        $inTransitQuery = $this->scopeCurrentDocuments(
+            Document::with(['currentDepartment', 'scans'])
+                ->whereIn('status', ['in_transit', 'pending'])
+                ->whereNotNull('current_department_id')
+        );
 
         $atRiskDocuments = $inTransitQuery->get()->filter(function ($doc) {
             $dept = $doc->currentDepartment;
@@ -74,19 +56,21 @@ class DashboardController extends Controller
                 return false;
             }
             $elapsed = Carbon::parse($lastIn->scanned_at)->diffInHours(now());
+
             return ($elapsed / $dept->sla_hours) >= 0.75;
         })->map(function ($doc) {
-            $dept   = $doc->currentDepartment;
+            $dept = $doc->currentDepartment;
             $lastIn = $doc->scans
                 ->where('action', 'in')
                 ->where('department_id', $doc->current_department_id)
                 ->sortByDesc('scanned_at')
                 ->first();
-            $elapsed  = $lastIn ? Carbon::parse($lastIn->scanned_at)->diffInHours(now()) : 0;
+            $elapsed = $lastIn ? Carbon::parse($lastIn->scanned_at)->diffInHours(now()) : 0;
             $remaining = max(0, $dept->sla_hours - $elapsed);
-            $doc->sla_elapsed_hours   = $elapsed;
+            $doc->sla_elapsed_hours = $elapsed;
             $doc->sla_remaining_hours = $remaining;
-            $doc->sla_overdue         = $elapsed > $dept->sla_hours;
+            $doc->sla_overdue = $elapsed > $dept->sla_hours;
+
             return $doc;
         })->sortBy('sla_remaining_hours')->values();
 
@@ -100,7 +84,9 @@ class DashboardController extends Controller
             'recentScans',
             'statusSummary',
             'atRiskDocuments',
-            'atRiskCount'
+            'atRiskCount',
+            'dept',
+            'isOrgWide'
         ));
     }
 }

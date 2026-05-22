@@ -13,43 +13,16 @@
         <h1 class="text-3xl font-extrabold tracking-tight text-emerald-950 sm:text-4xl">
             Track a Document
         </h1>
-        <p class="mt-2 text-gray-500">Enter your tracking ID manually or scan the QR code on your document receipt.</p>
+        <p class="mt-2 text-gray-500">Enter your tracking number below or scan the QR code on your receipt.</p>
     </div>
 
-    <div class="mx-auto max-w-2xl space-y-6" x-data="trackPage()">
+    <div class="mx-auto max-w-2xl space-y-6">
 
-        {{-- ── Tab Switcher ─────────────────────────────────────────────────── --}}
-        <div class="flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-            <button @click="tab = 'manual'"
-                    :class="tab === 'manual'
-                        ? 'bg-emerald-500 text-white shadow'
-                        : 'text-gray-500 hover:text-gray-700'"
-                    class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Enter Tracking ID
-            </button>
-            <button @click="tab = 'scan'; initScanner()"
-                    :class="tab === 'scan'
-                        ? 'bg-emerald-500 text-white shadow'
-                        : 'text-gray-500 hover:text-gray-700'"
-                    class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
-                    <rect x="9" y="9" width="6" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Scan QR Code
-            </button>
-        </div>
+        {{-- Manual tracking input --}}
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Enter Tracking Number</h2>
 
-        {{-- ── Tab: Manual Input ─────────────────────────────────────────────── --}}
-        <div x-show="tab === 'manual'" x-cloak>
-            <form method="GET" action="{{ route('citizen.track') }}"
-                  class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-
+            <form method="GET" action="{{ route('citizen.track') }}" class="mt-4 space-y-4">
                 <label for="tracking" class="block text-sm font-semibold text-gray-700">
                     Document Tracking ID
                 </label>
@@ -58,12 +31,11 @@
                     <input id="tracking"
                            type="text"
                            name="tracking"
-                           :value="manualId"
-                           @input="manualId = $event.target.value"
-                           placeholder="e.g. SPD-2026-00001"
+                           value="{{ request('tracking') }}"
+                           placeholder="e.g. SPD-20260521-00001"
                            autocomplete="off"
                            required
-                           class="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm font-mono tracking-wider text-gray-800 placeholder-gray-400 shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+                           class="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm tracking-wider text-gray-800 uppercase placeholder:font-sans placeholder:normal-case placeholder:text-gray-400 shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
                     <button type="submit"
                             class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -79,163 +51,175 @@
             </form>
         </div>
 
-        {{-- ── Tab: QR Scanner ──────────────────────────────────────────────── --}}
-        <div x-show="tab === 'scan'" x-cloak>
-            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+        <div class="flex items-center gap-4">
+            <div class="h-px flex-1 bg-emerald-200"></div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">or scan QR code</span>
+            <div class="h-px flex-1 bg-emerald-200"></div>
+        </div>
 
-                {{-- Status / instruction text --}}
-                <p class="text-center text-sm font-medium text-gray-600" x-text="scanStatus"></p>
+        {{-- QR scanner --}}
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Scan QR Code</h2>
+            <p id="scanStatus" class="text-center text-sm font-medium text-gray-600">
+                Point your camera at the QR code on your document receipt.
+            </p>
 
-                {{-- Camera preview area --}}
-                <div class="relative mx-auto max-w-sm">
-                    <div id="qr-reader"
-                         class="overflow-hidden rounded-xl border-2 border-dashed border-emerald-300 bg-gray-50"
-                         style="min-height: 260px;">
-                    </div>
-
-                    {{-- Scan overlay corners --}}
-                    <div class="pointer-events-none absolute inset-0 flex items-center justify-center" x-show="scannerRunning" x-cloak>
-                        <div class="relative h-44 w-44">
-                            <span class="absolute top-0 left-0 h-6 w-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-lg"></span>
-                            <span class="absolute top-0 right-0 h-6 w-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-lg"></span>
-                            <span class="absolute bottom-0 left-0 h-6 w-6 border-b-4 border-l-4 border-emerald-500 rounded-bl-lg"></span>
-                            <span class="absolute bottom-0 right-0 h-6 w-6 border-b-4 border-r-4 border-emerald-500 rounded-br-lg"></span>
-                        </div>
-                    </div>
+            <div class="relative mx-auto max-w-sm">
+                <div id="qr-reader"
+                     class="overflow-hidden rounded-xl border-2 border-dashed border-emerald-300 bg-gray-50"
+                     style="min-height: 260px;">
                 </div>
+            </div>
 
-                {{-- Start / Stop scanner button --}}
-                <div class="text-center space-y-3">
-                    <button x-show="!scannerRunning"
-                            @click="startScanner()"
-                            class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 8l6 4-6 4V8z"/>
-                        </svg>
-                        Start Camera
+            <div class="text-center space-y-3">
+                <button id="startCameraBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 8l6 4-6 4V8z"/>
+                    </svg>
+                    Start Camera
+                </button>
+                <button id="stopCameraBtn" type="button"
+                        class="hidden inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50">
+                    <svg class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <rect x="6" y="6" width="12" height="12" rx="2"/>
+                    </svg>
+                    Stop Camera
+                </button>
+            </div>
+
+            <div id="scannedResult" class="hidden rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                <p class="text-sm font-semibold text-emerald-800">QR code detected</p>
+                <p id="scannedId" class="break-all font-mono text-sm text-emerald-900"></p>
+                <div class="flex gap-3">
+                    <button id="trackScannedBtn" type="button"
+                            class="flex-1 rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600">
+                        Track this Document
                     </button>
-
-                    <button x-show="scannerRunning"
-                            x-cloak
-                            @click="stopScanner()"
-                            class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50">
-                        <svg class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <rect x="6" y="6" width="12" height="12" rx="2"/>
-                        </svg>
-                        Stop Camera
+                    <button id="retryScanBtn" type="button"
+                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
+                        Retry
                     </button>
                 </div>
+            </div>
 
-                {{-- Scanned result preview + confirm --}}
-                <div x-show="scannedId" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-                    <p class="text-sm font-semibold text-emerald-800">QR Code detected!</p>
-                    <p class="font-mono text-sm text-emerald-900 break-all" x-text="scannedId"></p>
-                    <div class="flex gap-3">
-                        <button @click="trackScanned()"
-                                class="flex-1 rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white hover:bg-emerald-600 transition">
-                            Track this Document
-                        </button>
-                        <button @click="scannedId = ''; startScanner()"
-                                class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-                            Retry
-                        </button>
-                    </div>
-                </div>
-
-                {{-- Camera permission error --}}
-                <div x-show="cameraError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                    <strong>Camera access denied.</strong>
-                    Please allow camera access in your browser settings, then refresh the page.
-                </div>
+            <div id="cameraError" class="hidden rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <strong>Camera access denied.</strong>
+                Please allow camera access in your browser settings, then click Start Camera again.
             </div>
         </div>
 
     </div>
 
-    {{-- ── html5-qrcode library (npm package version) ──────────────────────── --}}
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
     <script>
-        function trackPage() {
-            return {
-                tab: 'manual',
-                manualId: '',
+        const trackUrl = @json(route('citizen.track'));
+        let scanner = null;
+        let scannerRunning = false;
+        let lastScannedId = '';
 
-                // Scanner state
-                scanner: null,
-                scannerRunning: false,
-                scannedId: '',
-                scanStatus: 'Point your camera at the QR code on your document.',
-                cameraError: false,
+        const scanStatus = document.getElementById('scanStatus');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const stopCameraBtn = document.getElementById('stopCameraBtn');
+        const scannedResult = document.getElementById('scannedResult');
+        const scannedIdEl = document.getElementById('scannedId');
+        const cameraError = document.getElementById('cameraError');
 
-                initScanner() {
-                    // Lazily create the scanner instance once
-                    if (!this.scanner) {
-                        this.scanner = new Html5Qrcode('qr-reader');
-                    }
-                },
-
-                startScanner() {
-                    this.cameraError = false;
-                    this.scannedId   = '';
-                    this.scanStatus  = 'Initialising camera…';
-
-                    Html5Qrcode.getCameras()
-                        .then(devices => {
-                            if (!devices || devices.length === 0) {
-                                this.scanStatus  = 'No camera found on this device.';
-                                this.cameraError = true;
-                                return;
-                            }
-                            const cameraId = devices[devices.length - 1].id; // prefer back camera
-
-                            this.scanner.start(
-                                cameraId,
-                                { fps: 10, qrbox: { width: 220, height: 220 } },
-                                (decodedText) => this.onScanSuccess(decodedText),
-                                () => {}  // ignore per-frame failures silently
-                            ).then(() => {
-                                this.scannerRunning = true;
-                                this.scanStatus = 'Point your camera at the QR code on your document.';
-                            }).catch(err => {
-                                console.error(err);
-                                this.scanStatus  = 'Could not start camera: ' + err;
-                                this.cameraError = true;
-                            });
-                        })
-                        .catch(err => {
-                            console.error(err);
-                            this.cameraError = true;
-                            this.scanStatus  = 'Camera access was denied. Please check your browser permissions.';
-                        });
-                },
-
-                stopScanner() {
-                    if (this.scanner && this.scannerRunning) {
-                        this.scanner.stop().then(() => {
-                            this.scannerRunning = false;
-                            this.scanStatus = 'Camera stopped. Click "Start Camera" to scan again.';
-                        });
-                    }
-                },
-
-                onScanSuccess(text) {
-                    this.stopScanner();
-                    // The QR may encode a full URL like https://example.com/track/TRK-123
-                    // or just the bare tracking number. Extract the last path segment.
-                    const stripped = text.trim();
-                    const parts    = stripped.split('/').filter(Boolean);
-                    this.scannedId = parts.length > 0 ? parts[parts.length - 1] : stripped;
-                    this.scanStatus = 'QR code scanned successfully!';
-                },
-
-                trackScanned() {
-                    if (this.scannedId) {
-                        window.location.href = '/citizen/track?tracking=' + encodeURIComponent(this.scannedId);
-                    }
-                },
-            };
+        function normalizeTracking(decodedText) {
+            const stripped = decodedText.trim();
+            if (stripped.includes('/track/')) {
+                return stripped.split('/track/').pop().split('?')[0];
+            }
+            const parts = stripped.split('/').filter(Boolean);
+            return parts.length > 0 ? parts[parts.length - 1] : stripped;
         }
+
+        function goToTracking(trackingNumber) {
+            window.location.href = trackUrl + '?tracking=' + encodeURIComponent(trackingNumber);
+        }
+
+        function setScannerUi(running) {
+            scannerRunning = running;
+            startCameraBtn.classList.toggle('hidden', running);
+            stopCameraBtn.classList.toggle('hidden', !running);
+        }
+
+        function showScanResult(trackingNumber) {
+            lastScannedId = trackingNumber;
+            scannedIdEl.textContent = trackingNumber;
+            scannedResult.classList.remove('hidden');
+            scanStatus.textContent = 'QR code scanned successfully.';
+        }
+
+        function onScanSuccess(decodedText) {
+            stopScanner();
+            showScanResult(normalizeTracking(decodedText));
+        }
+
+        function startScanner() {
+            cameraError.classList.add('hidden');
+            scannedResult.classList.add('hidden');
+            scanStatus.textContent = 'Initialising camera…';
+
+            if (!scanner) {
+                scanner = new Html5Qrcode('qr-reader');
+            }
+
+            Html5Qrcode.getCameras()
+                .then(devices => {
+                    if (!devices || devices.length === 0) {
+                        scanStatus.textContent = 'No camera found on this device.';
+                        cameraError.classList.remove('hidden');
+                        return;
+                    }
+
+                    const cameraId = devices[devices.length - 1].id;
+
+                    scanner.start(
+                        cameraId,
+                        { fps: 10, qrbox: { width: 220, height: 220 } },
+                        onScanSuccess,
+                        () => {}
+                    ).then(() => {
+                        setScannerUi(true);
+                        scanStatus.textContent = 'Point your camera at the QR code on your document receipt.';
+                    }).catch(err => {
+                        console.error(err);
+                        scanStatus.textContent = 'Could not start camera. Please try again.';
+                        cameraError.classList.remove('hidden');
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    scanStatus.textContent = 'Camera access was denied.';
+                    cameraError.classList.remove('hidden');
+                });
+        }
+
+        function stopScanner() {
+            if (!scanner || !scannerRunning) {
+                setScannerUi(false);
+                return;
+            }
+
+            scanner.stop().then(() => {
+                setScannerUi(false);
+                scanStatus.textContent = 'Camera stopped. Click Start Camera to scan again.';
+            }).catch(() => setScannerUi(false));
+        }
+
+        startCameraBtn.addEventListener('click', startScanner);
+        stopCameraBtn.addEventListener('click', stopScanner);
+        document.getElementById('trackScannedBtn').addEventListener('click', () => {
+            if (lastScannedId) {
+                goToTracking(lastScannedId);
+            }
+        });
+        document.getElementById('retryScanBtn').addEventListener('click', () => {
+            scannedResult.classList.add('hidden');
+            lastScannedId = '';
+            startScanner();
+        });
     </script>
 </x-citizen-layout>

@@ -1,7 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">History</h1>
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">History</h1>
+                @php $dept = auth()->user()?->department; @endphp
+                @if($dept && !auth()->user()->hasRole('super_admin'))
+                    <p class="mt-1 text-sm text-emerald-700">Documents for <span class="font-semibold">{{ $dept->name }}</span></p>
+                @endif
+            </div>
             <a href="{{ route('history.export', request()->query()) }}" class="inline-flex items-center justify-center rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
                 Export CSV
             </a>

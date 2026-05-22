@@ -1,0 +1,39 @@
+@props(['document', 'limit' => 4, 'size' => 'sm', 'urls' => null])
+
+@php
+    use App\Support\PublicStorage;
+
+    $images = collect();
+    if ($urls) {
+        $images = collect($urls)->map(fn ($u) => (object) ['url' => $u]);
+    } elseif ($document->relationLoaded('attachments') && $document->attachments->isNotEmpty()) {
+        $images = $document->attachments;
+    } elseif (! empty($document->attachment_path)) {
+        $images = collect([(object) ['file_path' => $document->attachment_path]]);
+    }
+    $thumbClass = $size === 'lg' ? 'h-20 w-20' : 'h-12 w-12';
+@endphp
+
+@if($images->isNotEmpty())
+    <div {{ $attributes->merge(['class' => 'flex flex-wrap gap-2']) }}>
+        @foreach($images->take($limit) as $img)
+            @php
+                $url = isset($img->file_path)
+                    ? PublicStorage::url($img->file_path)
+                    : ($img->public_url ?? null);
+            @endphp
+            @if($url)
+                <a href="{{ $url }}" target="_blank" rel="noopener"
+                   class="block overflow-hidden rounded-lg ring-1 ring-gray-200 transition hover:ring-emerald-400"
+                   title="Open full image">
+                    <img src="{{ $url }}" alt="Document attachment" class="{{ $thumbClass }} object-cover bg-gray-100"
+                         loading="lazy"
+                         onerror="this.classList.add('opacity-40'); this.alt='Image unavailable';">
+                </a>
+            @endif
+        @endforeach
+        @if($images->count() > $limit)
+            <span class="flex {{ $thumbClass }} items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">+{{ $images->count() - $limit }}</span>
+        @endif
+    </div>
+@endif

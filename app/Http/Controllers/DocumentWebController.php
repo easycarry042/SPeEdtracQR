@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
 use App\Models\Document;
+use App\Models\DocumentAttachment;
+use App\Models\DocumentScan;
+use App\Models\RoutingRule;
 use App\Services\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 class DocumentWebController extends Controller
 {
-    public function __construct(private QrCodeService $qrCodeService)
-    {
-    }
+    public function __construct(private QrCodeService $qrCodeService) {}
 
     public function create()
     {
@@ -34,7 +36,30 @@ class DocumentWebController extends Controller
             'Other',
         ];
 
-        return view('documents.create', compact('documentTypes', 'categoryOptions'));
+        $departments = Department::orderBy('name')->get();
+
+        $defaultRoutesByType = RoutingRule::with(['fromDepartment', 'toDepartment'])
+            ->orderBy('document_type')
+            ->orderBy('step_order')
+            ->get()
+            ->groupBy('document_type')
+            ->map(function ($rules) {
+                $chain = collect([$rules->first()->fromDepartment?->id]);
+                foreach ($rules as $rule) {
+                    if ($rule->toDepartment) {
+                        $chain->push($rule->toDepartment->id);
+                    }
+                }
+
+                return $chain->filter()->unique()->values()->all();
+            });
+
+        return view('documents.create', compact(
+            'documentTypes',
+            'categoryOptions',
+            'departments',
+            'defaultRoutesByType'
+        ));
     }
 
     public function store(Request $request)
@@ -49,7 +74,23 @@ class DocumentWebController extends Controller
             'purpose' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
             'attachment' => 'nullable|image|max:10240',
+            'attachments' => 'nullable|array|max:10',
+            'attachments.*' => 'image|max:10240',
+            'route_departments' => 'required|array|min:1',
+            'route_departments.*' => 'required|integer|exists:departments,id',
         ]);
+
+        $routeDepartments = collect($request->input('route_departments', []))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (count($routeDepartments) < 1) {
+            return back()
+                ->withInput()
+                ->withErrors(['route_departments' => 'Add at least one department to the routing path.']);
+        }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
@@ -81,10 +122,37 @@ class DocumentWebController extends Controller
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
 
-        if ($request->hasFile('attachment') && Schema::hasColumn('documents', 'attachment_path')) {
-            $path = $request->file('attachment')->store('document-attachments', 'public');
-            $document->update(['attachment_path' => $path]);
+        $this->storeDocumentAttachments($document, $request);
+
+        $document->syncRouteSteps($routeDepartments);
+
+        // Auto-check-in at the first department so it appears in the inbox immediately
+        $firstDeptId = $routeDepartments[0];
+        $document->update([
+            'current_department_id' => $firstDeptId,
+            'status' => 'in_transit',
+        ]);
+
+        $scanData = [
+            'document_id' => $document->id,
+            'scanned_by' => auth()->id(),
+            'department_id' => $firstDeptId,
+            'action' => 'in',
+            'scanned_at' => now(),
+            'location_ip' => request()->ip(),
+        ];
+        if (Schema::hasColumn('document_scans', 'remarks')) {
+            $scanData['remarks'] = 'Document received';
         }
+        if (Schema::hasColumn('document_scans', 'offline_uuid')) {
+            $scanData['offline_uuid'] = null;
+        }
+        if (Schema::hasColumn('document_scans', 'sync_status')) {
+            $scanData['sync_status'] = 'synced';
+        } elseif (Schema::hasColumn('document_scans', 'synced')) {
+            $scanData['synced'] = true;
+        }
+        DocumentScan::create($scanData);
 
         return redirect()->route('documents.created', $document);
     }
@@ -92,6 +160,8 @@ class DocumentWebController extends Controller
     public function created(Document $document)
     {
         $this->authorizeDocumentView($document);
+        $document->load(['routeSteps.department', 'attachments']);
+
         return view('documents.created', compact('document'));
     }
 
@@ -112,7 +182,7 @@ class DocumentWebController extends Controller
         }
 
         $document->update([
-            'status'       => 'completed',
+            'status' => 'completed',
             'completed_at' => now(),
         ]);
 
@@ -128,8 +198,41 @@ class DocumentWebController extends Controller
 
     private function ensureCanCreate(): void
     {
-        if (! auth()->user()?->hasAnyRole(['staff', 'super_admin'])) {
-            abort(403, 'Only staff members can create document submissions.');
+        $user = auth()->user();
+
+        if ($user?->hasRole('super_admin')) {
+            abort(403, 'Super administrators manage the system but do not create document submissions.');
+        }
+
+        if (! $user?->hasAnyRole(['staff', 'receiving_staff', 'department_admin'])) {
+            abort(403, 'You do not have permission to create document submissions.');
+        }
+    }
+
+    private function storeDocumentAttachments(Document $document, Request $request): void
+    {
+        $files = collect($request->file('attachments', []));
+        if ($request->hasFile('attachment')) {
+            $files->prepend($request->file('attachment'));
+        }
+
+        $sort = 0;
+        foreach ($files->filter() as $file) {
+            $path = $file->store('document-attachments', 'public');
+
+            if (Schema::hasTable('document_attachments')) {
+                DocumentAttachment::create([
+                    'document_id' => $document->id,
+                    'file_path' => $path,
+                    'uploaded_by' => auth()->id(),
+                    'department_id' => null,
+                    'sort_order' => $sort++,
+                ]);
+            }
+
+            if ($sort === 1 && Schema::hasColumn('documents', 'attachment_path')) {
+                $document->update(['attachment_path' => $path]);
+            }
         }
     }
 }

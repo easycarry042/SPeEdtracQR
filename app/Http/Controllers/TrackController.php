@@ -2,13 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
+use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
 
 class TrackController extends Controller
 {
+    use ScopesByDepartment;
+
     public function index(Request $request)
     {
+        if (auth()->user()?->hasRole('super_admin')) {
+            return redirect()->route('admin.dashboard');
+        }
+
         $trackingNumber = trim((string) $request->get('tracking_number'));
 
         if ($trackingNumber !== '') {
@@ -23,21 +31,37 @@ class TrackController extends Controller
         $document = Document::where('tracking_number', $trackingNumber)
             ->with(['scans' => function ($q) {
                 $q->orderBy('scanned_at', 'asc');
-            }, 'scans.department', 'scans.user', 'currentDepartment'])
+            }, 'scans.department', 'scans.user', 'currentDepartment', 'attachments', 'routeSteps.department'])
             ->firstOrFail();
+
+        if (auth()->user()?->hasRole('super_admin')) {
+            return redirect()->route('admin.dashboard');
+        }
 
         $documents = collect();
         if (auth()->check()) {
-            $documents = Document::latest('created_at')
-                ->take(30)
-                ->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
+            $this->authorizeDocumentAccess($document);
+
+            $documents = $this->scopeDocuments(
+                Document::query()->latest('created_at')
+            )->take(30)->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
         }
 
-        $routingSteps = $document->scans
-            ->pluck('department.name')
-            ->filter()
-            ->unique()
-            ->values();
+        $routingChain = $document->getRoutingChain();
+
+        $user = auth()->user();
+        $canAct = false;
+        if ($user && $document->status !== 'completed') {
+            if (DepartmentScope::isOrgWide($user)) {
+                $canAct = true;
+            } else {
+                $deptId = DepartmentScope::departmentId($user);
+                $canAct = $deptId && (int) $document->current_department_id === $deptId;
+            }
+        }
+
+        $isLastStop = $document->isAtLastRouteStop();
+        $nextDepartment = $document->getNextDepartment();
 
         $timeline = $document->scans->map(function ($scan) {
             $firstName = explode(' ', $scan->user->name ?? 'System')[0];
@@ -46,7 +70,7 @@ class TrackController extends Controller
                 : "Handed over by {$firstName}";
 
             return [
-                'event' => $event . ' (' . ($scan->department->name ?? 'Unknown Department') . ')',
+                'event' => $event.' ('.($scan->department->name ?? 'Unknown Department').')',
                 'timestamp' => optional($scan->scanned_at)->format('M d, Y h:i A'),
                 'action' => $scan->action,
             ];
@@ -58,9 +82,13 @@ class TrackController extends Controller
         return view($view, [
             'document' => $document,
             'documents' => $documents,
-            'routingSteps' => $routingSteps,
+            'routingChain' => $routingChain,
+            'routingSteps' => $routingChain,
             'timeline' => $timeline,
             'isPublicView' => $isPublicView,
+            'canAct' => $canAct,
+            'isLastStop' => $isLastStop,
+            'nextDepartment' => $nextDepartment,
         ]);
     }
 
@@ -71,9 +99,9 @@ class TrackController extends Controller
             ->firstOrFail();
 
         return response()->json([
-            'status'             => $document->status,
+            'status' => $document->status,
             'current_department' => $document->currentDepartment->name ?? null,
-            'updated_at'         => $document->updated_at?->toISOString(),
+            'updated_at' => $document->updated_at?->toISOString(),
         ]);
     }
 }

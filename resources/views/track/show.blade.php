@@ -57,6 +57,13 @@
                 <x-status-badge :status="$document->status" />
             </div>
 
+            @if($document->attachments->isNotEmpty() || $document->attachment_path)
+                <div class="mt-5">
+                    <p class="text-[14px] font-bold text-[#1a1a1a]">Attached Images</p>
+                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" />
+                </div>
+            @endif
+
             @unless($isPublicView)
                 <div class="mt-6 flex flex-wrap gap-2">
                     <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
@@ -75,23 +82,29 @@
 
             <div class="mt-8">
                 <div class="mb-3 text-[14px] font-bold text-[#1a1a1a]">Department Progress</div>
-                <div class="flex items-center gap-2">
-                    @forelse($routingSteps as $idx => $step)
-                        <div class="flex items-center gap-2">
-                            @if($idx === count($routingSteps)-1)
-                                <span class="h-5 w-5 rounded-full bg-yellow-500 ring-2 ring-[#1a5c1a]"></span>
-                            @else
-                                <span class="flex h-5 w-5 items-center justify-center rounded-full bg-[#4caf50] text-white text-[10px]">✓</span>
-                            @endif
-                            @if(!$loop->last)
-                                <span class="h-1 w-10 {{ $idx < count($routingSteps)-1 ? 'bg-[#4caf50]' : 'bg-[#d9d9d9]' }}"></span>
-                            @endif
-                        </div>
-                    @empty
-                        <span class="text-gray-500">No route movement yet.</span>
-                    @endforelse
-                </div>
+                @if($routingChain->isNotEmpty())
+                    <x-routing-stepper :document="$document" :chain="$routingChain" />
+                @else
+                    <span class="text-gray-500 text-sm">No routing path configured.</span>
+                @endif
             </div>
+
+            @if($canAct && $document->status !== 'completed')
+                <div class="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+                    @if($isLastStop)
+                        <button type="button"
+                                class="js-track-complete inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600"
+                                data-tracking="{{ $document->tracking_number }}">
+                            Mark as Done
+                        </button>
+                    @elseif($nextDepartment)
+                        <a href="{{ route('movements.index', ['tab' => 'inbox']) }}"
+                           class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
+                            Review &amp; send onward
+                        </a>
+                    @endif
+                </div>
+            @endif
 
             <div class="mt-8">
                 <h3 class="text-2xl font-extrabold text-[#1a1a1a]">Logs</h3>
@@ -109,4 +122,25 @@
             </div>
         </div>
     </div>
+
+    @unless($isPublicView)
+    <script>
+        (function () {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const base = @json(url('/documents'));
+            document.querySelectorAll('.js-track-complete').forEach(btn => {
+                btn.addEventListener('click', async function () {
+                    if (!confirm('Mark this document as completed?')) return;
+                    btn.disabled = true;
+                    const res = await fetch(base + '/' + encodeURIComponent(this.dataset.tracking) + '/complete', {
+                        method: 'PATCH',
+                        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                    });
+                    if (res.ok) location.reload();
+                    else { alert('Could not complete document.'); btn.disabled = false; }
+                });
+            });
+        })();
+    </script>
+    @endunless
 </x-app-layout>

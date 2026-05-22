@@ -12,4 +12,14 @@ class RoutingRule extends Model
         'to_department_id',
         'step_order',
     ];
+
+    public function fromDepartment()
+    {
+        return $this->belongsTo(Department::class, 'from_department_id');
+    }
+
+    public function toDepartment()
+    {
+        return $this->belongsTo(Department::class, 'to_department_id');
+    }
 }

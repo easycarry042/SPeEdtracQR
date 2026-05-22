@@ -44,6 +44,13 @@
                     <p class="mt-1 text-sm font-semibold text-gray-800">{{ $document->created_at->format('M d, Y') }}</p>
                 </div>
             </div>
+
+            @if($document->attachments->isNotEmpty() || $document->attachment_path)
+                <div class="border-t border-gray-100 px-6 py-4">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Attached Images</p>
+                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-3" />
+                </div>
+            @endif
         </div>
 
         {{-- ── Live Status Card ─────────────────────────────────────────────── --}}
@@ -83,40 +90,50 @@
             </div>
         </div>
 
-        {{-- ── Routing Progress ─────────────────────────────────────────────── --}}
-        @if($routingSteps->isNotEmpty())
+        @if($routingChain->isNotEmpty())
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <h2 class="mb-4 text-base font-bold text-gray-800">Department Progress</h2>
-            <div class="flex flex-wrap items-center gap-2">
-                @foreach($routingSteps as $idx => $step)
-                    <div class="flex items-center gap-2">
-                        <div class="flex flex-col items-center gap-1">
-                            <span class="flex h-7 w-7 items-center justify-center rounded-full
-                                {{ $idx === count($routingSteps) - 1 && $document->status !== 'completed'
-                                    ? 'bg-amber-400 ring-2 ring-amber-300 ring-offset-1'
-                                    : 'bg-emerald-500 text-white' }} text-xs font-bold">
-                                @if($idx === count($routingSteps) - 1 && $document->status !== 'completed')
-                                    ●
-                                @else
-                                    ✓
-                                @endif
-                            </span>
-                            <span class="max-w-[80px] text-center text-[10px] text-gray-500 leading-tight">{{ $step }}</span>
-                        </div>
-                        @if(!$loop->last)
-                            <span class="mb-4 h-0.5 w-8 bg-emerald-400"></span>
-                        @endif
-                    </div>
-                @endforeach
-                @if($document->status === 'completed')
-                    <div class="flex items-center gap-2">
-                        <span class="mb-4 h-0.5 w-8 bg-emerald-400"></span>
-                        <div class="flex flex-col items-center gap-1">
-                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold">✓</span>
-                            <span class="text-[10px] text-gray-500">Done</span>
-                        </div>
+            <x-routing-stepper :document="$document" :chain="$routingChain" />
+        </div>
+        @endif
+
+        {{-- ── Citizen upload (notifies current department only) ──────────────── --}}
+        @if($document->status !== 'completed')
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div class="border-b border-gray-100 px-6 py-4">
+                <h2 class="text-base font-bold text-gray-800">Upload supporting documents</h2>
+                <p class="mt-1 text-sm text-gray-500">
+                    Files are sent only to
+                    <span class="font-semibold text-emerald-800">{{ $document->currentDepartment->name ?? ($routingChain->first()?->name ?? 'the office handling your ticket') }}</span>.
+                </p>
+            </div>
+            <div class="px-6 py-5">
+                @if(session('upload_success'))
+                    <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                        {{ session('upload_success') }}
                     </div>
                 @endif
+                @if($errors->any())
+                    <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        {{ $errors->first() }}
+                    </div>
+                @endif
+                <form method="POST" action="{{ route('track.citizen-upload', $document->tracking_number) }}" enctype="multipart/form-data" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label for="citizen_attachments" class="block text-sm font-medium text-gray-700">Photos (up to 5)</label>
+                        <input type="file" id="citizen_attachments" name="attachments[]" accept="image/*" multiple required
+                               class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-emerald-700" />
+                    </div>
+                    <div>
+                        <label for="citizen_note" class="block text-sm font-medium text-gray-700">Short note (optional)</label>
+                        <textarea id="citizen_note" name="note" rows="2" maxlength="1000" placeholder="e.g. Missing ID copy attached"
+                                  class="mt-1 block w-full rounded-lg border border-gray-300 text-sm shadow-sm">{{ old('note') }}</textarea>
+                    </div>
+                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 sm:w-auto">
+                        Send to department
+                    </button>
+                </form>
             </div>
         </div>
         @endif
