@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentRouteStep;
+use App\Models\RoutingRule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -54,6 +55,32 @@ class DocumentRouteTest extends TestCase
             ['Reception', 'Records', 'Accounting'],
             $document->getRoutingChain()->pluck('name')->all()
         );
+    }
+
+    public function test_routing_uses_only_route_steps_not_global_rules(): void
+    {
+        $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
+        $dept2 = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
+
+        // A global rule exists for this type, but the document has no route_steps.
+        RoutingRule::create([
+            'document_type' => 'Business Permit',
+            'from_department_id' => $dept1->id,
+            'to_department_id' => $dept2->id,
+            'step_order' => 1,
+        ]);
+
+        $document = Document::create([
+            'tracking_number' => 'SPD-NOSTEPS-1',
+            'document_type' => 'Business Permit',
+            'status' => 'in_transit',
+            'current_department_id' => $dept1->id,
+            'created_by' => User::factory()->create()->id,
+        ]);
+
+        // route_steps is the single source of truth — global rules are ignored.
+        $this->assertTrue($document->getRoutingChain()->isEmpty());
+        $this->assertNull($document->getNextDepartment());
     }
 
     public function test_scan_out_follows_per_document_route(): void
