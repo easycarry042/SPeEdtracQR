@@ -26,11 +26,18 @@ class DocumentRouteTest extends TestCase
         $this->actingAs($user)->post(route('documents.store'), [
             'document_type' => 'Business Permit',
             'citizen_name' => 'Maria Santos',
+            'citizen_contact' => '09170001111',
+            'purpose' => 'Renewal',
+            'description' => 'Annual business permit renewal',
             'route_departments' => [$dept1->id, $dept3->id, $dept2->id],
         ])->assertRedirect();
 
         $document = Document::where('citizen_name', 'Maria Santos')->first();
         $this->assertNotNull($document);
+        // These fields used to be silently dropped (missing columns).
+        $this->assertSame('09170001111', $document->citizen_contact);
+        $this->assertSame('Renewal', $document->purpose);
+        $this->assertSame('Annual business permit renewal', $document->description);
 
         $this->assertEquals(
             [$dept1->id, $dept3->id, $dept2->id],

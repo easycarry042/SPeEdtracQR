@@ -9,7 +9,6 @@ use App\Models\Document;
 use App\Models\DocumentScan;
 use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ScanController extends Controller
@@ -70,17 +69,13 @@ class ScanController extends Controller
 
         if ($request->hasFile('attachment')) {
             $path = $request->file('attachment')->store('document-attachments', 'local');
-            if (Schema::hasColumn('document_scans', 'attachment_path')) {
-                $scan->update(['attachment_path' => $path]);
-            }
-            if (Schema::hasTable('document_attachments')) {
-                $document->attachments()->create([
-                    'file_path' => $path,
-                    'uploaded_by' => auth()->id(),
-                    'department_id' => (int) $validated['department_id'],
-                    'sort_order' => $document->attachments()->count(),
-                ]);
-            }
+            $scan->update(['attachment_path' => $path]);
+            $document->attachments()->create([
+                'file_path' => $path,
+                'uploaded_by' => auth()->id(),
+                'department_id' => (int) $validated['department_id'],
+                'sort_order' => $document->attachments()->count(),
+            ]);
         }
         $nextDepartment = null;
 
@@ -218,7 +213,7 @@ class ScanController extends Controller
 
     private function recordScan(Document $document, array $data): DocumentScan
     {
-        if (! empty($data['offline_uuid']) && Schema::hasColumn('document_scans', 'offline_uuid')) {
+        if (! empty($data['offline_uuid'])) {
             $existing = DocumentScan::where('offline_uuid', $data['offline_uuid'])->first();
             if ($existing) {
                 return $existing;
@@ -235,28 +230,17 @@ class ScanController extends Controller
             }
         }
 
-        $attributes = [
+        return DocumentScan::create([
             'document_id' => $document->id,
             'scanned_by' => auth()->id(),
             'department_id' => $data['department_id'],
             'action' => $data['action'],
             'scanned_at' => $data['scanned_at'] ?? now(),
             'location_ip' => request()->ip(),
-        ];
-
-        if (Schema::hasColumn('document_scans', 'remarks')) {
-            $attributes['remarks'] = $data['remarks'] ?? null;
-        }
-        if (Schema::hasColumn('document_scans', 'offline_uuid')) {
-            $attributes['offline_uuid'] = $data['offline_uuid'] ?? null;
-        }
-        if (Schema::hasColumn('document_scans', 'sync_status')) {
-            $attributes['sync_status'] = 'synced';
-        } elseif (Schema::hasColumn('document_scans', 'synced')) {
-            $attributes['synced'] = true;
-        }
-
-        return DocumentScan::create($attributes);
+            'remarks' => $data['remarks'] ?? null,
+            'offline_uuid' => $data['offline_uuid'] ?? null,
+            'synced' => true,
+        ]);
     }
 
     private function pushSessionScanLog(DocumentScan $scan): void
