@@ -177,7 +177,7 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - Per-user / per-department "work queue" view sorted by SLA (§6.6) ✅ already covered — the Movements **inbox** tab lists documents currently at your department with SLA bars + overdue filter, plus the dashboard At-Risk section; no duplicate built
 - Edit-document with audit (§6.4) ✅ — `documents.edit/update`, department-scoped, activity-logged; `DocumentEditTest` added
 - IN/OUT button contrast + icons (§6.2) ✅ — equal-weight buttons, icons, clear selected state; empty-state CTA on dashboard (§6.5) ✅
-- **Undo-last-scan / send-back (§6.4) → deferred to Phase 2b** — it mutates routing/status and interacts with already-dispatched SLA jobs and completed state; it deserves its own careful pass with dedicated tests rather than being rushed into this UX commit
+- Undo-last-scan / send-back (§6.4) ✅ DONE (Phase 2b) — `documents.undo-scan`: reverts the last scan (undoing an OUT returns the document to its last check-in; undoing an IN removes it), department-scoped, written to the activity log; `DocumentUndoScanTest` covers OUT-reversal, only-scan→pending, and the cross-department 403. _Known limitation:_ does not cancel already-dispatched SLA jobs (those are guarded to no-op in the common path; Phase 3's scheduled-sweep replacement removes the issue entirely). Un-completing via undo only applies to scan-driven state, not the separate `complete` action.
 - _Also fixed in passing:_ `npm install` (axios was declared but never installed, so `npm run build` was failing for everyone)
 
 **Phase 3 — Architecture hardening.**
