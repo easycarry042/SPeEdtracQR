@@ -21,7 +21,7 @@ class TeamUsersSeeder extends Seeder
         // Format: [ name, email, password, role, department name ]
         $users = [
             // Admin
-            ['Super Admin',     'admin@speedtraqr.com',              'password123', 'super_admin',     null],
+            ['Super Admin',     'admin@speedtraqr.com',              env('ADMIN_PASSWORD', 'password123'), 'super_admin',     null],
 
             // Front Desk
             ['Maria Santos',    'maria.santos@speedtraqr.com',       'staff1234',   'staff',           'Front Desk/Reception'],
@@ -33,7 +33,7 @@ class TeamUsersSeeder extends Seeder
             ['Ana Cruz',        'ana.cruz@speedtraqr.com',           'staff1234',   'staff',           'Engineering'],
 
             // Mayor's Office
-            ['Carlos Dela Cruz','carlos.delacruz@speedtraqr.com',    'staff1234',   'staff',           'Mayors Office'],
+            ['Carlos Dela Cruz', 'carlos.delacruz@speedtraqr.com',    'staff1234',   'staff',           'Mayors Office'],
 
             // Records
             ['Liza Reyes',      'liza.reyes@speedtraqr.com',         'staff1234',   'staff',           'Records/Archiving'],
@@ -46,16 +46,16 @@ class TeamUsersSeeder extends Seeder
             $user = User::updateOrCreate(
                 ['email' => $email],
                 [
-                    'name'          => $name,
-                    'password'      => bcrypt($password),
+                    'name' => $name,
+                    'password' => bcrypt($password),
                     'department_id' => $dept?->id,
-                    'is_active'     => true,
+                    'is_active' => true,
                 ]
             );
 
             $user->syncRoles([$role]);
 
-            $this->command->info("✓  " . str_pad($roleName, 16) . " {$email}  /  {$password}");
+            $this->command->info('✓  '.str_pad($roleName, 16)." {$email}  /  {$password}");
         }
 
         $this->command->newLine();
