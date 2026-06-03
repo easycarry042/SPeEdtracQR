@@ -15,7 +15,6 @@ class DocumentScan extends Model
         'location_ip',
         'remarks',
         'attachment_path',
-        'sync_status',
         'offline_uuid',
         'synced',
     ];

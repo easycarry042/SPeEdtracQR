@@ -9,7 +9,6 @@ use App\Models\Document;
 use App\Models\DocumentAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 
 class CitizenDocumentUploadController extends Controller
 {
@@ -38,15 +37,13 @@ class CitizenDocumentUploadController extends Controller
 
         $message = "Citizen uploaded {$fileCount} file(s) for {$document->tracking_number}";
 
-        if (Schema::hasTable('department_notifications')) {
-            DepartmentNotification::create([
-                'department_id' => $department->id,
-                'document_id' => $document->id,
-                'type' => 'citizen_upload',
-                'message' => $message,
-                'file_count' => $fileCount,
-            ]);
-        }
+        DepartmentNotification::create([
+            'department_id' => $department->id,
+            'document_id' => $document->id,
+            'type' => 'citizen_upload',
+            'message' => $message,
+            'file_count' => $fileCount,
+        ]);
 
         if ($department->email) {
             Mail::to($department->email)->send(
@@ -82,17 +79,15 @@ class CitizenDocumentUploadController extends Controller
         foreach ($files as $file) {
             $path = $file->store('document-attachments', 'local');
 
-            if (Schema::hasTable('document_attachments')) {
-                DocumentAttachment::create([
-                    'document_id' => $document->id,
-                    'file_path' => $path,
-                    'uploaded_by' => null,
-                    'department_id' => $departmentId,
-                    'sort_order' => $sort++,
-                ]);
-            }
+            DocumentAttachment::create([
+                'document_id' => $document->id,
+                'file_path' => $path,
+                'uploaded_by' => null,
+                'department_id' => $departmentId,
+                'sort_order' => $sort++,
+            ]);
 
-            if ($count === 0 && Schema::hasColumn('documents', 'attachment_path')) {
+            if ($count === 0) {
                 $document->update(['attachment_path' => $path]);
             }
 

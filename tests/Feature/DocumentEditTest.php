@@ -46,6 +46,8 @@ class DocumentEditTest extends TestCase
         $document->refresh();
         $this->assertSame('New Name', $document->citizen_name);
         $this->assertSame("Mayor's Permit", $document->document_type);
+        // These columns were previously missing, so edits were silently dropped.
+        $this->assertSame('09171234567', $document->citizen_contact);
     }
 
     public function test_staff_from_other_department_cannot_edit(): void

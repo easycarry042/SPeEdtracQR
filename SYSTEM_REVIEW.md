@@ -180,12 +180,12 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - Undo-last-scan / send-back (§6.4) ✅ DONE (Phase 2b) — `documents.undo-scan`: reverts the last scan (undoing an OUT returns the document to its last check-in; undoing an IN removes it), department-scoped, written to the activity log; `DocumentUndoScanTest` covers OUT-reversal, only-scan→pending, and the cross-department 403. _Known limitation:_ does not cancel already-dispatched SLA jobs (those are guarded to no-op in the common path; Phase 3's scheduled-sweep replacement removes the issue entirely). Un-completing via undo only applies to scan-driven state, not the separate `complete` action.
 - _Also fixed in passing:_ `npm install` (axios was declared but never installed, so `npm run build` was failing for everyone)
 
-**Phase 3 — Architecture hardening.**
-- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1)
-- Collapse the two routing systems to one source of truth (§3.1)
-- Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4)
-- Consolidate migrations, remove `Schema::hasColumn` guards (§3.3)
-- Delete dead views/controllers; fix `CLAUDE.md` (§0, §3.2)
+**Phase 3 — Architecture hardening. (in progress)**
+- Delete dead views/controllers; fix `CLAUDE.md` (§0, §3.2) ✅ 3a — removed DocumentController, 6 legacy flat views, unused navigation layout; corrected CLAUDE.md
+- Remove `Schema::hasColumn` guards (§3.3) ✅ 3b — **and discovered they were masking missing columns**: `citizen_contact`, `purpose`, `description`, `qr_code_path` (documents) and `remarks`, `offline_uuid` (document_scans) were never migrated, so those fields were silently dropped on write. Added a migration creating them, removed all guards, and added tests asserting create+edit now persist contact/purpose/description.
+- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1) — _pending_
+- Collapse the two routing systems to one source of truth (§3.1) — _pending_
+- Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4) — _pending_
 - Repair OR remove the offline scanner — decide if offline is a real requirement (§1.2)
 
 **Phase 4 — Product value-adds.**
