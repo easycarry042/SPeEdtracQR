@@ -100,7 +100,9 @@ class MovementController extends Controller
                 ->where('department_id', $doc->current_department_id)
                 ->first();
 
-            $slaHours = $doc->currentDepartment->sla_hours ?? 0;
+            // Tracking/sent lists (esp. for org-wide super admins) can include
+            // documents with no current department yet, so guard the access.
+            $slaHours = $doc->currentDepartment?->sla_hours ?? 0;
             $elapsedHours = $lastIn ? $lastIn->scanned_at->diffInMinutes(now()) / 60 : 0;
             $doc->slaPct = $slaHours > 0 ? min(round(($elapsedHours / $slaHours) * 100), 100) : 0;
             $doc->slaOverdue = $slaHours > 0 && $elapsedHours > $slaHours;

@@ -15,9 +15,11 @@
         @foreach($images->take($limit) as $img)
             @php
                 // Attachment models are served through the authorized route;
-                // pre-resolved URLs (passed via :urls) are used as-is.
-                $url = ($img->url ?? null)
-                    ?? (($img->id ?? null) ? route('attachments.show', $img->id) : null);
+                // pre-resolved URLs (passed via :urls) are used as-is. Don't read
+                // $img->url on a model — Eloquent treats it as a relationship.
+                $url = $img instanceof \App\Models\DocumentAttachment
+                    ? route('attachments.show', $img)
+                    : ($img->url ?? null);
             @endphp
             @if($url)
                 <a href="{{ $url }}" target="_blank" rel="noopener"
