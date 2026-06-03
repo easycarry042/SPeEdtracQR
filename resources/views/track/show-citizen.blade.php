@@ -45,12 +45,8 @@
                 </div>
             </div>
 
-            @if($document->attachments->isNotEmpty() || $document->attachment_path)
-                <div class="border-t border-gray-100 px-6 py-4">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Attached Images</p>
-                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-3" />
-                </div>
-            @endif
+            {{-- Internal document images are intentionally NOT shown on the public
+                 tracking page; they are only visible to authorized staff. --}}
         </div>
 
         {{-- ── Live Status Card ─────────────────────────────────────────────── --}}

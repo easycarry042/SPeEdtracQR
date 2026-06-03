@@ -23,7 +23,7 @@
             <p class="mt-2 text-lg text-gray-900">{{ $document->document_type }}</p>
             <p class="mt-1 text-sm text-gray-600">{{ $document->citizen_name ?? 'N/A' }}</p>
 
-            @if($document->attachments->isNotEmpty() || $document->attachment_path)
+            @if($document->attachments->isNotEmpty())
                 <div class="mx-auto mt-6 max-w-md text-left">
                     <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">Attached images</p>
                     <x-document-images :document="$document" :limit="8" size="lg" class="justify-center" />

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Document;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
@@ -9,11 +10,26 @@ use Throwable;
 
 class QrCodeService
 {
+    /**
+     * Unambiguous Crockford-style alphabet: no 0/1/I/L/O/U to avoid
+     * transcription mistakes when a citizen types the code by hand.
+     * 30 chars ^ 6 positions ≈ 729M combos/day — resists enumeration.
+     */
+    private const TRACKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+    private const TRACKING_SUFFIX_LENGTH = 6;
+
     public function generateTrackingNumber(): string
     {
+        $alphabetMax = strlen(self::TRACKING_ALPHABET) - 1;
+
         do {
-            $trackingNumber = 'SPD-' . now()->format('Ymd') . '-' . str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
-        } while (\App\Models\Document::where('tracking_number', $trackingNumber)->exists());
+            $suffix = '';
+            for ($i = 0; $i < self::TRACKING_SUFFIX_LENGTH; $i++) {
+                $suffix .= self::TRACKING_ALPHABET[random_int(0, $alphabetMax)];
+            }
+            $trackingNumber = 'SPD-'.now()->format('Ymd').'-'.$suffix;
+        } while (Document::where('tracking_number', $trackingNumber)->exists());
 
         return $trackingNumber;
     }

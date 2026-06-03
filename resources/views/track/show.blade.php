@@ -57,7 +57,7 @@
                 <x-status-badge :status="$document->status" />
             </div>
 
-            @if($document->attachments->isNotEmpty() || $document->attachment_path)
+            @if($document->attachments->isNotEmpty())
                 <div class="mt-5">
                     <p class="text-[14px] font-bold text-[#1a1a1a]">Attached Images</p>
                     <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" />

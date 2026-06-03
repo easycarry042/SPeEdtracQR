@@ -1,15 +1,11 @@
 @props(['document', 'limit' => 4, 'size' => 'sm', 'urls' => null])
 
 @php
-    use App\Support\PublicStorage;
-
     $images = collect();
     if ($urls) {
         $images = collect($urls)->map(fn ($u) => (object) ['url' => $u]);
     } elseif ($document->relationLoaded('attachments') && $document->attachments->isNotEmpty()) {
         $images = $document->attachments;
-    } elseif (! empty($document->attachment_path)) {
-        $images = collect([(object) ['file_path' => $document->attachment_path]]);
     }
     $thumbClass = $size === 'lg' ? 'h-20 w-20' : 'h-12 w-12';
 @endphp
@@ -18,9 +14,10 @@
     <div {{ $attributes->merge(['class' => 'flex flex-wrap gap-2']) }}>
         @foreach($images->take($limit) as $img)
             @php
-                $url = isset($img->file_path)
-                    ? PublicStorage::url($img->file_path)
-                    : ($img->public_url ?? null);
+                // Attachment models are served through the authorized route;
+                // pre-resolved URLs (passed via :urls) are used as-is.
+                $url = ($img->url ?? null)
+                    ?? (($img->id ?? null) ? route('attachments.show', $img->id) : null);
             @endphp
             @if($url)
                 <a href="{{ $url }}" target="_blank" rel="noopener"

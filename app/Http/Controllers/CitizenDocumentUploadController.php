@@ -80,7 +80,7 @@ class CitizenDocumentUploadController extends Controller
         $count = 0;
 
         foreach ($files as $file) {
-            $path = $file->store('document-attachments', 'public');
+            $path = $file->store('document-attachments', 'local');
 
             if (Schema::hasTable('document_attachments')) {
                 DocumentAttachment::create([

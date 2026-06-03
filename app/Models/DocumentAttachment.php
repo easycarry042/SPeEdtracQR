@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\PublicStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -31,8 +30,9 @@ class DocumentAttachment extends Model
         return $this->belongsTo(Department::class);
     }
 
-    public function publicUrl(): string
+    /** Authorized URL — access is checked per-department in AttachmentController. */
+    public function url(): string
     {
-        return PublicStorage::url($this->file_path) ?? '';
+        return route('attachments.show', $this);
     }
 }

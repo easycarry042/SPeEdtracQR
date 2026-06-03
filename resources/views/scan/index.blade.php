@@ -86,7 +86,7 @@
                 <div id="reader" class="mt-4 overflow-hidden rounded-lg border border-gray-300"></div>
 
                 <div class="mt-3 flex gap-2">
-                    <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXX" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono uppercase tracking-widest">
+                    <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXXX" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono uppercase tracking-widest">
                     <button id="manualSubmit" class="rounded-lg bg-[#1a5c1a] px-4 py-2 font-bold text-white">Submit</button>
                 </div>
                 {{-- Scan result toast --}}
