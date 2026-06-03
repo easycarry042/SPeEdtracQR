@@ -183,9 +183,9 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 **Phase 3 — Architecture hardening. (in progress)**
 - Delete dead views/controllers; fix `CLAUDE.md` (§0, §3.2) ✅ 3a — removed DocumentController, 6 legacy flat views, unused navigation layout; corrected CLAUDE.md
 - Remove `Schema::hasColumn` guards (§3.3) ✅ 3b — **and discovered they were masking missing columns**: `citizen_contact`, `purpose`, `description`, `qr_code_path` (documents) and `remarks`, `offline_uuid` (document_scans) were never migrated, so those fields were silently dropped on write. Added a migration creating them, removed all guards, and added tests asserting create+edit now persist contact/purpose/description.
-- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1) — _pending_
-- Collapse the two routing systems to one source of truth (§3.1) — _pending_
-- Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4) — _pending_
+- Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4) ✅ 3e — `documents:check-sla` hourly, deduped via notified markers reset on each IN; deleted CheckSlaJob/CheckSlaWarningJob
+- Collapse the two routing systems to one source of truth (§3.1) ✅ 3d — `route_steps` is now authoritative; `RoutingRule` only seeds defaults at creation. Backfilled steps for legacy documents, removed the model fallback, added a test that global rules are ignored without steps
+- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1) — _in progress_
 - Repair OR remove the offline scanner — decide if offline is a real requirement (§1.2)
 
 **Phase 4 — Product value-adds.**

@@ -109,33 +109,18 @@ class Document extends Model
         }
     }
 
+    /**
+     * The ordered chain of departments for this document. `route_steps` is the
+     * single source of truth — RoutingRule only seeds defaults at creation time
+     * (see DocumentWebController) and as a one-off backfill for legacy documents.
+     */
     public function getRoutingChain()
     {
         $steps = $this->relationLoaded('routeSteps')
             ? $this->routeSteps
             : $this->routeSteps()->with('department')->get();
 
-        if ($steps->isNotEmpty()) {
-            return $steps->map(fn ($step) => $step->department)->filter()->values();
-        }
-
-        $rules = RoutingRule::with(['fromDepartment', 'toDepartment'])
-            ->where('document_type', $this->document_type)
-            ->orderBy('step_order')
-            ->get();
-
-        if ($rules->isEmpty()) {
-            return collect();
-        }
-
-        $chain = collect([$rules->first()->fromDepartment]);
-        foreach ($rules as $rule) {
-            if ($rule->toDepartment) {
-                $chain->push($rule->toDepartment);
-            }
-        }
-
-        return $chain->filter()->unique('id')->values();
+        return $steps->map(fn ($step) => $step->department)->filter()->values();
     }
 
     // Backward-compatible helper. Primary generation lives in QrCodeService.
@@ -154,23 +139,11 @@ class Document extends Model
             ? $this->routeSteps
             : $this->routeSteps()->orderBy('step_order')->get();
 
-        if ($steps->isNotEmpty()) {
-            $ids = $steps->pluck('department_id')->values();
-            $index = $ids->search($this->current_department_id);
+        $ids = $steps->sortBy('step_order')->pluck('department_id')->values();
+        $index = $ids->search($this->current_department_id);
 
-            if ($index !== false && isset($ids[$index + 1])) {
-                return Department::find($ids[$index + 1]);
-            }
-
-            return null;
-        }
-
-        $currentStep = RoutingRule::where('document_type', $this->document_type)
-            ->where('from_department_id', $this->current_department_id)
-            ->first();
-
-        if ($currentStep) {
-            return Department::find($currentStep->to_department_id);
+        if ($index !== false && isset($ids[$index + 1])) {
+            return Department::find($ids[$index + 1]);
         }
 
         return null;
