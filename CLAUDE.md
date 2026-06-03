@@ -4,15 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SPeEdtracQR is a Laravel 13 / PHP 8.3 document tracking system for government offices. Citizens submit documents (e.g. Business Permit, Cedula) and receive a QR-coded tracking number (`SPD-YYYYMMDD-NNNNN`). Staff scan documents IN/OUT at each department; the system records each move, enforces SLA timers, and exposes a public tracking page for citizens. The entire app lives in the `speed-traqr/` subdirectory.
+SPeEdtracQR is a Laravel 13 / PHP 8.3 document tracking system for government offices. Citizens submit documents (e.g. Business Permit, Cedula) and receive a QR-coded tracking number (`SPD-YYYYMMDD-XXXXXX`, where the suffix is 6 unambiguous base32 characters — high entropy to resist enumeration). Staff scan documents IN/OUT at each department; the system records each move, enforces SLA timers, and exposes a public tracking page for citizens.
 
 ## Working Directory
 
-All commands must be run from `speed-traqr/`:
-
-```bash
-cd speed-traqr
-```
+The Laravel app lives at the **repository root** (`artisan`, `composer.json`, `app/`, `routes/`, `resources/`, `tests/` are all at the top level). Run all commands from the repo root. The `speed-traqr/` subdirectory is a near-empty leftover and is **not** the app root.
 
 ## Commands
 
@@ -40,16 +36,18 @@ php artisan queue:work
 composer setup
 php artisan storage:link
 php artisan db:seed --class=RolesAndPermissionsSeeder
+# Set ADMIN_PASSWORD in .env before seeding in any shared/production environment;
+# it falls back to a weak dev default ("password123") if unset.
 ```
 
 ## Architecture
 
 ### Request flow
 
-1. **Document creation** — `DocumentWebController@store` calls `QrCodeService` to generate a unique tracking number and save a PNG QR to `storage/app/public/qrcodes/`. The QR encodes the public tracking URL.
-2. **Scanning** — `ScanController@store` (POST `/api/documents/scan` via `routes/api.php`, also POST `/scan` via web) records a `DocumentScan` row. On `action=in` it sets `documents.current_department_id` and dispatches `CheckSlaJob` with a delay equal to the department's `sla_hours`. On `action=out` it looks up `routing_rules` to find the next department; if none exists the document is marked `completed`.
-3. **SLA enforcement** — `CheckSlaJob` fires after `sla_hours` and sends a `SlaBreachMail`. `SendOverdueAlert` is a separate job for overdue notifications.
-4. **Offline scanning** — `resources/js/offline-scanner.js` queues scans in `localStorage` when offline and POSTs them to `POST /api/scan/sync` (`ScanController@sync`) when connectivity returns.
+1. **Document creation** — `DocumentWebController@store` calls `QrCodeService` to generate a unique tracking number and save a PNG QR to `storage/app/public/qrcodes/`. The QR encodes the public tracking URL. The document is auto-checked-in at the first routing department.
+2. **Scanning** — `ScanController@store` (POST `/scan`, route name `api.scan.store`, web+auth middleware) records a `DocumentScan` row. On `action=in` it sets `documents.current_department_id` and dispatches the SLA jobs. On `action=out` it resolves the next department via the document's `route_steps` (falling back to `routing_rules`); if there is no next step it returns 422 asking the user to pick a destination or mark the document complete (it does **not** auto-complete).
+3. **SLA enforcement** — on IN, `CheckSlaWarningJob` and `CheckSlaJob` are dispatched with delays; they send `SlaWarningMail` / `SlaBreachMail`. `Document::isOverdue()` and the dashboard/movements SLA bars compute elapsed time from the latest IN scan.
+4. **Attachments** — citizen/staff document uploads are stored on the **private** `local` disk and served only through `AttachmentController` (auth + per-department check). QR images stay on the public disk. Mistakes are recoverable: `documents.edit/update` corrects details and `documents.undo-scan` reverts the last scan.
 
 ### Key models and relationships
 
@@ -62,13 +60,16 @@ php artisan db:seed --class=RolesAndPermissionsSeeder
 
 ### Roles and permissions (Spatie)
 
-Three roles seeded by `RolesAndPermissionsSeeder`:
+Roles seeded by `RolesAndPermissionsSeeder`:
 
-- `clerk` — create documents, scan documents
-- `department_head` — scan documents, view reports
-- `admin` — all permissions
+- `staff` — create documents, scan documents, view reports
+- `receiving_staff` — scan documents (intake)
+- `department_admin` — manage users (own dept), view reports, view all documents
+- `super_admin` — all permissions; org-wide (not scoped to one department)
 
-Default admin: `admin@speedtraqr.com` / `password123`
+Department scoping is centralized in `App\Support\DepartmentScope`; `super_admin` is org-wide, everyone else is limited to their `department_id`.
+
+Default admin: `admin@speedtraqr.com` (password from `ADMIN_PASSWORD`, dev fallback `password123`).
 
 ### Frontend stack
 
@@ -76,10 +77,9 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 ### Notable patterns
 
-- **Duplicate route views**: Some views exist in both a flat form (`resources/views/scan.blade.php`) and a subdirectory form (`resources/views/scan/index.blade.php`). The router uses the subdirectory versions; the flat files are legacy and can be ignored.
-- **Schema::hasColumn guards** in `ScanController@recordScan` — these exist because migrations were added incrementally and the check guards against environments that haven't run all migrations.
+- **Active layout**: `resources/views/layouts/app.blade.php` is the live shell (collapsible icon+label sidebar). Track/scan views live under their subdirectories (`resources/views/track/`, `resources/views/scan/`).
 - `QrCodeService` requires the PHP `gd` extension. Check with `php -m | grep gd`; install via `sudo apt-get install php-gd` if missing.
 
 ## Manual Testing Checklist
 
-See `speed-traqr/TESTING.md` for a 10-step UI flow covering: document creation, QR file check, IN/OUT scans, public tracking, dashboard, history, analytics, offline mode, and a full 3-department routing flow.
+See `TESTING.md` (repo root) for a 10-step UI flow covering: document creation, QR file check, IN/OUT scans, public tracking, dashboard, history, analytics, offline mode, and a full 3-department routing flow.
