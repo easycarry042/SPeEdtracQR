@@ -54,3 +54,23 @@
         @apply h-[40px] w-[40px];
     }
 }
+
+/* Sidebar pinned (expanded) state — labels visible and left-aligned without
+   relying on hover, so it works on touch devices. Higher specificity than the
+   Tailwind utilities it overrides, so no !important needed. */
+aside.sidebar-pinned {
+    width: 16rem;
+}
+
+.sidebar-pinned .nav-text {
+    max-width: 240px;
+    opacity: 1;
+}
+
+.sidebar-pinned .nav-link,
+.sidebar-pinned .nav-brand {
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}

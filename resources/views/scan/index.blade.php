@@ -40,8 +40,14 @@
                     <div>
                         <label class="mb-1 block text-sm font-semibold text-gray-700">Action</label>
                         <div class="flex gap-2">
-                            <button type="button" class="action-btn flex-1 rounded-lg bg-green-600 px-4 py-2 font-bold text-white" data-action="in">IN</button>
-                            <button type="button" class="action-btn flex-1 rounded-lg bg-red-300 px-4 py-2 font-bold text-white" data-action="out">OUT</button>
+                            <button type="button" class="action-btn flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-bold transition" data-action="in" aria-pressed="true">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v12m0 0 4.5-4.5M12 16.5 7.5 12M4.5 19.5h15"/></svg>
+                                IN
+                            </button>
+                            <button type="button" class="action-btn flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-bold transition" data-action="out" aria-pressed="false">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5v-12m0 0L7.5 12M12 7.5l4.5 4.5M4.5 4.5h15"/></svg>
+                                OUT
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -120,24 +126,31 @@
         let action = 'in';
         let queueCount = 0;
 
+        function paintActionButtons() {
+            document.querySelectorAll('.action-btn').forEach(b => {
+                const isActive = b.dataset.action === action;
+                const activeBg = b.dataset.action === 'in' ? 'bg-green-600' : 'bg-red-600';
+                const activeRing = b.dataset.action === 'in' ? 'ring-green-700' : 'ring-red-700';
+                b.classList.remove('bg-green-600', 'bg-red-600', 'bg-gray-200', 'text-white',
+                    'text-gray-600', 'ring-2', 'ring-offset-1', 'ring-green-700', 'ring-red-700');
+                if (isActive) {
+                    b.classList.add(activeBg, 'text-white', 'ring-2', 'ring-offset-1', activeRing);
+                } else {
+                    b.classList.add('bg-gray-200', 'text-gray-600');
+                }
+                b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+            // Show next-department picker only for OUT
+            document.getElementById('nextDeptWrap').classList.toggle('hidden', action !== 'out');
+        }
+
         document.querySelectorAll('.action-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 action = btn.dataset.action;
-                document.querySelectorAll('.action-btn').forEach(b => {
-                    b.classList.remove('bg-green-600', 'bg-red-600');
-                    b.classList.add('bg-gray-300');
-                });
-                if (action === 'in') {
-                    btn.classList.remove('bg-gray-300');
-                    btn.classList.add('bg-green-600');
-                } else {
-                    btn.classList.remove('bg-gray-300');
-                    btn.classList.add('bg-red-600');
-                }
-                // Show next-department picker only for OUT
-                document.getElementById('nextDeptWrap').classList.toggle('hidden', action !== 'out');
+                paintActionButtons();
             });
         });
+        paintActionButtons();
 
         function normalizeTracking(decodedText) {
             if (decodedText.includes('/track/')) return decodedText.split('/track/').pop();

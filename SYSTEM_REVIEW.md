@@ -171,12 +171,14 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - Address tracking-number enumeration + rate-limit public track/upload routes (§2.1, §2.4) ✅ — 6-char unambiguous suffix (~729M/day); `throttle:60,1` on public track/status
 - Pick ONE authorization model (permission-based `can()`) and apply consistently (§2.6) — **reclassified to its own focused pass (see Phase 3)**; it's a maintainability/consistency refactor, not an open vulnerability (role gates + department scoping already enforce access correctly), so it was kept out of this security commit to avoid a broad risky change mixed with data-protection work
 
-**Phase 2 — Core UX gaps that make it "easy to use."**
-- Sidebar: labels always visible / expanded-by-default + collapse toggle (§6.1)
-- Global document search from the top bar (§6.3)
-- Per-user / per-department "work queue" view sorted by SLA (§6.6)
-- Edit-document + undo-last-scan / send-back with audit (§6.4)
-- IN/OUT button contrast + icons; empty-state CTAs and inline help (§6.2, §6.5)
+**Phase 2 — Core UX gaps that make it "easy to use." ✅ MOSTLY DONE 2026-06-03 (undo/send-back → Phase 2b)**
+- Sidebar: labels always visible / expanded-by-default + collapse toggle (§6.1) ✅ — pinned-by-default, persisted in localStorage, header toggle; no longer hover-only (works on touch)
+- Global document search from the top bar (§6.3) ✅ — header search box reusing the existing scoped History search
+- Per-user / per-department "work queue" view sorted by SLA (§6.6) ✅ already covered — the Movements **inbox** tab lists documents currently at your department with SLA bars + overdue filter, plus the dashboard At-Risk section; no duplicate built
+- Edit-document with audit (§6.4) ✅ — `documents.edit/update`, department-scoped, activity-logged; `DocumentEditTest` added
+- IN/OUT button contrast + icons (§6.2) ✅ — equal-weight buttons, icons, clear selected state; empty-state CTA on dashboard (§6.5) ✅
+- **Undo-last-scan / send-back (§6.4) → deferred to Phase 2b** — it mutates routing/status and interacts with already-dispatched SLA jobs and completed state; it deserves its own careful pass with dedicated tests rather than being rushed into this UX commit
+- _Also fixed in passing:_ `npm install` (axios was declared but never installed, so `npm run build` was failing for everyone)
 
 **Phase 3 — Architecture hardening.**
 - Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1)

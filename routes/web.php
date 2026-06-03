@@ -123,6 +123,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/create', [DocumentWebController::class, 'create'])->name('documents.create');
     Route::post('/documents', [DocumentWebController::class, 'store'])->name('documents.store');
     Route::get('/documents/{document}/created', [DocumentWebController::class, 'created'])->name('documents.created');
+    Route::get('/documents/{document}/edit', [DocumentWebController::class, 'edit'])->name('documents.edit');
+    Route::put('/documents/{document}', [DocumentWebController::class, 'update'])->name('documents.update');
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
 

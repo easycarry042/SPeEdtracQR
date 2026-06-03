@@ -36,7 +36,10 @@ class Document extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['tracking_number', 'status', 'current_department_id'])
+            ->logOnly([
+                'tracking_number', 'status', 'current_department_id',
+                'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
+            ])
             ->logOnlyDirty();
     }
 
