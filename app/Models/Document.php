@@ -26,11 +26,15 @@ class Document extends Model
         'attachment_path',
         'received_at',
         'completed_at',
+        'sla_warning_notified_at',
+        'sla_breach_notified_at',
     ];
 
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
+        'sla_warning_notified_at' => 'datetime',
+        'sla_breach_notified_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions

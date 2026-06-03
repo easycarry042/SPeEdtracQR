@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\CheckSlaJob;
-use App\Jobs\CheckSlaWarningJob;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentScan;
@@ -82,12 +80,11 @@ class ScanController extends Controller
         if ($validated['action'] === 'in') {
             $document->current_department_id = $validated['department_id'];
             $document->status = 'in_transit';
+            // New stay at this department: restart the SLA clock and let the
+            // scheduled sweep (documents:check-sla) re-notify if it overstays.
+            $document->sla_warning_notified_at = null;
+            $document->sla_breach_notified_at = null;
             $document->save();
-
-            $slaHours = optional($document->currentDepartment)->sla_hours ?? 48;
-            $warningHours = (int) floor($slaHours * 0.75);
-            CheckSlaWarningJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($warningHours));
-            CheckSlaJob::dispatch($document->id, (int) $validated['department_id'])->delay(now()->addHours($slaHours));
         } else {
             $manualNextId = $validated['next_department_id'] ?? null;
             $routedNext = $document->getNextDepartment();
