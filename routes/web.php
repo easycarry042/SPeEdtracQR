@@ -127,6 +127,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/documents/{document}', [DocumentWebController::class, 'update'])->name('documents.update');
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
+    Route::post('/documents/{document}/undo-scan', [ScanController::class, 'undoLast'])->name('documents.undo-scan');
 
     Route::middleware('role:super_admin,department_admin')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
