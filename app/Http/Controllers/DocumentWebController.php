@@ -218,7 +218,7 @@ class DocumentWebController extends Controller
 
         $sort = 0;
         foreach ($files->filter() as $file) {
-            $path = $file->store('document-attachments', 'public');
+            $path = $file->store('document-attachments', 'local');
 
             if (Schema::hasTable('document_attachments')) {
                 DocumentAttachment::create([

@@ -166,10 +166,10 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - Env-drive the seeded admin password via `ADMIN_PASSWORD` (§2.5) ✅ — all three seeders + `.env.example`
 - _Still pending for prod:_ ensure `APP_DEBUG=false` in the production `.env` (deploy step, §7)
 
-**Phase 1 — Security & data protection.**
-- Move attachments to a private disk behind authorized access (§2.3)
-- Address tracking-number enumeration + rate-limit public track/upload routes (§2.1, §2.4)
-- Pick ONE authorization model (permission-based `can()`) and apply consistently (§2.6)
+**Phase 1 — Security & data protection. ✅ DONE 2026-06-03 (data protection); §2.6 reclassified**
+- Move attachments to a private disk behind authorized access (§2.3) ✅ — uploads now on `local` disk, served only via `AttachmentController` with per-department checks; public citizen page no longer shows internal images; `AttachmentAccessTest` added
+- Address tracking-number enumeration + rate-limit public track/upload routes (§2.1, §2.4) ✅ — 6-char unambiguous suffix (~729M/day); `throttle:60,1` on public track/status
+- Pick ONE authorization model (permission-based `can()`) and apply consistently (§2.6) — **reclassified to its own focused pass (see Phase 3)**; it's a maintainability/consistency refactor, not an open vulnerability (role gates + department scoping already enforce access correctly), so it was kept out of this security commit to avoid a broad risky change mixed with data-protection work
 
 **Phase 2 — Core UX gaps that make it "easy to use."**
 - Sidebar: labels always visible / expanded-by-default + collapse toggle (§6.1)
@@ -179,6 +179,7 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - IN/OUT button contrast + icons; empty-state CTAs and inline help (§6.2, §6.5)
 
 **Phase 3 — Architecture hardening.**
+- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1)
 - Collapse the two routing systems to one source of truth (§3.1)
 - Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4)
 - Consolidate migrations, remove `Schema::hasColumn` guards (§3.3)

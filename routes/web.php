@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DepartmentController as AdminDepartmentController
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
 use App\Http\Controllers\DashboardController;
@@ -41,8 +42,15 @@ Route::get('/', function () {
 
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
-Route::get('/track/{trackingNumber}/status', [TrackController::class, 'status'])->name('track.status');
-Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])->name('track.show');
+// Rate-limited as defense-in-depth against tracking-number guessing
+// (primary defense is the high-entropy tracking number). 60/min/IP is
+// generous for legit use — the citizen page only polls status every 30s.
+Route::get('/track/{trackingNumber}/status', [TrackController::class, 'status'])
+    ->middleware('throttle:60,1')
+    ->name('track.status');
+Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('track.show');
 Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.citizen-upload');
@@ -127,6 +135,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');
 
     Route::get('/movements', [MovementController::class, 'index'])->name('movements.index');
+
+    // Private document attachments — access checked per-department in the controller.
+    Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
 
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 });

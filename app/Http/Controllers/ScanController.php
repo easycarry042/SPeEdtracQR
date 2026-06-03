@@ -69,7 +69,7 @@ class ScanController extends Controller
         $scan = $this->recordScan($document, $validated);
 
         if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('document-attachments', 'public');
+            $path = $request->file('attachment')->store('document-attachments', 'local');
             if (Schema::hasColumn('document_scans', 'attachment_path')) {
                 $scan->update(['attachment_path' => $path]);
             }

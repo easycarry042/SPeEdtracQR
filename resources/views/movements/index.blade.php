@@ -1,4 +1,3 @@
-@php use App\Support\PublicStorage; @endphp
 <x-app-layout>
     <x-slot name="header">
         <div class="flex items-center justify-between">
@@ -167,12 +166,9 @@
                             @if($tab === 'inbox' && $document->canAct)
                                 @php
                                     $reviewImages = $document->attachments
-                                        ->map(fn ($a) => PublicStorage::url($a->file_path))
+                                        ->map(fn ($a) => route('attachments.show', $a))
                                         ->filter()
                                         ->values();
-                                    if ($reviewImages->isEmpty() && $document->attachment_path) {
-                                        $reviewImages = collect([PublicStorage::url($document->attachment_path)]);
-                                    }
                                 @endphp
                                 <div class="flex items-center gap-2 border-t border-gray-100 pt-3">
                                     <a href="{{ url('/track/'.$document->tracking_number) }}" target="_blank" rel="noopener"
