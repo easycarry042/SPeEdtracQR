@@ -8,6 +8,7 @@ use App\Models\DocumentAttachment;
 use App\Models\DocumentScan;
 use App\Models\RoutingRule;
 use App\Services\QrCodeService;
+use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -25,16 +26,7 @@ class DocumentWebController extends Controller
             ->orderBy('document_type')
             ->pluck('document_type');
 
-        $categoryOptions = [
-            'Business Permit',
-            'Barangay Clearance',
-            'Building Permit',
-            "Mayor's Permit",
-            'Real Property Tax',
-            'Birth Certificate Request',
-            'Community Tax Certificate',
-            'Other',
-        ];
+        $categoryOptions = $this->categoryOptions();
 
         $departments = Department::orderBy('name')->get();
 
@@ -165,6 +157,40 @@ class DocumentWebController extends Controller
         return view('documents.created', compact('document'));
     }
 
+    public function edit(Document $document)
+    {
+        $this->ensureCanCreate();
+        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+
+        $categoryOptions = $this->categoryOptions();
+
+        return view('documents.edit', compact('document', 'categoryOptions'));
+    }
+
+    public function update(Request $request, Document $document)
+    {
+        $this->ensureCanCreate();
+        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+
+        // Routing and status are changed only through scans, not this form.
+        $validated = $request->validate([
+            'document_type' => 'required|string|max:255',
+            'citizen_name' => 'nullable|string|max:255',
+            'citizen_contact' => 'nullable|string|max:255',
+            'purpose' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $document->update(collect($validated)->filter(
+            fn ($value, $key) => $key === 'document_type' || Schema::hasColumn('documents', $key)
+        )->all());
+
+        return redirect()
+            ->route('track.show', $document->tracking_number)
+            ->with('status', 'Document details updated.');
+    }
+
     public function printSticker(Document $document)
     {
         $this->authorizeDocumentView($document);
@@ -194,6 +220,20 @@ class DocumentWebController extends Controller
         if (! auth()->check()) {
             abort(403);
         }
+    }
+
+    private function categoryOptions(): array
+    {
+        return [
+            'Business Permit',
+            'Barangay Clearance',
+            'Building Permit',
+            "Mayor's Permit",
+            'Real Property Tax',
+            'Birth Certificate Request',
+            'Community Tax Certificate',
+            'Other',
+        ];
     }
 
     private function ensureCanCreate(): void
