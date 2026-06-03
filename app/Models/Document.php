@@ -185,7 +185,8 @@ class Document extends Model
             return false;
         }
 
-        $hoursStayed = now()->diffInHours($lastScan->scanned_at);
+        // scanned_at is in the past; order operands so the diff is positive.
+        $hoursStayed = $lastScan->scanned_at->diffInHours(now());
         $sla = $this->currentDepartment->sla_hours;
 
         return $hoursStayed > $sla;

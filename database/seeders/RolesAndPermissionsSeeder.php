@@ -42,8 +42,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@speedtraqr.com'],
             [
-                'name'      => 'Super Admin',
-                'password'  => bcrypt('password123'),
+                'name' => 'Super Admin',
+                'password' => bcrypt(env('ADMIN_PASSWORD', 'password123')),
                 'is_active' => true,
             ]
         );

@@ -101,7 +101,7 @@ class MovementController extends Controller
                 ->first();
 
             $slaHours = $doc->currentDepartment->sla_hours ?? 0;
-            $elapsedHours = $lastIn ? now()->diffInMinutes($lastIn->scanned_at) / 60 : 0;
+            $elapsedHours = $lastIn ? $lastIn->scanned_at->diffInMinutes(now()) / 60 : 0;
             $doc->slaPct = $slaHours > 0 ? min(round(($elapsedHours / $slaHours) * 100), 100) : 0;
             $doc->slaOverdue = $slaHours > 0 && $elapsedHours > $slaHours;
             $doc->slaHoursLeft = $slaHours > 0 ? round($slaHours - $elapsedHours) : null;

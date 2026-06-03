@@ -24,8 +24,8 @@ class UserSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@speedtraqr.com'],
             [
-                'name'     => 'Super Admin',
-                'password' => bcrypt('password123'),
+                'name' => 'Super Admin',
+                'password' => bcrypt(env('ADMIN_PASSWORD', 'password123')),
             ]
         );
         $admin->syncRoles([$adminRole]);
@@ -36,28 +36,28 @@ class UserSeeder extends Seeder
 
         $staffUsers = [
             [
-                'name'       => 'Maria Santos',
-                'email'      => 'maria.santos@speedtraqr.com',
+                'name' => 'Maria Santos',
+                'email' => 'maria.santos@speedtraqr.com',
                 'department' => 'Front Desk/Reception',
             ],
             [
-                'name'       => 'Jose Reyes',
-                'email'      => 'jose.reyes@speedtraqr.com',
+                'name' => 'Jose Reyes',
+                'email' => 'jose.reyes@speedtraqr.com',
                 'department' => 'Accounting',
             ],
             [
-                'name'       => 'Ana Cruz',
-                'email'      => 'ana.cruz@speedtraqr.com',
+                'name' => 'Ana Cruz',
+                'email' => 'ana.cruz@speedtraqr.com',
                 'department' => 'Engineering',
             ],
             [
-                'name'       => 'Carlos Dela Cruz',
-                'email'      => 'carlos.delacruz@speedtraqr.com',
+                'name' => 'Carlos Dela Cruz',
+                'email' => 'carlos.delacruz@speedtraqr.com',
                 'department' => 'Mayors Office',
             ],
             [
-                'name'       => 'Liza Reyes',
-                'email'      => 'liza.reyes@speedtraqr.com',
+                'name' => 'Liza Reyes',
+                'email' => 'liza.reyes@speedtraqr.com',
                 'department' => 'Records/Archiving',
             ],
         ];
@@ -68,8 +68,8 @@ class UserSeeder extends Seeder
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 [
-                    'name'          => $data['name'],
-                    'password'      => bcrypt('staff1234'),
+                    'name' => $data['name'],
+                    'password' => bcrypt('staff1234'),
                     'department_id' => $dept?->id,
                 ]
             );
@@ -77,7 +77,8 @@ class UserSeeder extends Seeder
             $user->syncRoles([$staffRole]);
         }
 
-        $this->command->info('✓ Super Admin  → admin@speedtraqr.com  / password123');
+        $adminPassword = env('ADMIN_PASSWORD', 'password123');
+        $this->command->info("✓ Super Admin  → admin@speedtraqr.com  / {$adminPassword}");
         $this->command->info('✓ Staff        → *@speedtraqr.com       / staff1234');
     }
 }

@@ -6,10 +6,11 @@ use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    public function test_root_redirects_unauthenticated_users_to_login(): void
+    public function test_guests_see_the_public_landing_page(): void
     {
         $response = $this->get('/');
 
-        $response->assertRedirect(route('login'));
+        $response->assertOk();
+        $response->assertSee('Track');
     }
 }
