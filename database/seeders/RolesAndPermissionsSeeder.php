@@ -21,6 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage users',
             'view all documents',
             'delete documents',
+            'manage system',
         ];
 
         foreach ($permissions as $permission) {
@@ -28,13 +29,16 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
-        $staffRole->syncPermissions(['create documents', 'scan documents', 'view reports']);
+        $staffRole->syncPermissions(['create documents', 'scan documents']);
 
         $receivingRole = Role::firstOrCreate(['name' => 'receiving_staff']);
         $receivingRole->syncPermissions(['scan documents']);
 
         $deptAdminRole = Role::firstOrCreate(['name' => 'department_admin']);
-        $deptAdminRole->syncPermissions(['manage users', 'view reports', 'view all documents']);
+        $deptAdminRole->syncPermissions([
+            'create documents', 'scan documents', 'view reports',
+            'manage users', 'view all documents',
+        ]);
 
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
         $superAdminRole->syncPermissions(Permission::pluck('name')->all());

@@ -178,6 +178,7 @@
                                     <div class="flex-1"></div>
                                     <button type="button"
                                             class="js-review-btn inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                                            data-document-id="{{ $document->id }}"
                                             data-tracking="{{ $document->tracking_number }}"
                                             data-from="{{ $document->current_department_id }}"
                                             data-to="{{ $document->nextDepartment?->id ?? '' }}"
@@ -263,6 +264,16 @@
                     <p id="reviewNoImages" class="hidden text-sm text-gray-400 italic">No images attached yet.</p>
                 </div>
 
+                <div class="mt-4 border-t border-gray-100 pt-4">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Add photos (optional, up to 10)</label>
+                    <input id="reviewAttachment" type="file" accept="image/*" multiple
+                           class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
+                    <button type="button" id="reviewAddPhotosBtn"
+                            class="mt-2 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50">
+                        Save photos to document
+                    </button>
+                </div>
+
                 <div id="reviewSendSection" class="mt-4 border-t border-gray-100 pt-4">
                     <p class="mb-2 text-sm font-semibold text-gray-800">Send to next department</p>
                     <select id="reviewDeptSelect"
@@ -277,11 +288,6 @@
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Remarks (optional)</label>
                         <input id="reviewRemarksInput" type="text" placeholder="Add a note..."
                                class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                    </div>
-                    <div class="mt-3">
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Add photo (optional)</label>
-                        <input id="reviewAttachment" type="file" accept="image/*"
-                               class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
                     </div>
                 </div>
 
@@ -335,6 +341,7 @@
         (function () {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const scanUrl = @json(route('api.scan.store'));
+            const attachmentUrlBase = @json(url('/documents'));
             const completeUrlBase = @json(url('/documents'));
 
             const reviewModal = document.getElementById('reviewModal');
@@ -351,7 +358,7 @@
             const completeResult = document.getElementById('completeResult');
             const completeSubmitBtn = document.getElementById('completeSubmitBtn');
 
-            let reviewState = { tracking: '', from: '' };
+            let reviewState = { tracking: '', from: '', documentId: '' };
 
             function showModal(modal) {
                 modal.classList.remove('hidden');
@@ -389,6 +396,7 @@
             function openReview(btn) {
                 reviewState.tracking = btn.dataset.tracking;
                 reviewState.from = btn.dataset.from;
+                reviewState.documentId = btn.dataset.documentId || '';
                 const isLast = btn.dataset.lastStop === '1';
 
                 document.getElementById('reviewTrackingLabel').textContent = reviewState.tracking;
@@ -446,6 +454,47 @@
                 return res.json().then(data => ({ ok: res.ok, data }));
             }
 
+            document.getElementById('reviewAddPhotosBtn')?.addEventListener('click', async function () {
+                const input = document.getElementById('reviewAttachment');
+                if (!reviewState.documentId || !input?.files?.length) {
+                    reviewResult.classList.remove('hidden');
+                    reviewResult.className = 'mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900';
+                    reviewResult.textContent = 'Choose one or more photos first.';
+                    return;
+                }
+                const btn = document.getElementById('reviewAddPhotosBtn');
+                btn.disabled = true;
+                btn.textContent = 'Uploading…';
+                const formData = new FormData();
+                Array.from(input.files).forEach(file => formData.append('attachments[]', file));
+                try {
+                    const res = await fetch(attachmentUrlBase + '/' + reviewState.documentId + '/attachments', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                        body: formData,
+                    });
+                    const data = await res.json();
+                    reviewResult.classList.remove('hidden');
+                    if (res.ok) {
+                        reviewResult.className = 'mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800';
+                        reviewResult.textContent = data.message || 'Photos saved.';
+                        const urls = (data.attachments || []).map(a => a.url);
+                        const existing = Array.from(reviewImages.querySelectorAll('a')).map(a => a.href);
+                        renderReviewImages(existing.concat(urls));
+                        input.value = '';
+                    } else {
+                        reviewResult.className = 'mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800';
+                        reviewResult.textContent = data.message || 'Upload failed.';
+                    }
+                } catch (e) {
+                    reviewResult.classList.remove('hidden');
+                    reviewResult.className = 'mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800';
+                    reviewResult.textContent = 'Network error.';
+                }
+                btn.disabled = false;
+                btn.textContent = 'Save photos to document';
+            });
+
             reviewSendBtn?.addEventListener('click', async function () {
                 if (!reviewDeptSelect.value) return;
                 reviewSendBtn.disabled = true;
@@ -458,8 +507,12 @@
                 formData.append('remarks', document.getElementById('reviewRemarksInput').value || '');
                 formData.append('scanned_at', new Date().toISOString());
                 formData.append('offline_uuid', crypto.randomUUID());
-                const file = document.getElementById('reviewAttachment').files[0];
-                if (file) formData.append('attachment', file);
+                const files = document.getElementById('reviewAttachment').files;
+                if (files?.length === 1) {
+                    formData.append('attachment', files[0]);
+                } else if (files?.length > 1) {
+                    Array.from(files).forEach(file => formData.append('attachments[]', file));
+                }
                 try {
                     const res = await fetch(scanUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' }, body: formData });
                     const data = await res.json();

@@ -34,12 +34,13 @@ class AuthenticatedSessionController extends Controller
 
     private function redirectByRole($user): RedirectResponse
     {
-        if ($user->hasRole('super_admin')) {
+        if ($user->can('manage system')) {
             return redirect()->intended(route('admin.dashboard', absolute: false));
         }
 
-        if ($user->hasRole('receiving_staff')) {
-            return redirect()->intended(route('documents.create', absolute: false));
+        // Intake-only operators land on scan, not the staff dashboard.
+        if ($user->can('scan documents') && ! $user->can('create documents')) {
+            return redirect()->intended(route('scan.index', absolute: false));
         }
 
         return redirect()->intended(route('dashboard', absolute: false));

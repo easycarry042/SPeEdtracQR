@@ -42,10 +42,9 @@
 
                 <nav class="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-1 py-4 transition-[padding] duration-300 ease-out group-hover:px-2">
                     @php
-                        $isAdmin     = $user?->hasRole('super_admin') ?? false;
-                        $isDeptAdmin = $user?->hasRole('department_admin') ?? false;
-                        $dashboardRoute = $isAdmin ? route('admin.dashboard') : route('dashboard');
-                        $dashboardActive = $isAdmin
+                        $isSystemAdmin = $user?->can('manage system') ?? false;
+                        $dashboardRoute = $isSystemAdmin ? route('admin.dashboard') : route('dashboard');
+                        $dashboardActive = $isSystemAdmin
                             ? request()->routeIs('admin.dashboard')
                             : request()->routeIs('dashboard');
                     @endphp
@@ -55,15 +54,16 @@
                         </span>
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Dashboard</span>
                     </a>
-                    @if($isAdmin || $isDeptAdmin)
+                    @can('view reports')
                     <a href="{{ route('analytics') }}" class="{{ request()->routeIs('analytics*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('analytics*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="10" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
                         </span>
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Analytics</span>
                     </a>
-                    @endif
-                    @unless($isAdmin)
+                    @endcan
+                    @can('scan documents')
+                    @unless($isSystemAdmin)
                     <a href="{{ route('track.index') }}" class="{{ request()->routeIs('track.*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('track.*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M5 4l13 8-13 8V4z"/></svg>
@@ -77,6 +77,7 @@
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Scan</span>
                     </a>
                     @endunless
+                    @endcan
                     <a href="{{ route('history') }}" class="{{ request()->routeIs('history*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('history*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
@@ -90,7 +91,7 @@
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Movements</span>
                     </a>
 
-                    @if($isAdmin || $isDeptAdmin)
+                    @can('manage users')
                     <div class="my-1 mx-1 h-px bg-emerald-200/60 transition-[margin] duration-300 group-hover:mx-2"></div>
                     <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap px-3 pb-0.5 pt-1 text-[10px] font-bold uppercase tracking-widest text-emerald-700/60 opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100 select-none">Admin</span>
                     <a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
@@ -99,8 +100,8 @@
                         </span>
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Users</span>
                     </a>
-                    @endif
-                    @if($isAdmin)
+                    @endcan
+                    @can('manage system')
                     <a href="{{ route('admin.departments.index') }}" class="{{ request()->routeIs('admin.departments*') ? 'bg-[#245501]/10 text-emerald-950 shadow-sm ring-1 ring-[#245501]/10' : 'text-emerald-900 hover:bg-[#245501]/10' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.departments*') ? 'text-[#2B9348]' : 'bg-transparent text-emerald-800' }}">
                             <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L2 9v2h20V9L12 3zM4 13v5h3v-5H4zm5 0v5h3v-5H9zm5 0v5h3v-5h-3zm5 0v5h-2v-5h2zm-15 7h16v2H4v-2z"/></svg>
@@ -113,7 +114,7 @@
                         </span>
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Audit Log</span>
                     </a>
-                    @endif
+                    @endcan
                 </nav>
 
                 <div class="shrink-0 border-t border-emerald-200/60 p-1 transition-[padding] duration-300 ease-out group-hover:p-2">
@@ -142,7 +143,7 @@
                             <span class="inline-flex max-w-[14rem] items-center truncate rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 sm:max-w-xs" title="Your department">
                                 {{ $departmentName }}
                             </span>
-                        @elseif($roleLabel && ($user?->hasRole('super_admin') ?? false))
+                        @elseif($roleLabel && ($user?->can('manage system') ?? false))
                             <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">All departments</span>
                         @endif
                     </div>
@@ -159,14 +160,14 @@
                     </form>
 
                     <div class="flex items-center gap-3">
-                    @if(!$isAdmin)
+                    @can('create documents')
                     <a href="{{ route('documents.create') }}" class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-200/90 text-emerald-900 shadow-sm ring-1 ring-emerald-300/40 transition hover:scale-105 hover:bg-emerald-300/90 hover:shadow-md active:scale-95" title="New document">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 11v6M9 14h6"/>
                         </svg>
                     </a>
-                    @endif
+                    @endcan
 
                     {{-- Notification dropdown --}}
                     <div class="relative" id="notifDropdown">

@@ -20,7 +20,7 @@ return new class extends Migration
 
         Schema::table('document_scans', function (Blueprint $table) {
             if (! Schema::hasColumn('document_scans', 'attachment_path')) {
-                $table->string('attachment_path')->nullable()->after('remarks');
+                $table->string('attachment_path')->nullable()->after('synced');
             }
         });
     }

@@ -13,7 +13,7 @@ class TrackController extends Controller
 
     public function index(Request $request)
     {
-        if (auth()->user()?->hasRole('super_admin')) {
+        if (auth()->user()?->can('manage system')) {
             return redirect()->route('admin.dashboard');
         }
 
@@ -34,7 +34,7 @@ class TrackController extends Controller
             }, 'scans.department', 'scans.user', 'currentDepartment', 'attachments', 'routeSteps.department'])
             ->firstOrFail();
 
-        if (auth()->user()?->hasRole('super_admin')) {
+        if (auth()->user()?->can('manage system')) {
             return redirect()->route('admin.dashboard');
         }
 

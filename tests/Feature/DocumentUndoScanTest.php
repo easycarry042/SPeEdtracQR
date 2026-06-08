@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DocumentUndoScanTest extends TestCase
@@ -26,7 +25,7 @@ class DocumentUndoScanTest extends TestCase
 
     public function test_undoing_an_out_returns_document_to_previous_department(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
         $dept2 = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
         $user = User::factory()->create(['department_id' => $dept1->id])->assignRole('staff');
@@ -54,7 +53,7 @@ class DocumentUndoScanTest extends TestCase
 
     public function test_undoing_the_only_scan_makes_document_pending_again(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
         $dept = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
         $user = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
 
@@ -79,7 +78,7 @@ class DocumentUndoScanTest extends TestCase
 
     public function test_staff_cannot_undo_another_departments_scan(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
         $dept2 = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
         $owner = User::factory()->create(['department_id' => $dept1->id]);

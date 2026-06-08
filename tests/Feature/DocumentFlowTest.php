@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DocumentFlowTest extends TestCase
@@ -15,9 +14,8 @@ class DocumentFlowTest extends TestCase
 
     public function test_document_moves_through_three_departments(): void
     {
-        // Seed roles so Spatie permission checks work
-        Role::firstOrCreate(['name' => 'staff',           'guard_name' => 'web']);
-        Role::firstOrCreate(['name' => 'receiving_staff', 'guard_name' => 'web']);
+        // Seed real roles + permissions so the can() gates behave like production.
+        $this->seedRolesAndPermissions();
 
         $user = User::factory()->create()->assignRole('staff');
         $dept1 = Department::create(['name' => 'Reception',    'sla_hours' => 48]);

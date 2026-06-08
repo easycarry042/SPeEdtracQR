@@ -4,7 +4,7 @@
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">History</h1>
                 @php $dept = auth()->user()?->department; @endphp
-                @if($dept && !auth()->user()->hasRole('super_admin'))
+                @if($dept && !auth()->user()->can('manage system'))
                     <p class="mt-1 text-sm text-emerald-700">Documents for <span class="font-semibold">{{ $dept->name }}</span></p>
                 @endif
             </div>

@@ -24,12 +24,8 @@ Reproduced: `now()->diffInHours(past) = -5.0`. Carbon 3 returns **signed** diffs
 **Every "overdue" check silently returns false.** The whole SLA/overdue surface is non-functional.
 Fix: `abs(...)` or `$lastScan->scanned_at->diffInHours(now())`. Add a test.
 
-### 1.2 The offline scanner is wired to nothing ✅ CONFIRMED
-`resources/js/offline-scanner.js`:
-- POSTs to `/api/documents/scan` — **that route does not exist** (real route is `/scan`, and the batch endpoint is `/scan/sync`).
-- Uses `Authorization: Bearer <localStorage token>` — but the API uses **session auth** (`web` middleware), not tokens. There is no token issuance anywhere.
-- Never calls the `ScanController@sync` batch endpoint that the backend actually built for this.
-So "offline scanning" — a headline feature — is dead code that would 404/401. The frontend and backend offline paths were never connected.
+### 1.2 The offline scanner is wired to nothing ✅ RESOLVED
+The live scan page (`resources/views/scan/index.blade.php`) queues scans in IndexedDB when offline and syncs via `POST /api/scan/sync` with session CSRF auth. The old `resources/js/offline-scanner.js` (wrong URL, Bearer token) was **deleted** — it was never imported.
 
 ### 1.3 Failing test in the suite ✅ CONFIRMED (1 failed / 30 passed)
 `ExampleTest::test_root_redirects_unauthenticated_users_to_login` expects `/` to redirect to login, but `/` returns `view('welcome')` (200). Either the test or the route is stale. CI is red.
@@ -57,8 +53,8 @@ Both staff and citizen uploads `->store('document-attachments', 'public')` → s
 ### 2.5 Default admin `admin@speedtraqr.com` / `password123` ✅
 Seeded weak credential. Fine for dev, dangerous if it reaches prod. Force a reset / env-driven password.
 
-### 2.6 Permissions are defined but unused ✅
-`RolesAndPermissionsSeeder` defines `scan documents`, `create documents`, etc., but every controller authorizes by `hasRole()` / `hasAnyRole()`, never `can()`. Example mismatch: `department_admin` lacks the `scan documents` permission yet `ensureCanScan()` lets them scan by role. The permission layer is decorative — pick **one** model (recommend permission-based `can()`), or the gates will drift.
+### 2.6 Permissions are defined but unused ✅ RESOLVED
+Capability gates now use Spatie `can()` consistently (`create documents`, `scan documents`, `view reports`, `manage users`, `manage system`). Route middleware uses `permission:` aliases; roles remain only for assignment and a few UX redirects (e.g. intake-only operators → scan page). `AuthorizationTest` covers create/scan/analytics/admin gates and cross-department scan blocking.
 
 ---
 
@@ -180,13 +176,13 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 - Undo-last-scan / send-back (§6.4) ✅ DONE (Phase 2b) — `documents.undo-scan`: reverts the last scan (undoing an OUT returns the document to its last check-in; undoing an IN removes it), department-scoped, written to the activity log; `DocumentUndoScanTest` covers OUT-reversal, only-scan→pending, and the cross-department 403. _Known limitation:_ does not cancel already-dispatched SLA jobs (those are guarded to no-op in the common path; Phase 3's scheduled-sweep replacement removes the issue entirely). Un-completing via undo only applies to scan-driven state, not the separate `complete` action.
 - _Also fixed in passing:_ `npm install` (axios was declared but never installed, so `npm run build` was failing for everyone)
 
-**Phase 3 — Architecture hardening. (in progress)**
+**Phase 3 — Architecture hardening. ✅ DONE 2026-06-08**
 - Delete dead views/controllers; fix `CLAUDE.md` (§0, §3.2) ✅ 3a — removed DocumentController, 6 legacy flat views, unused navigation layout; corrected CLAUDE.md
 - Remove `Schema::hasColumn` guards (§3.3) ✅ 3b — **and discovered they were masking missing columns**: `citizen_contact`, `purpose`, `description`, `qr_code_path` (documents) and `remarks`, `offline_uuid` (document_scans) were never migrated, so those fields were silently dropped on write. Added a migration creating them, removed all guards, and added tests asserting create+edit now persist contact/purpose/description.
 - Replace per-scan delayed jobs with a scheduled SLA sweep (§3.4) ✅ 3e — `documents:check-sla` hourly, deduped via notified markers reset on each IN; deleted CheckSlaJob/CheckSlaWarningJob
 - Collapse the two routing systems to one source of truth (§3.1) ✅ 3d — `route_steps` is now authoritative; `RoutingRule` only seeds defaults at creation. Backfilled steps for legacy documents, removed the model fallback, added a test that global rules are ignored without steps
-- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6, moved from Phase 1) — _in progress_
-- Repair OR remove the offline scanner — decide if offline is a real requirement (§1.2)
+- Unify on one authorization model — permission-based `can()` — applied consistently (§2.6) ✅ 3f — `EnsureHasPermission` middleware, `manage system` permission for org-wide admin routes, nav uses `@can`, `AuthorizationTest` expanded
+- Repair offline scanner (§1.2) ✅ 3g — live scan page already wired to `/api/scan` + `/api/scan/sync`; deleted dead `offline-scanner.js`; `OfflineScanSyncTest` added
 
 **Phase 4 — Product value-adds.**
 - Citizen notifications (SMS/email) using the captured contact (§4.2)
@@ -196,4 +192,9 @@ You asked what to do about deployment. The honest answer depends on the stage, s
 **Phase 5 — Deployment.**
 - MySQL/Postgres, real mail, worker + scheduler, staging, backups (§7)
 
-_Nothing here has been changed yet — this is the plan input._
+**Remaining (Phase 4–5 — product value-adds & deployment, not blocking pre-launch fixes):**
+- Citizen SMS/email notifications (§4.2)
+- Dwell-time / bottleneck analytics (§4.5)
+- Accessibility (AA) pass (§6.7)
+- Production deployment: MySQL/Postgres, real mail, worker + scheduler cron, staging, backups (§7)
+- Operational: `APP_DEBUG=false` in production `.env`

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentScan;
@@ -11,9 +12,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ScanController extends Controller
 {
+    use StoresDocumentAttachments;
+
     public function index()
     {
-        if (auth()->user()?->hasRole('super_admin')) {
+        if (auth()->user()?->can('manage system')) {
             return redirect()->route('admin.dashboard');
         }
 
@@ -43,6 +46,8 @@ class ScanController extends Controller
             'offline_uuid' => 'nullable|string',
             'next_department_id' => 'nullable|exists:departments,id',
             'attachment' => 'nullable|image|max:10240',
+            'attachments' => 'nullable|array|max:10',
+            'attachments.*' => 'image|max:10240',
         ]);
 
         $this->ensureDepartmentForScan((int) $validated['department_id']);
@@ -65,15 +70,17 @@ class ScanController extends Controller
 
         $scan = $this->recordScan($document, $validated);
 
+        $scanFiles = collect($request->file('attachments', []));
         if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('document-attachments', 'local');
-            $scan->update(['attachment_path' => $path]);
-            $document->attachments()->create([
-                'file_path' => $path,
-                'uploaded_by' => auth()->id(),
-                'department_id' => (int) $validated['department_id'],
-                'sort_order' => $document->attachments()->count(),
-            ]);
+            $scanFiles->prepend($request->file('attachment'));
+        }
+        $stored = $this->storeAttachmentsForDocument(
+            $document,
+            $scanFiles->filter()->all(),
+            (int) $validated['department_id'],
+        );
+        if ($stored !== []) {
+            $scan->update(['attachment_path' => $stored[0]->file_path]);
         }
         $nextDepartment = null;
 
@@ -255,7 +262,10 @@ class ScanController extends Controller
 
     private function ensureCanScan(): void
     {
-        if (! auth()->user()?->hasAnyRole(['staff', 'receiving_staff', 'department_admin'])) {
+        $user = auth()->user();
+
+        // System administrators manage the org but do not operate scanners.
+        if ($user?->can('manage system') || ! $user?->can('scan documents')) {
             abort(403, 'You do not have permission to scan documents.');
         }
     }

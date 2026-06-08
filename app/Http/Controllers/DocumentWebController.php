@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Department;
 use App\Models\Document;
-use App\Models\DocumentAttachment;
 use App\Models\DocumentScan;
 use App\Models\RoutingRule;
 use App\Services\QrCodeService;
@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 
 class DocumentWebController extends Controller
 {
+    use StoresDocumentAttachments;
+
     public function __construct(private QrCodeService $qrCodeService) {}
 
     public function create()
@@ -179,6 +181,8 @@ class DocumentWebController extends Controller
 
     public function complete(string $trackingNumber)
     {
+        abort_unless(auth()->user()?->can('scan documents') && ! auth()->user()?->can('manage system'), 403);
+
         $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
 
         if ($document->status === 'completed') {
@@ -218,11 +222,12 @@ class DocumentWebController extends Controller
     {
         $user = auth()->user();
 
-        if ($user?->hasRole('super_admin')) {
-            abort(403, 'Super administrators manage the system but do not create document submissions.');
+        if ($user?->can('manage system')) {
+            abort(403, 'System administrators manage the organization but do not create document submissions.');
         }
 
-        if (! $user?->hasAnyRole(['staff', 'receiving_staff', 'department_admin'])) {
+        // receiving_staff is intake/scan-only and lacks this permission.
+        if (! $user?->can('create documents')) {
             abort(403, 'You do not have permission to create document submissions.');
         }
     }
@@ -234,21 +239,6 @@ class DocumentWebController extends Controller
             $files->prepend($request->file('attachment'));
         }
 
-        $sort = 0;
-        foreach ($files->filter() as $file) {
-            $path = $file->store('document-attachments', 'local');
-
-            DocumentAttachment::create([
-                'document_id' => $document->id,
-                'file_path' => $path,
-                'uploaded_by' => auth()->id(),
-                'department_id' => null,
-                'sort_order' => $sort++,
-            ]);
-
-            if ($sort === 1) {
-                $document->update(['attachment_path' => $path]);
-            }
-        }
+        $this->storeAttachmentsForDocument($document, $files->filter()->all());
     }
 }

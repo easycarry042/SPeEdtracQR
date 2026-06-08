@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Department;
 use App\Models\Document;
 use App\Support\DepartmentScope;
+use App\Support\SlaQuery;
 use Illuminate\Http\Request;
 
 class MovementController extends Controller
@@ -42,9 +43,7 @@ class MovementController extends Controller
             $inboxQuery->whereHas('scans', function ($q) {
                 $q->where('action', 'in')
                     ->whereColumn('document_scans.department_id', 'documents.current_department_id')
-                    ->whereRaw(
-                        '(julianday("now") - julianday(document_scans.scanned_at)) * 24 > (select sla_hours from departments where id = documents.current_department_id)'
-                    );
+                    ->whereRaw(SlaQuery::scanOverdueHoursSql());
             });
         }
 

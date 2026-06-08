@@ -29,7 +29,7 @@ Route::get('/', function () {
         return view('welcome');
     }
 
-    return auth()->user()->hasRole('super_admin')
+    return auth()->user()->can('manage system')
         ? redirect()->route('admin.dashboard')
         : redirect()->route('dashboard');
 });
@@ -72,8 +72,8 @@ Route::prefix('citizen')->name('citizen.')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-// Super Admin only
-Route::middleware(['auth', 'verified', 'role:super_admin'])
+// Org-wide system administration (super_admin only via manage system permission)
+Route::middleware(['auth', 'verified', 'permission:manage system'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
@@ -91,8 +91,8 @@ Route::middleware(['auth', 'verified', 'role:super_admin'])
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
     });
 
-// Super Admin + Department Admin: user management (controller enforces dept scoping)
-Route::middleware(['auth', 'verified', 'role:super_admin,department_admin'])
+// User management (controller enforces department scoping for dept admins)
+Route::middleware(['auth', 'verified', 'permission:manage users'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
@@ -129,7 +129,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
     Route::post('/documents/{document}/undo-scan', [ScanController::class, 'undoLast'])->name('documents.undo-scan');
 
-    Route::middleware('role:super_admin,department_admin')->group(function () {
+    Route::middleware('permission:view reports')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
         Route::get('/analytics/data', [AnalyticsController::class, 'chartData'])->name('analytics.data');
     });
@@ -140,6 +140,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/movements', [MovementController::class, 'index'])->name('movements.index');
 
     // Private document attachments — access checked per-department in the controller.
+    Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');
     Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
 
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');

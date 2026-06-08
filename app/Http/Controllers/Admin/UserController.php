@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\User;
+use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -21,13 +21,13 @@ class UserController extends Controller
 
         if ($this->isDeptAdmin()) {
             $query->where('department_id', $this->authDeptId())
-                  ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', ['super_admin', 'department_admin']));
+                ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', ['super_admin', 'department_admin']));
         }
 
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -43,9 +43,9 @@ class UserController extends Controller
 
     public function create()
     {
-        $roles       = $this->assignableRoles();
+        $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
-        $deptLocked  = $this->isDeptAdmin();
+        $deptLocked = $this->isDeptAdmin();
 
         return view('admin.users.create', compact('roles', 'departments', 'deptLocked'));
     }
@@ -53,10 +53,10 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'email'         => 'required|email|unique:users,email',
-            'password'      => 'required|string|min:8|confirmed',
-            'role'          => 'required|string',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:8|confirmed',
+            'role' => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
         ]);
 
@@ -67,11 +67,11 @@ class UserController extends Controller
             : ($validated['department_id'] ?? null);
 
         $user = User::create([
-            'name'          => $validated['name'],
-            'email'         => $validated['email'],
-            'password'      => Hash::make($validated['password']),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
             'department_id' => $deptId,
-            'is_active'     => true,
+            'is_active' => true,
         ]);
 
         $user->assignRole($validated['role']);
@@ -84,9 +84,9 @@ class UserController extends Controller
     {
         $this->authorizeDeptAccess($user);
 
-        $roles       = $this->assignableRoles();
+        $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
-        $deptLocked  = $this->isDeptAdmin();
+        $deptLocked = $this->isDeptAdmin();
 
         return view('admin.users.edit', compact('user', 'roles', 'departments', 'deptLocked'));
     }
@@ -96,10 +96,10 @@ class UserController extends Controller
         $this->authorizeDeptAccess($user);
 
         $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'email'         => 'required|email|unique:users,email,' . $user->id,
-            'password'      => 'nullable|string|min:8|confirmed',
-            'role'          => 'required|string',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,'.$user->id,
+            'password' => 'nullable|string|min:8|confirmed',
+            'role' => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
         ]);
 
@@ -110,8 +110,8 @@ class UserController extends Controller
             : ($validated['department_id'] ?? null);
 
         $user->update([
-            'name'          => $validated['name'],
-            'email'         => $validated['email'],
+            'name' => $validated['name'],
+            'email' => $validated['email'],
             'department_id' => $deptId,
         ]);
 
@@ -142,9 +142,12 @@ class UserController extends Controller
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /** Department-scoped user manager (not org-wide super admin). */
     private function isDeptAdmin(): bool
     {
-        return auth()->user()->hasRole('department_admin');
+        $user = auth()->user();
+
+        return $user->can('manage users') && ! DepartmentScope::isOrgWide($user);
     }
 
     private function authDeptId(): ?int

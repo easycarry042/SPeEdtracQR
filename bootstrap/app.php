@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureHasPermission;
+use App\Http\Middleware\EnsureHasRole;
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,11 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Register role-guard alias so routes can use middleware('role:admin') etc.
         $middleware->alias([
-            'role'        => \App\Http\Middleware\EnsureHasRole::class,
-            'active.user' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'role' => EnsureHasRole::class,
+            'permission' => EnsureHasPermission::class,
+            'active.user' => EnsureUserIsActive::class,
         ]);
 
-        $middleware->appendToGroup('web', \App\Http\Middleware\EnsureUserIsActive::class);
+        $middleware->appendToGroup('web', EnsureUserIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -12,7 +12,7 @@ class DepartmentScope
     {
         $user ??= auth()->user();
 
-        return $user?->hasRole('super_admin') ?? false;
+        return $user?->can('manage system') ?? false;
     }
 
     public static function departmentId(?User $user = null): ?int

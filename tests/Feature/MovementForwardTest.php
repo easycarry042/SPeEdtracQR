@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MovementForwardTest extends TestCase
@@ -15,7 +14,7 @@ class MovementForwardTest extends TestCase
 
     public function test_forward_moves_document_to_next_department(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
 
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
         $dept2 = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
@@ -43,7 +42,7 @@ class MovementForwardTest extends TestCase
 
     public function test_movements_tracking_tab_lists_forwarded_documents(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
 
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
         $dept2 = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);

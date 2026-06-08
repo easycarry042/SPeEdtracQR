@@ -22,10 +22,10 @@
                         <p class="text-lg font-semibold text-gray-600 sm:text-xl">Drop your file here</p>
                         <p class="mt-2 text-sm text-gray-500">or <span class="font-semibold text-emerald-800 underline">click to browse</span> — images only (multiple allowed)</p>
                     </div>
-                    <div id="dropZonePreview" class="hidden max-h-[380px] w-full max-w-md flex-col items-center gap-3 p-4">
-                        <img id="previewImg" src="" alt="Selected file preview" class="max-h-64 w-auto max-w-full rounded-lg object-contain shadow-md ring-1 ring-gray-200">
-                        <p id="previewName" class="truncate text-sm font-medium text-gray-800"></p>
-                        <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove file</button>
+                    <div id="dropZonePreview" class="hidden w-full flex-col gap-3 p-4">
+                        <p id="previewCount" class="text-sm font-semibold text-gray-800"></p>
+                        <div id="previewGrid" class="grid max-h-[320px] w-full grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3"></div>
+                        <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove all photos</button>
                     </div>
                 </div>
             </div>
@@ -291,40 +291,92 @@
             const zone = document.getElementById('dropZone');
             const placeholder = document.getElementById('dropZonePlaceholder');
             const previewWrap = document.getElementById('dropZonePreview');
-            const previewImg = document.getElementById('previewImg');
-            const previewName = document.getElementById('previewName');
+            const previewGrid = document.getElementById('previewGrid');
+            const previewCount = document.getElementById('previewCount');
             const clearBtn = document.getElementById('clearFileBtn');
+            const MAX_FILES = 10;
 
             if (!input || !zone) return;
 
-            function showPreview(fileOrList) {
-                const file = fileOrList instanceof FileList ? fileOrList[0] : fileOrList;
-                if (!file || !file.type.startsWith('image/')) return;
-                const url = URL.createObjectURL(file);
-                if (previewImg.dataset.objectUrl) URL.revokeObjectURL(previewImg.dataset.objectUrl);
-                previewImg.dataset.objectUrl = url;
-                previewImg.src = url;
-                const count = fileOrList instanceof FileList ? fileOrList.length : 1;
-                previewName.textContent = count > 1 ? count + ' images selected (' + file.name + ' …)' : file.name;
+            let selectedFiles = [];
+            const objectUrls = new Map();
+
+            function isImage(file) {
+                return file && file.type.startsWith('image/');
+            }
+
+            function syncInputFiles() {
+                const dt = new DataTransfer();
+                selectedFiles.forEach(f => dt.items.add(f));
+                input.files = dt.files;
+            }
+
+            function addFiles(fileList) {
+                const incoming = Array.from(fileList || []).filter(isImage);
+                if (!incoming.length) {
+                    alert('Please choose image files only (PNG, JPG, etc.).');
+                    return;
+                }
+                incoming.forEach(file => {
+                    if (selectedFiles.length >= MAX_FILES) return;
+                    if (selectedFiles.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) return;
+                    selectedFiles.push(file);
+                });
+                if (selectedFiles.length >= MAX_FILES) {
+                    alert('You can attach up to ' + MAX_FILES + ' images per submission.');
+                }
+                syncInputFiles();
+                renderPreview();
+            }
+
+            function renderPreview() {
+                previewGrid.innerHTML = '';
+                objectUrls.forEach(url => URL.revokeObjectURL(url));
+                objectUrls.clear();
+
+                if (!selectedFiles.length) {
+                    previewWrap.classList.add('hidden');
+                    previewWrap.classList.remove('flex');
+                    placeholder.classList.remove('hidden');
+                    return;
+                }
+
                 placeholder.classList.add('hidden');
                 previewWrap.classList.remove('hidden');
                 previewWrap.classList.add('flex');
+                previewCount.textContent = selectedFiles.length + ' photo' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
+
+                selectedFiles.forEach((file, index) => {
+                    const url = URL.createObjectURL(file);
+                    objectUrls.set(index, url);
+                    const wrap = document.createElement('div');
+                    wrap.className = 'relative overflow-hidden rounded-lg ring-1 ring-gray-200';
+                    wrap.innerHTML = `
+                        <img src="${url}" alt="" class="h-24 w-full object-cover bg-gray-100">
+                        <button type="button" data-index="${index}" class="remove-preview absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-black/80">×</button>
+                        <p class="truncate px-1 py-0.5 text-[10px] text-gray-600">${file.name}</p>
+                    `;
+                    previewGrid.appendChild(wrap);
+                });
             }
 
-            function clearFile() {
-                input.value = '';
-                if (previewImg.dataset.objectUrl) {
-                    URL.revokeObjectURL(previewImg.dataset.objectUrl);
-                    delete previewImg.dataset.objectUrl;
-                }
-                previewImg.removeAttribute('src');
-                previewWrap.classList.add('hidden');
-                previewWrap.classList.remove('flex');
-                placeholder.classList.remove('hidden');
+            function clearFiles() {
+                selectedFiles = [];
+                syncInputFiles();
+                renderPreview();
             }
+
+            previewGrid?.addEventListener('click', function (e) {
+                const btn = e.target.closest('.remove-preview');
+                if (!btn) return;
+                e.stopPropagation();
+                selectedFiles.splice(parseInt(btn.dataset.index, 10), 1);
+                syncInputFiles();
+                renderPreview();
+            });
 
             zone.addEventListener('click', function (e) {
-                if (e.target.closest('#clearFileBtn')) return;
+                if (e.target.closest('#clearFileBtn') || e.target.closest('.remove-preview')) return;
                 input.click();
             });
 
@@ -335,16 +387,14 @@
                 }
             });
 
-            if (clearBtn) {
-                clearBtn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    clearFile();
-                });
-            }
+            clearBtn?.addEventListener('click', function (e) {
+                e.stopPropagation();
+                clearFiles();
+            });
 
             input.addEventListener('change', function () {
-                if (this.files && this.files.length) showPreview(this.files);
-                else clearFile();
+                if (this.files && this.files.length) addFiles(this.files);
+                else clearFiles();
             });
 
             ['dragenter', 'dragover'].forEach(function (ev) {
@@ -364,20 +414,7 @@
                 e.preventDefault();
                 e.stopPropagation();
                 zone.classList.remove('border-emerald-500', 'bg-emerald-100/50');
-                const file = e.dataTransfer.files && e.dataTransfer.files[0];
-                if (!file) return;
-                if (!file.type.startsWith('image/')) {
-                    alert('Please drop an image file (PNG, JPG, etc.).');
-                    return;
-                }
-                try {
-                    const dt = new DataTransfer();
-                    dt.items.add(file);
-                    input.files = dt.files;
-                } catch (err) {
-                    return;
-                }
-                showPreview(file);
+                addFiles(e.dataTransfer.files);
             });
         })();
     </script>

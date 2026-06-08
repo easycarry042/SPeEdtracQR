@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DocumentEditTest extends TestCase
@@ -30,7 +29,7 @@ class DocumentEditTest extends TestCase
 
     public function test_staff_in_department_can_edit_document_details(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
         $dept = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
         $user = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
         $document = $this->documentAt($dept, $user);
@@ -52,7 +51,7 @@ class DocumentEditTest extends TestCase
 
     public function test_staff_from_other_department_cannot_edit(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
         $deptA = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
         $deptB = Department::create(['name' => 'Engineering', 'sla_hours' => 48]);
         $creator = User::factory()->create(['department_id' => $deptA->id]);

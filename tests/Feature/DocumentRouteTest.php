@@ -8,7 +8,6 @@ use App\Models\DocumentRouteStep;
 use App\Models\RoutingRule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DocumentRouteTest extends TestCase
@@ -17,7 +16,7 @@ class DocumentRouteTest extends TestCase
 
     public function test_document_creation_stores_custom_route(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
 
         $user = User::factory()->create()->assignRole('staff');
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
@@ -85,7 +84,7 @@ class DocumentRouteTest extends TestCase
 
     public function test_scan_out_follows_per_document_route(): void
     {
-        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->seedRolesAndPermissions();
 
         $user = User::factory()->create()->assignRole('staff');
         $dept1 = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
