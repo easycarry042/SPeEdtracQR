@@ -29,6 +29,10 @@ php artisan test --filter=DocumentTest
 npm run build          # production
 npm run dev            # watch mode only (use composer dev for full stack)
 
+# Production deploy (see DEPLOYMENT.md)
+./scripts/deploy.sh --first-time   # initial server setup
+./scripts/deploy.sh                # routine update after git pull
+
 # Queue worker (if running without composer dev)
 php artisan queue:work
 

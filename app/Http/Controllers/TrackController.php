@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\DepartmentScope;
+use App\Support\PredictiveAnalytics;
 use Illuminate\Http\Request;
 
 class TrackController extends Controller
@@ -76,6 +77,10 @@ class TrackController extends Controller
             ];
         })->values();
 
+        $analytics = new PredictiveAnalytics;
+        $prediction = $analytics->predictCompletion($document);
+        $anomaly = auth()->check() ? $analytics->detectAnomaly($document) : null;
+
         $isPublicView = ! auth()->check();
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
 
@@ -89,6 +94,8 @@ class TrackController extends Controller
             'canAct' => $canAct,
             'isLastStop' => $isLastStop,
             'nextDepartment' => $nextDepartment,
+            'prediction' => $prediction,
+            'anomaly' => $anomaly,
         ]);
     }
 

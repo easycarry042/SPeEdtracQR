@@ -86,6 +86,12 @@
             </div>
         </div>
 
+        {{-- ── Predicted completion (self-hosted analytics) ─────────────────── --}}
+        <x-eta-estimate :prediction="$prediction ?? null" :document="$document" />
+
+        {{-- ── Self-hosted AI assistant (Pillar 3) ──────────────────────────── --}}
+        <x-doc-assistant :document="$document" />
+
         @if($routingChain->isNotEmpty())
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <h2 class="mb-4 text-base font-bold text-gray-800">Department Progress</h2>
@@ -169,11 +175,12 @@
         </div>
     </div>
 
-    {{-- ── Live status polling ──────────────────────────────────────────────── --}}
+    {{-- ── Live status: real-time via Laravel Echo / Reverb, 30 s poll fallback ─ --}}
     <script>
         const trackingNumber = @json($document->tracking_number);
         const statusEndpoint = '/track/' + encodeURIComponent(trackingNumber) + '/status';
         let currentStatus    = @json($document->status);
+        let liveConnected    = false;
 
         const statusDotClasses = {
             completed: { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-500',  label: 'Completed'  },
@@ -186,7 +193,99 @@
             return statusDotClasses[status] ?? statusDotClasses['in_transit'];
         }
 
+        // Update the status badge + current location in place (no reload).
+        function applyStatus(status, department) {
+            const badge = document.getElementById('statusBadge');
+            const label = document.getElementById('statusLabel');
+            const dept  = document.getElementById('currentDept');
+            const classes = getStatusClasses(status);
+
+            badge.className = `inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold ${classes.bg} ${classes.text}`;
+            badge.querySelector('span:first-child').className = `h-2 w-2 rounded-full ${classes.dot}`;
+            label.textContent = classes.label;
+
+            if (department) {
+                dept.textContent = department;
+            } else if (department === null) {
+                dept.textContent = 'Not yet assigned';
+            }
+            currentStatus = status;
+        }
+
+        // Prepend a new activity row to the timeline (matching the Blade markup).
+        function prependTimelineEntry(entry) {
+            const timeline = document.getElementById('timeline');
+            if (!timeline) return;
+
+            // Drop the "No activity recorded yet." placeholder if present.
+            const placeholder = timeline.querySelector('p');
+            if (placeholder) placeholder.remove();
+
+            const row = document.createElement('div');
+            row.className = 'flex items-start justify-between gap-4 py-3 transition-colors';
+            const dotColor = entry.action === 'in' ? 'bg-emerald-500' : 'bg-gray-400';
+            row.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dotColor}"></span>
+                    <span class="eventText text-sm text-gray-700"></span>
+                </div>
+                <span class="tsText shrink-0 text-xs font-semibold text-gray-400"></span>`;
+            // Use textContent to avoid injecting unescaped names into the DOM.
+            row.querySelector('.eventText').textContent = entry.event ?? '';
+            row.querySelector('.tsText').textContent = entry.timestamp ?? '';
+            timeline.prepend(row);
+
+            // Brief highlight so the citizen notices the new entry.
+            row.classList.add('bg-emerald-50');
+            setTimeout(() => row.classList.remove('bg-emerald-50'), 2000);
+        }
+
+        function flashBanner(message) {
+            const banner = document.getElementById('updateBanner');
+            if (!banner) return;
+            banner.textContent = message;
+            banner.classList.remove('hidden');
+            clearTimeout(window.__bannerTimer);
+            window.__bannerTimer = setTimeout(() => banner.classList.add('hidden'), 5000);
+        }
+
+        function setLiveIndicator() {
+            const checkedText = document.getElementById('lastCheckedText');
+            if (checkedText) {
+                checkedText.innerHTML =
+                    '<span class="inline-flex items-center gap-1.5">' +
+                    '<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>Live</span>';
+            }
+        }
+
+        // ── Real-time updates via Laravel Echo / Reverb ────────────────────────
+        if (window.Echo) {
+            try {
+                window.Echo.channel('documents.' + trackingNumber)
+                    .listen('.moved', (e) => {
+                        applyStatus(e.status, e.current_department);
+                        prependTimelineEntry(e);
+                        flashBanner('Status updated!');
+                    });
+
+                const pusher = window.Echo.connector?.pusher;
+                if (pusher) {
+                    pusher.connection.bind('connected', () => { liveConnected = true; setLiveIndicator(); });
+                    pusher.connection.bind('unavailable', () => { liveConnected = false; });
+                    pusher.connection.bind('disconnected', () => { liveConnected = false; });
+                } else {
+                    liveConnected = true;
+                    setLiveIndicator();
+                }
+            } catch (_) {
+                liveConnected = false; // Echo unavailable — poll fallback stays active.
+            }
+        }
+
+        // ── Fallback: poll every 30 s only while the live socket is not connected ─
         async function pollStatus() {
+            if (liveConnected) return;
+
             const spinner = document.getElementById('pollSpinner');
             const checkedText = document.getElementById('lastCheckedText');
             spinner.classList.remove('hidden');
@@ -196,24 +295,14 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
-                const badge = document.getElementById('statusBadge');
-                const label = document.getElementById('statusLabel');
-                const dept  = document.getElementById('currentDept');
-                const classes = getStatusClasses(data.status);
-
-                // Detect change
+                // Status changed but we have no live timeline payload — reload to refresh it.
                 if (data.status !== currentStatus) {
-                    document.getElementById('updateBanner').classList.remove('hidden');
+                    flashBanner('Status updated! Refreshing…');
                     setTimeout(() => location.reload(), 1800);
                     return;
                 }
 
-                // Update badge colours
-                badge.className = `inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold ${classes.bg} ${classes.text}`;
-                badge.querySelector('span:first-child').className = `h-2 w-2 rounded-full ${classes.dot}`;
-                label.textContent = classes.label;
-                dept.textContent  = data.current_department ?? 'Not yet assigned';
-                currentStatus = data.status;
+                applyStatus(data.status, data.current_department);
 
                 const now = new Date();
                 checkedText.textContent = 'Last checked ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -224,7 +313,6 @@
             }
         }
 
-        // Poll every 30 seconds
         setInterval(pollStatus, 30000);
     </script>
 </x-citizen-layout>

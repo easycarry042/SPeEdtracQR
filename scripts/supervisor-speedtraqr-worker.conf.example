@@ -1,0 +1,17 @@
+; Queue worker for SPeEdtracQR (QUEUE_CONNECTION=database)
+; Copy to /etc/supervisor/conf.d/speedtraqr-worker.conf
+; Then: sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start speedtraqr-worker
+
+[program:speedtraqr-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/speedtraqr/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+directory=/var/www/speedtraqr
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/www/speedtraqr/storage/logs/worker.log
+stopwaitsecs=3600

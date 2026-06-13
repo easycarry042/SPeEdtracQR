@@ -9,6 +9,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\MovementController;
@@ -54,6 +55,10 @@ Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])
 Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.citizen-upload');
+// Self-hosted AI assistant — answers questions grounded in this document only.
+Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
+    ->middleware('throttle:20,1')
+    ->name('track.ask');
 
 /*
 |--------------------------------------------------------------------------

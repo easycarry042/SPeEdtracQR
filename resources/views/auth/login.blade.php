@@ -72,8 +72,6 @@
                     <a href="{{ route('citizen.dashboard') }}" class="citizen-button">
                         Continue as Guest (Citizen Access)
                     </a>
-
-                    <a class="switch-link" href="{{ route('register') }}">No account yet? Register here</a>
                 </form>
             </div>
         </div>

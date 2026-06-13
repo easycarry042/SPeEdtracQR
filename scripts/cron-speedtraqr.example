@@ -1,0 +1,5 @@
+# Laravel scheduler — required for hourly SLA checks (documents:check-sla)
+# Install with: sudo crontab -u www-data -e
+# Or add to /etc/cron.d/speedtraqr (adjust user/path)
+
+* * * * * cd /var/www/speedtraqr && php artisan schedule:run >> /dev/null 2>&1
