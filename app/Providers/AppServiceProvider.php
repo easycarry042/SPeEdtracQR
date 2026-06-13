@@ -6,6 +6,7 @@ use App\Listeners\LogUserLogin;
 use App\Listeners\LogUserLogout;
 use App\Models\DepartmentNotification;
 use App\Support\DepartmentScope;
+use App\Support\DocumentFormOptions;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
@@ -38,6 +39,24 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $view->with('headerNotifications', $notifications);
+
+            // Data for the "New Submission" modal rendered in the layout.
+            // System admins manage the org and do not create submissions.
+            $canCreateDocuments = $user
+                && $user->can('create documents')
+                && ! $user->can('manage system')
+                && Schema::hasTable('departments')
+                && Schema::hasTable('routing_rules');
+
+            $view->with('showCreateDocumentModal', $canCreateDocuments);
+
+            if ($canCreateDocuments) {
+                $view->with([
+                    'createModalDepartments' => DocumentFormOptions::departments(),
+                    'createModalDefaultRoutes' => DocumentFormOptions::defaultRoutesByType(),
+                    'createModalCategories' => DocumentFormOptions::categoryOptions(),
+                ]);
+            }
         });
     }
 }

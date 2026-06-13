@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\User;
 use App\Support\DepartmentScope;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
@@ -17,7 +18,8 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $query = User::with(['roles', 'department'])->orderBy('name');
+        // withTrashed: archived accounts stay listed (with a Restore action) instead of vanishing.
+        $query = User::withTrashed()->with(['roles', 'department'])->orderBy('name');
 
         if ($this->isDeptAdmin()) {
             $query->where('department_id', $this->authDeptId())
@@ -38,7 +40,11 @@ class UserController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $roles = $this->assignableRoles();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        // For the Add User modal rendered on this page
+        $departments = $this->assignableDepartments();
+        $deptLocked = $this->isDeptAdmin();
+
+        return view('admin.users.index', compact('users', 'roles', 'departments', 'deptLocked'));
     }
 
     public function create()
@@ -138,6 +144,46 @@ class UserController extends Controller
         $action = $user->is_active ? 'activated' : 'deactivated';
 
         return back()->with('success', "Account for {$user->name} has been {$action}.");
+    }
+
+    public function archive(User $user)
+    {
+        $this->authorizeDeptAccess($user);
+
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'You cannot archive your own account.');
+        }
+
+        $user->delete();
+
+        return back()->with('success', "Account for {$user->name} has been archived.");
+    }
+
+    public function restore(User $user)
+    {
+        $this->authorizeDeptAccess($user);
+
+        $user->restore();
+
+        return back()->with('success', "Account for {$user->name} has been restored.");
+    }
+
+    public function destroy(User $user)
+    {
+        $this->authorizeDeptAccess($user);
+
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        try {
+            $user->forceDelete();
+        } catch (QueryException) {
+            // documents.created_by / document_scans.scanned_by restrict deletion
+            return back()->with('error', "{$user->name} has document activity and cannot be permanently deleted. Archive the account instead.");
+        }
+
+        return back()->with('success', "Account for {$user->name} has been permanently deleted.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

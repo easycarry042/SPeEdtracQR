@@ -1,17 +1,4 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-xs font-semibold uppercase tracking-widest text-emerald-600">Administration</p>
-                <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Admin Dashboard</h1>
-            </div>
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Admin
-            </span>
-        </div>
-    </x-slot>
-
     <div class="mx-auto max-w-7xl space-y-8">
 
         {{-- ── Stat Cards ─────────────────────────────────────────────────────── --}}

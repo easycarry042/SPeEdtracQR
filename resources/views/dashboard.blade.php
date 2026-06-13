@@ -1,13 +1,4 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div>
-            <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Dashboard</h1>
-            @if(!$isOrgWide && $dept)
-                <p class="mt-1 text-sm text-emerald-700">Documents for <span class="font-semibold">{{ $dept->name }}</span></p>
-            @endif
-        </div>
-    </x-slot>
-
     <div class="mx-auto max-w-7xl space-y-8">
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
@@ -91,28 +82,12 @@
         @endif
 
         <section class="space-y-4">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Recent Activity</h2>
-                    <a href="{{ route('history') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 transition hover:text-emerald-950 hover:underline">
-                        Show all
-                        <span aria-hidden="true">›</span>
-                    </a>
-                </div>
-                <div class="flex items-center gap-2">
-                    <label class="relative flex-1 sm:flex-initial">
-                        <span class="sr-only">Search activity</span>
-                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                        </svg>
-                        <input type="search" id="activitySearch" placeholder="Search" class="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 sm:w-64">
-                    </label>
-                    <button type="button" class="rounded-xl border border-gray-200 bg-white p-2 text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-emerald-900" aria-label="Filter">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-                        </svg>
-                    </button>
-                </div>
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Recent Activity</h2>
+                <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
+                    Show all
+                    <span aria-hidden="true">›</span>
+                </a>
             </div>
 
             <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md shadow-gray-200/50">
@@ -148,10 +123,12 @@
                                             </div>
                                             <p class="mt-3 text-sm font-semibold text-gray-700">No documents yet</p>
                                             <p class="mt-1 text-sm text-gray-500">Create the first submission to start tracking it through the office.</p>
-                                            <a href="{{ route('documents.create') }}" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
+                                            @can('create documents')
+                                            <button type="button" onclick="openCreateDocumentModal()" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                                                 New Submission
-                                            </a>
+                                            </button>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
@@ -162,15 +139,4 @@
             </div>
         </section>
     </div>
-    <script>
-        const searchInput = document.getElementById('activitySearch');
-        if (searchInput) {
-            searchInput.addEventListener('input', function () {
-                const q = this.value.toLowerCase();
-                document.querySelectorAll('.activity-row').forEach(row => {
-                    row.classList.toggle('hidden', !row.innerText.toLowerCase().includes(q));
-                });
-            });
-        }
-    </script>
 </x-app-layout>

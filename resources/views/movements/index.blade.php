@@ -1,15 +1,4 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Document Movements</h1>
-                @if(!$isOrgWide && $user->department)
-                    <p class="mt-1 text-sm text-emerald-700">{{ $user->department->name }}</p>
-                @endif
-            </div>
-        </div>
-    </x-slot>
-
     <div class="mx-auto max-w-7xl space-y-6" id="movementsPage">
 
         {{-- ── Tabs ────────────────────────────────────────────────────────── --}}

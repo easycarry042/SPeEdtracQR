@@ -22,9 +22,10 @@
                     : ($img->url ?? null);
             @endphp
             @if($url)
-                <a href="{{ $url }}" target="_blank" rel="noopener"
+                {{-- data-lightbox-src opens the in-page viewer; href is the no-JS fallback --}}
+                <a href="{{ $url }}" target="_blank" rel="noopener" data-lightbox-src="{{ $url }}"
                    class="block overflow-hidden rounded-lg ring-1 ring-gray-200 transition hover:ring-emerald-400"
-                   title="Open full image">
+                   title="View image">
                     <img src="{{ $url }}" alt="Document attachment" class="{{ $thumbClass }} object-cover bg-gray-100"
                          loading="lazy"
                          onerror="this.classList.add('opacity-40'); this.alt='Image unavailable';">

@@ -23,6 +23,18 @@ class TrackController extends Controller
             return redirect()->route('track.show', $trackingNumber);
         }
 
+        // Jump straight to the most recent in-progress document; the show page
+        // renders the full in-progress list alongside it.
+        $latest = $this->scopeDocuments(
+            Document::query()
+                ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                ->latest('created_at')
+        )->first(['tracking_number']);
+
+        if ($latest) {
+            return redirect()->route('track.show', $latest->tracking_number);
+        }
+
         return view('track.index');
     }
 
@@ -42,8 +54,11 @@ class TrackController extends Controller
         if (auth()->check()) {
             $this->authorizeDocumentAccess($document);
 
+            // Sidebar list: only documents still being processed
             $documents = $this->scopeDocuments(
-                Document::query()->latest('created_at')
+                Document::query()
+                    ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                    ->latest('created_at')
             )->take(30)->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
         }
 

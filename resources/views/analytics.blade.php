@@ -1,19 +1,4 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-                <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Analytics</h1>
-                @if(!$isOrgWide && $dept)
-                    <p class="mt-1 text-sm text-emerald-700">
-                        Showing data for <span class="font-semibold">{{ $dept->name }}</span> only
-                    </p>
-                @else
-                    <p class="mt-1 text-sm text-gray-500">Organization-wide document and scan metrics</p>
-                @endif
-            </div>
-        </div>
-    </x-slot>
-
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
         {{-- Summary cards --}}
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">

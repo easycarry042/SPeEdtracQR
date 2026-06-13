@@ -68,6 +68,37 @@ class AttachmentAccessTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_creator_can_view_attachment_when_document_is_routed_elsewhere(): void
+    {
+        Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $frontDesk = Department::create(['name' => 'Front Desk', 'sla_hours' => 48]);
+        $other = Department::create(['name' => 'Engineering', 'sla_hours' => 48]);
+
+        Storage::fake('local');
+        $creator = User::factory()->create(['department_id' => $frontDesk->id])->assignRole('staff');
+
+        $document = Document::create([
+            'tracking_number' => 'SPD-ATTACH-'.uniqid(),
+            'document_type' => 'Business Permit',
+            'status' => 'in_transit',
+            'current_department_id' => $other->id,
+            'created_by' => $creator->id,
+        ]);
+        $document->syncRouteSteps([$other->id]);
+
+        $path = UploadedFile::fake()->image('doc.jpg')->store('document-attachments', 'local');
+        $attachment = DocumentAttachment::create([
+            'document_id' => $document->id,
+            'file_path' => $path,
+            'department_id' => $other->id,
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($creator)
+            ->get(route('attachments.show', $attachment))
+            ->assertOk();
+    }
+
     public function test_guests_cannot_view_attachments(): void
     {
         $dept = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
