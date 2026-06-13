@@ -6,7 +6,7 @@
 @layer components {
     /* LOGIN PAGE DESIGN */
     .auth-logo {
-        @apply w-[340px];
+        @apply block w-[220px] mx-auto;
     }
 
     .auth-heading {
@@ -47,10 +47,43 @@
 
     /* DASHBOARD */
     .nav-bar {
-        @apply bg-[#E4FCC8] rounded-r-[20px]
+        @apply bg-emerald-100 rounded-r-[20px]
     }
 
     .nav-icon {
         @apply h-[40px] w-[40px];
     }
+<<<<<<< Updated upstream:speed-traqr/resources/css/app.css
+=======
+}
+
+/* Sidebar nav scrolls when it doesn't fit, but without a visible scrollbar */
+.nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.nav-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+/* Sidebar pinned (expanded) state — labels visible and left-aligned without
+   relying on hover, so it works on touch devices. Higher specificity than the
+   Tailwind utilities it overrides, so no !important needed. */
+aside.sidebar-pinned {
+    width: 16rem;
+}
+
+.sidebar-pinned .nav-text {
+    max-width: 240px;
+    opacity: 1;
+}
+
+.sidebar-pinned .nav-link,
+.sidebar-pinned .nav-brand {
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+>>>>>>> Stashed changes:resources/css/app.css
 }

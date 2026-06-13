@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream:storage/framework/views/10bccceefa4d2e35a554777272daadc4.php
 <?php if (isset($component)) { $__componentOriginal9ac128a9029c0e4701924bd2d73d7f54 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54 = $attributes; } ?>
 <?php $component = App\View\Components\AppLayout::resolve([] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -8,6 +9,9 @@
 <?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes([]); ?>
+=======
+<x-app-layout>
+>>>>>>> Stashed changes:resources/views/analytics.blade.php
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
         
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -1,13 +1,10 @@
-@php
-    $trackUrl = url('/track/'.$document->tracking_number);
-    $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate($trackUrl);
-@endphp
 <x-app-layout>
     <x-slot name="header">
         <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Document Created</h1>
     </x-slot>
 
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+<<<<<<< Updated upstream:speed-traqr/resources/views/documents/created.blade.php
         <div class="rounded-2xl border border-gray-200/90 bg-white p-8 text-center shadow-md">
             <p class="text-lg text-gray-600">Scan this code to open tracking, or print the sticker for the physical file.</p>
 
@@ -38,5 +35,8 @@
                 </a>
             </div>
         </div>
+=======
+        @include('documents.partials.created-card')
+>>>>>>> Stashed changes:resources/views/documents/created.blade.php
     </div>
 </x-app-layout>
