@@ -114,7 +114,7 @@
                         <div>
                             <p class="text-sm font-bold">Anomaly: moving unusually slowly</p>
                             <p class="mt-0.5 text-sm">
-                                Sitting here <strong>{{ $anomaly['elapsed_hours'] }}h</strong>@if($anomaly['expected_hours']) — similar documents typically take ~{{ $anomaly['expected_hours'] }}h@endif.
+                                Sitting here <strong>{{ $anomaly['elapsed_hours'] }}h</strong>{{ $anomaly['expected_hours'] ? ' — similar documents typically take ~'.$anomaly['expected_hours'].'h' : '' }}.
                                 That is <strong>{{ $anomaly['over_by_hours'] }}h</strong> over the normal range.
                             </p>
                         </div>
