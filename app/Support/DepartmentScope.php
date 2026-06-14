@@ -111,6 +111,11 @@ class DepartmentScope
             return true;
         }
 
+        // The creator keeps access even when the document is routed through other departments.
+        if ($document->created_by !== null && (int) $document->created_by === (int) $user->id) {
+            return true;
+        }
+
         if ((int) $document->current_department_id === $deptId) {
             return true;
         }

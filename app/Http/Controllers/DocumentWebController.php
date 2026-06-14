@@ -3,12 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
-use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentScan;
-use App\Models\RoutingRule;
 use App\Services\QrCodeService;
 use App\Support\DepartmentScope;
+use App\Support\DocumentFormOptions;
 use Illuminate\Http\Request;
 
 class DocumentWebController extends Controller
@@ -21,38 +20,10 @@ class DocumentWebController extends Controller
     {
         $this->ensureCanCreate();
 
-        $documentTypes = Document::query()
-            ->whereNotNull('document_type')
-            ->distinct()
-            ->orderBy('document_type')
-            ->pluck('document_type');
-
-        $categoryOptions = $this->categoryOptions();
-
-        $departments = Department::orderBy('name')->get();
-
-        $defaultRoutesByType = RoutingRule::with(['fromDepartment', 'toDepartment'])
-            ->orderBy('document_type')
-            ->orderBy('step_order')
-            ->get()
-            ->groupBy('document_type')
-            ->map(function ($rules) {
-                $chain = collect([$rules->first()->fromDepartment?->id]);
-                foreach ($rules as $rule) {
-                    if ($rule->toDepartment) {
-                        $chain->push($rule->toDepartment->id);
-                    }
-                }
-
-                return $chain->filter()->unique()->values()->all();
-            });
-
-        return view('documents.create', compact(
-            'documentTypes',
-            'categoryOptions',
-            'departments',
-            'defaultRoutesByType'
-        ));
+        // The submission form now lives in a modal rendered by the layout
+        // (resources/views/documents/partials/create-modal.blade.php). Keep
+        // this route so old links still work and permission checks still apply.
+        return redirect()->route('dashboard')->with('openCreateModal', true);
     }
 
     public function store(Request $request)
@@ -206,16 +177,7 @@ class DocumentWebController extends Controller
 
     private function categoryOptions(): array
     {
-        return [
-            'Business Permit',
-            'Barangay Clearance',
-            'Building Permit',
-            "Mayor's Permit",
-            'Real Property Tax',
-            'Birth Certificate Request',
-            'Community Tax Certificate',
-            'Other',
-        ];
+        return DocumentFormOptions::categoryOptions();
     }
 
     private function ensureCanCreate(): void

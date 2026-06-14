@@ -25,11 +25,15 @@ class TrackController extends Controller
         }
 
         // For logged-in staff, open the list + detail view on the most recent
-        // document in their scope instead of a bare search box. (The top search
-        // bar and the document list still let them jump to any other document.)
+        // in-progress document in their scope instead of a bare search box.
+        // (The top search bar and the document list still let them jump to any
+        // other document.)
         if (auth()->check()) {
-            $latest = $this->scopeDocuments(Document::query()->latest('created_at'))
-                ->first(['tracking_number']);
+            $latest = $this->scopeDocuments(
+                Document::query()
+                    ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                    ->latest('created_at')
+            )->first(['tracking_number']);
 
             if ($latest) {
                 return redirect()->route('track.show', $latest->tracking_number);
@@ -55,8 +59,11 @@ class TrackController extends Controller
         if (auth()->check()) {
             $this->authorizeDocumentAccess($document);
 
+            // Sidebar list: only documents still being processed
             $documents = $this->scopeDocuments(
-                Document::query()->latest('created_at')
+                Document::query()
+                    ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                    ->latest('created_at')
             )->take(30)->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
         }
 

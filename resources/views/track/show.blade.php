@@ -7,14 +7,18 @@
     };
 @endphp
 <x-app-layout>
-    <x-slot name="header">
-        <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Track Document</h1>
-    </x-slot>
+    @guest
+        {{-- Guests don't get the app navbar (and its page title), so keep a heading for the public tracking page --}}
+        <x-slot name="header">
+            <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Track Document</h1>
+        </x-slot>
+    @endguest
 
     <div class="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
         @unless($isPublicView)
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-3">
-                <div class="max-h-[520px] space-y-2 overflow-y-auto pr-1">
+            {{-- Fixed-height panel; the list scrolls inside it --}}
+            <div class="flex flex-col rounded-xl border border-[#e0e0e0] bg-white p-3 lg:h-[calc(100vh-9rem)]">
+                <div class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
                     @foreach($documents as $item)
                         <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#1a5c1a] bg-[#e8f5e9]' : 'border-[#e0e0e0] bg-white hover:bg-[#f4faf4]' }}">
                             <div class="flex items-center gap-3">
@@ -36,7 +40,8 @@
             </div>
         @endunless
 
-        <div class="rounded-xl border border-[#e0e0e0] bg-white p-6 {{ $isPublicView ? 'lg:col-span-2' : '' }}">
+        {{-- Fixed-height panel; the document details scroll inside it --}}
+        <div class="rounded-xl border border-[#e0e0e0] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto {{ $isPublicView ? 'lg:col-span-2' : '' }}">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
                     <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#c8efcc] text-[#1a5c1a]">

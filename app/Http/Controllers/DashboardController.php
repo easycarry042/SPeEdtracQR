@@ -26,7 +26,7 @@ class DashboardController extends Controller
 
         $recentActivity = $this->scopeDocuments(
             Document::with('currentDepartment')->latest('created_at')
-        )->take(10)->get();
+        )->take(5)->get();
 
         $recentScans = $this->scopeScans(
             DocumentScan::with(['document', 'department', 'user'])->latest('scanned_at')

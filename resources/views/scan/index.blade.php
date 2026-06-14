@@ -1,13 +1,4 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div>
-            <h2 class="text-4xl font-extrabold text-[#1a5c1a]">Scan Document</h2>
-            @if(!$isOrgWide && $dept)
-                <p class="mt-1 text-sm text-emerald-700">Scanning as <span class="font-semibold">{{ $dept->name }}</span></p>
-            @endif
-        </div>
-    </x-slot>
-
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mb-6 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 text-sm text-emerald-950 shadow-sm">
             <p class="font-semibold">How to record a handoff</p>
