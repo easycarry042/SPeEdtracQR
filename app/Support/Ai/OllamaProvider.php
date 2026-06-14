@@ -17,6 +17,7 @@ class OllamaProvider implements LlmProvider
         private string $url,
         private string $model,
         private int $timeout = 30,
+        private string $keepAlive = '30m',
     ) {}
 
     public function chat(string $system, string $userMessage): ?string
@@ -27,6 +28,8 @@ class OllamaProvider implements LlmProvider
                 ->post($this->endpoint('/api/chat'), [
                     'model' => $this->model,
                     'stream' => false,
+                    // Keep the model resident so the next request stays warm.
+                    'keep_alive' => $this->keepAlive,
                     'options' => [
                         // Low temperature: this is factual lookup, not creative writing.
                         'temperature' => 0.2,

@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
                     config('ai.ollama.url'),
                     config('ai.ollama.model'),
                     config('ai.ollama.timeout'),
+                    config('ai.ollama.keep_alive'),
                 ),
                 default => new NullProvider,
             };

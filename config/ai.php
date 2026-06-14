@@ -23,6 +23,11 @@ return [
         'model' => env('OLLAMA_MODEL', 'llama3.2'),
         // Seconds to wait for a generation before falling back to rule-based.
         'timeout' => (int) env('OLLAMA_TIMEOUT', 30),
+        // How long Ollama keeps the model resident in RAM after a request.
+        // Keeping it loaded avoids slow cold-starts (CPU inference reloads
+        // cost ~60-80s); warm calls answer in a few seconds. Use "-1" to
+        // pin it in memory permanently.
+        'keep_alive' => env('OLLAMA_KEEP_ALIVE', '30m'),
     ],
 
 ];

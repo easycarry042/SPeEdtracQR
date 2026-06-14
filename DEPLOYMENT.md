@@ -248,6 +248,27 @@ php artisan schedule:list
 # Should show documents:check-sla … hourly
 ```
 
+### Step 7b — AI assistant model (Ollama, optional — Pillar 3)
+
+The document assistant works without this (it falls back to a deterministic
+rule-based answer). To enable the real self-hosted LLM:
+
+```bash
+# Install Ollama (https://ollama.com/download) and pull the model:
+ollama pull llama3.2          # ~2 GB
+ollama list                   # confirm llama3.2 is present
+```
+
+Then set in `.env` (see `.env.example`): `AI_PROVIDER=ollama`,
+`OLLAMA_MODEL=llama3.2`, `OLLAMA_TIMEOUT=90`, `OLLAMA_KEEP_ALIVE=30m`.
+
+> **Latency note:** CPU-only inference is slow — a cold model load is ~60–80s,
+> warmed calls answer in a few seconds. `OLLAMA_KEEP_ALIVE` keeps the model
+> resident so citizens don't hit cold starts. If the assistant runs behind
+> nginx, raise `fastcgi_read_timeout` on the `/track/.../ask` path (or the
+> whole site) above `OLLAMA_TIMEOUT`, or any slow generation 504s before the
+> rule-based fallback can return. A GPU host removes the problem.
+
 ### Step 8 — Go-live checklist
 
 Run through [TESTING.md](TESTING.md) on the **staging/production URL**:
@@ -260,6 +281,7 @@ Run through [TESTING.md](TESTING.md) on the **staging/production URL**:
 - [ ] Admin login with seeded password (then change it)
 - [ ] `APP_DEBUG=false` — errors must not show stack traces
 - [ ] Live tracking: open `/track/{number}`, scan the document elsewhere, page updates without refresh (● Live indicator on)
+- [ ] AI assistant: ask a question on `/track/{number}`; if Ollama is enabled the answer is model-generated, otherwise the rule-based fallback responds (both are fine)
 
 ---
 
