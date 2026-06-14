@@ -96,8 +96,16 @@ if command -v supervisorctl >/dev/null 2>&1; then
     echo "NOTE: Supervisor program 'speedtraqr-worker' not found."
     echo "      Install scripts/supervisor-speedtraqr-worker.conf.example — see DEPLOYMENT.md §4."
   fi
+  if supervisorctl status speedtraqr-reverb >/dev/null 2>&1; then
+    echo "==> Restart Reverb server (live tracking)"
+    sudo supervisorctl restart speedtraqr-reverb
+  else
+    echo "NOTE: Supervisor program 'speedtraqr-reverb' not found."
+    echo "      Install scripts/supervisor-speedtraqr-worker.conf.example — see DEPLOYMENT.md §4."
+  fi
 else
-  echo "NOTE: supervisorctl not found — ensure a queue worker is running (php artisan queue:work)."
+  echo "NOTE: supervisorctl not found — ensure a queue worker (php artisan queue:work)"
+  echo "      and the Reverb server (php artisan reverb:start) are running."
 fi
 
 if $MAINTENANCE; then

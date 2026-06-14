@@ -12,6 +12,7 @@ This app has **no automated CI/CD** yet. Deployment is: provision a Linux server
 | **MySQL 8+** | All app data (you already use MySQL locally) |
 | **Queue worker** | `QUEUE_CONNECTION=database` — background jobs |
 | **Cron scheduler** | Runs `documents:check-sla` hourly for SLA emails |
+| **Reverb server** | `php artisan reverb:start` — WebSocket server for live document tracking (Pillar 1) |
 
 Local dev uses `composer dev` (server + queue + Vite). Production uses **built assets** (`npm run build`), not Vite dev.
 
@@ -128,6 +129,25 @@ QUEUE_CONNECTION=database
 SESSION_DRIVER=database
 CACHE_STORE=database
 FILESYSTEM_DISK=local
+
+# Live tracking (Laravel Reverb). Keep the REVERB_APP_* secrets that
+# `install:broadcasting` generated — do NOT regenerate them on the server.
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=<generated>
+REVERB_APP_KEY=<generated>
+REVERB_APP_SECRET=<generated>
+# Server binds locally; nginx terminates TLS and proxies /app to it.
+REVERB_SERVER_HOST=127.0.0.1
+REVERB_SERVER_PORT=8080
+# What the browser connects to (your public domain over wss:443).
+REVERB_HOST=your-domain.example.com
+REVERB_PORT=443
+REVERB_SCHEME=https
+# Vite bakes these into the built JS — must be set BEFORE `npm run build`.
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
 ```
 
 Generate app key on first deploy (the script does this if missing):
@@ -172,6 +192,11 @@ sudo ln -s /etc/nginx/sites-available/speedtraqr /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+The example config includes a `location /app { … }` block that proxies the
+WebSocket connection to the local Reverb server (`127.0.0.1:8080`) so live
+tracking works over `wss://your-domain/app`. Keep it after Certbot rewrites
+the file for TLS.
+
 HTTPS with Certbot:
 
 ```bash
@@ -186,16 +211,21 @@ sudo chown -R www-data:www-data storage bootstrap/cache
 sudo chmod -R ug+rwx storage bootstrap/cache
 ```
 
-### Step 6 — Queue worker (Supervisor)
+### Step 6 — Queue worker + Reverb server (Supervisor)
+
+The example file defines **two** programs: `speedtraqr-worker` (queue) and
+`speedtraqr-reverb` (live-tracking WebSocket server).
 
 ```bash
-sudo cp scripts/supervisor-speedtraqr-worker.conf.example /etc/supervisor/conf.d/speedtraqr-worker.conf
-sudo nano /etc/supervisor/conf.d/speedtraqr-worker.conf   # fix paths
+sudo cp scripts/supervisor-speedtraqr-worker.conf.example /etc/supervisor/conf.d/speedtraqr.conf
+sudo nano /etc/supervisor/conf.d/speedtraqr.conf   # fix paths
 sudo supervisorctl reread
 sudo supervisorctl update
-sudo supervisorctl start speedtraqr-worker
+sudo supervisorctl start speedtraqr-worker speedtraqr-reverb
 sudo supervisorctl status
 ```
+
+`deploy.sh` restarts both programs automatically on routine updates.
 
 ### Step 7 — Scheduler (cron)
 
@@ -229,6 +259,7 @@ Run through [TESTING.md](TESTING.md) on the **staging/production URL**:
 - [ ] Attachments require staff login
 - [ ] Admin login with seeded password (then change it)
 - [ ] `APP_DEBUG=false` — errors must not show stack traces
+- [ ] Live tracking: open `/track/{number}`, scan the document elsewhere, page updates without refresh (● Live indicator on)
 
 ---
 
@@ -271,6 +302,7 @@ tar czf /backups/speedtraqr-storage-$(date +%F).tar.gz \
 | QR images 404 | `php artisan storage:link` |
 | SLA emails never arrive | Cron + `php artisan schedule:list`; check `MAIL_*` in `.env` |
 | Jobs stuck | `sudo supervisorctl status speedtraqr-worker` |
+| Live tracking not updating | `sudo supervisorctl status speedtraqr-reverb`; check nginx `/app` proxy + `VITE_REVERB_*` were set before `npm run build` |
 | `Mix/Vite manifest not found` | Run `npm run build` on server |
 | Database locked | You are on SQLite — use MySQL (see `scripts/setup-mysql.sh`) |
 
