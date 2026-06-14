@@ -5,6 +5,9 @@ namespace App\Providers;
 use App\Listeners\LogUserLogin;
 use App\Listeners\LogUserLogout;
 use App\Models\DepartmentNotification;
+use App\Support\Ai\LlmProvider;
+use App\Support\Ai\NullProvider;
+use App\Support\Ai\OllamaProvider;
 use App\Support\DepartmentScope;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -15,7 +18,21 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        // Provider-agnostic LLM backend for the document assistant (Pillar 3).
+        $this->app->singleton(LlmProvider::class, function () {
+            return match (config('ai.provider')) {
+                'ollama' => new OllamaProvider(
+                    config('ai.ollama.url'),
+                    config('ai.ollama.model'),
+                    config('ai.ollama.timeout'),
+                    config('ai.ollama.keep_alive'),
+                ),
+                default => new NullProvider,
+            };
+        });
+    }
 
     public function boot(): void
     {

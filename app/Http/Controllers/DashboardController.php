@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Models\DocumentScan;
 use App\Support\DepartmentScope;
+use App\Support\PredictiveAnalytics;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -76,6 +77,37 @@ class DashboardController extends Controller
 
         $atRiskCount = $atRiskDocuments->count();
 
+        // ── Predictive insights (self-hosted PredictiveAnalytics engine) ──────
+        $analytics = new PredictiveAnalytics;
+
+        $scopeDeptIds = $isOrgWide
+            ? null
+            : array_values(array_filter([DepartmentScope::departmentId($user)]));
+
+        $bottlenecks = $analytics->bottlenecks($scopeDeptIds ?: null)
+            ->reject(fn ($row) => $row['level'] === 'ok' && ($row['current_load'] ?? 0) === 0)
+            ->take(5)
+            ->values();
+
+        $anomalies = $this->scopeCurrentDocuments(
+            Document::with('currentDepartment')
+                ->where('status', 'in_transit')
+                ->whereNotNull('current_department_id')
+        )->get()
+            ->map(function ($doc) use ($analytics) {
+                $anomaly = $analytics->detectAnomaly($doc);
+                if (! $anomaly) {
+                    return null;
+                }
+                $doc->setAttribute('anomaly', $anomaly);
+
+                return $doc;
+            })
+            ->filter()
+            ->sortByDesc(fn ($doc) => $doc->anomaly['over_by_hours'])
+            ->take(6)
+            ->values();
+
         return view('dashboard', compact(
             'totalRequests',
             'pendingRequest',
@@ -85,6 +117,8 @@ class DashboardController extends Controller
             'statusSummary',
             'atRiskDocuments',
             'atRiskCount',
+            'bottlenecks',
+            'anomalies',
             'dept',
             'isOrgWide'
         ));

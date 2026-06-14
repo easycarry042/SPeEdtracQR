@@ -1,0 +1,35 @@
+; Queue worker + Reverb WebSocket server for SPeEdtracQR.
+; Copy to /etc/supervisor/conf.d/speedtraqr.conf (holds both programs).
+; Then: sudo supervisorctl reread && sudo supervisorctl update
+;       sudo supervisorctl start speedtraqr-worker speedtraqr-reverb
+
+[program:speedtraqr-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/speedtraqr/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+directory=/var/www/speedtraqr
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/www/speedtraqr/storage/logs/worker.log
+stopwaitsecs=3600
+
+; Laravel Reverb server (live document tracking, Pillar 1).
+; Listens on 127.0.0.1:8080; nginx proxies wss://YOUR_DOMAIN/app -> here.
+; QrCode/broadcast env (REVERB_*) must be set in the app .env.
+[program:speedtraqr-reverb]
+process_name=%(program_name)s
+command=php /var/www/speedtraqr/artisan reverb:start --host=127.0.0.1 --port=8080
+directory=/var/www/speedtraqr
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/www/speedtraqr/storage/logs/reverb.log
+stopwaitsecs=10

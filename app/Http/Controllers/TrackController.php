@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\DepartmentScope;
+use App\Support\PredictiveAnalytics;
 use Illuminate\Http\Request;
 
 class TrackController extends Controller
@@ -21,6 +22,18 @@ class TrackController extends Controller
 
         if ($trackingNumber !== '') {
             return redirect()->route('track.show', $trackingNumber);
+        }
+
+        // For logged-in staff, open the list + detail view on the most recent
+        // document in their scope instead of a bare search box. (The top search
+        // bar and the document list still let them jump to any other document.)
+        if (auth()->check()) {
+            $latest = $this->scopeDocuments(Document::query()->latest('created_at'))
+                ->first(['tracking_number']);
+
+            if ($latest) {
+                return redirect()->route('track.show', $latest->tracking_number);
+            }
         }
 
         return view('track.index');
@@ -76,6 +89,10 @@ class TrackController extends Controller
             ];
         })->values();
 
+        $analytics = new PredictiveAnalytics;
+        $prediction = $analytics->predictCompletion($document);
+        $anomaly = auth()->check() ? $analytics->detectAnomaly($document) : null;
+
         $isPublicView = ! auth()->check();
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
 
@@ -89,6 +106,8 @@ class TrackController extends Controller
             'canAct' => $canAct,
             'isLastStop' => $isLastStop,
             'nextDepartment' => $nextDepartment,
+            'prediction' => $prediction,
+            'anomaly' => $anomaly,
         ]);
     }
 

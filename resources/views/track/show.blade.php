@@ -104,6 +104,28 @@
                 </div>
             @endunless
 
+            {{-- Predictive insights (self-hosted analytics) --}}
+            @if(!empty($anomaly))
+                <div class="mt-6 rounded-xl border {{ $anomaly['severity'] === 'high' ? 'border-rose-300 bg-rose-50 text-rose-900' : 'border-amber-300 bg-amber-50 text-amber-900' }} p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        </svg>
+                        <div>
+                            <p class="text-sm font-bold">Anomaly: moving unusually slowly</p>
+                            <p class="mt-0.5 text-sm">
+                                Sitting here <strong>{{ $anomaly['elapsed_hours'] }}h</strong>{{ $anomaly['expected_hours'] ? ' — similar documents typically take ~'.$anomaly['expected_hours'].'h' : '' }}.
+                                That is <strong>{{ $anomaly['over_by_hours'] }}h</strong> over the normal range.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            <div class="mt-6">
+                <x-eta-estimate :prediction="$prediction ?? null" :document="$document" />
+            </div>
+
             <div class="mt-8">
                 <div class="mb-3 text-[14px] font-bold text-[#1a1a1a]">Department Progress</div>
                 @if($routingChain->isNotEmpty())

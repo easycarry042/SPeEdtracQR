@@ -92,6 +92,8 @@
 
         </div>
 
+        @include('partials.predictive-insights')
+
         {{-- ── Recent Scan Activity ────────────────────────────────────────────── --}}
         @if($recentScans->isNotEmpty())
         <section class="space-y-4">

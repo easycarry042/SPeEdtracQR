@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DocumentMoved;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Department;
 use App\Models\Document;
@@ -92,6 +93,8 @@ class ScanController extends Controller
             $document->sla_warning_notified_at = null;
             $document->sla_breach_notified_at = null;
             $document->save();
+            $document->load('currentDepartment');
+            DocumentMoved::dispatch($document, $scan);
         } else {
             $manualNextId = $validated['next_department_id'] ?? null;
             $routedNext = $document->getNextDepartment();
@@ -111,6 +114,8 @@ class ScanController extends Controller
                 ], 422);
             }
             $document->save();
+            $document->load('currentDepartment');
+            DocumentMoved::dispatch($document, $scan);
         }
 
         $this->pushSessionScanLog($scan);
