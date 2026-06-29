@@ -10,7 +10,7 @@
             </div>
 
             <div class="auth-right">
-                <h2 class="auth-heading">WELCOME</h2>
+                <h2 class="auth-heading">Welcome</h2>
                 <p class="auth-subheading">Login to start a session</p>
 
                 <x-auth-session-status class="brand-subtitle" :status="session('status')" />
@@ -19,7 +19,7 @@
                     @csrf
 
                     <div class="form-group">
-                        <label for="email" class="form-label">{{ __('EMAIL') }}</label>
+                        <label for="email" class="form-label">{{ __('Email') }}</label>
                         <div>
                             <input id="email"
                                 type="email"
@@ -34,7 +34,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="password" class="form-label">{{ __('PASSWORD') }}</label>
+                        <label for="password" class="form-label">{{ __('Password') }}</label>
                         <div>
                             <input id="password"
                                 type="password"

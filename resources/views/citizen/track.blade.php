@@ -20,7 +20,7 @@
 
         {{-- Manual tracking input --}}
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Enter Tracking Number</h2>
+            <h2 class="text-sm font-semibold tracking-wide text-emerald-700">Enter Tracking Number</h2>
 
             <form method="GET" action="{{ route('citizen.track') }}" class="mt-4 space-y-4">
                 <label for="tracking" class="block text-sm font-semibold text-gray-700">
@@ -35,7 +35,7 @@
                            placeholder="e.g. SPD-20260521-00001"
                            autocomplete="off"
                            required
-                           class="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm tracking-wider text-gray-800 uppercase placeholder:font-sans placeholder:normal-case placeholder:text-gray-400 shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+                           class="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm tracking-wider text-gray-800 placeholder:font-sans placeholder:normal-case placeholder:text-gray-400 shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
                     <button type="submit"
                             class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -53,13 +53,13 @@
 
         <div class="flex items-center gap-4">
             <div class="h-px flex-1 bg-emerald-200"></div>
-            <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">or scan QR code</span>
+            <span class="text-xs font-semibold tracking-wider text-emerald-600">or scan QR code</span>
             <div class="h-px flex-1 bg-emerald-200"></div>
         </div>
 
         {{-- QR scanner --}}
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Scan QR Code</h2>
+            <h2 class="text-sm font-semibold tracking-wide text-emerald-700">Scan QR Code</h2>
             <p id="scanStatus" class="text-center text-sm font-medium text-gray-600">
                 Point your camera at the QR code on your document receipt.
             </p>

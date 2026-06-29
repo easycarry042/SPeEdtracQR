@@ -15,14 +15,16 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
             :root {
-                --page-bg: #d9efc4;
-                --card-bg: #efefef;
-                --text-main: #245f1f;
-                --text-sub: #3d6f33;
-                --input-bg: #f7fbf1;
-                --input-border: #b8c9a8;
-                --accent: #46a542;
-                --accent-hover: #3b9237;
+                /* Civic Record — white = purity, deep green = authority. */
+                --page-bg: #f3f8f5;
+                --card-bg: #ffffff;
+                --text-main: #0f4d28;
+                --text-sub: #51625a;
+                --input-bg: #ffffff;
+                --input-border: #cdd9d2;
+                --accent: #167a3a;
+                --accent-hover: #0f4d28;
+                --brass: #c79a3e;
             }
 
             * { box-sizing: border-box; }
@@ -46,8 +48,9 @@
             .auth-card {
                 width: min(780px, 100%);
                 background: var(--card-bg);
-                border-radius: 8px;
-                box-shadow: 0 15px 35px rgba(91, 128, 71, 0.25);
+                border-radius: 12px;
+                border: 1px solid #e6ece8;
+                box-shadow: 0 10px 30px rgba(15, 77, 40, 0.08);
                 overflow: hidden;
             }
 
@@ -61,7 +64,8 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                border-right: 1px solid #d8e8c0;
+                border-right: 1px solid #e6ece8;
+                background: #f3f8f5;
             }
 
             .auth-brand {
@@ -73,24 +77,24 @@
                 height: 64px;
                 margin: 0 auto 20px;
                 border-radius: 50%;
-                border: 4px solid #3f8f32;
+                border: 2px solid var(--brass);
             }
 
             .brand-title {
                 margin: 0;
                 font-size: 36px;
-                font-weight: 700;
+                font-weight: 600;
                 line-height: 1;
-                color: #3f8f32;
+                color: var(--text-main);
             }
 
             .brand-title span {
-                color: #516b42;
+                color: var(--accent);
             }
 
             .brand-subtitle {
                 margin-top: 10px;
-                color: #6c7f5e;
+                color: var(--text-sub);
                 font-size: 14px;
             }
 
@@ -135,13 +139,13 @@
                 background: var(--input-bg);
                 padding: 10px 12px;
                 font-size: 16px;
-                color: #355c2f;
+                color: #16211b;
                 outline: none;
             }
 
             .form-input:focus {
-                border-color: #5ea44e;
-                box-shadow: 0 0 0 2px rgba(94, 164, 78, 0.25);
+                border-color: var(--accent);
+                box-shadow: 0 0 0 2px rgba(22, 122, 58, 0.2);
             }
 
             .auth-row {
@@ -174,15 +178,16 @@
                 width: 100%;
                 border: 0;
                 border-radius: 7px;
-                background: linear-gradient(90deg, #2ea04b 0%, #77b53f 100%);
+                background: var(--accent);
                 color: #fff;
                 padding: 11px 16px;
                 font-size: 16px;
                 font-weight: 600;
                 cursor: pointer;
+                transition: background 0.15s;
             }
 
-            .auth-button:hover { background: linear-gradient(90deg, #278e40 0%, #689d36 100%); }
+            .auth-button:hover { background: var(--accent-hover); }
 
             .switch-link {
                 display: inline-block;
@@ -199,7 +204,7 @@
                 align-items: center;
                 gap: 12px;
                 margin: 12px 0 10px;
-                color: #8ca07e;
+                color: var(--text-sub);
                 font-size: 14px;
             }
 
@@ -208,16 +213,16 @@
                 content: '';
                 flex: 1;
                 height: 1px;
-                background: #d8e8c0;
+                background: #e6ece8;
             }
 
             .citizen-button {
                 display: block;
                 width: 100%;
-                border: 2px solid #46a542;
+                border: 1px solid var(--accent);
                 border-radius: 7px;
                 background: transparent;
-                color: #2d7a2a;
+                color: var(--accent);
                 padding: 10px 16px;
                 font-size: 16px;
                 font-weight: 600;
@@ -228,7 +233,7 @@
             }
 
             .citizen-button:hover {
-                background: #46a542;
+                background: var(--accent);
                 color: #fff;
             }
 

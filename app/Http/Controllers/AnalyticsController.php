@@ -15,7 +15,7 @@ class AnalyticsController extends Controller
 {
     use ScopesByDepartment;
 
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
         $isOrgWide = DepartmentScope::isOrgWide($user);
@@ -66,6 +66,27 @@ class AnalyticsController extends Controller
                 ->get();
         }
 
+        // ---- Reshape into the plain arrays the Civic Record analytics view expects ----
+        $kpis = [
+            'in_transit' => $summary['at_department'],
+            'completed' => $summary['completed'],
+            'submitted_month' => $summary['submitted_month'],
+            'overdue' => $summary['overdue'],
+        ];
+
+        $byType = $byType->map(fn ($row) => [
+            'label' => $row->document_type,
+            'count' => (int) $row->total,
+        ])->all();
+
+        $topDepartments = $topDepartments->map(fn ($row) => [
+            'name' => $row->name,
+            'scans' => (int) $row->total,
+        ])->all();
+
+        $categories = $documentTypes->all();
+        $activity = $this->buildActivitySeries($request);
+
         return view('analytics', compact(
             'documentTypes',
             'statuses',
@@ -73,6 +94,9 @@ class AnalyticsController extends Controller
             'statusBreakdown',
             'byType',
             'summary',
+            'kpis',
+            'categories',
+            'activity',
             'isOrgWide',
             'dept'
         ));
@@ -135,6 +159,55 @@ class AnalyticsController extends Controller
     private function scopedDocuments()
     {
         return $this->scopeDocuments(Document::query());
+    }
+
+    /**
+     * Server-rendered "submitted vs completed per day" series for the analytics
+     * chart. Honours the toolbar filters (category, status, from, to); defaults
+     * to the last 30 days.
+     *
+     * @return array<int, array{date: string, submitted: int, completed: int}>
+     */
+    private function buildActivitySeries(Request $request): array
+    {
+        $fromDate = Carbon::parse($request->filled('from') ? $request->from : now()->subDays(29)->toDateString())->startOfDay();
+        $toDate = Carbon::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
+
+        $applyFilters = function ($query) use ($request) {
+            if ($request->filled('category')) {
+                $query->where('document_type', $request->category);
+            }
+            if ($request->filled('status') && in_array($request->status, ['pending', 'in_transit', 'completed'], true)) {
+                $query->where('status', $request->status);
+            }
+
+            return $query;
+        };
+
+        $created = $applyFilters($this->scopedDocuments())
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as total'))
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->groupBy('date')
+            ->pluck('total', 'date');
+
+        $completed = $applyFilters($this->scopedDocuments())
+            ->whereNotNull('completed_at')
+            ->select(DB::raw('DATE(completed_at) as date'), DB::raw('COUNT(*) as total'))
+            ->whereBetween('completed_at', [$fromDate, $toDate])
+            ->groupBy('date')
+            ->pluck('total', 'date');
+
+        $series = [];
+        foreach (CarbonPeriod::create($fromDate->copy()->startOfDay(), $toDate->copy()->startOfDay()) as $day) {
+            $key = $day->toDateString();
+            $series[] = [
+                'date' => $day->format('M j'),
+                'submitted' => (int) ($created[$key] ?? 0),
+                'completed' => (int) ($completed[$key] ?? 0),
+            ];
+        }
+
+        return $series;
     }
 
     private function buildSummary(): array

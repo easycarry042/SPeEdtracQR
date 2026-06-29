@@ -1,67 +1,6 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl space-y-6" id="movementsPage">
+    <div class="mx-auto max-w-7xl space-y-5" id="movementsPage">
 
-        {{-- ── Tabs ────────────────────────────────────────────────────────── --}}
-        <div class="flex items-center gap-1 rounded-2xl border border-gray-200 bg-gray-100 p-1 w-fit shadow-sm">
-            <a href="{{ request()->fullUrlWithQuery(['tab' => 'inbox']) }}"
-               class="px-5 py-2 rounded-xl text-sm font-semibold transition-all
-                      {{ $tab === 'inbox' ? 'bg-white text-emerald-900 shadow' : 'text-gray-500 hover:text-gray-800' }}">
-                Inbox
-                @if($inboxDocuments->total() > 0)
-                    <span class="ml-1.5 rounded-full {{ $tab === 'inbox' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600' }} px-2 py-0.5 text-xs font-bold">
-                        {{ $inboxDocuments->total() }}
-                    </span>
-                @endif
-            </a>
-            <a href="{{ request()->fullUrlWithQuery(['tab' => 'tracking']) }}"
-               class="px-5 py-2 rounded-xl text-sm font-semibold transition-all
-                      {{ $tab === 'tracking' ? 'bg-white text-emerald-900 shadow' : 'text-gray-500 hover:text-gray-800' }}">
-                Tracking
-                @if($trackingDocuments->total() > 0)
-                    <span class="ml-1.5 rounded-full {{ $tab === 'tracking' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600' }} px-2 py-0.5 text-xs font-bold">
-                        {{ $trackingDocuments->total() }}
-                    </span>
-                @endif
-            </a>
-            <a href="{{ request()->fullUrlWithQuery(['tab' => 'sent']) }}"
-               class="px-5 py-2 rounded-xl text-sm font-semibold transition-all
-                      {{ $tab === 'sent' ? 'bg-white text-emerald-900 shadow' : 'text-gray-500 hover:text-gray-800' }}">
-                Sent Today
-                @if($sentDocuments->total() > 0)
-                    <span class="ml-1.5 rounded-full {{ $tab === 'sent' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600' }} px-2 py-0.5 text-xs font-bold">
-                        {{ $sentDocuments->total() }}
-                    </span>
-                @endif
-            </a>
-        </div>
-
-        {{-- ── Filters ─────────────────────────────────────────────────────── --}}
-        <form method="GET" class="flex flex-wrap items-center gap-3">
-            <input type="hidden" name="tab" value="{{ $tab }}">
-            @if($isOrgWide)
-                <select name="department" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                    <option value="">All Departments</option>
-                    @foreach($departments as $dept)
-                        <option value="{{ $dept->id }}" @selected(request('department') == $dept->id)>{{ $dept->name }}</option>
-                    @endforeach
-                </select>
-            @endif
-            <label class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm cursor-pointer">
-                <input type="checkbox" name="overdue" value="1" @checked(request()->boolean('overdue'))
-                       class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-                <span class="font-medium text-gray-700">Overdue only</span>
-            </label>
-            <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">
-                Filter
-            </button>
-            @if(request()->hasAny(['department', 'overdue']))
-                <a href="{{ route('movements.index', ['tab' => $tab]) }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">
-                    Clear
-                </a>
-            @endif
-        </form>
-
-        {{-- ── Card Grid ───────────────────────────────────────────────────── --}}
         @php
             $activeSet = match ($tab) {
                 'sent' => $sentDocuments,
@@ -71,167 +10,164 @@
             $emptyMessage = match ($tab) {
                 'sent' => 'No documents sent today.',
                 'tracking' => 'No documents to track. Items you forwarded or are on your route will appear here.',
-                default => 'No documents in your inbox.',
+                default => 'Nothing is waiting in your inbox right now. New documents appear as they are routed to you.',
             };
+            $pageParam = match ($tab) {
+                'sent' => 'sent_page',
+                'tracking' => 'tracking_page',
+                default => 'inbox_page',
+            };
+
+            $fileSvg  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>';
+            $linkSvg  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6.5 12 4.5a3.5 3.5 0 0 1 5 5l-2 2"/><path d="M14 17.5 12 19.5a3.5 3.5 0 0 1-5-5l2-2"/></svg>';
         @endphp
 
-        @if($activeSet->isEmpty())
-            <div class="rounded-2xl border border-gray-200/90 bg-white px-6 py-16 text-center shadow-sm">
-                <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M4.5 19.5l15-15M19.5 4.5l-15 15"/>
-                </svg>
-                <p class="text-sm font-medium text-gray-500">{{ $emptyMessage }}</p>
+        {{-- ── Heading ─────────────────────────────────────────────────────── --}}
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-semibold text-green-deep">Movements</h1>
+            <span class="chip">{{ $isOrgWide ? 'All offices' : ($user->department?->name ?? 'Your department') }}</span>
+        </div>
+
+        {{-- ── Tabs + filters ──────────────────────────────────────────────── --}}
+        <div class="toolbar">
+            <div class="segchips">
+                <a href="{{ request()->fullUrlWithQuery(['tab' => 'inbox']) }}" @class(['on' => $tab === 'inbox'])>Inbox · {{ $inboxDocuments->total() }}</a>
+                <a href="{{ request()->fullUrlWithQuery(['tab' => 'tracking']) }}" @class(['on' => $tab === 'tracking'])>Tracking · {{ $trackingDocuments->total() }}</a>
+                <a href="{{ request()->fullUrlWithQuery(['tab' => 'sent']) }}" @class(['on' => $tab === 'sent'])>Sent today · {{ $sentDocuments->total() }}</a>
             </div>
-        @else
-            <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
-                @foreach($activeSet as $document)
-                    @php
-                        if ($document->slaOverdue) {
-                            $borderColor = 'border-l-red-500';
-                            $slaBarColor = 'bg-red-500';
-                            $slaBadge    = 'bg-red-100 text-red-700';
-                            $slaLabel    = '+' . $document->slaHoursOver . 'h overdue';
-                            $slaIcon     = 'text-red-500';
-                        } elseif ($document->slaPct >= 75) {
-                            $borderColor = 'border-l-amber-400';
-                            $slaBarColor = 'bg-amber-400';
-                            $slaBadge    = 'bg-amber-100 text-amber-700';
-                            $slaLabel    = '~' . $document->slaHoursLeft . 'h left';
-                            $slaIcon     = 'text-amber-500';
-                        } else {
-                            $borderColor = 'border-l-emerald-500';
-                            $slaBarColor = 'bg-emerald-500';
-                            $slaBadge    = 'bg-emerald-50 text-emerald-700';
-                            $slaLabel    = '~' . $document->slaHoursLeft . 'h left';
-                            $slaIcon     = 'text-emerald-500';
-                        }
-                    @endphp
+            <div class="spacer"></div>
+            <form method="GET" action="{{ url()->current() }}" class="toolbar" style="margin:0;">
+                <input type="hidden" name="tab" value="{{ $tab }}">
+                @if($isOrgWide)
+                    <div class="field">
+                        <select name="department">
+                            <option value="">All departments</option>
+                            @foreach($departments as $dept)
+                                <option value="{{ $dept->id }}" @selected(request('department') == $dept->id)>{{ $dept->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+                <label class="field" style="gap:6px;cursor:pointer;">
+                    <input type="checkbox" name="overdue" value="1" @checked(request()->boolean('overdue'))>
+                    <span style="font-size:12px">Overdue only</span>
+                </label>
+                <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Filter</button>
+                @if(request()->hasAny(['department', 'overdue']))
+                    <a href="{{ route('movements.index', ['tab' => $tab]) }}" class="cr-btn cr-btn-sm">Clear</a>
+                @endif
+            </form>
+        </div>
 
-                    <div class="relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 border-l-4 {{ $borderColor }} bg-white shadow-sm transition hover:shadow-md">
+        {{-- ── Queue ───────────────────────────────────────────────────────── --}}
+        <div class="mvlist">
+            @forelse($activeSet as $document)
+                @php
+                    $chain   = $document->routingChain;
+                    $curId   = (int) $document->current_department_id;
+                    $idx     = $chain->search(fn ($d) => (int) $d->id === $curId);
+                    $current = $document->status === 'completed'
+                        ? $chain->count() + 1
+                        : ($idx !== false ? $idx + 1 : 1);
 
-                        {{-- SLA progress strip at top --}}
-                        <div class="h-1 w-full bg-gray-100">
-                            <div class="h-1 {{ $slaBarColor }} transition-all duration-500" style="width: {{ $document->slaPct }}%"></div>
-                        </div>
+                    if ($document->slaOverdue) {
+                        $rowState = 'late'; $timeState = 'late';
+                        $statusText = '+' . $document->slaHoursOver . 'h overdue';
+                    } elseif ($document->slaPct >= 75) {
+                        $rowState = 'warn'; $timeState = 'warn';
+                        $statusText = '~' . $document->slaHoursLeft . 'h left';
+                    } else {
+                        $rowState = ''; $timeState = 'ok';
+                        $statusText = $document->slaHoursLeft !== null ? '~' . $document->slaHoursLeft . 'h left' : '';
+                    }
 
-                        <div class="flex flex-col gap-4 p-5">
+                    $reviewImages = $document->attachments
+                        ->map(fn ($a) => route('attachments.show', $a))
+                        ->filter()
+                        ->values();
+                @endphp
 
-                            {{-- Header row --}}
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/>
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/>
-                                        </svg>
-                                    </span>
-                                    <div class="min-w-0">
-                                        <p class="truncate text-sm font-bold text-gray-900">{{ $document->document_type }}</p>
-                                        <p class="truncate text-xs text-gray-500">{{ $document->citizen_name ?? '—' }}</p>
-                                    </div>
-                                </div>
-                                <div class="shrink-0 text-right">
-                                    <p class="font-mono text-xs font-semibold text-emerald-700">{{ $document->tracking_number }}</p>
-                                    <span class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {{ $slaBadge }}">
-                                        {{ $slaLabel }}
-                                    </span>
-                                </div>
+                <div @class(['mvrow', $rowState])>
+                    <div class="head">
+                        <div class="who2">
+                            <span class="docico">{!! $fileSvg !!}</span>
+                            <div>
+                                <div class="ty">{{ $document->document_type }}</div>
+                                <div class="cz">{{ $document->citizen_name ?? '—' }}</div>
                             </div>
-
-                            @if($document->routingChain->isNotEmpty())
-                                <x-routing-stepper :document="$document" :chain="$document->routingChain" compact />
-                            @else
-                                <p class="text-xs text-gray-400 italic">No routing path set for this document.</p>
+                        </div>
+                        <div class="meta">
+                            <span class="code">{{ $document->tracking_number }}</span>
+                            @if($statusText)
+                                <span class="time {{ $timeState }}">{{ $statusText }}</span>
                             @endif
-
-                            <x-document-images :document="$document" class="mt-1" />
-
-                            @if($tab === 'tracking' && $document->currentDepartment)
-                                <p class="text-xs text-gray-500">
-                                    Currently at: <span class="font-semibold text-emerald-800">{{ $document->currentDepartment->name }}</span>
-                                </p>
-                            @endif
-
-                            @if($tab === 'inbox' && $document->canAct)
-                                @php
-                                    $reviewImages = $document->attachments
-                                        ->map(fn ($a) => route('attachments.show', $a))
-                                        ->filter()
-                                        ->values();
-                                @endphp
-                                <div class="flex items-center gap-2 border-t border-gray-100 pt-3">
-                                    <a href="{{ url('/track/'.$document->tracking_number) }}" target="_blank" rel="noopener"
-                                       class="text-xs font-medium text-gray-400 hover:text-gray-700 transition shrink-0" title="Public tracking page for citizens">
-                                        Public link
-                                    </a>
-                                    <div class="flex-1"></div>
-                                    <button type="button"
-                                            class="js-review-btn inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
-                                            data-document-id="{{ $document->id }}"
-                                            data-tracking="{{ $document->tracking_number }}"
-                                            data-from="{{ $document->current_department_id }}"
-                                            data-to="{{ $document->nextDepartment?->id ?? '' }}"
-                                            data-dept="{{ $document->nextDepartment?->name ?? '' }}"
-                                            data-type="{{ $document->document_type }}"
-                                            data-citizen="{{ $document->citizen_name ?? '' }}"
-                                            data-remarks="{{ $document->remarks ?? '' }}"
-                                            data-description="{{ $document->description ?? '' }}"
-                                            data-images='@json($reviewImages)'
-                                            data-last-stop="{{ $document->isLastStop ? '1' : '0' }}">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1 1 0 0 1 0-.639l1.7-3.2a1 1 0 0 1 .87-.561h11.79a1 1 0 0 1 .87.561l1.7 3.2a1 1 0 0 1 0 .639l-1.7 3.2a1 1 0 0 1-.87.561H4.606a1 1 0 0 1-.87-.561l-1.7-3.2z"/>
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6"/>
-                                        </svg>
-                                        Review
-                                    </button>
-                                    @if($document->isLastStop)
-                                        <button type="button"
-                                                class="js-complete-btn inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 active:scale-95"
-                                                data-tracking="{{ $document->tracking_number }}">
-                                            Done
-                                        </button>
-                                    @endif
-                                </div>
-                            @elseif($tab !== 'sent')
-                                <div class="flex gap-2 border-t border-gray-100 pt-3">
-                                    <span class="flex-1 rounded-xl bg-gray-50 px-3 py-2 text-center text-xs font-semibold text-gray-500">
-                                        Use <strong>Review</strong> to open files
-                                    </span>
-                                    @if($tab === 'tracking')
-                                        <span class="flex-1 rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs font-semibold text-emerald-700">
-                                            Tracking progress
-                                        </span>
-                                    @endif
-                                </div>
-                            @else
-                                <div class="flex gap-2 pt-1">
-                                    <span class="flex-1 rounded-xl bg-gray-50 px-3 py-2 text-center text-xs font-semibold text-gray-500">
-                                        Use <strong>Review</strong> to open files
-                                    </span>
-                                    <span class="flex-1 rounded-xl bg-gray-100 px-3 py-2 text-center text-xs font-semibold text-gray-400">
-                                        Sent out today
-                                    </span>
-                                </div>
-                            @endif
-
                         </div>
                     </div>
-                @endforeach
-            </div>
 
-            {{-- Pagination --}}
-            @if($activeSet->hasPages())
-                <div class="pt-2">
-                    @php
-                        $pageParam = match ($tab) {
-                            'sent' => 'sent_page',
-                            'tracking' => 'tracking_page',
-                            default => 'inbox_page',
-                        };
-                    @endphp
-                    {{ $activeSet->appends(request()->except($pageParam))->links() }}
+                    @if($chain->isNotEmpty())
+                        <x-civic-stepper :stages="$chain->pluck('name')->all()" :current="$current" />
+                    @else
+                        <p style="font-size:12px;color:var(--ink-soft);font-style:italic;margin-top:10px;">No routing path set for this document.</p>
+                    @endif
+
+                    @if($reviewImages->isNotEmpty())
+                        <div class="thumbs">
+                            @foreach($reviewImages->take(3) as $img)
+                                <span style="background-image:url('{{ $img }}');background-size:cover;"></span>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if($tab === 'tracking' && $document->currentDepartment)
+                        <p style="font-size:12px;color:var(--ink-soft);margin-top:12px;">
+                            Currently at: <span style="font-weight:600;color:var(--green-deep);">{{ $document->currentDepartment->name }}</span>
+                        </p>
+                    @endif
+
+                    <div class="mvfoot">
+                        <a href="{{ url('/track/'.$document->tracking_number) }}" class="link" target="_blank" rel="noopener">{!! $linkSvg !!}Public link</a>
+                        <div style="display:flex;gap:8px;">
+                            @if($tab === 'inbox' && $document->canAct)
+                                <button type="button"
+                                        class="js-review-btn cr-btn cr-btn-primary cr-btn-sm"
+                                        data-document-id="{{ $document->id }}"
+                                        data-tracking="{{ $document->tracking_number }}"
+                                        data-from="{{ $document->current_department_id }}"
+                                        data-to="{{ $document->nextDepartment?->id ?? '' }}"
+                                        data-dept="{{ $document->nextDepartment?->name ?? '' }}"
+                                        data-type="{{ $document->document_type }}"
+                                        data-citizen="{{ $document->citizen_name ?? '' }}"
+                                        data-remarks="{{ $document->remarks ?? '' }}"
+                                        data-description="{{ $document->description ?? '' }}"
+                                        data-images='@json($reviewImages)'
+                                        data-last-stop="{{ $document->isLastStop ? '1' : '0' }}">
+                                    Review
+                                </button>
+                                @if($document->isLastStop)
+                                    <button type="button"
+                                            class="js-complete-btn cr-btn cr-btn-sm"
+                                            style="color:var(--brass);border-color:#e7d8b0;"
+                                            data-tracking="{{ $document->tracking_number }}">
+                                        Done
+                                    </button>
+                                @endif
+                            @else
+                                <span style="font-size:12px;color:var(--ink-soft);">{{ $tab === 'sent' ? 'Sent out today' : 'Tracking progress' }}</span>
+                            @endif
+                        </div>
+                    </div>
                 </div>
-            @endif
+            @empty
+                <div class="panel" style="padding:30px;text-align:center;color:var(--ink-soft);">
+                    {{ $emptyMessage }}
+                </div>
+            @endforelse
+        </div>
+
+        @if($activeSet->hasPages())
+            <div class="pt-2">
+                {{ $activeSet->appends(request()->except($pageParam))->links() }}
+            </div>
         @endif
 
         {{-- ── Review Modal ─────────────────────────────────────────────────── --}}
@@ -248,7 +184,7 @@
                 </div>
 
                 <div class="mt-4">
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Attached files</p>
+                    <p class="mb-2 text-xs font-semibold tracking-wide text-gray-500">Attached files</p>
                     <div id="reviewImages" class="flex flex-wrap gap-2"></div>
                     <p id="reviewNoImages" class="hidden text-sm text-gray-400 italic">No images attached yet.</p>
                 </div>

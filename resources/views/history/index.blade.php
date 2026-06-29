@@ -48,27 +48,26 @@
             </div>
         </form>
 
-        <div id="historyResults" class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md shadow-gray-200/50 transition-opacity duration-150">
+        <div id="historyResults" class="panel transition-opacity duration-150">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="reg min-w-full">
                     <thead>
-                        <tr class="bg-gray-100/90">
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">#</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">File Name</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Tracking ID</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Date</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Category</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
-                            <th class="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Sticker</th>
+                        <tr>
+                            <th>#</th>
+                            <th>File name</th>
+                            <th>Tracking ID</th>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th style="text-align:right">Sticker</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody>
                         @forelse($documents as $doc)
                             @php
                                 $index = ($documents->currentPage() - 1) * $documents->perPage() + $loop->iteration;
                             @endphp
                             <x-document-row
-                                class="even:bg-gray-50/50"
                                 :index="$index"
                                 :date="$doc->created_at->format('M j, Y')"
                                 :tracking="$doc->tracking_number"
@@ -80,13 +79,13 @@
                             />
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">No records found.</td>
+                                <td colspan="7" style="text-align:center;padding:40px 14px;color:var(--ink-soft)">No records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-            <div class="border-t border-gray-100 px-4 py-3">{{ $documents->links() }}</div>
+            <div class="foot">{{ $documents->links() }}</div>
         </div>
     </div>
 

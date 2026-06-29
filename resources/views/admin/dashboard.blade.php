@@ -8,7 +8,7 @@
             <div class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <div class="flex items-start justify-between">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Documents</p>
+                        <p class="text-xs font-semibold tracking-wider text-gray-500">Total Documents</p>
                         <p class="mt-2 text-4xl font-bold text-emerald-900">{{ $totalDocuments }}</p>
                     </div>
                     <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
@@ -26,7 +26,7 @@
             <div class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <div class="flex items-start justify-between">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Pending / In Transit</p>
+                        <p class="text-xs font-semibold tracking-wider text-gray-500">Pending / In Transit</p>
                         <p class="mt-2 text-4xl font-bold text-amber-600">{{ $pendingDocuments }}</p>
                     </div>
                     <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -45,17 +45,17 @@
             <div class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <div class="flex items-start justify-between">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Staff</p>
+                        <p class="text-xs font-semibold tracking-wider text-gray-500">Total Staff</p>
                         <p class="mt-2 text-4xl font-bold text-emerald-900">{{ $totalStaff }}</p>
                     </div>
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
                         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                         </svg>
                     </span>
                 </div>
-                <div class="mt-4 h-1 w-full rounded-full bg-sky-100">
-                    <div class="h-1 rounded-full bg-sky-400" style="width: 100%"></div>
+                <div class="mt-4 h-1 w-full rounded-full bg-emerald-100">
+                    <div class="h-1 rounded-full bg-emerald-400" style="width: 100%"></div>
                 </div>
             </div>
 
@@ -63,17 +63,17 @@
             <div class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <div class="flex items-start justify-between">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Departments</p>
+                        <p class="text-xs font-semibold tracking-wider text-gray-500">Departments</p>
                         <p class="mt-2 text-4xl font-bold text-emerald-900">{{ $totalDepartments }}</p>
                     </div>
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
                         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 3L2 9v2h20V9L12 3zM4 13v5h3v-5H4zm5 0v5h3v-5H9zm5 0v5h3v-5h-3zm5 0v5h-2v-5h2zm-15 7h16v2H4v-2z"/>
                         </svg>
                     </span>
                 </div>
-                <div class="mt-4 h-1 w-full rounded-full bg-purple-100">
-                    <div class="h-1 rounded-full bg-purple-400" style="width: 100%"></div>
+                <div class="mt-4 h-1 w-full rounded-full bg-emerald-100">
+                    <div class="h-1 rounded-full bg-emerald-400" style="width: 100%"></div>
                 </div>
             </div>
 
@@ -90,11 +90,11 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Document</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Department</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Action</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Scanned By</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Document</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Department</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Action</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Scanned By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Time</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">
@@ -135,13 +135,13 @@
                     <table class="min-w-full divide-y divide-gray-200" id="adminActivityTable">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">#</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tracking ID</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Citizen</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Department</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Created</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Tracking ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Citizen</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Department</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500">Created</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">

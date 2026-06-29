@@ -21,14 +21,14 @@
 
     @if($document->attachments->isNotEmpty())
         <div class="mx-auto mt-6 max-w-md text-left">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">Attached images</p>
+            <p class="mb-2 text-xs font-semibold tracking-wide text-emerald-800">Attached images</p>
             <x-document-images :document="$document" :limit="8" size="lg" class="justify-center" />
         </div>
     @endif
 
     @if($document->routeSteps->isNotEmpty())
         <div class="mx-auto mt-6 max-w-md rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-left">
-            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-800">Routing path</p>
+            <p class="text-xs font-semibold tracking-wide text-emerald-800">Routing path</p>
             <ol class="mt-2 space-y-1">
                 @foreach($document->routeSteps as $step)
                     <li class="flex items-center gap-2 text-sm text-gray-800">

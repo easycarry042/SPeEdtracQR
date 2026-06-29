@@ -1,7 +1,7 @@
 @php
     $statusClass = match($document->status) {
         'completed' => 'bg-green-200 text-green-800',
-        'pending' => 'bg-blue-200 text-blue-800',
+        'pending' => 'bg-emerald-200 text-emerald-800',
         'returned' => 'bg-rose-200 text-rose-800',
         default => 'bg-yellow-200 text-yellow-800',
     };
@@ -17,22 +17,22 @@
     <div class="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
         @unless($isPublicView)
             {{-- Fixed-height panel; the list scrolls inside it --}}
-            <div class="flex flex-col rounded-xl border border-[#e0e0e0] bg-white p-3 lg:h-[calc(100vh-9rem)]">
+            <div class="flex flex-col rounded-xl border border-[#e6ece8] bg-white p-3 lg:h-[calc(100vh-9rem)]">
                 <div class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
                     @foreach($documents as $item)
-                        <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#1a5c1a] bg-[#e8f5e9]' : 'border-[#e0e0e0] bg-white hover:bg-[#f4faf4]' }}">
+                        <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#0f4d28] bg-[#eaf4ee]' : 'border-[#e6ece8] bg-white hover:bg-[#f3f8f5]' }}">
                             <div class="flex items-center gap-3">
-                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#c8efcc] text-[#1a5c1a]">
+                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
                                 </span>
                                 <div>
-                                    <p class="text-[14px] font-semibold text-[#1a1a1a]">{{ $item->document_type }}</p>
-                                    <p class="text-[13px] text-[#666666]">{{ $item->status }}</p>
+                                    <p class="text-[14px] font-semibold text-[#16211b]">{{ $item->document_type }}</p>
+                                    <p class="text-[13px] text-[#51625a]">{{ $item->status }}</p>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <p class="text-[13px] text-[#666666]">{{ $item->created_at->format('m/d/y') }}</p>
-                                <span class="text-xl text-[#666666]">›</span>
+                                <p class="text-[13px] text-[#51625a]">{{ $item->created_at->format('m/d/y') }}</p>
+                                <span class="text-xl text-[#51625a]">›</span>
                             </div>
                         </a>
                     @endforeach
@@ -41,20 +41,20 @@
         @endunless
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="rounded-xl border border-[#e0e0e0] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto {{ $isPublicView ? 'lg:col-span-2' : '' }}">
+        <div class="rounded-xl border border-[#e6ece8] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto {{ $isPublicView ? 'lg:col-span-2' : '' }}">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#c8efcc] text-[#1a5c1a]">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
                         <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
                     </span>
                     <div>
-                        <p class="text-lg font-bold text-[#1a1a1a]">{{ $document->document_type }}</p>
-                        <p class="text-[13px] text-[#666666]">{{ $document->citizen_name ?? 'N/A' }}</p>
+                        <p class="text-lg font-bold text-[#16211b]">{{ $document->document_type }}</p>
+                        <p class="text-[13px] text-[#51625a]">{{ $document->citizen_name ?? 'N/A' }}</p>
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="text-sm font-semibold text-[#666666]">Tracking ID:</p>
-                    <p class="text-xl font-extrabold text-[#1a5c1a] font-mono">{{ $document->tracking_number }}</p>
+                    <p class="text-sm font-semibold text-[#51625a]">Tracking ID:</p>
+                    <p class="text-xl font-extrabold text-[#0f4d28] font-mono">{{ $document->tracking_number }}</p>
                 </div>
             </div>
 
@@ -88,7 +88,7 @@
 
             @if($document->attachments->isNotEmpty())
                 <div class="mt-5">
-                    <p class="text-[14px] font-bold text-[#1a1a1a]">Attached Images</p>
+                    <p class="text-[14px] font-bold text-[#16211b]">Attached Images</p>
                     <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" />
                 </div>
             @endif
@@ -132,7 +132,7 @@
             </div>
 
             <div class="mt-8">
-                <div class="mb-3 text-[14px] font-bold text-[#1a1a1a]">Department Progress</div>
+                <div class="mb-3 text-[14px] font-bold text-[#16211b]">Department Progress</div>
                 @if($routingChain->isNotEmpty())
                     <x-routing-stepper :document="$document" :chain="$routingChain" />
                 @else
@@ -158,15 +158,15 @@
             @endif
 
             <div class="mt-8">
-                <h3 class="text-2xl font-extrabold text-[#1a1a1a]">Logs</h3>
+                <h3 class="text-2xl font-extrabold text-[#16211b]">Logs</h3>
                 <div class="mt-3 space-y-2">
                     @foreach($timeline as $log)
-                        <div class="flex items-center justify-between border-b border-[#e8f5e9] py-2">
+                        <div class="flex items-center justify-between border-b border-[#eaf4ee] py-2">
                             <div class="flex items-center gap-3">
                                 <span class="h-3 w-3 rounded-full bg-green-600"></span>
-                                <span class="text-[14px] text-[#666666]">{{ $log['event'] }}</span>
+                                <span class="text-[14px] text-[#51625a]">{{ $log['event'] }}</span>
                             </div>
-                            <span class="text-[13px] font-bold text-[#1a5c1a]">{{ $log['timestamp'] }}</span>
+                            <span class="text-[13px] font-bold text-[#0f4d28]">{{ $log['timestamp'] }}</span>
                         </div>
                     @endforeach
                 </div>

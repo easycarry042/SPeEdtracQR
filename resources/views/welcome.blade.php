@@ -41,7 +41,7 @@
     {{-- Hero --}}
     <section class="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center">
         <div class="mx-auto max-w-2xl">
-            <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+            <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold tracking-wider text-emerald-700">
                 <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                 Government Document Tracking
             </span>
@@ -69,7 +69,7 @@
                         type="text"
                         name="tracking_number"
                         placeholder="e.g. SPD-20260521-00001"
-                        class="flex-1 bg-transparent py-4 pl-3 pr-2 font-mono text-sm tracking-widest text-gray-800 placeholder:font-sans placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none uppercase"
+                        class="flex-1 bg-transparent py-4 pl-3 pr-2 font-mono text-sm tracking-widest text-gray-800 placeholder:font-sans placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none"
                         autofocus
                     >
                     <button type="submit" class="m-1.5 rounded-xl bg-emerald-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-800 active:scale-95">

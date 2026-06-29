@@ -1,271 +1,193 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
-        {{-- Summary cards --}}
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <div class="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isOrgWide ? 'In transit' : 'At your department' }}</p>
-                <p class="mt-2 text-3xl font-bold text-emerald-800">{{ $summary['at_department'] }}</p>
-            </div>
-            <div class="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Completed</p>
-                <p class="mt-2 text-3xl font-bold text-emerald-800">{{ $summary['completed'] }}</p>
-            </div>
-            <div class="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted this month</p>
-                <p class="mt-2 text-3xl font-bold text-emerald-800">{{ $summary['submitted_month'] }}</p>
-            </div>
-            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">Overdue now</p>
-                <p class="mt-2 text-3xl font-bold text-amber-700">{{ $summary['overdue'] }}</p>
-            </div>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        @php
+            /* ---------- donut geometry (document type = shares of a whole) ---------- */
+            $palette   = ['#167a3a', '#5cb87f', '#c79a3e', '#0f4d28', '#8fce9f'];
+            $types     = collect($byType ?? [])->values();
+            $typeTotal = $types->sum('count');
+            $slices    = [];
+            $acc       = 0;
+            foreach ($types as $i => $t) {
+                $pct = $typeTotal ? round(($t['count'] / $typeTotal) * 100, 2) : 0;
+                $slices[] = [
+                    'label'  => $t['label'],
+                    'count'  => $t['count'],
+                    'pct'    => $pct,
+                    'color'  => $palette[$i % count($palette)],
+                    'offset' => -1 * $acc,
+                ];
+                $acc += $pct;
+            }
+
+            /* ---------- activity line chart geometry ---------- */
+            $acts = collect($activity ?? [])->values();
+            $n    = max($acts->count(), 1);
+            $maxY = max(1, (int) ($acts->max('submitted') ?? 0), (int) ($acts->max('completed') ?? 0));
+            $X0 = 34; $X1 = 610; $Y0 = 172; $YT = 16;
+            $px = fn ($i) => $n > 1 ? round($X0 + $i * ($X1 - $X0) / ($n - 1), 1) : $X0;
+            $py = fn ($v) => round($Y0 - ($v / $maxY) * ($Y0 - $YT), 1);
+
+            $subPts = []; $comPts = [];
+            foreach ($acts as $i => $p) {
+                $subPts[] = $px($i) . ',' . $py($p['submitted'] ?? 0);
+                $comPts[] = $px($i) . ',' . $py($p['completed'] ?? 0);
+            }
+            $subLine = implode(' ', $subPts);
+            $comLine = implode(' ', $comPts);
+            $area    = $acts->count()
+                ? 'M ' . $X0 . ',' . $Y0 . ' L ' . $subLine . ' ' . $px($n - 1) . ',' . $Y0 . ' Z'
+                : '';
+
+            $gridV     = [0, $maxY / 3, ($maxY * 2) / 3, $maxY];
+            $labelIdx  = $n > 1 ? [0, intdiv($n, 3), intdiv($n * 2, 3), $n - 1] : [0];
+
+            $maxScans  = max(1, (int) (collect($topDepartments ?? [])->max('scans')));
+        @endphp
+
+        <div class="mb-4 flex items-center gap-3">
+            <h1 class="text-lg font-semibold text-green-deep">Analytics</h1>
+            <span class="chip">{{ $isOrgWide ? 'All offices' : ($dept?->name ?? 'Your department') }}</span>
         </div>
 
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-6 lg:col-span-2">
-                <h2 class="text-xl font-bold text-[#1a5c1a]">Document activity over time</h2>
-                <p class="mt-1 text-sm text-gray-500">
-                    {{ $isOrgWide ? 'All offices — new submissions vs completions per day.' : 'Documents linked to your department.' }}
-                    Chart loads automatically for the last 30 days.
-                </p>
+        {{-- KPI tiles --}}
+        <div class="tiles" style="margin-bottom:14px;">
+            <div class="tile"><div class="k">{{ $isOrgWide ? 'In transit' : 'At your department' }}</div><div class="v mono">{{ $kpis['in_transit'] ?? 0 }}</div><div class="bar amber"></div></div>
+            <div class="tile"><div class="k">Completed</div><div class="v mono">{{ $kpis['completed'] ?? 0 }}</div><div class="bar"></div></div>
+            <div class="tile"><div class="k">Submitted this month</div><div class="v mono">{{ $kpis['submitted_month'] ?? 0 }}</div><div class="bar bright"></div></div>
+            <div class="tile"><div class="k">Overdue now</div><div class="v mono">{{ $kpis['overdue'] ?? 0 }}</div><div class="bar red"></div></div>
+        </div>
 
-                <div class="mb-6 mt-5 grid grid-cols-1 gap-4 md:grid-cols-5 md:items-end">
-                    <div>
-                        <label for="docType" class="block text-sm font-medium text-gray-700">Category</label>
-                        <select id="docType" class="mt-1 block h-10 w-full rounded-lg border border-gray-300 text-sm shadow-sm">
-                            <option value="">All</option>
-                            @foreach($documentTypes as $type)
-                                <option value="{{ $type }}">{{ $type }}</option>
-                            @endforeach
-                        </select>
+        <div class="row" style="display:grid;gap:14px;grid-template-columns:1.4fr 1fr;">
+
+            {{-- LEFT: activity over time --}}
+            <div class="panel">
+                <div class="ph">
+                    <h2>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 14 4-4 3 3 5-6"/></svg>
+                        Document activity over time
+                    </h2>
+                    <span class="sub">last 30 days</span>
+                </div>
+                <div class="pb">
+                    <form method="GET" action="{{ url()->current() }}" class="toolbar" style="margin-bottom:12px;">
+                        <div class="field">
+                            <label>Category</label>
+                            <select name="category">
+                                <option value="">All</option>
+                                @foreach (($categories ?? []) as $c)
+                                    <option value="{{ $c }}" @selected(request('category') === $c)>{{ $c }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Status</label>
+                            <select name="status">
+                                <option value="">All</option>
+                                <option value="pending" @selected(request('status') === 'pending')>Pending</option>
+                                <option value="in_transit" @selected(request('status') === 'in_transit')>In transit</option>
+                                <option value="completed" @selected(request('status') === 'completed')>Completed</option>
+                            </select>
+                        </div>
+                        <div class="field"><label>From</label><input type="date" name="from" value="{{ request('from') }}"></div>
+                        <div class="field"><label>To</label><input type="date" name="to" value="{{ request('to') }}"></div>
+                        <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>
+                        @if (request()->hasAny(['category', 'status', 'from', 'to']))
+                            <a href="{{ url()->current() }}" class="cr-btn cr-btn-sm">Reset</a>
+                        @endif
+                    </form>
+
+                    <svg viewBox="0 0 620 210" width="100%" style="display:block" role="img" aria-label="Daily new submissions versus completions">
+                        <line x1="{{ $X0 }}" y1="{{ $YT }}" x2="{{ $X0 }}" y2="{{ $Y0 }}" stroke="#e6ece8"/>
+                        <line x1="{{ $X0 }}" y1="{{ $Y0 }}" x2="{{ $X1 }}" y2="{{ $Y0 }}" stroke="#e6ece8"/>
+                        @foreach ($gridV as $gv)
+                            @php $gy = $py($gv); @endphp
+                            <line x1="{{ $X0 }}" y1="{{ $gy }}" x2="{{ $X1 }}" y2="{{ $gy }}" stroke="#f0f3f1"/>
+                            <text x="{{ $X0 - 8 }}" y="{{ $gy + 3 }}" text-anchor="end" fill="#9bb0a6" font-size="9" font-family="monospace">{{ round($gv) }}</text>
+                        @endforeach
+
+                        @if ($area)
+                            <path d="{{ $area }}" fill="#eef5f0"/>
+                            <polyline points="{{ $subLine }}" fill="none" stroke="#2a9d4f" stroke-width="2"/>
+                            <polyline points="{{ $comLine }}" fill="none" stroke="#0f4d28" stroke-width="2"/>
+                        @endif
+
+                        @foreach ($labelIdx as $li)
+                            <text x="{{ $px($li) }}" y="{{ $Y0 + 16 }}" fill="#9bb0a6" font-size="9" font-family="monospace">{{ $acts[$li]['date'] ?? '' }}</text>
+                        @endforeach
+                    </svg>
+
+                    <div class="legend" style="margin-top:8px;">
+                        <span><i style="background:#2a9d4f"></i>New submissions</span>
+                        <span><i style="background:#0f4d28"></i>Completed</span>
                     </div>
-                    <div>
-                        <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                        <select id="status" class="mt-1 block h-10 w-full rounded-lg border border-gray-300 text-sm shadow-sm">
-                            <option value="">All</option>
-                            @foreach($statuses as $status)
-                                <option value="{{ $status }}">{{ str_replace('_', ' ', ucfirst($status)) }}</option>
-                            @endforeach
-                        </select>
+                </div>
+            </div>
+
+            {{-- RIGHT: donut + ranked bars --}}
+            <div style="display:flex;flex-direction:column;gap:14px;">
+
+                {{-- By document type = donut (parts of a whole) --}}
+                <div class="panel">
+                    <div class="ph">
+                        <h2>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M12 3v9"/></svg>
+                            By document type
+                        </h2>
+                        <span class="sub">share of {{ $typeTotal }}</span>
                     </div>
-                    <div>
-                        <label for="fromDate" class="block text-sm font-medium text-gray-700">From</label>
-                        <input type="date" id="fromDate" class="mt-1 block h-10 w-full rounded-lg border border-gray-300 text-sm shadow-sm" />
-                    </div>
-                    <div>
-                        <label for="toDate" class="block text-sm font-medium text-gray-700">To</label>
-                        <input type="date" id="toDate" class="mt-1 block h-10 w-full rounded-lg border border-gray-300 text-sm shadow-sm" />
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-transparent select-none" aria-hidden="true">Actions</span>
-                        <div class="mt-1 flex flex-wrap items-center gap-2">
-                            <button id="applyBtn" type="button" class="inline-flex h-10 items-center justify-center rounded-lg bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">Apply</button>
-                            <button id="downloadBtn" type="button" class="inline-flex h-10 items-center justify-center rounded-lg bg-green-600 px-4 text-sm font-semibold text-white hover:bg-green-700">Download CSV</button>
+                    <div class="pb">
+                        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+                            <svg viewBox="0 0 140 140" width="138" height="138" style="flex:none" role="img" aria-label="Document type composition">
+                                <g transform="rotate(-90 70 70)" fill="none" stroke-width="20">
+                                    @foreach ($slices as $s)
+                                        <circle cx="70" cy="70" r="52" pathLength="100"
+                                                stroke="{{ $s['color'] }}"
+                                                stroke-dasharray="{{ $s['pct'] }} {{ 100 - $s['pct'] }}"
+                                                stroke-dashoffset="{{ $s['offset'] }}"/>
+                                    @endforeach
+                                </g>
+                                <text x="70" y="68" text-anchor="middle" class="mono" font-size="23" font-weight="600" fill="#16211b">{{ $typeTotal }}</text>
+                                <text x="70" y="86" text-anchor="middle" font-size="10" fill="#5b6b62">documents</text>
+                            </svg>
+                            <div style="flex:1;min-width:168px;">
+                                @forelse ($slices as $s)
+                                    <div class="legrow">
+                                        <span class="sw" style="background:{{ $s['color'] }}"></span>
+                                        <span class="ln">{{ $s['label'] }}</span>
+                                        <span class="lv">{{ $s['count'] }}</span>
+                                        <span class="lp">{{ round($s['pct']) }}%</span>
+                                    </div>
+                                @empty
+                                    <div class="legrow"><span class="ln" style="color:var(--ink-soft)">No documents in this range yet.</span></div>
+                                @endforelse
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="chartError" class="hidden mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
-                <div id="chartEmpty" class="hidden mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                    No data for this date range. Try widening the dates or clearing filters.
-                </div>
-
-                <div class="relative h-72 w-full">
-                    <canvas id="submissionChart"></canvas>
-                </div>
-
-                <div class="mt-4 flex flex-wrap gap-4 text-xs text-gray-600">
-                    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-[#4caf50]"></span> New submissions</span>
-                    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-[#1a5c1a]"></span> Completed</span>
-                </div>
-            </div>
-
-            <div class="space-y-6">
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-6">
-                <h3 class="text-lg font-bold text-[#1a5c1a]">By document type</h3>
-                <table class="mt-4 min-w-full">
-                    <tbody>
-                        @forelse($byType as $row)
-                            <tr class="border-b border-gray-100 last:border-0">
-                                <td class="py-2 text-sm text-gray-800">{{ $row->document_type }}</td>
-                                <td class="py-2 text-right text-sm font-bold text-emerald-800">{{ $row->total }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="2" class="py-4 text-center text-sm text-gray-500">No documents yet</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-6">
-                @if($isOrgWide)
-                    <div class="flex items-start justify-between">
-                        <h3 class="text-2xl font-extrabold leading-tight text-[#1a5c1a]">Top Submitting Departments</h3>
-                        <svg class="h-10 w-10 shrink-0 text-[#1a5c1a]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <rect x="3" y="10" width="4" height="11" rx="1"></rect>
-                            <rect x="10" y="6" width="4" height="15" rx="1"></rect>
-                            <rect x="17" y="3" width="4" height="18" rx="1"></rect>
-                        </svg>
+                {{-- Top submitting departments = ranked bars --}}
+                <div class="panel">
+                    <div class="ph">
+                        <h2>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="8" y="11" width="3" height="5"/><rect x="13" y="7" width="3" height="9"/></svg>
+                            {{ $isOrgWide ? 'Top departments by scans' : 'Department activity' }}
+                        </h2>
+                        <span class="sub">scans</span>
                     </div>
-                    <table class="mt-5 min-w-full">
-                        <thead class="bg-[#fafafa]">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-[13px] font-semibold text-[#666666]">Department</th>
-                                <th class="px-4 py-3 text-right text-[13px] font-semibold text-[#666666]">Scans</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($topDepartments as $deptRow)
-                                <tr class="border-b border-[#e0e0e0] last:border-b-0">
-                                    <td class="px-4 py-3 text-[14px] text-[#1a1a1a]">{{ $deptRow->name }}</td>
-                                    <td class="px-4 py-3 text-right text-[14px] font-bold text-[#1a5c1a]">{{ $deptRow->total }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="2" class="px-4 py-8 text-center text-gray-500">No scan data yet</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                @else
-                    <h3 class="text-2xl font-extrabold leading-tight text-[#1a5c1a]">Status Breakdown</h3>
-                    <p class="mt-1 text-sm text-gray-500">Documents linked to {{ $dept?->name ?? 'your department' }}</p>
-                    <table class="mt-5 min-w-full">
-                        <thead class="bg-[#fafafa]">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-[13px] font-semibold text-[#666666]">Status</th>
-                                <th class="px-4 py-3 text-right text-[13px] font-semibold text-[#666666]">Count</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($statusBreakdown as $row)
-                                <tr class="border-b border-[#e0e0e0] last:border-b-0">
-                                    <td class="px-4 py-3 text-[14px] capitalize text-[#1a1a1a]">{{ str_replace('_', ' ', $row->status) }}</td>
-                                    <td class="px-4 py-3 text-right text-[14px] font-bold text-[#1a5c1a]">{{ $row->total }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="2" class="px-4 py-8 text-center text-gray-500">No documents yet for your department</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                @endif
-            </div>
+                    <div class="pb" style="padding-top:6px;">
+                        @forelse ($topDepartments ?? [] as $d)
+                            <div class="barrow">
+                                <div class="nm">{{ $d['name'] }}</div>
+                                <div class="track"><div class="fill" style="width:{{ round(($d['scans'] / $maxScans) * 100) }}%"></div></div>
+                                <div class="val">{{ $d['scans'] }}</div>
+                            </div>
+                        @empty
+                            <div class="barrow"><div class="nm" style="color:var(--ink-soft)">No scans recorded yet.</div></div>
+                        @endforelse
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        let chart;
-
-        function defaultDates() {
-            const to = new Date();
-            const from = new Date();
-            from.setDate(from.getDate() - 30);
-            document.getElementById('toDate').value = to.toISOString().slice(0, 10);
-            document.getElementById('fromDate').value = from.toISOString().slice(0, 10);
-        }
-
-        function chartMax(values) {
-            const peak = Math.max(...values, 0);
-            return peak <= 5 ? 5 : Math.ceil(peak * 1.25);
-        }
-
-        async function loadChart() {
-            const errorEl = document.getElementById('chartError');
-            const emptyEl = document.getElementById('chartEmpty');
-            errorEl.classList.add('hidden');
-            emptyEl.classList.add('hidden');
-
-            const params = new URLSearchParams({
-                document_type: document.getElementById('docType').value,
-                status: document.getElementById('status').value,
-                from: document.getElementById('fromDate').value,
-                to: document.getElementById('toDate').value,
-            });
-
-            try {
-                const response = await fetch(`{{ route('analytics.data') }}?${params}`, {
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                });
-
-                if (!response.ok) {
-                    throw new Error('Could not load chart data.');
-                }
-
-                const data = await response.json();
-                window.chartData = data;
-
-                const hasPoints = data.submitted.some(v => v > 0) || data.completed.some(v => v > 0);
-                emptyEl.classList.toggle('hidden', hasPoints);
-
-                if (chart) chart.destroy();
-                const ctx = document.getElementById('submissionChart').getContext('2d');
-                const yMax = chartMax([...data.submitted, ...data.completed]);
-
-                chart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels.map(d => {
-                            const dt = new Date(d + 'T12:00:00');
-                            return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                        }),
-                        datasets: [
-                            {
-                                label: 'New submissions',
-                                data: data.submitted,
-                                borderColor: '#4caf50',
-                                backgroundColor: 'rgba(76, 175, 80, 0.15)',
-                                fill: true,
-                                tension: 0.35,
-                                pointRadius: 3,
-                            },
-                            {
-                                label: 'Completed',
-                                data: data.completed,
-                                borderColor: '#1a5c1a',
-                                backgroundColor: 'transparent',
-                                tension: 0.35,
-                                pointRadius: 3,
-                            },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            legend: { position: 'bottom' },
-                        },
-                        scales: {
-                            y: {
-                                min: 0,
-                                max: yMax,
-                                ticks: { stepSize: Math.max(1, Math.ceil(yMax / 5)) },
-                                grid: { color: '#eeeeee' },
-                            },
-                            x: { grid: { display: false } },
-                        },
-                    },
-                });
-            } catch (err) {
-                errorEl.textContent = err.message || 'Failed to load analytics chart.';
-                errorEl.classList.remove('hidden');
-            }
-        }
-
-        document.getElementById('applyBtn').addEventListener('click', loadChart);
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            if (!window.chartData) return;
-            let csv = 'Date,Submitted,Completed\n';
-            for (let i = 0; i < window.chartData.labels.length; i++) {
-                csv += `${window.chartData.labels[i]},${window.chartData.submitted[i]},${window.chartData.completed[i]}\n`;
-            }
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'analytics.csv';
-            link.click();
-        });
-
-        defaultDates();
-        loadChart();
-    </script>
 </x-app-layout>

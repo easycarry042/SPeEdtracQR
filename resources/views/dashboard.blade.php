@@ -19,6 +19,10 @@
             </div>
         </div>
 
+        @if($slip)
+            <x-routing-slip :slip="$slip" />
+        @endif
+
         @if($atRiskDocuments->isNotEmpty())
         <section class="space-y-4">
             <div class="flex items-center gap-3">
@@ -34,11 +38,11 @@
                     <table class="min-w-full divide-y divide-amber-100">
                         <thead>
                             <tr class="bg-amber-50">
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Tracking ID</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Type</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Citizen</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800">Department</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-amber-800 min-w-[160px]">SLA Usage</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Tracking ID</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Type</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Citizen</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Department</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800 min-w-[160px]">SLA Usage</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-amber-50 bg-white">
@@ -97,12 +101,12 @@
                     <table class="min-w-full divide-y divide-gray-200" id="activityTable">
                         <thead>
                             <tr class="bg-gray-100/90">
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">#</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">File Name</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Tracking ID</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Date</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Category</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">#</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">File Name</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Tracking ID</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Date</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Category</th>
+                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Status</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">

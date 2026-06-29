@@ -9,24 +9,27 @@
     'stickerHref' => null,
 ])
 
-<tr {{ $attributes->class('border-b border-gray-200/90 transition-colors duration-150 hover:bg-emerald-50/40 last:border-b-0') }}>
+<tr {{ $attributes }}>
     @if($index !== null)
-        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{{ $index }}</td>
+        <td class="idx mono">{{ $index }}</td>
     @endif
-    <td class="max-w-[200px] truncate px-4 py-3 text-sm font-medium text-gray-900">{{ $fileName }}</td>
-    <td class="whitespace-nowrap px-4 py-3 text-sm font-semibold text-gray-900 font-mono">
+    <td class="nm">{{ $fileName }}</td>
+    <td>
         @if($href)
-            <a href="{{ $href }}" class="text-emerald-900 underline-offset-2 hover:text-emerald-700 hover:underline">{{ $tracking }}</a>
+            <a href="{{ $href }}" class="code">{{ $tracking }}</a>
         @else
-            {{ $tracking }}
+            <span class="code">{{ $tracking }}</span>
         @endif
     </td>
-    <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{{ $date }}</td>
-    <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{{ $category }}</td>
-    <td class="px-4 py-3"><x-status-badge :status="$status" /></td>
+    <td class="mono muted">{{ $date }}</td>
+    <td class="muted">{{ $category }}</td>
+    <td><x-status-badge :status="$status" /></td>
     @if($stickerHref)
-        <td class="whitespace-nowrap px-4 py-3 text-right">
-            <a href="{{ $stickerHref }}" target="_blank" rel="noopener" class="text-sm font-semibold text-emerald-800 hover:text-emerald-950 hover:underline">Print QR</a>
+        <td style="text-align:right">
+            <a href="{{ $stickerHref }}" target="_blank" rel="noopener" class="cr-btn cr-btn-ghost cr-btn-sm">
+                <svg fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14M17 21h4v-4M14 21"/></svg>
+                Print QR
+            </a>
         </td>
     @endif
 </tr>

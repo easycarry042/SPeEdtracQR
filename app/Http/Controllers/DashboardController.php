@@ -77,6 +77,9 @@ class DashboardController extends Controller
 
         $atRiskCount = $atRiskDocuments->count();
 
+        // ── Routing slip: the single most at-risk in-transit document ─────────
+        $slip = $this->buildRoutingSlip();
+
         // ── Predictive insights (self-hosted PredictiveAnalytics engine) ──────
         $analytics = new PredictiveAnalytics;
 
@@ -120,7 +123,65 @@ class DashboardController extends Controller
             'bottlenecks',
             'anomalies',
             'dept',
-            'isOrgWide'
+            'isOrgWide',
+            'slip'
         ));
+    }
+
+    /**
+     * Pick the single most at-risk in-transit document and shape it for the
+     * dashboard routing slip (<x-routing-slip>). Largest overdue wins; if none
+     * are overdue, the one closest to breaching its current department's SLA.
+     *
+     * @return array{type: string, citizen: string, code: string, overdue: bool, status_text: string, stages: array<int, string>, current: int, public_url: string}|null
+     */
+    private function buildRoutingSlip(): ?array
+    {
+        $doc = $this->scopeCurrentDocuments(
+            Document::with(['currentDepartment', 'routeSteps.department', 'scans'])
+                ->whereIn('status', ['in_transit', 'pending'])
+                ->whereNotNull('current_department_id')
+        )->get()
+            ->map(function ($doc) {
+                $sla = $doc->currentDepartment?->sla_hours ?? 0;
+                $lastIn = $doc->scans
+                    ->where('action', 'in')
+                    ->where('department_id', $doc->current_department_id)
+                    ->sortByDesc('scanned_at')
+                    ->first();
+
+                // Signed hours past SLA: positive = overdue, negative = time left.
+                $doc->slipHoursOver = ($sla > 0 && $lastIn)
+                    ? Carbon::parse($lastIn->scanned_at)->diffInHours(now()) - $sla
+                    : null;
+
+                return $doc;
+            })
+            ->filter(fn ($doc) => $doc->slipHoursOver !== null)
+            ->sortByDesc('slipHoursOver')
+            ->first();
+
+        if (! $doc) {
+            return null;
+        }
+
+        $chain = $doc->getRoutingChain();
+        $stages = $chain->pluck('name')->all();
+        $idx = $chain->search(fn ($d) => (int) $d->id === (int) $doc->current_department_id);
+        $current = $idx !== false ? $idx + 1 : 1;
+
+        $over = (int) round($doc->slipHoursOver);
+        $overdue = $over > 0;
+
+        return [
+            'type' => $doc->document_type,
+            'citizen' => $doc->citizen_name ?? '—',
+            'code' => $doc->tracking_number,
+            'overdue' => $overdue,
+            'status_text' => $overdue ? '+'.$over.'h overdue' : '~'.abs($over).'h left',
+            'stages' => $stages,
+            'current' => $current,
+            'public_url' => route('track.show', $doc->tracking_number),
+        ];
     }
 }

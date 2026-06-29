@@ -10,14 +10,14 @@
             </div>
 
             <div class="auth-right">
-                <h2 class="auth-heading">REGISTER</h2>
+                <h2 class="auth-heading">Register</h2>
                 <p class="auth-subheading">Create your account</p>
 
                 <form method="POST" action="{{ route('register') }}" class="auth-form">
                     @csrf
 
                     <div class="form-group">
-                        <label for="name" class="form-label">{{ __('FULL NAME') }}</label>
+                        <label for="name" class="form-label">{{ __('Full name') }}</label>
                         <div>
                             <input id="name"
                                 type="text"
@@ -32,7 +32,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="email" class="form-label">{{ __('EMAIL') }}</label>
+                        <label for="email" class="form-label">{{ __('Email') }}</label>
                         <div>
                             <input id="email"
                                 type="email"
@@ -46,7 +46,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="password" class="form-label">{{ __('PASSWORD') }}</label>
+                        <label for="password" class="form-label">{{ __('Password') }}</label>
                         <div>
                             <input id="password"
                                 type="password"
@@ -59,7 +59,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="password_confirmation" class="form-label">{{ __('CONFIRM PASSWORD') }}</label>
+                        <label for="password_confirmation" class="form-label">{{ __('Confirm password') }}</label>
                         <div>
                             <input id="password_confirmation"
                                 type="password"

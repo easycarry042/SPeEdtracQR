@@ -12,52 +12,79 @@
             </div>
         @endif
 
-        <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Alert Email</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SLA (hrs)</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 bg-white">
-                        @forelse($departments as $dept)
-                            <tr class="hover:bg-gray-50/60 transition">
-                                <td class="px-4 py-3 text-sm font-semibold text-gray-800">{{ $dept->name }}</td>
-                                <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ $dept->code ?? '—' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $dept->email ?? '—' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700 font-semibold">{{ $dept->sla_hours }}h</td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
-                                        <a href="{{ route('admin.departments.edit', $dept) }}"
-                                           class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50">
-                                            Edit
-                                        </a>
-                                        <form method="POST" action="{{ route('admin.departments.destroy', $dept) }}"
-                                              onsubmit="return confirm('Delete {{ addslashes($dept->name) }}? This cannot be undone.')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit"
-                                                    class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100">
-                                                Delete
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-400">
-                                    No departments yet. <a href="{{ route('admin.departments.create') }}" onclick="if (window.openAddDepartmentModal) { event.preventDefault(); openAddDepartmentModal(); }" class="text-emerald-600 hover:underline">Add one.</a>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        <div class="tiles">
+            <div class="tile">
+                <div class="k">Departments</div>
+                <div class="v mono">{{ $departmentsTotal }}</div>
+                <div class="bar"></div>
             </div>
+            <div class="tile">
+                <div class="k">Tightest SLA</div>
+                <div class="v mono">{{ $tightestSlaDept?->sla_hours ?? '—' }}h</div>
+                <div class="sub">{{ $tightestSlaDept?->name ?? '—' }}</div>
+                <div class="bar"></div>
+            </div>
+            <div class="tile">
+                <div class="k">In queue now</div>
+                <div class="v mono">{{ $queueTotal }}</div>
+                <div class="sub">{{ $queueOverdueTotal }} overdue</div>
+                <div class="bar {{ $queueOverdueTotal > 0 ? 'red' : '' }}"></div>
+            </div>
+            <button type="button" onclick="if (window.openAddDepartmentModal) openAddDepartmentModal();"
+                    class="tile add flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <span style="font-weight:600;font-size:13px;">Add department</span>
+            </button>
+        </div>
+
+        <div class="deptcards">
+            @forelse($departments as $dept)
+                @php
+                    $stats = $departmentStats[$dept->id] ?? ['in_queue' => 0, 'overdue' => 0, 'avg_pct' => 0, 'health' => 'healthy'];
+                    $badge = match ($stats['health']) {
+                        'overdue' => ['p-red', 'Overdue'],
+                        'watch' => ['p-amber', 'Watch'],
+                        default => ['p-green', 'Healthy'],
+                    };
+                    $fill = match ($stats['health']) {
+                        'overdue' => 'red',
+                        'watch' => 'amber',
+                        default => '',
+                    };
+                @endphp
+                <div class="deptcard">
+                    <div class="dc-head">
+                        <div>
+                            <div class="dc-name">{{ $dept->name }}</div>
+                            @if($dept->email)
+                                <div class="dc-email">{{ $dept->email }}</div>
+                            @endif
+                        </div>
+                        <span class="pill {{ $badge[0] }}">{{ $badge[1] }}</span>
+                    </div>
+                    <div class="dc-row"><span>SLA target</span><span class="mono">{{ $dept->sla_hours }}h</span></div>
+                    <div class="dc-bar"><div class="dc-fill {{ $fill }}" style="width:{{ $stats['avg_pct'] }}%"></div></div>
+                    <div class="dc-row"><span>In queue</span><span class="mono">{{ $stats['in_queue'] }}</span></div>
+                    <div class="dc-foot">
+                        <a href="{{ route('admin.departments.edit', $dept) }}" class="cr-btn cr-btn-sm">Edit</a>
+                        <form method="POST" action="{{ route('admin.departments.destroy', $dept) }}"
+                              onsubmit="return confirm('Delete {{ addslashes($dept->name) }}? This cannot be undone.')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="cr-btn cr-btn-sm cr-btn-danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            @empty
+                <div class="panel" style="grid-column:1/-1;padding:30px;text-align:center;color:var(--ink-soft);">
+                    No departments yet. <a href="{{ route('admin.departments.create') }}" onclick="if (window.openAddDepartmentModal) { event.preventDefault(); openAddDepartmentModal(); }" class="cr-link">Add one.</a>
+                </div>
+            @endforelse
+
+            <button type="button" onclick="if (window.openAddDepartmentModal) openAddDepartmentModal();"
+                    class="deptcard add flex flex-col items-center justify-center gap-2" style="min-height:140px;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <span style="font-size:12.5px;text-align:center;">Add a new department<br>and set its SLA</span>
+            </button>
         </div>
 
         {{ $departments->links() }}

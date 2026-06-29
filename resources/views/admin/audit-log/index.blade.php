@@ -33,11 +33,11 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Date & Time</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">User</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Event</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Details</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">IP Address</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Date & Time</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">User</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Event</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Details</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">IP Address</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white">
@@ -69,7 +69,7 @@
                                             {{ $isLogin ? 'Logged In' : 'Logged Out' }}
                                         </span>
                                     @else
-                                        <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                                             {{ ucfirst($log->event ?? 'change') }}
                                         </span>
                                     @endif

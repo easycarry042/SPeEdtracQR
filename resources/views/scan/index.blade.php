@@ -11,11 +11,11 @@
 
         <div class="mb-4 flex items-center gap-3">
             <span id="offlineBadge" class="hidden rounded-md bg-yellow-200 px-3 py-1 text-sm font-semibold text-yellow-800">Offline queue: 0</span>
-            <button id="syncNowBtn" class="rounded-md bg-[#1a5c1a] px-3 py-1 text-sm font-semibold text-white">Sync Now</button>
+            <button id="syncNowBtn" class="rounded-md bg-[#0f4d28] px-3 py-1 text-sm font-semibold text-white">Sync Now</button>
         </div>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-5">
+            <div class="rounded-xl border border-[#e6ece8] bg-white p-5">
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-semibold text-gray-700">Department</label>
@@ -83,8 +83,8 @@
                 <div id="reader" class="mt-4 overflow-hidden rounded-lg border border-gray-300"></div>
 
                 <div class="mt-3 flex gap-2">
-                    <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXXX" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono uppercase tracking-widest">
-                    <button id="manualSubmit" class="rounded-lg bg-[#1a5c1a] px-4 py-2 font-bold text-white">Submit</button>
+                    <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXXX" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono tracking-widest">
+                    <button id="manualSubmit" class="rounded-lg bg-[#0f4d28] px-4 py-2 font-bold text-white">Submit</button>
                 </div>
                 {{-- Scan result toast --}}
                 <div id="result" class="mt-3 hidden">
@@ -97,7 +97,7 @@
                 </div>
             </div>
 
-            <div class="rounded-xl border border-[#e0e0e0] bg-white p-5">
+            <div class="rounded-xl border border-[#e6ece8] bg-white p-5">
                 <h3 class="text-xl font-bold text-gray-800">Session Scan Log</h3>
                 <ul id="sessionLog" class="mt-3 space-y-2">
                     @foreach($sessionScans as $scan)

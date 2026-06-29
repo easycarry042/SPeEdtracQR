@@ -1,7 +1,7 @@
 @php
     $statusColor = match($document->status) {
         'completed'  => ['bg' => 'bg-green-100',  'text' => 'text-green-800',  'dot' => 'bg-green-500',  'label' => 'Completed'],
-        'pending'    => ['bg' => 'bg-blue-100',   'text' => 'text-blue-800',   'dot' => 'bg-blue-500',   'label' => 'Pending'],
+        'pending'    => ['bg' => 'bg-emerald-100',   'text' => 'text-emerald-800',   'dot' => 'bg-emerald-500',   'label' => 'Pending'],
         'returned'   => ['bg' => 'bg-rose-100',   'text' => 'text-rose-800',   'dot' => 'bg-rose-500',   'label' => 'Returned'],
         default      => ['bg' => 'bg-amber-100',  'text' => 'text-amber-800',  'dot' => 'bg-amber-500',  'label' => 'In Transit'],
     };
@@ -26,21 +26,21 @@
         {{-- ── Document Header Card ─────────────────────────────────────────── --}}
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div class="bg-emerald-600 px-6 py-4">
-                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-200">Tracking Number</p>
+                <p class="text-xs font-semibold tracking-wider text-emerald-200">Tracking Number</p>
                 <p class="mt-0.5 font-mono text-2xl font-extrabold text-white">{{ $document->tracking_number }}</p>
             </div>
 
             <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-3">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Document Type</p>
+                    <p class="text-xs font-semibold tracking-wider text-gray-400">Document Type</p>
                     <p class="mt-1 text-sm font-semibold text-gray-800">{{ $document->document_type }}</p>
                 </div>
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Citizen</p>
+                    <p class="text-xs font-semibold tracking-wider text-gray-400">Citizen</p>
                     <p class="mt-1 text-sm font-semibold text-gray-800">{{ $document->citizen_name ?? 'N/A' }}</p>
                 </div>
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Submitted</p>
+                    <p class="text-xs font-semibold tracking-wider text-gray-400">Submitted</p>
                     <p class="mt-1 text-sm font-semibold text-gray-800">{{ $document->created_at->format('M d, Y') }}</p>
                 </div>
             </div>
@@ -184,7 +184,7 @@
 
         const statusDotClasses = {
             completed: { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-500',  label: 'Completed'  },
-            pending:   { bg: 'bg-blue-100',   text: 'text-blue-800',   dot: 'bg-blue-500',   label: 'Pending'    },
+            pending:   { bg: 'bg-emerald-100',   text: 'text-emerald-800',   dot: 'bg-emerald-500',   label: 'Pending'    },
             returned:  { bg: 'bg-rose-100',   text: 'text-rose-800',   dot: 'bg-rose-500',   label: 'Returned'   },
             in_transit:{ bg: 'bg-amber-100',  text: 'text-amber-800',  dot: 'bg-amber-500',  label: 'In Transit' },
         };

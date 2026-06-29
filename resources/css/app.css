@@ -3,6 +3,56 @@
 @tailwind utilities;
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   SPeED TraQR — "Civic Record" design tokens.
+   White = purity (municipality). Deep green = municipal authority.
+   Light theme only. Reference these via Tailwind classes (bg-paper, text-ink,
+   border-hairline, bg-green-deep, …) which map to these vars in tailwind.config.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+    /* Base — white = purity */
+    --paper: #ffffff;            /* page background AND card background */
+    --hairline: #e6ece8;         /* default borders / rules */
+    --hairline-strong: #cdd9d2;  /* emphasized dividers */
+
+    /* Municipal green — authority (true green, never minty) */
+    --green-deep: #0f4d28;       /* sidebar, masthead, page headings */
+    --green: #167a3a;            /* primary buttons, links, active state */
+    --green-bright: #2a9d4f;     /* accents, KPI baselines, highlights */
+    --green-wash: #eef5f0;       /* subtle tint for hover/active rows — sparingly */
+
+    /* Text */
+    --ink: #16211b;              /* primary text */
+    --ink-soft: #5b6b62;         /* secondary / muted text */
+    --on-green: #eef5f0;         /* text on deep-green surfaces */
+    --on-green-soft: #9bbcaa;    /* muted text on deep-green surfaces */
+
+    /* Optional civic accent (gold). For pure green+white, set to var(--green). */
+    --brass: #c79a3e;
+
+    /* Functional status colors only */
+    --amber: #8a5a08;  --amber-wash: #fbeeda;   /* in transit / watch */
+    --red:   #8f2a2a;  --red-wash:   #fbe9e9;    /* overdue */
+    /* "completed" uses --green on --green-wash */
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+    body {
+        background-color: var(--paper);
+        color: var(--ink);
+    }
+
+    /* Stamped-logbook treatment for reference codes, dates, timestamps. */
+    .stamp,
+    [data-stamp] {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.01em;
+    }
+}
+
 @layer components {
     /* LOGIN PAGE DESIGN */
     .auth-logo {
@@ -10,11 +60,11 @@
     }
 
     .auth-heading {
-        @apply !text-3xl text-center font-black text-[#245501];
+        @apply !text-3xl text-center font-semibold text-green-deep;
     }
 
     .auth-subheading {
-        @apply !text-lg text-center;
+        @apply !text-lg text-center text-ink-soft;
     }
 
     .form-label {
@@ -30,7 +80,7 @@
     }
 
     .checkbox {
-        @apply !w-5 !h-5 rounded-xl border-[#245501] text-[#245501] focus:ring-[#245501];
+        @apply !w-5 !h-5 rounded-md border-green text-green focus:ring-green;
     }
 
     .auth-link {
@@ -45,15 +95,200 @@
         @apply !text-base !text-center;
     }
 
+    /* Tracking-ID chip: mono text, white background, hairline border, ~6px radius. */
+    .id-chip {
+        @apply inline-flex items-center rounded-md border border-hairline bg-paper px-2 py-0.5 text-ink stamp;
+    }
+
     /* DASHBOARD */
     .nav-bar {
-        @apply bg-emerald-100 rounded-r-[20px]
+        @apply bg-green-deep rounded-r-[20px];
     }
 
     .nav-icon {
         @apply h-[40px] w-[40px];
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Civic Record component layer — ported from the redesign mockup. Plain CSS
+   (never purged) referencing the :root tokens. Use these semantic classes in
+   Blade for the records-office look: panels, registry tables, status pills,
+   KPI tiles, and routing slips.
+   ───────────────────────────────────────────────────────────────────────── */
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Panels */
+.panel { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; }
+.panel .ph { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--hairline); background: #fbfdfc; }
+.panel .ph h2 { font-size: 13.5px; margin: 0; font-weight: 600; color: var(--green-deep); display: flex; align-items: center; gap: 7px; }
+.panel .ph h2 svg { width: 15px; height: 15px; color: var(--green); }
+.panel .ph .sub { font-size: 11.5px; color: var(--ink-soft); font-weight: 400; }
+.panel .pb { padding: 12px 14px; }
+
+.eyebrow { font-size: 10.5px; letter-spacing: .7px; color: var(--brass); text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+.eyebrow svg { width: 13px; height: 13px; }
+
+/* KPI tiles */
+.tile { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+.tile .k { font-size: 11.5px; color: var(--ink-soft); letter-spacing: .2px; }
+.tile .v { font-size: 25px; font-weight: 600; margin-top: 2px; letter-spacing: -.5px; color: var(--ink); }
+.tile .sub { font-size: 11px; margin-top: 1px; color: var(--ink-soft); }
+.tile .bar { height: 3px; border-radius: 2px; margin-top: 9px; background: var(--green); }
+.tile .bar.amber { background: #d8920f; }
+.tile .bar.bright { background: var(--green-bright); }
+.tile .bar.brass { background: var(--brass); }
+.tile .bar.red { background: var(--red); }
+
+/* Status pills (with leading dot — state only, never decorative) */
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; font-weight: 500; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+.p-green { background: var(--green-wash); color: #0f5c2e; } .p-green::before { background: var(--green-bright); }
+.p-amber { background: var(--amber-wash); color: var(--amber); } .p-amber::before { background: #d8920f; }
+.p-red { background: var(--red-wash); color: var(--red); } .p-red::before { background: #c14040; }
+.p-muted { background: #eef2ef; color: var(--ink-soft); } .p-muted::before { background: #9fb0a6; }
+
+/* Tracking-ID / reference code chip */
+.code { font-family: var(--mono); font-size: 12px; background: #f6f8f7; border: 1px solid var(--hairline); padding: 2px 7px; border-radius: 6px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Registry table */
+.reg { width: 100%; border-collapse: collapse; }
+.reg th { text-align: left; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; padding: 9px 14px; border-bottom: 1px solid var(--hairline-strong); background: #fafcfb; }
+.reg td { padding: 10px 14px; border-bottom: 1px solid var(--hairline); vertical-align: middle; color: var(--ink); }
+.reg tr:last-child td { border-bottom: 0; }
+.reg tbody tr:hover { background: var(--green-wash); }
+.reg .idx { color: var(--ink-soft); width: 36px; }
+.reg .nm { font-weight: 500; }
+.reg .muted { color: var(--ink-soft); }
+
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--green-wash); color: var(--green-deep); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; border: 1px solid var(--hairline); }
+.who { display: flex; align-items: center; gap: 9px; }
+.who .e { font-size: 11.5px; color: var(--ink-soft); }
+
+/* Panel footer + pager */
+.foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--ink-soft); }
+.pager { display: flex; gap: 4px; }
+.pager button, .pager a { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); background: #fff; border-radius: 6px; min-width: 28px; height: 28px; font-size: 12px; color: var(--ink); text-decoration: none; }
+.pager button.on, .pager a.on, .pager [aria-current="page"] { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* Routing slip */
+.slip { border: 1px solid var(--hairline); border-top: 2px solid var(--brass); border-radius: 0 0 10px 10px; background: #fff; padding: 12px 14px; }
+.slip.late { border-top-color: var(--red); }
+.slip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.slip .ty { font-weight: 600; font-size: 13px; color: var(--ink); }
+.slip .cz { font-size: 11.5px; color: var(--ink-soft); }
+.steps { display: flex; align-items: flex-start; margin: 16px 2px 4px; }
+.node { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: var(--mono); flex: none; }
+.node.done { background: #0f5132; color: #f0d488; }
+.node.now { background: #fff; border: 2px solid var(--brass); color: var(--green-deep); font-weight: 600; }
+.node.todo { background: #f4f7f5; border: 1px solid var(--hairline-strong); color: var(--ink-soft); }
+.seg { height: 2px; flex: 1; background: var(--hairline-strong); margin-top: 11px; }
+.seg.done { background: #0f5132; }
+.stp { display: flex; flex-direction: column; align-items: center; width: 0; }
+.stp .cap { font-size: 10px; color: var(--ink-soft); margin-top: 6px; text-align: center; width: 74px; }
+.stp .cap.cur { color: var(--ink); font-weight: 600; }
+.slip-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.cr-link { font-size: 11.5px; color: var(--green); display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
+.cr-link:hover { text-decoration: underline; }
+
+/* Bar list (analytics / bottlenecks / department load) */
+.barrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.barrow:last-child { border-bottom: 0; }
+.barrow .nm { width: 130px; font-size: 12.5px; color: var(--ink); }
+.barrow .track { flex: 1; height: 8px; background: #eef2ef; border-radius: 5px; overflow: hidden; }
+.barrow .fill { height: 100%; background: var(--green); border-radius: 5px; }
+.barrow .val { width: 42px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+/* Department health cards (movements overview) */
+.deptcards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 1080px) { .deptcards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .deptcards { grid-template-columns: 1fr; } }
+.deptcard { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px; }
+.deptcard .dc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.deptcard .dc-name { font-weight: 600; font-size: 13.5px; color: var(--green-deep); }
+.deptcard .dc-email { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+.deptcard .dc-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--ink-soft); margin-top: 10px; }
+.deptcard .dc-row .mono { color: var(--ink); font-weight: 600; }
+.deptcard .dc-bar { height: 6px; background: #eef2ef; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+.deptcard .dc-fill { height: 100%; border-radius: 4px; background: var(--green); }
+.deptcard .dc-fill.amber { background: #d8920f; }
+.deptcard .dc-fill.red { background: var(--red); }
+.deptcard .dc-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.tile.add, .deptcard.add { border-style: dashed; background: #fafcfb; cursor: pointer; color: var(--ink-soft); width: 100%; transition: background .15s, border-color .15s; }
+.tile.add:hover, .deptcard.add:hover { background: var(--green-wash); border-color: var(--green-bright); color: var(--green-deep); }
+
+/* Civic buttons (opt-in via .cr-btn so they don't clash with Tailwind markup) */
+.cr-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--hairline-strong); background: #fff; color: var(--ink); text-decoration: none; }
+.cr-btn svg { width: 14px; height: 14px; }
+.cr-btn:hover { background: #f4f7f5; }
+.cr-btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
+.cr-btn-primary:hover { background: #13682f; }
+.cr-btn-ghost { border-color: transparent; background: transparent; color: var(--green); padding: 6px 8px; }
+.cr-btn-ghost:hover { background: var(--green-wash); }
+.cr-btn-sm { padding: 5px 9px; font-size: 11.5px; }
+.cr-btn-danger { color: var(--red); border-color: #ecd2d2; }
+.cr-btn-danger:hover { background: var(--red-wash); }
+
+/* Small status/scope chip (e.g. "All offices") */
+.chip { font-size: 11px; color: var(--green-deep); background: var(--green-wash); border: 1px solid var(--hairline); padding: 3px 9px; border-radius: 20px; }
+
+/* KPI tile grid (4-up, collapsing to 2-up on narrow screens) */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 1080px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* Toolbar + inline filter fields (analytics) */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar .spacer { flex: 1; }
+.field { display: flex; align-items: center; gap: 8px; background: #f4f7f5; border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 11px; }
+.field svg { width: 15px; height: 15px; color: var(--ink-soft); }
+.field label { font-size: 11px; color: var(--ink-soft); }
+.field input, .field select { border: 0; background: transparent; outline: 0; font-family: inherit; font-size: 13px; color: var(--ink); }
+
+/* Inline chart legend + donut legend rows */
+.legend { display: flex; gap: 16px; font-size: 11.5px; color: var(--ink-soft); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legrow { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.legrow:last-child { border-bottom: 0; }
+.legrow .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.legrow .ln { flex: 1; font-size: 12.5px; color: var(--ink); }
+.legrow .lv { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+.legrow .lp { font-family: var(--mono); width: 38px; text-align: right; font-size: 11px; color: var(--ink-soft); }
+
+/* Segmented tab chips (movements: Inbox / Tracking / Sent) */
+.segchips { display: inline-flex; background: #f0f4f1; border: 1px solid var(--hairline); border-radius: 8px; padding: 3px; gap: 2px; }
+.segchips button, .segchips a { border: 0; background: transparent; color: var(--ink-soft); font-size: 12px; padding: 5px 11px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; }
+.segchips .on { background: #fff; color: var(--green-deep); font-weight: 600; }
+
+/* Movements — full-width stacked rows ("length") with horizontal stepper */
+.mvlist { display: flex; flex-direction: column; gap: 14px; }
+.mvrow { background: #fff; border: 1px solid var(--hairline); border-left: 4px solid var(--green); border-radius: var(--r); padding: 16px 20px; }
+.mvrow.late { border-left-color: var(--red); }
+.mvrow.warn { border-left-color: #d8920f; }
+.mvrow .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.docico { width: 36px; height: 36px; border-radius: 9px; background: var(--green-wash); color: var(--green); display: flex; align-items: center; justify-content: center; flex: none; }
+.docico svg { width: 19px; height: 19px; }
+.mvrow .who2 { display: flex; align-items: center; gap: 11px; }
+.mvrow .ty { font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.mvrow .cz { font-size: 13px; color: var(--ink-soft); margin-top: 1px; }
+.mvrow .meta { display: flex; align-items: center; gap: 12px; }
+.mvrow .meta .code { font-size: 13px; padding: 4px 9px; }
+.mvrow .time { font-size: 13px; font-weight: 500; }
+.mvrow .time.ok { color: var(--green); }
+.mvrow .time.warn { color: #b8780c; }
+.mvrow .time.late { color: var(--red); }
+.mvsteps { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 20px 0 4px; }
+.mvstep { display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
+.mvstep .node { position: relative; z-index: 1; width: 30px; height: 30px; font-size: 13px; }
+.mvstep .node svg { width: 15px; height: 15px; }
+.mvstep .cap { font-size: 12.5px; color: var(--ink-soft); margin-top: 9px; max-width: 130px; line-height: 1.3; }
+.mvstep .cap.cur { color: var(--ink); font-weight: 600; }
+.mvstep:not(:first-child)::before { content: ""; position: absolute; top: 14px; left: -50%; width: 100%; height: 2px; background: var(--hairline-strong); z-index: 0; }
+.mvstep.reached::before { background: #0f5132; }
+.thumbs { display: flex; gap: 8px; margin-top: 14px; }
+.thumbs span { width: 46px; height: 34px; border-radius: 6px; border: 1px solid var(--hairline); background: #f4f7f5; display: block; background-position: center; }
+.mvfoot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.mvfoot .link { font-size: 12.5px; color: var(--green); display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
+.mvfoot .link:hover { text-decoration: underline; }
 
 /* Sidebar nav scrolls when it doesn't fit, but without a visible scrollbar */
 .nav-scroll {
