@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
-use App\Support\DepartmentScope;
 use Illuminate\Http\Request;
 
 class ScanController extends Controller
@@ -57,12 +56,6 @@ class ScanController extends Controller
         $last = $document->scans()->first();
         if (! $last) {
             return back()->withErrors(['undo' => 'There is no scan to undo for this document.']);
-        }
-
-        // Only the department that recorded the scan (or an org-wide user) may undo it.
-        $deptId = DepartmentScope::departmentId();
-        if ($deptId !== null && (int) $last->department_id !== $deptId) {
-            abort(403, 'You can only undo scans recorded by your own department.');
         }
 
         $undoneAction = $last->action;

@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'department_id', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -35,11 +35,6 @@ class User extends Authenticatable
     }
 
     // ========== RELATIONSHIPS ==========
-
-    public function department()
-    {
-        return $this->belongsTo(Department::class);
-    }
 
     /**
      * Documents that this user created

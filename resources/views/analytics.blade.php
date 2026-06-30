@@ -165,12 +165,12 @@
                     </div>
                 </div>
 
-                {{-- Top submitting departments = ranked bars --}}
+                {{-- Top assignees = ranked bars --}}
                 <div class="panel">
                     <div class="ph">
                         <h2>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="8" y="11" width="3" height="5"/><rect x="13" y="7" width="3" height="9"/></svg>
-                            {{ $isOrgWide ? 'Top departments by scans' : 'Department activity' }}
+                            {{ $isOrgWide ? 'Top staff by assigned volume' : 'Assigned activity' }}
                         </h2>
                         <span class="sub">scans</span>
                     </div>

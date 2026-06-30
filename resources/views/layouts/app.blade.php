@@ -10,7 +10,7 @@
 </head>
 @php
     $user = auth()->user();
-    $user?->loadMissing('department', 'roles');
+    $user?->loadMissing('roles');
     $name = $user->name ?? 'User';
     $parts = preg_split('/\s+/', trim($name));
     $initials = strtoupper(
@@ -18,7 +18,6 @@
             ? mb_substr($parts[0], 0, 1).mb_substr(end($parts), 0, 1)
             : mb_substr($name, 0, 2)
     );
-    $departmentName = $user?->department?->name;
     $roleLabel = $user?->roles->first()?->name;
     $roleLabel = $roleLabel ? str_replace('_', ' ', ucwords($roleLabel, '_')) : null;
     $pageTitle = match (true) {
@@ -27,9 +26,8 @@
         request()->routeIs('track.*') => 'Track Document',
         request()->routeIs('scan.*') => 'Scan',
         request()->routeIs('history*') => 'History',
-        request()->routeIs('movements*') => 'Movements',
         request()->routeIs('admin.users*') => 'Users',
-        request()->routeIs('admin.departments*') => 'Departments',
+        request()->routeIs('admin.assignments.unclaimed') => 'Unclaimed Queue',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
@@ -61,10 +59,10 @@
                 <nav class="nav-scroll flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-1 py-4 transition-[padding] duration-300 ease-out group-hover:px-2">
                     @php
                         $isSystemAdmin = $user?->can('manage system') ?? false;
-                        $dashboardRoute = $isSystemAdmin ? route('admin.dashboard') : route('dashboard');
+                        $dashboardRoute = $isSystemAdmin ? route('admin.dashboard') : route('staff.profile', ['user' => auth()->id()]);
                         $dashboardActive = $isSystemAdmin
                             ? request()->routeIs('admin.dashboard')
-                            : request()->routeIs('dashboard');
+                            : request()->routeIs('staff.profile');
                     @endphp
                     <a href="{{ $dashboardRoute }}" class="{{ $dashboardActive ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ $dashboardActive ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
@@ -105,13 +103,6 @@
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">History</span>
                     </a>
                     @unless($isSystemAdmin)
-                    <a href="{{ route('movements.index') }}" class="{{ request()->routeIs('movements*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('movements*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                            <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h11M3 14h7m7-8l4 4-4 4"/></svg>
-                        </span>
-                        <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Movements</span>
-                    </a>
-
                     <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="{{ request()->routeIs('staff.profile') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('staff.profile') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0"/></svg>
@@ -135,14 +126,14 @@
                         </span>
                         <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Assignments</span>
                     </a>
+                    <a href="{{ route('admin.assignments.unclaimed') }}" class="{{ request()->routeIs('admin.assignments.unclaimed') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.assignments.unclaimed') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
+                            <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+                        </span>
+                        <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Unclaimed Queue</span>
+                    </a>
                     @endcan
                     @can('manage system')
-                    <a href="{{ route('admin.departments.index') }}" class="{{ request()->routeIs('admin.departments*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.departments*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                            <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L2 9v2h20V9L12 3zM4 13v5h3v-5H4zm5 0v5h3v-5H9zm5 0v5h3v-5h-3zm5 0v5h-2v-5h2zm-15 7h16v2H4v-2z"/></svg>
-                        </span>
-                        <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Departments</span>
-                    </a>
                     <a href="{{ route('admin.audit-log.index') }}" class="{{ request()->routeIs('admin.audit-log*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.audit-log*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
                             <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 002 2h2a2 2 0 002-2M9 4a2 2 0 012-2h2a2 2 0 012 2"/></svg>
@@ -173,12 +164,8 @@
                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                         </button>
                         <p class="truncate text-3xl font-semibold tracking-tight text-green-deep sm:text-4xl">{{ $pageTitle }}</p>
-                        @if($departmentName)
-                            <span class="inline-flex max-w-[14rem] shrink-0 items-center truncate rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep sm:max-w-xs" title="Your department">
-                                {{ $departmentName }}
-                            </span>
-                        @elseif($roleLabel && ($user?->can('manage system') ?? false))
-                            <span class="inline-flex shrink-0 items-center rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep">All departments</span>
+                        @if($roleLabel)
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep">{{ str_replace('_', ' ', ucwords($roleLabel, '_')) }}</span>
                         @endif
                     </div>
 
@@ -194,15 +181,6 @@
                     </a>
                     @endif
 
-                    {{-- Only on the Departments tab; gated by "manage system" on the route --}}
-                    @if(request()->routeIs('admin.departments.index'))
-                    <a href="{{ route('admin.departments.create') }}"
-                       onclick="if (window.openAddDepartmentModal) { event.preventDefault(); openAddDepartmentModal(); }"
-                       class="inline-flex h-11 items-center gap-2 rounded-full bg-green-deep px-4 text-sm font-semibold text-on-green ring-1 ring-green-deep transition hover:bg-green active:scale-95">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
-                        Add Department
-                    </a>
-                    @endif
                     @if($showCreateDocumentModal ?? false)
                     <button type="button" onclick="openCreateDocumentModal()" class="flex h-11 w-11 items-center justify-center rounded-full bg-green-wash text-green-deep ring-1 ring-hairline-strong transition hover:scale-105 hover:bg-emerald-300/90 hover:shadow-md active:scale-95" title="New document">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -262,9 +240,6 @@
                              style="z-index:9999;">
                             <div class="border-b border-gray-200 px-4 py-3">
                                 <p class="truncate text-sm font-semibold text-gray-900">{{ $name }}</p>
-                                @if($departmentName)
-                                    <p class="mt-0.5 text-xs text-emerald-700">{{ $departmentName }}</p>
-                                @endif
                                 @if($roleLabel)
                                     <p class="text-xs text-gray-500">{{ $roleLabel }}</p>
                                 @endif

@@ -6,7 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
 use App\Services\QrCodeService;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
 use Illuminate\Http\Request;
 
@@ -75,7 +75,7 @@ class DocumentWebController extends Controller
     public function created(Document $document)
     {
         $this->authorizeDocumentView($document);
-        $document->load(['routeSteps.department', 'attachments']);
+        $document->load(['attachments']);
 
         return view('documents.created', compact('document'));
     }
@@ -83,7 +83,7 @@ class DocumentWebController extends Controller
     public function edit(Document $document)
     {
         $this->ensureCanCreate();
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         $categoryOptions = $this->categoryOptions();
 
@@ -93,7 +93,7 @@ class DocumentWebController extends Controller
     public function update(Request $request, Document $document)
     {
         $this->ensureCanCreate();
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([

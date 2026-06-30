@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
 use App\Models\DocumentAttachment;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -19,7 +19,7 @@ class AttachmentController extends Controller
      */
     public function store(Request $request, Document $document)
     {
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
         abort_unless(
             auth()->user()?->can('scan documents') || auth()->user()?->can('create documents'),
             403,
@@ -30,11 +30,10 @@ class AttachmentController extends Controller
             'attachments.*' => 'image|max:10240',
         ]);
 
-        $deptId = DepartmentScope::departmentId();
         $created = $this->storeAttachmentsForDocument(
             $document,
             $request->file('attachments', []),
-            $deptId,
+            null,
         );
 
         return response()->json([
@@ -57,7 +56,7 @@ class AttachmentController extends Controller
         $document = $attachment->document;
 
         abort_if($document === null, 404);
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         $disk = Storage::disk('local');
         abort_unless($disk->exists($attachment->file_path), 404);

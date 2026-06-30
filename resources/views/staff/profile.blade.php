@@ -41,7 +41,7 @@
                             <span class="sp-role">{{ \Illuminate\Support\Str::headline($roleLabel) }}</span>
                         @endif
                     </div>
-                    <div style="font-size:12px;color:var(--ink-soft);">{{ $profileUser->department->name ?? 'No department' }}</div>
+                    <div style="font-size:12px;color:var(--ink-soft);">{{ \Illuminate\Support\Str::headline($roleLabel ?? 'staff') }}</div>
                     <div class="sp-status">
                         <span class="dot {{ $active ? 'on' : '' }}"></span>
                         {{ $active ? 'Active now' : ($lastActiveAt ? 'Last active '.$lastActiveAt->diffForHumans() : 'No activity yet') }}
@@ -95,6 +95,36 @@
         <main class="sp-main">
             @if(session('status'))
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{{ session('status') }}</div>
+            @endif
+
+            @if($isOwn)
+                <div class="panel sp-list" style="padding:12px;">
+                    <div style="font-size:13px;font-weight:700;color:var(--green-deep);margin-bottom:8px;">My Worklist</div>
+                    @forelse($worklist as $doc)
+                        <a href="{{ route('track.show', $doc->tracking_number) }}" class="sp-row">
+                            <div><div class="ty">{{ $doc->document_type }}</div><span class="code">{{ $doc->tracking_number }}</span></div>
+                            <x-status-badge :status="$doc->status" />
+                        </a>
+                    @empty
+                        <div class="sp-empty"><p>No active documents in your worklist.</p></div>
+                    @endforelse
+                </div>
+                @if($unclaimed->isNotEmpty())
+                    <div class="panel sp-list" style="padding:12px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--green-deep);margin-bottom:8px;">Unclaimed / Available</div>
+                        @foreach($unclaimed as $doc)
+                            <div class="sp-row">
+                                <div><div class="ty">{{ $doc->document_type }}</div><span class="code">{{ $doc->tracking_number }}</span></div>
+                                @can('accept documents')
+                                    <form method="POST" action="{{ route('documents.accept', $doc) }}">
+                                        @csrf @method('PATCH')
+                                        <button class="cr-btn cr-btn-sm cr-btn-primary">Accept</button>
+                                    </form>
+                                @endcan
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             @endif
 
             <div class="segchips">

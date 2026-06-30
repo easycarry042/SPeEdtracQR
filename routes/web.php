@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
-use App\Http\Controllers\Admin\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
@@ -15,7 +14,6 @@ use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
-use App\Http\Controllers\MovementController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
@@ -35,9 +33,13 @@ Route::get('/', function () {
         return view('welcome');
     }
 
-    return auth()->user()->can('manage system')
-        ? redirect()->route('admin.dashboard')
-        : redirect()->route('dashboard');
+    $user = auth()->user();
+
+    if ($user->can('manage system') || $user->hasRole('Supervisor') || $user->hasRole('department_admin')) {
+        return redirect()->route('admin.dashboard');
+    }
+
+    return redirect()->route('staff.profile', ['user' => $user->id]);
 });
 
 /*
@@ -96,14 +98,6 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-        // Department management
-        Route::get('departments', [AdminDepartmentController::class, 'index'])->name('departments.index');
-        Route::get('departments/create', [AdminDepartmentController::class, 'create'])->name('departments.create');
-        Route::post('departments', [AdminDepartmentController::class, 'store'])->name('departments.store');
-        Route::get('departments/{department}/edit', [AdminDepartmentController::class, 'edit'])->name('departments.edit');
-        Route::put('departments/{department}', [AdminDepartmentController::class, 'update'])->name('departments.update');
-        Route::delete('departments/{department}', [AdminDepartmentController::class, 'destroy'])->name('departments.destroy');
-
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
     });
@@ -115,6 +109,7 @@ Route::middleware(['auth', 'verified', 'permission:assign documents'])
     ->group(function () {
         Route::get('assignments', [AssignmentController::class, 'index'])->name('assignments.index');
         Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
+        Route::get('assignments/unclaimed', [AssignmentController::class, 'unclaimed'])->name('assignments.unclaimed');
     });
 
 // User management (controller enforces department scoping for dept admins)
@@ -178,7 +173,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');
 
-    Route::get('/movements', [MovementController::class, 'index'])->name('movements.index');
+    Route::patch('/documents/{document}/accept', [AssignmentController::class, 'accept'])
+        ->middleware('permission:accept documents|assign documents')
+        ->name('documents.accept');
 
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');

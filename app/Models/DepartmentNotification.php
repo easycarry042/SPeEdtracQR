@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DepartmentNotification extends Model
 {
     protected $fillable = [
-        'department_id',
         'document_id',
         'type',
         'message',
@@ -19,11 +18,6 @@ class DepartmentNotification extends Model
     protected $casts = [
         'read_at' => 'datetime',
     ];
-
-    public function department(): BelongsTo
-    {
-        return $this->belongsTo(Department::class);
-    }
 
     public function document(): BelongsTo
     {

@@ -61,7 +61,7 @@
         $typeMax = max(1, collect($typeBreakdown)->max('value') ?? 0);
 
         // Department comparison
-        $deptMax = max(1, collect($byDepartment)->max('volume') ?? 0);
+        $deptMax = 1;
 
         // Staff workload
         $wlMax = max(1, $staffWorkload->max(fn ($r) => $r['completed'] + $r['active']) ?? 0);
@@ -106,15 +106,6 @@
                         <option value="7" @selected($filters['range'] === 7)>Last 7 days</option>
                         <option value="30" @selected($filters['range'] === 30)>Last 30 days</option>
                         <option value="90" @selected($filters['range'] === 90)>Last 90 days</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Dept</label>
-                    <select name="department_id" onchange="this.form.submit()">
-                        <option value="">All</option>
-                        @foreach ($departments as $d)
-                            <option value="{{ $d->id }}" @selected((string) $filters['department_id'] === (string) $d->id)>{{ $d->name }}</option>
-                        @endforeach
                     </select>
                 </div>
                 <div class="field">
@@ -282,19 +273,18 @@
                 </div>
             </div>
 
-            {{-- By department (1/2) --}}
+            {{-- By staff workload (1/2) --}}
             <div class="panel an-span-3">
-                <div class="ph"><h2>How do departments compare?</h2><span class="sub">volume · SLA rate</span></div>
+                <div class="ph"><h2>Current staff load</h2><span class="sub">active + completed</span></div>
                 <div class="pb" style="padding-top:6px;">
-                    @forelse ($byDepartment as $d)
+                    @forelse ($staffWorkload as $d)
                         <div class="barrow">
                             <div class="nm">{{ $d['name'] }}</div>
-                            <div class="track"><div class="fill" style="width:{{ round($d['volume'] / $deptMax * 100) }}%"></div></div>
-                            <div class="val">{{ $d['volume'] }}</div>
-                            <span class="pill p-{{ $d['on_time'] === null ? 'muted' : ($d['on_time'] >= 80 ? 'green' : 'amber') }}" style="width:54px;justify-content:center;">{{ $d['on_time'] !== null ? $d['on_time'].'%' : '—' }}</span>
+                            <div class="track"><div class="fill" style="width:{{ round((($d['active'] + $d['completed']) / max(1, $staffWorkload->max(fn ($w) => $w['active'] + $w['completed']))) * 100) }}%"></div></div>
+                            <div class="val">{{ $d['active'] + $d['completed'] }}</div>
                         </div>
                     @empty
-                        <div class="sp-empty">No departments to compare.</div>
+                        <div class="sp-empty">No staff activity yet.</div>
                     @endforelse
                 </div>
             </div>
@@ -346,20 +336,7 @@
                         @endforelse
                     </div>
                 </div>
-                <div class="panel">
-                    <div class="ph"><h2>Busiest departments</h2><span class="sub">volume</span></div>
-                    <div class="pb" style="padding-top:6px;">
-                        @forelse ($busiestDepartments as $d)
-                            <div class="barrow">
-                                <div class="nm">{{ $d['name'] }}</div>
-                                <div class="track"><div class="fill" style="width:{{ round($d['volume'] / $deptMax * 100) }}%"></div></div>
-                                <div class="val">{{ $d['volume'] }}</div>
-                            </div>
-                        @empty
-                            <div class="sp-empty">No activity yet.</div>
-                        @endforelse
-                    </div>
-                </div>
+                <div class="panel"><div class="ph"><h2>Document type mix</h2><span class="sub">top categories</span></div><div class="pb"><div class="sp-empty">See volume-by-type chart above.</div></div></div>
             </div>
         </div>
 

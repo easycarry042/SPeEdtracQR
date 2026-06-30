@@ -2,9 +2,6 @@
 
 namespace App\Support;
 
-use App\Models\Department;
-use App\Models\RoutingRule;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
@@ -29,9 +26,9 @@ class DocumentFormOptions
         ];
     }
 
-    public static function departments(): EloquentCollection
+    public static function departments(): Collection
     {
-        return Department::orderBy('name')->get();
+        return collect();
     }
 
     /**
@@ -39,20 +36,6 @@ class DocumentFormOptions
      */
     public static function defaultRoutesByType(): Collection
     {
-        return RoutingRule::with(['fromDepartment', 'toDepartment'])
-            ->orderBy('document_type')
-            ->orderBy('step_order')
-            ->get()
-            ->groupBy('document_type')
-            ->map(function ($rules) {
-                $chain = collect([$rules->first()->fromDepartment?->id]);
-                foreach ($rules as $rule) {
-                    if ($rule->toDepartment) {
-                        $chain->push($rule->toDepartment->id);
-                    }
-                }
-
-                return $chain->filter()->unique()->values()->all();
-            });
+        return collect();
     }
 }

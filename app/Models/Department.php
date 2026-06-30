@@ -13,9 +13,4 @@ class Department extends Model
         'sla_hours',
         'deleted_at',
     ];
-
-    public function documents()
-    {
-        return $this->hasMany(Document::class, 'current_department_id');
-    }
 }

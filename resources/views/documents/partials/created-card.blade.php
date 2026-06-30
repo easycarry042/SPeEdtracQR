@@ -26,20 +26,6 @@
         </div>
     @endif
 
-    @if($document->routeSteps->isNotEmpty())
-        <div class="mx-auto mt-6 max-w-md rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-left">
-            <p class="text-xs font-semibold tracking-wide text-emerald-800">Routing path</p>
-            <ol class="mt-2 space-y-1">
-                @foreach($document->routeSteps as $step)
-                    <li class="flex items-center gap-2 text-sm text-gray-800">
-                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold text-emerald-900">{{ $step->step_order }}</span>
-                        {{ $step->department->name }}
-                    </li>
-                @endforeach
-            </ol>
-        </div>
-    @endif
-
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
         <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="inline-flex items-center justify-center rounded-xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
             Print QR sticker
@@ -47,8 +33,8 @@
         <a href="{{ url('/track/'.$document->tracking_number) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
             Citizen tracking link
         </a>
-        <a href="{{ route('movements.index') }}" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
-            Go to Movements
+        <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
+            Go to My Profile
         </a>
         <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
             Back to Dashboard

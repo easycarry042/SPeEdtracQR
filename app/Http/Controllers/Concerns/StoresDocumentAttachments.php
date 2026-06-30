@@ -15,7 +15,6 @@ trait StoresDocumentAttachments
     protected function storeAttachmentsForDocument(
         Document $document,
         iterable $files,
-        ?int $departmentId = null,
         ?int $uploadedBy = null,
     ): array {
         $uploadedBy ??= auth()->id();
@@ -31,7 +30,6 @@ trait StoresDocumentAttachments
             $attachment = $document->attachments()->create([
                 'file_path' => $path,
                 'uploaded_by' => $uploadedBy,
-                'department_id' => $departmentId,
                 'sort_order' => ++$sort,
             ]);
             $created[] = $attachment;

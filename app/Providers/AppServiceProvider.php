@@ -5,10 +5,10 @@ namespace App\Providers;
 use App\Listeners\LogUserLogin;
 use App\Listeners\LogUserLogout;
 use App\Models\DepartmentNotification;
+use App\Support\AssignmentScope;
 use App\Support\Ai\LlmProvider;
 use App\Support\Ai\NullProvider;
 use App\Support\Ai\OllamaProvider;
-use App\Support\DepartmentScope;
 use App\Support\DocumentFormOptions;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -44,11 +44,10 @@ class AppServiceProvider extends ServiceProvider
             $notifications = collect();
             $user = auth()->user();
 
-            if ($user && ! DepartmentScope::isOrgWide($user) && $user->department_id
-                && Schema::hasTable('department_notifications')) {
+            if ($user && Schema::hasTable('department_notifications')) {
                 $notifications = DepartmentNotification::query()
                     ->with('document:id,tracking_number,document_type')
-                    ->where('department_id', $user->department_id)
+                    ->whereHas('document', fn ($q) => AssignmentScope::applyDocumentScope($q, $user))
                     ->whereNull('read_at')
                     ->latest()
                     ->take(20)
@@ -61,9 +60,7 @@ class AppServiceProvider extends ServiceProvider
             // System admins manage the org and do not create submissions.
             $canCreateDocuments = $user
                 && $user->can('create documents')
-                && ! $user->can('manage system')
-                && Schema::hasTable('departments')
-                && Schema::hasTable('routing_rules');
+                && ! $user->can('manage system');
 
             $view->with('showCreateDocumentModal', $canCreateDocuments);
 

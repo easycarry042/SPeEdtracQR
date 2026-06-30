@@ -3,29 +3,29 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Document;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 
 trait ScopesByDepartment
 {
     protected function scopeDocuments($query)
     {
-        return DepartmentScope::applyDocumentScope($query);
+        return AssignmentScope::applyDocumentScope($query);
     }
 
     protected function scopeCurrentDocuments($query)
     {
-        return DepartmentScope::applyCurrentDepartmentScope($query);
+        return AssignmentScope::applyDocumentScope($query);
     }
 
     protected function scopeScans($query)
     {
-        return DepartmentScope::applyScanScope($query);
+        return AssignmentScope::applyScanScope($query);
     }
 
     protected function authorizeDocumentAccess(Document $document): void
     {
-        if (! DepartmentScope::userCanAccessDocument($document)) {
-            abort(403, 'This document is not assigned to your department.');
+        if (! AssignmentScope::userCanAccessDocument($document)) {
+            abort(403, 'You do not have access to this document.');
         }
     }
 }

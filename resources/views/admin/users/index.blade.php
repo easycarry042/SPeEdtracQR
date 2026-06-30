@@ -45,7 +45,6 @@
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Name</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Email</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Role</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Department</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Actions</th>
                         </tr>
@@ -69,7 +68,6 @@
                                         </span>
                                     @endforeach
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $user->department->name ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     @if($user->trashed())
                                         <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
@@ -142,7 +140,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-400">No users found.</td>
+                                <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-400">No users found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -217,25 +215,7 @@
                             </select>
                             @error('role')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700">Department</label>
-                            @if($deptLocked)
-                                <input type="text" value="{{ $departments->first()?->name ?? '—' }}" disabled
-                                       class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 shadow-sm cursor-not-allowed">
-                                <input type="hidden" name="department_id" value="{{ $departments->first()?->id }}">
-                                <p class="mt-1 text-xs text-gray-400">Assigned to your department automatically.</p>
-                            @else
-                                <select name="department_id"
-                                        class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
-                                    <option value="">None</option>
-                                    @foreach($departments as $dept)
-                                        <option value="{{ $dept->id }}" @selected(old('department_id') == $dept->id)>
-                                            {{ $dept->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            @endif
-                        </div>
+                        <div></div>
                     </div>
 
                     <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">

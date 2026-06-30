@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
-use App\Models\DocumentScan;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,8 +19,8 @@ class AnalyticsController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $isOrgWide = DepartmentScope::isOrgWide($user);
-        $dept = $user->department;
+        $isOrgWide = AssignmentScope::canViewAll($user);
+        $dept = null;
 
         $documentTypes = $this->scopedDocuments()->distinct()->orderBy('document_type')->pluck('document_type');
         $statuses = DocumentStatus::values();
@@ -33,10 +32,10 @@ class AnalyticsController extends Controller
         $byType = collect();
 
         if ($isOrgWide) {
-            $topDepartments = DocumentScan::query()
-                ->join('departments', 'document_scans.department_id', '=', 'departments.id')
-                ->select('departments.name', DB::raw('COUNT(document_scans.id) as total'))
-                ->groupBy('departments.id', 'departments.name')
+            $topDepartments = Document::query()
+                ->leftJoin('users', 'documents.assigned_to', '=', 'users.id')
+                ->select(DB::raw("COALESCE(users.name, 'Unassigned') as name"), DB::raw('COUNT(documents.id) as total'))
+                ->groupBy('users.name')
                 ->orderByDesc('total')
                 ->take(8)
                 ->get();
@@ -154,7 +153,7 @@ class AnalyticsController extends Controller
             'labels' => $labels,
             'submitted' => $submitted,
             'completed' => $completedSeries,
-            'scoped' => ! DepartmentScope::isOrgWide(),
+            'scoped' => ! AssignmentScope::canViewAll(),
         ]);
     }
 

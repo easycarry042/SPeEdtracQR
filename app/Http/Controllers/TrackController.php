@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
-use App\Support\DepartmentScope;
-use App\Support\PredictiveAnalytics;
+use App\Support\AssignmentScope;
 use Illuminate\Http\Request;
 
 class TrackController extends Controller
@@ -49,7 +48,7 @@ class TrackController extends Controller
         $document = Document::where('tracking_number', $trackingNumber)
             ->with(['scans' => function ($q) {
                 $q->orderBy('scanned_at', 'asc');
-            }, 'scans.department', 'scans.user', 'currentDepartment', 'attachments', 'routeSteps.department'])
+            }, 'scans.user', 'attachments'])
             ->firstOrFail();
 
         if (auth()->user()?->can('manage system')) {
@@ -68,8 +67,6 @@ class TrackController extends Controller
             )->take(30)->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
         }
 
-        $routingChain = $document->getRoutingChain();
-
         // Collaboration feed. Staff see everything; the public view is filtered
         // to citizen-facing posts only (see the citizen Blade).
         $document->load(['comments.author', 'comments.replies.author']);
@@ -77,16 +74,12 @@ class TrackController extends Controller
         $user = auth()->user();
         $canAct = false;
         if ($user && $document->status !== 'completed') {
-            if (DepartmentScope::isOrgWide($user)) {
-                $canAct = true;
-            } else {
-                $deptId = DepartmentScope::departmentId($user);
-                $canAct = $deptId && (int) $document->current_department_id === $deptId;
-            }
+            $canAct = AssignmentScope::canViewAll($user)
+                || ((int) $document->assigned_to === (int) $user->id && $user->can('advance documents'));
         }
 
-        $isLastStop = $document->isAtLastRouteStop();
-        $nextDepartment = $document->getNextDepartment();
+        $isLastStop = true;
+        $nextDepartment = null;
 
         $timeline = $document->scans->map(function ($scan) {
             $firstName = explode(' ', $scan->user->name ?? 'System')[0];
@@ -95,15 +88,14 @@ class TrackController extends Controller
                 : "Handed over by {$firstName}";
 
             return [
-                'event' => $event.' ('.($scan->department->name ?? 'Unknown Department').')',
+                'event' => $event,
                 'timestamp' => optional($scan->scanned_at)->format('M d, Y h:i A'),
                 'action' => $scan->action,
             ];
         })->values();
 
-        $analytics = new PredictiveAnalytics;
-        $prediction = $analytics->predictCompletion($document);
-        $anomaly = auth()->check() ? $analytics->detectAnomaly($document) : null;
+        $prediction = null;
+        $anomaly = null;
 
         $isPublicView = ! auth()->check();
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
@@ -111,8 +103,8 @@ class TrackController extends Controller
         return view($view, [
             'document' => $document,
             'documents' => $documents,
-            'routingChain' => $routingChain,
-            'routingSteps' => $routingChain,
+            'routingChain' => collect(),
+            'routingSteps' => collect(),
             'timeline' => $timeline,
             'isPublicView' => $isPublicView,
             'canAct' => $canAct,
@@ -125,13 +117,11 @@ class TrackController extends Controller
 
     public function status($trackingNumber)
     {
-        $document = Document::where('tracking_number', $trackingNumber)
-            ->with('currentDepartment')
-            ->firstOrFail();
+        $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
 
         return response()->json([
             'status' => $document->status,
-            'current_department' => $document->currentDepartment->name ?? null,
+            'current_department' => null,
             'updated_at' => $document->updated_at?->toISOString(),
         ]);
     }

@@ -6,8 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Models\DocumentScan;
-use App\Support\DepartmentScope;
-use App\Support\PredictiveAnalytics;
+use App\Support\AssignmentScope;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -17,19 +16,20 @@ class DashboardController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $isOrgWide = DepartmentScope::isOrgWide($user);
-        $dept = $user->department;
+        $isOrgWide = AssignmentScope::canViewAll($user);
+        if (! $isOrgWide) {
+            return redirect()->route('staff.profile', ['user' => $user->id]);
+        }
+        $dept = null;
 
         $totalRequests = $this->scopeDocuments(Document::query())->count();
         $pendingRequest = $this->scopeDocuments(Document::query())->whereIn('status', DocumentStatus::activeValues())->count();
         $completed = $this->scopeDocuments(Document::query())->where('status', DocumentStatus::Completed->value)->count();
 
-        $recentActivity = $this->scopeDocuments(
-            Document::with('currentDepartment')->latest('created_at')
-        )->take(5)->get();
+        $recentActivity = $this->scopeDocuments(Document::query()->latest('created_at'))->take(5)->get();
 
         $recentScans = $this->scopeScans(
-            DocumentScan::with(['document', 'department', 'user'])->latest('scanned_at')
+            DocumentScan::with(['document', 'user'])->latest('scanned_at')
         )->take(10)->get();
 
         $statusSummary = $this->scopeDocuments(Document::query())
@@ -67,34 +67,8 @@ class DashboardController extends Controller
         $slip = $this->buildRoutingSlip();
 
         // ── Predictive insights (self-hosted PredictiveAnalytics engine) ──────
-        $analytics = new PredictiveAnalytics;
-
-        $scopeDeptIds = $isOrgWide
-            ? null
-            : array_values(array_filter([DepartmentScope::departmentId($user)]));
-
-        $bottlenecks = $analytics->bottlenecks($scopeDeptIds ?: null)
-            ->reject(fn ($row) => $row['level'] === 'ok' && ($row['current_load'] ?? 0) === 0)
-            ->take(5)
-            ->values();
-
-        $anomalies = $this->scopeDocuments(
-            Document::with('currentDepartment')
-                ->whereIn('status', DocumentStatus::activeValues())
-        )->get()
-            ->map(function ($doc) use ($analytics) {
-                $anomaly = $analytics->detectAnomaly($doc);
-                if (! $anomaly) {
-                    return null;
-                }
-                $doc->setAttribute('anomaly', $anomaly);
-
-                return $doc;
-            })
-            ->filter()
-            ->sortByDesc(fn ($doc) => $doc->anomaly['over_by_hours'])
-            ->take(6)
-            ->values();
+        $bottlenecks = collect();
+        $anomalies = collect();
 
         return view('dashboard', compact(
             'totalRequests',

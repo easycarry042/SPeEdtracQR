@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\StaffHighlight;
 use App\Models\User;
+use App\Support\AssignmentScope;
 use App\Support\StaffProfile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -37,6 +38,8 @@ class StaffProfileController extends Controller
             'feed' => $tab === 'activity' ? $profile->feed() : collect(),
             'assigned' => $tab === 'assigned' ? $profile->assigned() : collect(),
             'completions' => $tab === 'completions' ? $profile->completions() : collect(),
+            'worklist' => $isOwn ? $this->worklist($user) : collect(),
+            'unclaimed' => $isOwn ? $this->unclaimed($user) : collect(),
             // The composer document picker lists only the author's own documents.
             'ownDocuments' => $isOwn ? $this->ownDocuments($user) : collect(),
         ]);
@@ -84,6 +87,28 @@ class StaffProfileController extends Controller
             ->orWhere('created_by', $user->id)
             ->latest()
             ->limit(50)
+            ->get(['id', 'tracking_number', 'document_type', 'status']);
+    }
+
+    private function worklist(User $user)
+    {
+        return AssignmentScope::applyDocumentScope(
+            Document::query()->whereIn('status', ['pending', 'in_progress', 'in_review', 'approved']),
+            $user
+        )->latest()->limit(20)->get(['id', 'tracking_number', 'document_type', 'status', 'assigned_to']);
+    }
+
+    private function unclaimed(User $user)
+    {
+        if (! AssignmentScope::canViewUnclaimedQueue($user)) {
+            return collect();
+        }
+
+        return Document::query()
+            ->whereNull('assigned_to')
+            ->whereIn('status', ['pending', 'in_progress', 'in_review', 'approved'])
+            ->latest()
+            ->limit(10)
             ->get(['id', 'tracking_number', 'document_type', 'status']);
     }
 }
