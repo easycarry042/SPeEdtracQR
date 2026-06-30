@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Models\DocumentScan;
@@ -10,6 +11,7 @@ use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AnalyticsController extends Controller
 {
@@ -22,7 +24,7 @@ class AnalyticsController extends Controller
         $dept = $user->department;
 
         $documentTypes = $this->scopedDocuments()->distinct()->orderBy('document_type')->pluck('document_type');
-        $statuses = ['pending', 'in_transit', 'completed'];
+        $statuses = DocumentStatus::values();
 
         $summary = $this->buildSummary();
 
@@ -106,7 +108,7 @@ class AnalyticsController extends Controller
     {
         $request->validate([
             'document_type' => 'nullable|string',
-            'status' => 'nullable|string|in:pending,in_transit,completed',
+            'status' => ['nullable', 'string', Rule::in(DocumentStatus::values())],
             'from' => 'nullable|date',
             'to' => 'nullable|date|after_or_equal:from',
         ]);
@@ -177,7 +179,7 @@ class AnalyticsController extends Controller
             if ($request->filled('category')) {
                 $query->where('document_type', $request->category);
             }
-            if ($request->filled('status') && in_array($request->status, ['pending', 'in_transit', 'completed'], true)) {
+            if ($request->filled('status') && in_array($request->status, DocumentStatus::values(), true)) {
                 $query->where('status', $request->status);
             }
 
@@ -212,21 +214,20 @@ class AnalyticsController extends Controller
 
     private function buildSummary(): array
     {
-        $atDeptNow = $this->scopeCurrentDocuments(
-            Document::query()->whereIn('status', ['pending', 'in_transit'])
+        $atDeptNow = $this->scopeDocuments(
+            Document::query()->whereIn('status', DocumentStatus::activeValues())
         )->count();
 
         $completed = $this->scopedDocuments(
-            Document::query()->where('status', 'completed')
+            Document::query()->where('status', DocumentStatus::Completed->value)
         )->count();
 
         $submittedThisMonth = $this->scopedDocuments(
             Document::query()->where('created_at', '>=', now()->startOfMonth())
         )->count();
 
-        $overdue = $this->scopeCurrentDocuments(Document::query())
-            ->whereIn('status', ['pending', 'in_transit'])
-            ->whereNotNull('current_department_id')
+        $overdue = $this->scopeDocuments(Document::query())
+            ->whereIn('status', DocumentStatus::activeValues())
             ->get()
             ->filter(fn ($doc) => $doc->isOverdue())
             ->count();

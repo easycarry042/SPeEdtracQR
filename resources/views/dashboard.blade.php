@@ -41,14 +41,14 @@
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Tracking ID</th>
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Type</th>
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Citizen</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Department</th>
+                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Stage</th>
                                 <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800 min-w-[160px]">SLA Usage</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-amber-50 bg-white">
                             @foreach($atRiskDocuments as $doc)
                                 @php
-                                    $slaHours   = $doc->currentDepartment->sla_hours ?? 0;
+                                    $slaHours   = $doc->statusEnum()->slaHours() ?? 0;
                                     $elapsed    = $doc->sla_elapsed_hours ?? 0;
                                     $pct        = $slaHours > 0 ? min(round(($elapsed / $slaHours) * 100), 100) : 0;
                                     $overdue    = $doc->sla_overdue ?? false;
@@ -62,7 +62,7 @@
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->document_type }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->citizen_name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->currentDepartment->name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->statusEnum()->label() }}</td>
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
                                             <div class="h-2 w-24 flex-shrink-0 overflow-hidden rounded-full bg-gray-200">

@@ -21,7 +21,7 @@ class CitizenDocumentUploadController extends Controller
         ]);
 
         $document = Document::where('tracking_number', $trackingNumber)
-            ->with(['currentDepartment', 'routeSteps.department'])
+            ->with(['currentDepartment', 'assignedTo.department'])
             ->firstOrFail();
 
         if ($document->status === 'completed') {
@@ -61,13 +61,10 @@ class CitizenDocumentUploadController extends Controller
 
     private function resolveNotifyDepartment(Document $document): ?Department
     {
-        if ($document->current_department_id && $document->currentDepartment) {
-            return $document->currentDepartment;
-        }
-
-        $firstStep = $document->routeSteps->sortBy('step_order')->first();
-
-        return $firstStep?->department;
+        // Prefer the assigned staff member's department; fall back to the
+        // document's current department for legacy (routing-era) records.
+        return $document->assignedTo?->department
+            ?? ($document->current_department_id ? $document->currentDepartment : null);
     }
 
     private function storeAttachments(Document $document, Request $request, int $departmentId): int

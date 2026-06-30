@@ -4,64 +4,65 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\Document;
-use App\Models\DocumentScan;
-use App\Models\User;
-use App\Support\PredictiveAnalytics;
+use App\Support\AdminAnalytics;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
-    public function dashboard()
+    /** Selectable look-back windows (days) for the command center. */
+    private const RANGES = [7, 30, 90];
+
+    public function dashboard(Request $request)
     {
-        $totalDocuments = Document::count();
-        $totalStaff = User::role(['staff', 'receiving_staff', 'department_admin'])->count();
-        $totalDepartments = Department::count();
-        $pendingDocuments = Document::whereIn('status', ['pending', 'in_transit', 'returned'])->count();
+        $departments = Department::orderBy('name')->get(['id', 'name']);
+        $documentTypes = Document::query()
+            ->select('document_type')
+            ->whereNotNull('document_type')
+            ->distinct()
+            ->orderBy('document_type')
+            ->pluck('document_type');
 
-        $recentActivity = Document::with(['creator', 'currentDepartment'])
-            ->latest()
-            ->take(10)
-            ->get();
+        $validated = $request->validate([
+            'range' => ['nullable', Rule::in(self::RANGES)],
+            'department_id' => ['nullable', Rule::in($departments->pluck('id')->all())],
+            'document_type' => ['nullable', Rule::in($documentTypes->all())],
+        ]);
 
-        $recentScans = DocumentScan::with(['document', 'department', 'user'])
-            ->latest('scanned_at')
-            ->take(5)
-            ->get();
+        $range = (int) ($validated['range'] ?? 30);
+        $departmentId = $validated['department_id'] ?? null;
+        $documentType = $validated['document_type'] ?? null;
 
-        // ── Predictive insights (org-wide: admin sees every department) ───────
-        $analytics = new PredictiveAnalytics;
+        $from = Carbon::now()->subDays($range - 1)->startOfDay();
+        $to = Carbon::now()->endOfDay();
 
-        $bottlenecks = $analytics->bottlenecks()
-            ->reject(fn ($row) => $row['level'] === 'ok' && ($row['current_load'] ?? 0) === 0)
-            ->take(5)
-            ->values();
+        $analytics = new AdminAnalytics($from, $to, $departmentId ? (int) $departmentId : null, $documentType);
 
-        $anomalies = Document::with('currentDepartment')
-            ->where('status', 'in_transit')
-            ->whereNotNull('current_department_id')
-            ->get()
-            ->map(function ($doc) use ($analytics) {
-                $anomaly = $analytics->detectAnomaly($doc);
-                if (! $anomaly) {
-                    return null;
-                }
-                $doc->setAttribute('anomaly', $anomaly);
+        $filters = [
+            'range' => $range,
+            'department_id' => $departmentId,
+            'document_type' => $documentType,
+            'active' => $departmentId || $documentType || $range !== 30,
+        ];
 
-                return $doc;
-            })
-            ->filter()
-            ->sortByDesc(fn ($doc) => $doc->anomaly['over_by_hours'])
-            ->take(6)
-            ->values();
-
-        return view('admin.dashboard', compact(
-            'totalDocuments',
-            'totalStaff',
-            'totalDepartments',
-            'pendingDocuments',
-            'recentActivity',
-            'recentScans',
-            'bottlenecks',
-            'anomalies'
-        ));
+        return view('admin.dashboard', [
+            'filters' => $filters,
+            'departments' => $departments,
+            'documentTypes' => $documentTypes,
+            'updatedAt' => Carbon::now(),
+            'kpis' => $analytics->kpis(),
+            'throughput' => $analytics->throughput(),
+            'statusDistribution' => $analytics->statusDistribution(),
+            'staffWorkload' => $analytics->staffWorkload(),
+            'bottlenecks' => $analytics->bottlenecks(),
+            'timeByStage' => $analytics->timeByStage(),
+            'typeBreakdown' => $analytics->typeBreakdown(),
+            'byDepartment' => $analytics->byDepartment(),
+            'atRisk' => $analytics->atRisk(),
+            'fastestStaff' => $analytics->fastestStaff(),
+            'busiestDepartments' => $analytics->busiestDepartments(),
+            'heatmap' => $analytics->throughputHeatmap(),
+        ]);
     }
 }

@@ -132,30 +132,14 @@
             </div>
 
             <div class="mt-8">
-                <div class="mb-3 text-[14px] font-bold text-[#16211b]">Department Progress</div>
-                @if($routingChain->isNotEmpty())
-                    <x-routing-stepper :document="$document" :chain="$routingChain" />
-                @else
-                    <span class="text-gray-500 text-sm">No routing path configured.</span>
+                <div class="mb-3 text-[14px] font-bold text-[#16211b]">Status Progress</div>
+                @if(! $isPublicView && $document->assigned_to)
+                    <p class="mb-2 text-[13px] text-[#51625a]">
+                        Assigned to <span class="font-semibold text-[#0f4d28]">{{ $document->assignedTo->name ?? '—' }}</span>
+                    </p>
                 @endif
+                <x-routing-stepper :document="$document" :controls="! $isPublicView" />
             </div>
-
-            @if($canAct && $document->status !== 'completed')
-                <div class="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-                    @if($isLastStop)
-                        <button type="button"
-                                class="js-track-complete inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600"
-                                data-tracking="{{ $document->tracking_number }}">
-                            Mark as Done
-                        </button>
-                    @elseif($nextDepartment)
-                        <a href="{{ route('movements.index', ['tab' => 'inbox']) }}"
-                           class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
-                            Review &amp; send onward
-                        </a>
-                    @endif
-                </div>
-            @endif
 
             <div class="mt-8">
                 <h3 class="text-2xl font-extrabold text-[#16211b]">Logs</h3>
@@ -171,10 +155,71 @@
                     @endforeach
                 </div>
             </div>
+
+            {{-- ── Collaboration feed (staff) ─────────────────────────────────── --}}
+            @php
+                $u = auth()->user();
+                $canPost = $u && ($u->can('manage system') || $u->can('assign documents') || (
+                    $u->can('advance documents') && $document->assigned_to !== null
+                    && (int) $document->assigned_to === (int) $u->id
+                ));
+            @endphp
+            <div class="mt-8" id="collab" data-document-id="{{ $document->id }}">
+                <h3 class="text-2xl font-extrabold text-[#16211b]">Collaboration</h3>
+                <p class="mt-1 text-[13px] text-[#51625a]">Post updates and notes. <strong>Internal</strong> notes are staff-only; <strong>Visible to citizen</strong> posts appear on the public tracking page and email the citizen.</p>
+
+                @if($canPost)
+                    <form method="POST" action="{{ route('documents.comments.store', $document) }}" class="mt-4 rounded-xl border border-[#e6ece8] bg-white p-4">
+                        @csrf
+                        <textarea name="body" rows="3" required maxlength="5000" placeholder="Write an update…"
+                                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"></textarea>
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-4 text-sm">
+                                <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="internal" checked> Internal note</label>
+                                <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="public"> Visible to citizen</label>
+                            </div>
+                            <button type="submit" class="rounded-lg bg-[#0f4d28] px-4 py-2 text-sm font-bold text-white hover:bg-[#0b3a1e]">Post</button>
+                        </div>
+                    </form>
+                @endif
+
+                <div id="collabFeed" class="mt-4 space-y-3">
+                    @forelse($document->comments as $comment)
+                        @include('track.partials.comment', ['comment' => $comment, 'canPost' => $canPost, 'document' => $document])
+                    @empty
+                        <p id="collabEmpty" class="text-sm italic text-gray-400">No posts yet.</p>
+                    @endforelse
+                </div>
+            </div>
         </div>
     </div>
 
     @unless($isPublicView)
+    <script>
+        (function () {
+            const root = document.getElementById('collab');
+            if (!root || !window.Echo) return;
+            const id = root.dataset.documentId;
+            const feed = document.getElementById('collabFeed');
+            const badge = { internal: 'background:#eef2ef;color:#5b6b62;', public: 'background:#eef5f0;color:#0f5c2e;', system: 'background:#fbf3e0;color:#8a6d1f;' };
+
+            window.Echo.private('documents.' + id + '.staff').listen('.comment', (e) => {
+                document.getElementById('collabEmpty')?.remove();
+                if (document.getElementById('comment-' + e.id) || document.getElementById('reply-' + e.id)) return;
+                const label = e.author_type === 'public' ? 'public' : (e.author_type === 'system' ? 'system' : (e.visibility || 'internal'));
+                const tag = e.author_type === 'system' ? 'system' : (e.visibility || 'internal');
+                const html = '<div class="rounded-xl border border-[#e6ece8] bg-white p-3" id="comment-' + e.id + '">' +
+                    '<div class="flex items-center justify-between"><span class="text-[13px] font-bold text-[#16211b]">' + e.author +
+                    ' <span class="ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style="' + (badge[tag] || badge.internal) + '">' + tag + '</span></span>' +
+                    '<span class="text-[12px] text-[#51625a]">' + (e.timestamp || '') + '</span></div>' +
+                    '<p class="mt-1 whitespace-pre-wrap text-[14px] text-[#33433b]"></p></div>';
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                wrap.querySelector('p').textContent = e.body;
+                feed.prepend(wrap.firstChild);
+            });
+        })();
+    </script>
     <script>
         (function () {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';

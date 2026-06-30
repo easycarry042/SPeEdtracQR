@@ -2,57 +2,74 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\DocumentStatus;
 use App\Mail\SlaBreachMail;
 use App\Mail\SlaWarningMail;
 use App\Models\Document;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
+/**
+ * Re-anchored for the manual tracking model: SLA is measured per status STAGE
+ * (time since status_changed_at vs DocumentStatus::slaHours()), and the
+ * warning/breach emails go to the document's ASSIGNED staff member — not a
+ * department mailbox. One idempotent hourly sweep, deduped via the
+ * sla_*_notified_at columns (reset on every stage change).
+ */
 class CheckDocumentSla extends Command
 {
     protected $signature = 'documents:check-sla';
 
-    protected $description = 'Email SLA warnings/breaches for documents sitting too long at a department';
+    protected $description = 'Email SLA warnings/breaches for documents sitting too long in their current status stage';
 
-    /** Fraction of the SLA at which a warning is sent. */
+    /** Fraction of the stage SLA at which a warning is sent. */
     private const WARNING_RATIO = 0.75;
 
     public function handle(): int
     {
-        $documents = Document::with('currentDepartment')
-            ->where('status', 'in_transit')
-            ->whereNotNull('current_department_id')
+        $documents = Document::with(['assignedTo.department'])
+            ->whereNotNull('assigned_to')
+            ->whereNotNull('status_changed_at')
             ->get();
 
         $warned = 0;
         $breached = 0;
 
         foreach ($documents as $document) {
-            $department = $document->currentDepartment;
-            if (! $department || ! $department->sla_hours || ! $department->email) {
+            $stage = $document->statusEnum();
+            $sla = $stage->slaHours();
+
+            // Terminal / no-budget stages never breach.
+            if ($sla === null || $stage->isTerminal()) {
                 continue;
             }
 
-            $lastIn = $document->scans()
-                ->where('action', 'in')
-                ->where('department_id', $document->current_department_id)
-                ->latest('scanned_at')
-                ->first();
-            if (! $lastIn) {
+            $assignee = $document->assignedTo;
+            if (! $assignee || ! $assignee->email) {
                 continue;
             }
 
-            $elapsed = $lastIn->scanned_at->diffInHours(now());
-            $sla = $department->sla_hours;
+            // The mail views still expect a Department for context. Skip rather
+            // than risk a TypeError if neither the assignee nor the document has one.
+            $department = $assignee->department ?? $document->currentDepartment;
+            if (! $department) {
+                continue;
+            }
+
+            $elapsed = $document->status_changed_at->diffInHours(now());
 
             if ($elapsed >= $sla && ! $document->sla_breach_notified_at) {
-                Mail::to($department->email)->send(new SlaBreachMail($document, $department));
-                $document->forceFill(['sla_breach_notified_at' => now()])->save();
+                Mail::to($assignee->email)->send(new SlaBreachMail($document, $department));
+                $document->forceFill([
+                    'sla_breach_notified_at' => now(),
+                    // Sticky lifetime marker for the staff SLA-rate KPI (set once).
+                    'sla_breached_at' => $document->sla_breached_at ?? now(),
+                ])->save();
                 $breached++;
             } elseif ($elapsed >= $sla * self::WARNING_RATIO
                 && ! $document->sla_warning_notified_at
                 && ! $document->sla_breach_notified_at) {
-                Mail::to($department->email)->send(new SlaWarningMail($document, $department));
+                Mail::to($assignee->email)->send(new SlaWarningMail($document, $department));
                 $document->forceFill(['sla_warning_notified_at' => now()])->save();
                 $warned++;
             }

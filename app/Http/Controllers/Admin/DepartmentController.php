@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Document;
@@ -17,7 +18,7 @@ class DepartmentController extends Controller
         $tightestSlaDept = $allDepartments->first();
 
         $queuedDocuments = Document::with(['scans' => fn ($q) => $q->where('action', 'in')->orderBy('scanned_at', 'desc')])
-            ->whereIn('status', ['pending', 'in_transit'])
+            ->whereIn('status', DocumentStatus::activeValues())
             ->whereNotNull('current_department_id')
             ->get()
             ->map(function ($doc) use ($allDepartments) {

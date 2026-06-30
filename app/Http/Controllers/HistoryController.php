@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class HistoryController extends Controller
 
         $documents = $query->latest('created_at')->paginate(15);
         $documentTypes = $this->scopeDocuments(Document::query())->distinct()->pluck('document_type');
-        $statuses = ['pending', 'in_transit', 'completed', 'returned'];
+        $statuses = DocumentStatus::values();
 
         return view('history.index', compact('documents', 'documentTypes', 'statuses'));
     }

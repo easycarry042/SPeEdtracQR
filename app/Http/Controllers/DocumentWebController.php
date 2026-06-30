@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
-use App\Models\DocumentScan;
 use App\Services\QrCodeService;
 use App\Support\DepartmentScope;
 use App\Support\DocumentFormOptions;
@@ -40,24 +40,13 @@ class DocumentWebController extends Controller
             'attachment' => 'nullable|image|max:10240',
             'attachments' => 'nullable|array|max:10',
             'attachments.*' => 'image|max:10240',
-            'route_departments' => 'required|array|min:1',
-            'route_departments.*' => 'required|integer|exists:departments,id',
         ]);
-
-        $routeDepartments = collect($request->input('route_departments', []))
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        if (count($routeDepartments) < 1) {
-            return back()
-                ->withInput()
-                ->withErrors(['route_departments' => 'Add at least one department to the routing path.']);
-        }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
+        // New documents start Pending and unassigned; an admin assigns the
+        // responsible staff member (see Admin\AssignmentController), who then
+        // advances it through the DocumentStatus stages manually.
         $document = Document::create([
             'tracking_number' => $trackingNumber,
             'document_type' => $request->document_type,
@@ -65,7 +54,8 @@ class DocumentWebController extends Controller
             'citizen_contact' => $request->citizen_contact,
             'description' => $request->description,
             'purpose' => $request->purpose,
-            'status' => 'pending',
+            'status' => DocumentStatus::Pending->value,
+            'status_changed_at' => now(),
             'created_by' => auth()->id(),
             'remarks' => $request->remarks,
         ]);
@@ -78,26 +68,6 @@ class DocumentWebController extends Controller
         }
 
         $this->storeDocumentAttachments($document, $request);
-
-        $document->syncRouteSteps($routeDepartments);
-
-        // Auto-check-in at the first department so it appears in the inbox immediately
-        $firstDeptId = $routeDepartments[0];
-        $document->update([
-            'current_department_id' => $firstDeptId,
-            'status' => 'in_transit',
-        ]);
-
-        DocumentScan::create([
-            'document_id' => $document->id,
-            'scanned_by' => auth()->id(),
-            'department_id' => $firstDeptId,
-            'action' => 'in',
-            'scanned_at' => now(),
-            'location_ip' => request()->ip(),
-            'remarks' => 'Document received',
-            'synced' => true,
-        ]);
 
         return redirect()->route('documents.created', $document);
     }
@@ -156,14 +126,12 @@ class DocumentWebController extends Controller
 
         $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
 
-        if ($document->status === 'completed') {
+        if ($document->status === DocumentStatus::Completed->value) {
             return response()->json(['message' => 'Document is already completed.'], 422);
         }
 
-        $document->update([
-            'status' => 'completed',
-            'completed_at' => now(),
-        ]);
+        $document->applyStatus(DocumentStatus::Completed);
+        $document->save();
 
         return response()->json(['message' => "Document {$trackingNumber} marked as completed."]);
     }

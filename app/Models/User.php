@@ -50,6 +50,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Documents this user is responsible for advancing through its status stages.
+     */
+    public function assignedDocuments()
+    {
+        return $this->hasMany(Document::class, 'assigned_to');
+    }
+
+    /**
+     * Manual highlight posts authored by this user for their staff profile feed.
+     */
+    public function highlights()
+    {
+        return $this->hasMany(StaffHighlight::class)->latest();
+    }
+
+    /**
      * Scans performed by this user
      */
     public function scans()

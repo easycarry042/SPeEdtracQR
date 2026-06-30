@@ -17,8 +17,7 @@ class SlaBreachMail extends Mailable
     public function __construct(
         public Document $document,
         public Department $department
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

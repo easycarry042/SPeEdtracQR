@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -8,14 +9,18 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
+use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\MovementController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +45,13 @@ Route::get('/', function () {
 | Public Tracking Routes (no auth required)
 |--------------------------------------------------------------------------
 */
+
+// Citizen self-service ticket creation (no account). Throttled + honeypot as
+// anti-abuse; uploads validated and stored on the private disk.
+Route::get('/request', [PublicTicketController::class, 'create'])->name('public.request.create');
+Route::post('/request', [PublicTicketController::class, 'store'])
+    ->middleware('throttle:8,1')
+    ->name('public.request.store');
 
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
@@ -96,6 +108,15 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
     });
 
+// Document assignment desk (admins assign the responsible staff member)
+Route::middleware(['auth', 'verified', 'permission:assign documents'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('assignments', [AssignmentController::class, 'index'])->name('assignments.index');
+        Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
+    });
+
 // User management (controller enforces department scoping for dept admins)
 Route::middleware(['auth', 'verified', 'permission:manage users'])
     ->prefix('admin')
@@ -121,6 +142,10 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Staff profile (identity rail + activity feed). Viewable by any staff user.
+    Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');
+    Route::post('/staff/highlights', [StaffProfileController::class, 'store'])->name('staff.highlights.store');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -136,6 +161,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
     Route::post('/documents/{document}/undo-scan', [ScanController::class, 'undoLast'])->name('documents.undo-scan');
+
+    // Per-document staff collaboration feed (assignee or admin).
+    Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+
+    // Manual status progression by the assigned staff member (or an admin).
+    Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');
+    Route::patch('/documents/{document}/status/revert', [DocumentStatusController::class, 'revert'])->name('documents.status.revert');
+    Route::patch('/documents/{document}/status', [DocumentStatusController::class, 'set'])->name('documents.status.set');
 
     Route::middleware('permission:view reports')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');

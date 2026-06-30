@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\DepartmentScope;
@@ -31,7 +32,7 @@ class TrackController extends Controller
         if (auth()->check()) {
             $latest = $this->scopeDocuments(
                 Document::query()
-                    ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                    ->whereIn('status', DocumentStatus::activeValues())
                     ->latest('created_at')
             )->first(['tracking_number']);
 
@@ -62,12 +63,16 @@ class TrackController extends Controller
             // Sidebar list: only documents still being processed
             $documents = $this->scopeDocuments(
                 Document::query()
-                    ->whereIn('status', ['pending', 'in_transit', 'returned'])
+                    ->whereIn('status', DocumentStatus::activeValues())
                     ->latest('created_at')
             )->take(30)->get(['id', 'tracking_number', 'document_type', 'status', 'created_at']);
         }
 
         $routingChain = $document->getRoutingChain();
+
+        // Collaboration feed. Staff see everything; the public view is filtered
+        // to citizen-facing posts only (see the citizen Blade).
+        $document->load(['comments.author', 'comments.replies.author']);
 
         $user = auth()->user();
         $canAct = false;

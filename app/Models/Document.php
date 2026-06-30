@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DocumentStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -16,11 +17,18 @@ class Document extends Model
         'document_type',
         'citizen_name',
         'citizen_contact',
+        'citizen_email',
+        'source',
+        'notify_citizen',
         'description',
         'purpose',
         'status',
         'current_department_id',
         'created_by',
+        'assigned_to',
+        'assigned_by',
+        'assigned_at',
+        'status_changed_at',
         'remarks',
         'qr_code_path',
         'attachment_path',
@@ -28,23 +36,57 @@ class Document extends Model
         'completed_at',
         'sla_warning_notified_at',
         'sla_breach_notified_at',
+        'sla_breached_at',
     ];
 
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
+        'assigned_at' => 'datetime',
+        'status_changed_at' => 'datetime',
         'sla_warning_notified_at' => 'datetime',
         'sla_breach_notified_at' => 'datetime',
+        'sla_breached_at' => 'datetime',
+        'notify_citizen' => 'boolean',
     ];
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly([
-                'tracking_number', 'status', 'current_department_id',
+                'tracking_number', 'status', 'assigned_to', 'current_department_id',
                 'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
             ])
             ->logOnlyDirty();
+    }
+
+    /**
+     * The current stage as a DocumentStatus enum. `status` is stored as a string
+     * (varchar) so legacy string comparisons keep working; the enum is the
+     * authority for labels, ordering and SLA. Tolerates the legacy `in_transit`.
+     */
+    public function statusEnum(): DocumentStatus
+    {
+        return DocumentStatus::fromLoose($this->status);
+    }
+
+    /**
+     * Apply a stage change to the model (does NOT save). Callers are responsible
+     * for permission checks, persistence, activity logging and broadcasting —
+     * see DocumentStatusController.
+     */
+    public function applyStatus(DocumentStatus $status): void
+    {
+        $this->status = $status->value;
+        $this->status_changed_at = now();
+
+        // New stage = fresh SLA stay: restart the clock and let the scheduled
+        // sweep (documents:check-sla) re-notify if it overstays this stage.
+        $this->sla_warning_notified_at = null;
+        $this->sla_breach_notified_at = null;
+
+        // Keep the legacy completion timestamp coherent for analytics/history.
+        $this->completed_at = $status->isTerminal() ? now() : null;
     }
 
     public function scans()
@@ -62,6 +104,23 @@ class Document extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** Staff member responsible for advancing this document through its stages. */
+    public function assignedTo()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /** Admin who made the current assignment. */
+    public function assignedBy()
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
+
+    /**
+     * @deprecated Routing-era (department chain). Advancement is now manual via
+     * DocumentStatus stages; this relation is retained read-only for legacy data
+     * and is no longer populated. Slated for removal with the route_steps table.
+     */
     public function routeSteps()
     {
         return $this->hasMany(DocumentRouteStep::class)->orderBy('step_order');
@@ -70,6 +129,32 @@ class Document extends Model
     public function attachments()
     {
         return $this->hasMany(DocumentAttachment::class)->orderBy('sort_order');
+    }
+
+    /** Top-level collaboration posts (replies are loaded via the `replies` relation). */
+    public function comments()
+    {
+        return $this->hasMany(DocumentComment::class)->whereNull('parent_id')->latest();
+    }
+
+    /** Citizen-facing posts only — never exposes internal staff notes. */
+    public function publicComments()
+    {
+        return $this->comments()->where('visibility', DocumentComment::VISIBILITY_PUBLIC);
+    }
+
+    /**
+     * Record a system event (status change, assignment, return) into the unified
+     * per-document feed as an internal, author-less note.
+     */
+    public function logSystemComment(string $body): DocumentComment
+    {
+        return $this->comments()->create([
+            'author_id' => null,
+            'author_type' => 'system',
+            'body' => $body,
+            'visibility' => DocumentComment::VISIBILITY_INTERNAL,
+        ]);
     }
 
     public function isAtLastRouteStop(): bool
@@ -129,6 +214,10 @@ class Document extends Model
         return 'SPD-'.date('Ymd').'-'.strtoupper(uniqid());
     }
 
+    /**
+     * @deprecated Routing-era positional advancement. Documents are advanced
+     * manually through DocumentStatus stages; nothing calls this anymore.
+     */
     public function getNextDepartment(): ?Department
     {
         if (! $this->current_department_id) {
@@ -149,26 +238,27 @@ class Document extends Model
         return null;
     }
 
-    // Check if document is overdue
-    public function isOverdue()
+    /**
+     * Overdue = sitting in its current stage longer than the stage's SLA budget.
+     * Re-anchored to status_changed_at (manual model); terminal/off-line stages
+     * and stages with no SLA budget are never overdue.
+     */
+    public function isOverdue(): bool
     {
-        if (! $this->current_department_id || $this->status === 'completed') {
+        $stage = $this->statusEnum();
+        $sla = $stage->slaHours();
+
+        if ($sla === null || $stage->isTerminal()) {
             return false;
         }
 
-        $lastScan = $this->scans()->where('action', 'in')
-            ->where('department_id', $this->current_department_id)
-            ->latest('scanned_at')
-            ->first();
+        $anchor = $this->status_changed_at ?? $this->updated_at ?? $this->created_at;
 
-        if (! $lastScan) {
+        if (! $anchor) {
             return false;
         }
 
-        // scanned_at is in the past; order operands so the diff is positive.
-        $hoursStayed = $lastScan->scanned_at->diffInHours(now());
-        $sla = $this->currentDepartment->sla_hours;
-
-        return $hoursStayed > $sla;
+        // anchor is in the past; order operands so the diff is positive.
+        return $anchor->diffInHours(now()) > $sla;
     }
 }

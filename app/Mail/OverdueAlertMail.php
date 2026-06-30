@@ -20,6 +20,6 @@ class OverdueAlertMail extends Mailable
     public function build()
     {
         return $this->subject('Document Overdue Alert - SPeED TraQR')
-                    ->view('emails.overdue');
+            ->view('emails.overdue');
     }
 }

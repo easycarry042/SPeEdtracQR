@@ -58,7 +58,7 @@
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
                                             {{ strtoupper(mb_substr($user->name, 0, 1)) }}
                                         </span>
-                                        <span class="text-sm font-semibold text-gray-800">{{ $user->name }}</span>
+                                        <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $user->email }}</td>

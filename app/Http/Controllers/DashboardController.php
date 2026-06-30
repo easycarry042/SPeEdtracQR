@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Models\DocumentScan;
 use App\Support\DepartmentScope;
 use App\Support\PredictiveAnalytics;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -21,8 +21,8 @@ class DashboardController extends Controller
         $dept = $user->department;
 
         $totalRequests = $this->scopeDocuments(Document::query())->count();
-        $pendingRequest = $this->scopeDocuments(Document::query())->whereIn('status', ['pending', 'in_transit', 'returned'])->count();
-        $completed = $this->scopeDocuments(Document::query())->where('status', 'completed')->count();
+        $pendingRequest = $this->scopeDocuments(Document::query())->whereIn('status', DocumentStatus::activeValues())->count();
+        $completed = $this->scopeDocuments(Document::query())->where('status', DocumentStatus::Completed->value)->count();
 
         $recentActivity = $this->scopeDocuments(
             Document::with('currentDepartment')->latest('created_at')
@@ -37,43 +37,29 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $inTransitQuery = $this->scopeCurrentDocuments(
-            Document::with(['currentDepartment', 'scans'])
-                ->whereIn('status', ['in_transit', 'pending'])
-                ->whereNotNull('current_department_id')
+        // At-risk = documents sitting in a non-terminal stage past 75% of that
+        // stage's SLA budget (anchored to status_changed_at — the manual model).
+        $activeQuery = $this->scopeDocuments(
+            Document::with('assignedTo')
+                ->whereIn('status', DocumentStatus::activeValues())
         );
 
-        $atRiskDocuments = $inTransitQuery->get()->filter(function ($doc) {
-            $dept = $doc->currentDepartment;
-            if (! $dept || ! $dept->sla_hours) {
-                return false;
+        $atRiskDocuments = $activeQuery->get()->map(function ($doc) {
+            $sla = $doc->statusEnum()->slaHours();
+            $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
+            if (! $sla || ! $anchor) {
+                return null;
             }
-            $lastIn = $doc->scans
-                ->where('action', 'in')
-                ->where('department_id', $doc->current_department_id)
-                ->sortByDesc('scanned_at')
-                ->first();
-            if (! $lastIn) {
-                return false;
-            }
-            $elapsed = Carbon::parse($lastIn->scanned_at)->diffInHours(now());
-
-            return ($elapsed / $dept->sla_hours) >= 0.75;
-        })->map(function ($doc) {
-            $dept = $doc->currentDepartment;
-            $lastIn = $doc->scans
-                ->where('action', 'in')
-                ->where('department_id', $doc->current_department_id)
-                ->sortByDesc('scanned_at')
-                ->first();
-            $elapsed = $lastIn ? Carbon::parse($lastIn->scanned_at)->diffInHours(now()) : 0;
-            $remaining = max(0, $dept->sla_hours - $elapsed);
+            $elapsed = $anchor->diffInHours(now());
             $doc->sla_elapsed_hours = $elapsed;
-            $doc->sla_remaining_hours = $remaining;
-            $doc->sla_overdue = $elapsed > $dept->sla_hours;
+            $doc->sla_remaining_hours = max(0, $sla - $elapsed);
+            $doc->sla_overdue = $elapsed > $sla;
+            $doc->sla_ratio = $elapsed / $sla;
 
             return $doc;
-        })->sortBy('sla_remaining_hours')->values();
+        })->filter(fn ($doc) => $doc && $doc->sla_ratio >= 0.75)
+            ->sortBy('sla_remaining_hours')
+            ->values();
 
         $atRiskCount = $atRiskDocuments->count();
 
@@ -92,10 +78,9 @@ class DashboardController extends Controller
             ->take(5)
             ->values();
 
-        $anomalies = $this->scopeCurrentDocuments(
+        $anomalies = $this->scopeDocuments(
             Document::with('currentDepartment')
-                ->where('status', 'in_transit')
-                ->whereNotNull('current_department_id')
+                ->whereIn('status', DocumentStatus::activeValues())
         )->get()
             ->map(function ($doc) use ($analytics) {
                 $anomaly = $analytics->detectAnomaly($doc);
@@ -137,22 +122,16 @@ class DashboardController extends Controller
      */
     private function buildRoutingSlip(): ?array
     {
-        $doc = $this->scopeCurrentDocuments(
-            Document::with(['currentDepartment', 'routeSteps.department', 'scans'])
-                ->whereIn('status', ['in_transit', 'pending'])
-                ->whereNotNull('current_department_id')
+        $doc = $this->scopeDocuments(
+            Document::whereIn('status', DocumentStatus::activeValues())
         )->get()
             ->map(function ($doc) {
-                $sla = $doc->currentDepartment?->sla_hours ?? 0;
-                $lastIn = $doc->scans
-                    ->where('action', 'in')
-                    ->where('department_id', $doc->current_department_id)
-                    ->sortByDesc('scanned_at')
-                    ->first();
+                $sla = $doc->statusEnum()->slaHours();
+                $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
 
-                // Signed hours past SLA: positive = overdue, negative = time left.
-                $doc->slipHoursOver = ($sla > 0 && $lastIn)
-                    ? Carbon::parse($lastIn->scanned_at)->diffInHours(now()) - $sla
+                // Signed hours past the stage SLA: positive = overdue, negative = time left.
+                $doc->slipHoursOver = ($sla && $anchor)
+                    ? $anchor->diffInHours(now()) - $sla
                     : null;
 
                 return $doc;
@@ -165,10 +144,8 @@ class DashboardController extends Controller
             return null;
         }
 
-        $chain = $doc->getRoutingChain();
-        $stages = $chain->pluck('name')->all();
-        $idx = $chain->search(fn ($d) => (int) $d->id === (int) $doc->current_department_id);
-        $current = $idx !== false ? $idx + 1 : 1;
+        $stages = array_map(fn (DocumentStatus $s) => $s->label(), DocumentStatus::flow());
+        $current = $doc->statusEnum()->position() ?: 1;
 
         $over = (int) round($doc->slipHoursOver);
         $overdue = $over > 0;

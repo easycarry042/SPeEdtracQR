@@ -49,6 +49,13 @@
                  tracking page; they are only visible to authorized staff. --}}
         </div>
 
+        @if(session('ticket_submitted'))
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-900">
+                <p class="font-semibold">Your request has been submitted.</p>
+                <p class="mt-1">Save your tracking number <span class="font-mono font-bold">{{ session('ticket_submitted') }}</span>. A confirmation with your QR code has been emailed to you.</p>
+            </div>
+        @endif
+
         {{-- ── Live Status Card ─────────────────────────────────────────────── --}}
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" id="statusCard">
             <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
@@ -92,12 +99,29 @@
         {{-- ── Self-hosted AI assistant (Pillar 3) ──────────────────────────── --}}
         <x-doc-assistant :document="$document" />
 
-        @if($routingChain->isNotEmpty())
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
-            <h2 class="mb-4 text-base font-bold text-gray-800">Department Progress</h2>
-            <x-routing-stepper :document="$document" :chain="$routingChain" />
+            <h2 class="mb-4 text-base font-bold text-gray-800">Status Progress</h2>
+            <x-routing-stepper :document="$document" />
         </div>
-        @endif
+
+        {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
+        @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+            <h2 class="mb-4 text-base font-bold text-gray-800">Messages from staff</h2>
+            <div id="citizenMessages" class="space-y-3">
+                @forelse($publicPosts as $post)
+                    <div class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[13px] font-bold text-emerald-900">{{ $post->author_type === 'system' ? 'Update' : 'Staff' }}</span>
+                            <span class="text-[12px] text-gray-500">{{ optional($post->created_at)->format('M d, Y h:i A') }}</span>
+                        </div>
+                        <p class="mt-1 whitespace-pre-wrap text-sm text-gray-700">{{ $post->body }}</p>
+                    </div>
+                @empty
+                    <p id="citizenMessagesEmpty" class="text-sm italic text-gray-400">No messages yet.</p>
+                @endforelse
+            </div>
+        </div>
 
         {{-- ── Citizen upload (notifies current department only) ──────────────── --}}
         @if($document->status !== 'completed')
@@ -106,7 +130,7 @@
                 <h2 class="text-base font-bold text-gray-800">Upload supporting documents</h2>
                 <p class="mt-1 text-sm text-gray-500">
                     Files are sent only to
-                    <span class="font-semibold text-emerald-800">{{ $document->currentDepartment->name ?? ($routingChain->first()?->name ?? 'the office handling your ticket') }}</span>.
+                    <span class="font-semibold text-emerald-800">the office handling your ticket</span>.
                 </p>
             </div>
             <div class="px-6 py-5">
@@ -266,6 +290,22 @@
                         applyStatus(e.status, e.current_department);
                         prependTimelineEntry(e);
                         flashBanner('Status updated!');
+                    })
+                    .listen('.comment', (e) => {
+                        // Only public posts ever reach this public channel.
+                        const box = document.getElementById('citizenMessages');
+                        if (!box || document.getElementById('cmsg-' + e.id)) return;
+                        document.getElementById('citizenMessagesEmpty')?.remove();
+                        const el = document.createElement('div');
+                        el.id = 'cmsg-' + e.id;
+                        el.className = 'rounded-xl border border-emerald-100 bg-emerald-50/50 p-3';
+                        el.innerHTML = '<div class="flex items-center justify-between">' +
+                            '<span class="text-[13px] font-bold text-emerald-900">' + (e.author_type === 'system' ? 'Update' : 'Staff') + '</span>' +
+                            '<span class="text-[12px] text-gray-500">' + (e.timestamp || '') + '</span></div>' +
+                            '<p class="mt-1 whitespace-pre-wrap text-sm text-gray-700"></p>';
+                        el.querySelector('p').textContent = e.body;
+                        box.prepend(el);
+                        flashBanner('New message from staff');
                     });
 
                 const pusher = window.Echo.connector?.pusher;
