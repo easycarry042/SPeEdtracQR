@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Events\DocumentCommentPosted;
 use App\Events\DocumentStatusUpdated;
+use App\Mail\ActionNeededMail;
 use App\Mail\StatusUpdated;
 use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -52,11 +54,148 @@ class DocumentStatusController extends Controller
         ]);
 
         $target = DocumentStatus::tryFrom($validated['status']);
-        if (! $target) {
-            throw ValidationException::withMessages(['status' => 'Unknown status stage.']);
+        if (! $target || in_array($target, [DocumentStatus::OnHold, DocumentStatus::Completed], true)) {
+            // On Hold has its own endpoint (it needs a reason); Completed is reached via advance().
+            throw ValidationException::withMessages(['status' => 'Unknown or disallowed status stage.']);
         }
 
         return $this->transition($document, $target, 'Set status');
+    }
+
+    /**
+     * Park a blocked document (waiting on the citizen, an external office, or a
+     * future date). Requires a reason. The SLA clock PAUSES: we leave
+     * status_changed_at and the SLA-notified markers untouched so the stage
+     * resumes cleanly on un-hold, and On Hold has a null SLA so the sweep skips it.
+     */
+    public function hold(Request $request, Document $document)
+    {
+        $this->authorizeChange($document);
+
+        $stage = $document->statusEnum();
+        if ($stage === DocumentStatus::OnHold) {
+            return $this->fail('This document is already on hold.');
+        }
+        if ($stage->isTerminal()) {
+            return $this->fail('A completed document cannot be put on hold.');
+        }
+
+        $validated = $request->validate([
+            'hold_reason' => ['required', 'string', 'max:1000'],
+            'blocked_by' => ['required', Rule::in(Document::BLOCKED_BY)],
+            'hold_until' => ['nullable', 'date', 'after_or_equal:today'],
+        ]);
+
+        $document->forceFill([
+            'status_before_hold' => $document->status,
+            'status' => DocumentStatus::OnHold->value,
+            'hold_reason' => $validated['hold_reason'],
+            'blocked_by' => $validated['blocked_by'],
+            'hold_until' => $validated['hold_until'] ?? null,
+            'held_at' => now(),
+            'held_by' => auth()->id(),
+        ])->save();
+
+        $actor = auth()->user()?->name ?? 'Staff';
+
+        activity()
+            ->performedOn($document)
+            ->causedBy(auth()->user())
+            ->withProperties(['blocked_by' => $validated['blocked_by'], 'hold_until' => $validated['hold_until'] ?? null])
+            ->log("On hold (waiting on {$validated['blocked_by']}): {$validated['hold_reason']}");
+
+        DocumentStatusUpdated::dispatch($document, auth()->user());
+
+        $systemComment = $document->logSystemComment("Put on hold by {$actor} — waiting on {$validated['blocked_by']}: {$validated['hold_reason']}");
+        DocumentCommentPosted::dispatch($systemComment);
+
+        if ($validated['blocked_by'] === 'citizen') {
+            $this->notifyCitizenActionNeeded($document);
+        }
+
+        return $this->respond($document, DocumentStatus::OnHold, 'Document placed on hold.');
+    }
+
+    /**
+     * Manually lift a hold (never automatic). Restores the pre-hold stage and
+     * resumes the SLA exactly where it paused by shifting status_changed_at
+     * forward by the hold duration — the hold window is not counted against SLA.
+     */
+    public function unhold(Document $document)
+    {
+        $this->authorizeChange($document);
+
+        if ($document->statusEnum() !== DocumentStatus::OnHold) {
+            return $this->fail('This document is not on hold.');
+        }
+
+        $restored = DocumentStatus::fromLoose($document->status_before_hold, DocumentStatus::InProgress);
+
+        // Resume the stage clock: push the anchor forward by however long the hold lasted.
+        if ($document->status_changed_at && $document->held_at) {
+            $paused = $document->held_at->diffInSeconds(now());
+            $document->status_changed_at = $document->status_changed_at->copy()->addSeconds($paused);
+        } elseif (! $document->status_changed_at) {
+            $document->status_changed_at = now();
+        }
+
+        $document->forceFill([
+            'status' => $restored->value,
+            'status_before_hold' => null,
+            'hold_reason' => null,
+            'hold_until' => null,
+            'blocked_by' => null,
+            'held_at' => null,
+            'held_by' => null,
+        ])->save();
+
+        $actor = auth()->user()?->name ?? 'Staff';
+
+        activity()
+            ->performedOn($document)
+            ->causedBy(auth()->user())
+            ->log("Resumed from hold → {$restored->label()}");
+
+        DocumentStatusUpdated::dispatch($document, auth()->user());
+
+        $systemComment = $document->logSystemComment("Resumed from hold → {$restored->label()} (by {$actor})");
+        DocumentCommentPosted::dispatch($systemComment);
+
+        return $this->respond($document, $restored, "Hold lifted — back to {$restored->label()}.");
+    }
+
+    /** Citizen "action needed" email when a hold is blocked on the citizen. Same gate as notifyCitizen(). */
+    private function notifyCitizenActionNeeded(Document $document): void
+    {
+        if (! config('tracking.notify_citizen.enabled', true)) {
+            return;
+        }
+        if (! ($document->notify_citizen ?? true) || ! $document->citizen_email) {
+            return;
+        }
+        if (! config('tracking.notify_citizen.stages.'.DocumentStatus::OnHold->value, false)) {
+            return;
+        }
+
+        Mail::to($document->citizen_email)->send(new ActionNeededMail($document));
+
+        activity()
+            ->performedOn($document)
+            ->causedBy(auth()->user())
+            ->log('Emailed ActionNeeded (on hold) to citizen');
+    }
+
+    private function respond(Document $document, DocumentStatus $stage, string $message)
+    {
+        if (request()->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'status' => $document->status,
+                'status_label' => $stage->label(),
+            ]);
+        }
+
+        return back()->with('status', $message);
     }
 
     private function transition(Document $document, DocumentStatus $to, string $verb)

@@ -14,9 +14,7 @@ class PublicController extends Controller
     public function track($trackingNumber)
     {
         $document = Document::where('tracking_number', $trackingNumber)
-            ->with(['scans' => function ($q) {
-                $q->orderBy('scanned_at', 'asc');
-            }, 'scans.department'])
+            ->with('assignedTo')
             ->firstOrFail();
 
         return view('public.track', compact('document'));

@@ -28,7 +28,7 @@
         $slaState = $kpis['sla_rate'] === null ? 'muted' : ($kpis['sla_rate'] >= 90 ? 'green' : ($kpis['sla_rate'] >= 75 ? 'amber' : 'red'));
     @endphp
 
-    <div class="sp-grid sp-grid-wide">
+    <div class="sp-grid sp-grid-contained">
 
         {{-- ── Region A: identity rail ─────────────────────────────────────── --}}
         <aside class="sp-rail">
@@ -102,7 +102,11 @@
                     <div style="font-size:13px;font-weight:700;color:var(--green-deep);margin-bottom:8px;">My Worklist</div>
                     @forelse($worklist as $doc)
                         <a href="{{ route('track.show', $doc->tracking_number) }}" class="sp-row">
-                            <div><div class="ty">{{ $doc->document_type }}</div><span class="code">{{ $doc->tracking_number }}</span></div>
+                            <div>
+                                <div class="ty">{{ $doc->document_type }}</div>
+                                <span class="code">{{ $doc->tracking_number }}</span>
+                                @include('staff.partials.hold-note', ['doc' => $doc])
+                            </div>
                             <x-status-badge :status="$doc->status" />
                         </a>
                     @empty
@@ -158,6 +162,7 @@
                             <div>
                                 <div class="ty">{{ $doc->document_type }}</div>
                                 <span class="code">{{ $doc->tracking_number }}</span>
+                                @include('staff.partials.hold-note', ['doc' => $doc])
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
                                 @if($doc->overdue)<span class="pill p-red">At risk</span>@endif

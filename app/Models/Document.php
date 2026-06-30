@@ -36,7 +36,16 @@ class Document extends Model
         'sla_warning_notified_at',
         'sla_breach_notified_at',
         'sla_breached_at',
+        'status_before_hold',
+        'hold_reason',
+        'hold_until',
+        'blocked_by',
+        'held_at',
+        'held_by',
     ];
+
+    /** Allowed values for the `blocked_by` hold tag. */
+    public const BLOCKED_BY = ['citizen', 'internal', 'external'];
 
     protected $casts = [
         'received_at' => 'datetime',
@@ -47,6 +56,8 @@ class Document extends Model
         'sla_breach_notified_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'notify_citizen' => 'boolean',
+        'hold_until' => 'date',
+        'held_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -55,6 +66,7 @@ class Document extends Model
             ->logOnly([
                 'tracking_number', 'status', 'assigned_to',
                 'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
+                'hold_reason', 'hold_until', 'blocked_by', 'status_before_hold',
             ])
             ->logOnlyDirty();
     }
@@ -103,6 +115,12 @@ class Document extends Model
     public function assignedBy()
     {
         return $this->belongsTo(User::class, 'assigned_by');
+    }
+
+    /** Staff member / admin who placed the document on hold. */
+    public function heldBy()
+    {
+        return $this->belongsTo(User::class, 'held_by');
     }
 
     public function attachments()

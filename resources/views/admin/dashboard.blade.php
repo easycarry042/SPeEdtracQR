@@ -44,8 +44,8 @@
         $tputMax = max(1, collect($throughput)->max('created') ?? 0, collect($throughput)->max('completed') ?? 0);
 
         // Status distribution donut (stage palette: gray→brass→gold→green→deep→amber)
-        $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309'];
-        $sd = $donut($statusDistribution->values()->map(fn ($r, $i) => [$r['label'], $r['value'], $stageColors[$i % 6]])->all());
+        $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309', '#d8920f'];
+        $sd = $donut($statusDistribution->values()->map(fn ($r, $i) => [$r['label'], $r['value'], $stageColors[$i % count($stageColors)]])->all());
 
         // Bottlenecks donut
         $bt = $donut([

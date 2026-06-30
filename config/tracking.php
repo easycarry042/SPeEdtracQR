@@ -31,6 +31,8 @@ return [
             DocumentStatus::Approved->value => true,
             DocumentStatus::Completed->value => true,
             DocumentStatus::Returned->value => true,
+            // "Action needed" email when a hold is blocked on the citizen.
+            DocumentStatus::OnHold->value => true,
         ],
     ],
 

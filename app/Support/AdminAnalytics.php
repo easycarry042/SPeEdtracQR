@@ -260,13 +260,16 @@ class AdminAnalytics
             }
         }
 
-        return collect(DocumentStatus::cases())->map(fn (DocumentStatus $s) => [
-            'label' => $s->label(),
-            'hours' => isset($count[$s->value]) && $count[$s->value] > 0
-                ? round($sum[$s->value] / $count[$s->value], 1)
-                : 0.0,
-            'band' => $s->band(),
-        ]);
+        return collect(DocumentStatus::cases())
+            ->reject(fn (DocumentStatus $s) => $s === DocumentStatus::OnHold) // paused time isn't a "slow stage"
+            ->map(fn (DocumentStatus $s) => [
+                'label' => $s->label(),
+                'hours' => isset($count[$s->value]) && $count[$s->value] > 0
+                    ? round($sum[$s->value] / $count[$s->value], 1)
+                    : 0.0,
+                'band' => $s->band(),
+            ])
+            ->values();
     }
 
     /** "What volume by type?" — created in window, top 6. */
@@ -484,11 +487,14 @@ class AdminAnalytics
 
     private function emptyStageSeries(): Collection
     {
-        return collect(DocumentStatus::cases())->map(fn (DocumentStatus $s) => [
-            'label' => $s->label(),
-            'hours' => 0.0,
-            'band' => $s->band(),
-        ]);
+        return collect(DocumentStatus::cases())
+            ->reject(fn (DocumentStatus $s) => $s === DocumentStatus::OnHold)
+            ->map(fn (DocumentStatus $s) => [
+                'label' => $s->label(),
+                'hours' => 0.0,
+                'band' => $s->band(),
+            ])
+            ->values();
     }
 
     /**

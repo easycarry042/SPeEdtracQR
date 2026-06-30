@@ -12,6 +12,8 @@
         'rejected' => ['class' => 'p-red', 'label' => 'Rejected'],
         'returned' => ['class' => 'p-red', 'label' => 'Returned'],
         'completed' => ['class' => 'p-green', 'label' => 'Completed'],
+        // Blocked/waiting — amber warning, distinct from Returned's red.
+        'on_hold' => ['class' => 'p-hold', 'label' => 'On Hold'],
     ];
     $style = $map[$normalized] ?? $map['pending'];
 @endphp

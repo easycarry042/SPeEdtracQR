@@ -162,6 +162,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Manual status progression by the assigned staff member (or an admin).
     Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');
     Route::patch('/documents/{document}/status/revert', [DocumentStatusController::class, 'revert'])->name('documents.status.revert');
+    Route::patch('/documents/{document}/hold', [DocumentStatusController::class, 'hold'])->name('documents.status.hold');
+    Route::patch('/documents/{document}/unhold', [DocumentStatusController::class, 'unhold'])->name('documents.status.unhold');
     Route::patch('/documents/{document}/status', [DocumentStatusController::class, 'set'])->name('documents.status.set');
 
     Route::middleware('permission:view reports')->group(function () {

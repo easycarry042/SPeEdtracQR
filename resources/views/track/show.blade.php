@@ -66,17 +66,6 @@
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                         Edit details
                     </a>
-                    @if($document->scans->isNotEmpty())
-                        <form method="POST" action="{{ route('documents.undo-scan', $document) }}"
-                              onsubmit="return confirm('Undo the most recent scan for this document? It will revert to its previous location.')">
-                            @csrf
-                            <button type="submit"
-                                    class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                                Undo last scan
-                            </button>
-                        </form>
-                    @endif
                 @endunless
             </div>
 
@@ -102,10 +91,6 @@
                     <a href="{{ route('scan.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
                         Open scanner
                     </a>
-                </div>
-                <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-left text-sm text-amber-950">
-                    <p class="font-semibold">Recording a handoff between departments</p>
-                    <p class="mt-1 text-amber-900/90">Use <strong>Scan</strong> (sidebar): pick the <strong>department</strong> that has the paper, then tap <strong>IN</strong> when it arrives there, or <strong>OUT</strong> when it is sent to the next office. Routing uses your <strong>Routing rules</strong> for that document type.</p>
                 </div>
             @endunless
 

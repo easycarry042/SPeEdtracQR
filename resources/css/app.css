@@ -565,8 +565,6 @@ aside.sidebar-pinned {
     }
 }
 
-}
-
 .topnav-pagebar {
     border-bottom: 1px solid var(--hairline);
     background: rgba(251,252,251,.92); backdrop-filter: blur(8px);
@@ -582,11 +580,28 @@ aside.sidebar-pinned {
 .topnav-main { flex: 1; width: 100%; padding-block: 1rem 2.5rem; }
 @media (min-width: 1024px) { .topnav-main { padding-block: 1.25rem 3rem; } }
 
-.sp-grid-wide {
+/* Profile page: contained, centered column so it has "length" and does not
+   stretch edge-to-edge in the full-width topnav shell (matches the super-admin
+   dashboard's contained feel). */
+.sp-grid-contained {
     width: 100%;
+    max-width: 72rem; /* ~max-w-6xl — comfortable reading column, leaves side margins */
+    margin-inline: auto;
     grid-template-columns: var(--app-profile-rail) minmax(0, 1fr);
     gap: 24px;
 }
+
+/* ── On Hold / Waiting — amber "paused" treatment, distinct from Returned's red ── */
+.step-hold { display: inline-flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 9px; padding: 8px 12px; }
+.step-hold svg { margin-top: 1px; flex: none; }
+.btn-step-hold { color: #92400e; border-color: #fcd34d; background: #fffbeb; }
+.btn-step-hold:hover { background: #fef3c7; }
+.step-hold-form { width: 100%; max-width: 360px; background: #fffdf5; border: 1px solid #fcd34d; border-radius: 10px; padding: 12px; }
+.step-hold-form label { display: flex; flex-direction: column; gap: 4px; }
+.step-hold-form textarea, .step-hold-form select, .step-hold-form input { font: inherit; font-size: 13px; border: 1px solid var(--hairline-strong); border-radius: 8px; padding: 7px 9px; background: #fff; color: var(--ink); }
+.p-hold { background: #fffbeb; color: #92400e; }
+.p-hold::before { background: #d8920f; }
+.hold-note { margin-top: 4px; font-size: 11px; color: #92400e; }
 
 /* ── Super-admin analytics command center (Direction 1a) ─────────────────── */
 .an-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

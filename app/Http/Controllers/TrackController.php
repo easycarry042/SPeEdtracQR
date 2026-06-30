@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 use Illuminate\Http\Request;
+use Spatie\Activitylog\Models\Activity;
 
 class TrackController extends Controller
 {
@@ -46,9 +47,7 @@ class TrackController extends Controller
     public function show($trackingNumber)
     {
         $document = Document::where('tracking_number', $trackingNumber)
-            ->with(['scans' => function ($q) {
-                $q->orderBy('scanned_at', 'asc');
-            }, 'scans.user', 'attachments'])
+            ->with('attachments')
             ->firstOrFail();
 
         if (auth()->user()?->can('manage system')) {
@@ -81,18 +80,26 @@ class TrackController extends Controller
         $isLastStop = true;
         $nextDepartment = null;
 
-        $timeline = $document->scans->map(function ($scan) {
-            $firstName = explode(' ', $scan->user->name ?? 'System')[0];
-            $event = $scan->action === 'in'
-                ? "Received by {$firstName}"
-                : "Handed over by {$firstName}";
+        // Timeline of status-stage changes, reconstructed from the activity log
+        // (manual model — no IN/OUT scans).
+        $timeline = Activity::where('subject_type', $document->getMorphClass())
+            ->where('subject_id', $document->id)
+            ->orderBy('created_at')
+            ->get()
+            ->map(function ($activity) {
+                $to = data_get($activity->properties, 'attributes.status');
+                if (! $to) {
+                    return null;
+                }
 
-            return [
-                'event' => $event,
-                'timestamp' => optional($scan->scanned_at)->format('M d, Y h:i A'),
-                'action' => $scan->action,
-            ];
-        })->values();
+                return [
+                    'event' => 'Updated to '.DocumentStatus::fromLoose($to)->label(),
+                    'timestamp' => optional($activity->created_at)->format('M d, Y h:i A'),
+                    'action' => 'in',
+                ];
+            })
+            ->filter()
+            ->values();
 
         $prediction = null;
         $anomaly = null;

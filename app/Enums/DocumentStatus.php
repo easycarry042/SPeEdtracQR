@@ -21,6 +21,7 @@ enum DocumentStatus: string
     case Approved = 'approved';
     case Completed = 'completed';
     case Returned = 'returned'; // side state — off the linear flow
+    case OnHold = 'on_hold';    // side state — blocked/waiting; SLA paused
 
     /** EDIT LABELS HERE. */
     public function label(): string
@@ -32,6 +33,7 @@ enum DocumentStatus: string
             self::Approved => 'Approved',
             self::Completed => 'Completed',
             self::Returned => 'Returned / For Revision',
+            self::OnHold => 'On Hold',
         };
     }
 
@@ -115,14 +117,18 @@ enum DocumentStatus: string
             self::InProgress => 72,
             self::InReview => 48,
             self::Approved => 24,
-            self::Completed, self::Returned => null,
+            // Terminal + off-line side states have no SLA. On Hold PAUSES the
+            // clock — a null budget means isOverdue() is always false and the
+            // hourly CheckDocumentSla sweep skips it.
+            self::Completed, self::Returned, self::OnHold => null,
         };
     }
 
     /**
      * Civic Record colour band for the stepper / badge.
      * green = done/active · brass = in progress/review · gray = not reached ·
-     * warn = returned. The CSS classes live in resources/css/app.css.
+     * warn = returned · hold = blocked/waiting (amber). The CSS classes live in
+     * resources/css/app.css.
      */
     public function band(): string
     {
@@ -130,6 +136,7 @@ enum DocumentStatus: string
             self::Completed, self::Approved => 'green',
             self::InProgress, self::InReview => 'brass',
             self::Returned => 'warn',
+            self::OnHold => 'hold',
             self::Pending => 'muted',
         };
     }

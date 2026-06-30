@@ -18,7 +18,6 @@ class MoveToMysql extends Command
 
     /** @var list<string> */
     private array $tableOrder = [
-        'departments',
         'users',
         'permissions',
         'roles',
@@ -26,11 +25,7 @@ class MoveToMysql extends Command
         'model_has_permissions',
         'model_has_roles',
         'documents',
-        'routing_rules',
-        'document_route_steps',
-        'document_scans',
         'document_attachments',
-        'department_notifications',
         'activity_log',
         'password_reset_tokens',
         'sessions',
