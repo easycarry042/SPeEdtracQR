@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="page-shell page-shell-loose">
 
         {{-- Filters --}}
         <form method="GET" class="flex flex-wrap gap-3">

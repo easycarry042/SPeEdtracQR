@@ -60,23 +60,6 @@ class AssignmentScope
         });
     }
 
-    public static function applyScanScope(Builder $query, ?User $user = null): Builder
-    {
-        $user ??= auth()->user();
-
-        if (! $user) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        if (self::canViewAll($user)) {
-            return $query;
-        }
-
-        return $query->whereHas('document', function (Builder $doc) use ($user) {
-            self::applyDocumentScope($doc, $user);
-        });
-    }
-
     public static function userCanAccessDocument(Document $document, ?User $user = null): bool
     {
         $user ??= auth()->user();

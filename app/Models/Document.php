@@ -23,7 +23,6 @@ class Document extends Model
         'description',
         'purpose',
         'status',
-        'current_department_id',
         'created_by',
         'assigned_to',
         'assigned_by',
@@ -54,7 +53,7 @@ class Document extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'tracking_number', 'status', 'assigned_to', 'current_department_id',
+                'tracking_number', 'status', 'assigned_to',
                 'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
             ])
             ->logOnlyDirty();
@@ -89,16 +88,6 @@ class Document extends Model
         $this->completed_at = $status->isTerminal() ? now() : null;
     }
 
-    public function scans()
-    {
-        return $this->hasMany(DocumentScan::class)->orderBy('scanned_at', 'desc');
-    }
-
-    public function currentDepartment()
-    {
-        return $this->belongsTo(Department::class, 'current_department_id');
-    }
-
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -114,16 +103,6 @@ class Document extends Model
     public function assignedBy()
     {
         return $this->belongsTo(User::class, 'assigned_by');
-    }
-
-    /**
-     * @deprecated Routing-era (department chain). Advancement is now manual via
-     * DocumentStatus stages; this relation is retained read-only for legacy data
-     * and is no longer populated. Slated for removal with the route_steps table.
-     */
-    public function routeSteps()
-    {
-        return $this->hasMany(DocumentRouteStep::class)->orderBy('step_order');
     }
 
     public function attachments()
@@ -157,85 +136,10 @@ class Document extends Model
         ]);
     }
 
-    public function isAtLastRouteStop(): bool
-    {
-        $chain = $this->getRoutingChain();
-
-        if ($chain->isEmpty()) {
-            return true;
-        }
-
-        return (int) $this->current_department_id === (int) $chain->last()->id;
-    }
-
-    public function isOnRoutingPath(int $departmentId): bool
-    {
-        if ($this->relationLoaded('routeSteps')) {
-            return $this->routeSteps->contains('department_id', $departmentId);
-        }
-
-        return $this->routeSteps()->where('department_id', $departmentId)->exists();
-    }
-
-    public function syncRouteSteps(array $departmentIds): void
-    {
-        $this->routeSteps()->delete();
-
-        $order = 1;
-        foreach (array_values(array_unique(array_map('intval', $departmentIds))) as $departmentId) {
-            if ($departmentId <= 0) {
-                continue;
-            }
-
-            $this->routeSteps()->create([
-                'department_id' => $departmentId,
-                'step_order' => $order++,
-            ]);
-        }
-    }
-
-    /**
-     * The ordered chain of departments for this document. `route_steps` is the
-     * single source of truth — RoutingRule only seeds defaults at creation time
-     * (see DocumentWebController) and as a one-off backfill for legacy documents.
-     */
-    public function getRoutingChain()
-    {
-        $steps = $this->relationLoaded('routeSteps')
-            ? $this->routeSteps
-            : $this->routeSteps()->with('department')->get();
-
-        return $steps->map(fn ($step) => $step->department)->filter()->values();
-    }
-
     // Backward-compatible helper. Primary generation lives in QrCodeService.
     public static function generateTrackingNumber()
     {
         return 'SPD-'.date('Ymd').'-'.strtoupper(uniqid());
-    }
-
-    /**
-     * @deprecated Routing-era positional advancement. Documents are advanced
-     * manually through DocumentStatus stages; nothing calls this anymore.
-     */
-    public function getNextDepartment(): ?Department
-    {
-        if (! $this->current_department_id) {
-            return null;
-        }
-
-        $steps = $this->relationLoaded('routeSteps')
-            ? $this->routeSteps
-            : $this->routeSteps()->orderBy('step_order')->get();
-
-        $ids = $steps->sortBy('step_order')->pluck('department_id')->values();
-        $index = $ids->search($this->current_department_id);
-
-        if ($index !== false && isset($ids[$index + 1])) {
-            return Department::find($ids[$index + 1]);
-        }
-
-        return null;
     }
 
     /**

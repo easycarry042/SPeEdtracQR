@@ -78,9 +78,9 @@
                     </span>
 
                     <div>
-                        <p class="text-xs text-gray-400">Current Location</p>
+                        <p class="text-xs text-gray-400">Handled by</p>
                         <p class="text-sm font-semibold text-gray-800" id="currentDept">
-                            {{ $document->currentDepartment->name ?? 'Not yet assigned' }}
+                            {{ $document->assignedTo->name ?? 'Not yet assigned' }}
                         </p>
                     </div>
                 </div>

@@ -59,12 +59,4 @@ class User extends Authenticatable
     {
         return $this->hasMany(StaffHighlight::class)->latest();
     }
-
-    /**
-     * Scans performed by this user
-     */
-    public function scans()
-    {
-        return $this->hasMany(DocumentScan::class, 'scanned_by');
-    }
 }

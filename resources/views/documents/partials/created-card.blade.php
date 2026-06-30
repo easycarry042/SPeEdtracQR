@@ -36,8 +36,5 @@
         <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
             Go to My Profile
         </a>
-        <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
-            Back to Dashboard
-        </a>
     </div>
 </div>

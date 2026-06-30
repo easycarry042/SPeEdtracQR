@@ -1,12 +1,12 @@
 <x-app-layout>
-    <div class="mx-auto max-w-6xl space-y-4">
+    <div class="page-shell">
         @if(session('status'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
                 {{ session('status') }}
             </div>
         @endif
 
-        <form method="GET" class="flex gap-2">
+        <form method="GET" class="flex flex-col gap-2 sm:flex-row">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Search tracking, citizen, type"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
             <button class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">Search</button>

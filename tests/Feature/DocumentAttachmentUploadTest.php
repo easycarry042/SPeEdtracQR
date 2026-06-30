@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,17 +18,15 @@ class DocumentAttachmentUploadTest extends TestCase
         Storage::fake('local');
         $this->seedRolesAndPermissions();
 
-        $dept = Department::create(['name' => 'Reception', 'sla_hours' => 48]);
-        $user = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
+        $user = User::factory()->create()->assignRole('staff');
 
         $document = Document::create([
             'tracking_number' => 'SPD-TEST-IMG01',
             'document_type' => 'Business Permit',
-            'status' => 'in_transit',
-            'current_department_id' => $dept->id,
+            'status' => 'in_progress',
             'created_by' => $user->id,
+            'assigned_to' => $user->id,
         ]);
-        $document->syncRouteSteps([$dept->id]);
 
         $response = $this->actingAs($user)->postJson(route('documents.attachments.store', $document), [
             'attachments' => [

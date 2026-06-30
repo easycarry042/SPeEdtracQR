@@ -44,56 +44,14 @@ class ScanController extends Controller
     }
 
     /**
-     * Undo the most recent scan (a mis-scan or premature handoff) and revert the
-     * document to its prior location/status. An OUT is reversed by bringing the
-     * document back to where it last checked in; an IN is simply removed (the IN
-     * did not move it). The correction is written to the activity log.
+     * @deprecated Routing-era scan undo. There are no IN/OUT scans to undo under
+     * the manual status model — use the document's status controls (Move back)
+     * via DocumentStatusController instead.
      */
     public function undoLast(Document $document)
     {
-        $this->ensureCanScan();
-
-        $last = $document->scans()->first();
-        if (! $last) {
-            return back()->withErrors(['undo' => 'There is no scan to undo for this document.']);
-        }
-
-        $undoneAction = $last->action;
-        $undoneDeptName = $last->department->name ?? null;
-        $last->delete();
-
-        $remaining = $document->scans()->get();
-        $latestIn = $remaining->firstWhere('action', 'in');
-
-        if ($remaining->isEmpty()) {
-            $document->current_department_id = null;
-            $document->status = 'pending';
-        } elseif ($undoneAction === 'out') {
-            // Document had been forwarded; return it to its last check-in point.
-            $document->current_department_id = $latestIn?->department_id;
-            $document->status = $latestIn ? 'in_transit' : 'pending';
-        } else {
-            // Removed an arrival scan; it stays where it physically was.
-            $document->status = 'in_transit';
-        }
-        $document->completed_at = null;
-        $document->save();
-
-        activity()
-            ->performedOn($document)
-            ->causedBy(auth()->user())
-            ->log('Undid '.$undoneAction.' scan'.($undoneDeptName ? ' at '.$undoneDeptName : ''));
-
-        return back()->with('status', 'The last scan was undone.');
-    }
-
-    private function ensureCanScan(): void
-    {
-        $user = auth()->user();
-
-        // System administrators manage the org but do not operate scanners.
-        if ($user?->can('manage system') || ! $user?->can('scan documents')) {
-            abort(403, 'You do not have permission to scan documents.');
-        }
+        return response()->json([
+            'message' => 'Scan undo has been retired. Use the document\'s status controls (Move back) instead.',
+        ], 410);
     }
 }

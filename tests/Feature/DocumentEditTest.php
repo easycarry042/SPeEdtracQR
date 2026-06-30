@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,27 +11,23 @@ class DocumentEditTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function documentAt(Department $dept, User $creator): Document
+    private function document(User $creator, ?User $assignee = null): Document
     {
-        $document = Document::create([
+        return Document::create([
             'tracking_number' => 'SPD-EDIT-'.uniqid(),
             'document_type' => 'Business Permit',
             'citizen_name' => 'Old Name',
-            'status' => 'in_transit',
-            'current_department_id' => $dept->id,
+            'status' => 'in_progress',
             'created_by' => $creator->id,
+            'assigned_to' => $assignee?->id,
         ]);
-        $document->syncRouteSteps([$dept->id]);
-
-        return $document;
     }
 
-    public function test_staff_in_department_can_edit_document_details(): void
+    public function test_creator_can_edit_document_details(): void
     {
         $this->seedRolesAndPermissions();
-        $dept = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
-        $user = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
-        $document = $this->documentAt($dept, $user);
+        $user = User::factory()->create()->assignRole('staff');
+        $document = $this->document($user, $user);
 
         $this->actingAs($user)
             ->put(route('documents.update', $document), [
@@ -45,19 +40,16 @@ class DocumentEditTest extends TestCase
         $document->refresh();
         $this->assertSame('New Name', $document->citizen_name);
         $this->assertSame("Mayor's Permit", $document->document_type);
-        // These columns were previously missing, so edits were silently dropped.
         $this->assertSame('09171234567', $document->citizen_contact);
     }
 
-    public function test_staff_from_other_department_cannot_edit(): void
+    public function test_unrelated_staff_cannot_edit(): void
     {
         $this->seedRolesAndPermissions();
-        $deptA = Department::create(['name' => 'Accounting', 'sla_hours' => 48]);
-        $deptB = Department::create(['name' => 'Engineering', 'sla_hours' => 48]);
-        $creator = User::factory()->create(['department_id' => $deptA->id]);
-        $document = $this->documentAt($deptA, $creator);
+        $creator = User::factory()->create()->assignRole('staff');
+        $document = $this->document($creator, $creator);
 
-        $outsider = User::factory()->create(['department_id' => $deptB->id])->assignRole('staff');
+        $outsider = User::factory()->create()->assignRole('staff');
 
         $this->actingAs($outsider)
             ->put(route('documents.update', $document), [

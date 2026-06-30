@@ -30,8 +30,8 @@
     <div class="body">
         <div class="alert-box">
             <p>
-                This document has used approximately <strong>75% of its allowed processing time</strong> in
-                <strong>{{ $department->name }}</strong>. Please prioritise it to avoid an SLA breach.
+                This document has used approximately <strong>75% of its allowed processing time</strong> at the
+                <strong>{{ $document->statusEnum()->label() }}</strong> stage. Please prioritise it to avoid an SLA breach.
             </p>
         </div>
 
@@ -49,16 +49,16 @@
                 <td>{{ $document->citizen_name ?? 'N/A' }}</td>
             </tr>
             <tr>
-                <td>Current Department</td>
-                <td>{{ $department->name }}</td>
+                <td>Current Stage</td>
+                <td>{{ $document->statusEnum()->label() }}</td>
             </tr>
             <tr>
                 <td>SLA Window</td>
-                <td>{{ $department->sla_hours }} hours</td>
+                <td>{{ $document->statusEnum()->slaHours() }} hours</td>
             </tr>
             <tr>
                 <td>Time Remaining</td>
-                <td style="color:#d97706;">~{{ round($department->sla_hours * 0.25) }} hour(s)</td>
+                <td style="color:#d97706;">~{{ round($document->statusEnum()->slaHours() * 0.25) }} hour(s)</td>
             </tr>
         </table>
 

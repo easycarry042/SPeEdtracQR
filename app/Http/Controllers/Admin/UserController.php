@@ -29,12 +29,14 @@ class UserController extends Controller
 
         $users = $query->paginate(20)->withQueryString();
         $roles = $this->assignableRoles();
+
         return view('admin.users.index', compact('users', 'roles'));
     }
 
     public function create()
     {
         $roles = $this->assignableRoles();
+
         return view('admin.users.create', compact('roles'));
     }
 
@@ -63,6 +65,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = $this->assignableRoles();
+
         return view('admin.users.edit', compact('user', 'roles'));
     }
 

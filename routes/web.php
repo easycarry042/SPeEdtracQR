@@ -14,7 +14,6 @@ use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
-use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\ScanController;
@@ -180,8 +179,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');
     Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
-
-    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 });
 
 require __DIR__.'/auth.php';

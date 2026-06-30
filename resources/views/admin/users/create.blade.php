@@ -7,7 +7,7 @@
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-2xl">
+    <div class="page-shell page-shell-narrow">
         <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
             <div class="border-b border-gray-100 px-6 py-4">
                 <h2 class="text-base font-semibold text-gray-800">New User Account</h2>

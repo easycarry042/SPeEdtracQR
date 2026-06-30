@@ -15,7 +15,7 @@ class LogUserLogout
         activity('auth')
             ->causedBy($event->user)
             ->withProperties([
-                'ip'    => request()->ip(),
+                'ip' => request()->ip(),
                 'email' => $event->user->email,
             ])
             ->log('User logged out');

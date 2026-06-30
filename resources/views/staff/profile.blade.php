@@ -28,7 +28,7 @@
         $slaState = $kpis['sla_rate'] === null ? 'muted' : ($kpis['sla_rate'] >= 90 ? 'green' : ($kpis['sla_rate'] >= 75 ? 'amber' : 'red'));
     @endphp
 
-    <div class="sp-grid mx-auto max-w-6xl">
+    <div class="sp-grid sp-grid-wide">
 
         {{-- ── Region A: identity rail ─────────────────────────────────────── --}}
         <aside class="sp-rail">
@@ -127,10 +127,12 @@
                 @endif
             @endif
 
+            <div class="segchips-scroll">
             <div class="segchips">
                 <a href="{{ route('staff.profile', ['user' => $profileUser->id, 'tab' => 'activity']) }}" @class(['on' => $tab === 'activity'])>Activity</a>
                 <a href="{{ route('staff.profile', ['user' => $profileUser->id, 'tab' => 'assigned']) }}" @class(['on' => $tab === 'assigned'])>Assigned · {{ $kpis['assigned'] }}</a>
                 <a href="{{ route('staff.profile', ['user' => $profileUser->id, 'tab' => 'completions']) }}" @class(['on' => $tab === 'completions'])>Completions</a>
+            </div>
             </div>
 
             @if($tab === 'activity')

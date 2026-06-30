@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto w-full max-w-3xl">
         <div class="mb-6 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 text-sm text-emerald-950 shadow-sm">
             <p class="font-semibold">Look up a document</p>
             <ul class="mt-2 list-inside list-disc space-y-1 text-emerald-900/90">
@@ -12,7 +12,7 @@
         <div class="rounded-xl border border-[#e6ece8] bg-white p-5">
             <div id="reader" class="overflow-hidden rounded-lg border border-gray-300"></div>
 
-            <div class="mt-4 flex gap-2">
+            <div class="mt-4 scan-manual">
                 <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXXX"
                        class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono tracking-widest">
                 <button id="manualSubmit" class="rounded-lg bg-[#0f4d28] px-4 py-2 font-bold text-white">Open</button>

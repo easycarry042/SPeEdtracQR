@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl space-y-8">
+    <div class="page-shell page-shell-loose">
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
             <x-stat-card label="Pending Request" :value="$pendingRequest" icon="hourglass" />
@@ -84,8 +84,6 @@
             </div>
         </section>
         @endif
-
-        @include('partials.predictive-insights')
 
         <section class="space-y-4">
             <div class="flex items-center justify-between gap-3">

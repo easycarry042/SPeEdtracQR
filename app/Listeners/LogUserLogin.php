@@ -11,9 +11,9 @@ class LogUserLogin
         activity('auth')
             ->causedBy($event->user)
             ->withProperties([
-                'ip'         => request()->ip(),
+                'ip' => request()->ip(),
                 'user_agent' => request()->userAgent(),
-                'email'      => $event->user->email,
+                'email' => $event->user->email,
             ])
             ->log('User logged in');
     }

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Department;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -13,9 +12,7 @@ class AdminDashboardTest extends TestCase
 
     private function userWithRole(string $role): User
     {
-        $dept = Department::create(['name' => 'Reception '.$role, 'sla_hours' => 48]);
-
-        return User::factory()->create(['department_id' => $dept->id])->assignRole($role);
+        return User::factory()->create()->assignRole($role);
     }
 
     public function test_super_admin_sees_the_analytics_command_center(): void
@@ -31,10 +28,9 @@ class AdminDashboardTest extends TestCase
     public function test_command_center_accepts_filter_params(): void
     {
         $this->seedRolesAndPermissions();
-        $dept = Department::create(['name' => 'Records', 'sla_hours' => 24]);
 
         $this->actingAs($this->userWithRole('super_admin'))
-            ->get(route('admin.dashboard', ['range' => 90, 'department_id' => $dept->id]))
+            ->get(route('admin.dashboard', ['range' => 90]))
             ->assertOk();
     }
 

@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Department;
 use App\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -15,8 +14,7 @@ class SlaWarningMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public Document $document,
-        public Department $department
+        public Document $document
     ) {}
 
     public function envelope(): Envelope

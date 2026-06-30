@@ -17,11 +17,6 @@ trait ScopesByDepartment
         return AssignmentScope::applyDocumentScope($query);
     }
 
-    protected function scopeScans($query)
-    {
-        return AssignmentScope::applyScanScope($query);
-    }
-
     protected function authorizeDocumentAccess(Document $document): void
     {
         if (! AssignmentScope::userCanAccessDocument($document)) {

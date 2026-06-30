@@ -36,12 +36,20 @@
     /* "completed" uses --green on --green-wash */
 
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+    /* Layout frame — content stops growing past this when zooming out / on wide screens */
+    --app-max: 80rem; /* matches max-w-7xl — same as super-admin dashboard */
+    --app-profile-rail: 280px;
+    --app-medium: 48rem;
+    --app-wide: 56rem;
+    --app-narrow: 32rem;
 }
 
 @layer base {
     body {
         background-color: var(--paper);
         color: var(--ink);
+        overflow-x: hidden;
     }
 
     /* Stamped-logbook treatment for reference codes, dates, timestamps. */
@@ -203,7 +211,7 @@
 .step-returned { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: #9a3412; background: #fff7ed; border: 1px solid #f1c7a8; border-radius: 9px; padding: 6px 12px; }
 
 /* ───────────────── Staff profile (identity rail + tabbed feed) ───────────── */
-.sp-grid { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; }
+.sp-grid { display: grid; grid-template-columns: var(--app-profile-rail) minmax(0, 1fr); gap: 20px; align-items: start; }
 @media (max-width: 880px) { .sp-grid { grid-template-columns: 1fr; } .sp-rail { position: static !important; } }
 .sp-rail { position: sticky; top: 16px; align-self: start; }
 
@@ -386,6 +394,198 @@ aside.sidebar-pinned {
     gap: 0.75rem;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
+}
+
+/* ── App frame — fixed max width, centered (stable layout on zoom-out) ─── */
+.app-frame {
+    width: 100%;
+    max-width: var(--app-max);
+    margin-inline: auto;
+    padding-inline: 1rem;
+}
+@media (min-width: 640px) { .app-frame { padding-inline: 1.5rem; } }
+@media (min-width: 1024px) { .app-frame { padding-inline: 2rem; } }
+@media (max-width: 639px) { .app-frame { padding-inline: 0.75rem; } }
+
+/* Page content shell — use inside .app-frame (no duplicate max-width / padding) */
+.page-shell {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.page-shell-loose { gap: 1.5rem; }
+.page-shell-medium { max-width: var(--app-medium); margin-inline: auto; width: 100%; }
+.page-shell-wide { max-width: var(--app-wide); margin-inline: auto; width: 100%; }
+.page-shell-narrow { max-width: var(--app-narrow); margin-inline: auto; width: 100%; }
+
+/* Responsive page title in layout header */
+.layout-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--green-deep);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (min-width: 640px) { .layout-title { font-size: 1.75rem; } }
+@media (min-width: 1024px) { .layout-title { font-size: 2.25rem; } }
+
+/* Tables scroll horizontally on small screens without stretching the page */
+.table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-wrap .reg { min-width: 640px; }
+
+/* Toolbar / filter rows stack cleanly on mobile */
+@media (max-width: 639px) {
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .toolbar .field { width: 100%; }
+    .toolbar .field select { width: 100%; }
+    .toolbar .cr-btn { width: 100%; justify-content: center; }
+}
+
+/* Segmented tabs scroll on narrow screens */
+.segchips-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.segchips-scroll::-webkit-scrollbar { display: none; }
+.segchips-scroll .segchips { min-width: max-content; }
+
+/* List rows stay readable on phones */
+@media (max-width: 480px) {
+    .sp-row { flex-wrap: wrap; align-items: flex-start; }
+    .sp-row > *:last-child { margin-left: auto; }
+    .barrow .nm { width: 88px; font-size: 11.5px; }
+    .barrow .val { width: 36px; font-size: 11px; }
+}
+
+/* Scan / manual entry stacks on mobile */
+.scan-manual { display: flex; gap: .5rem; }
+@media (max-width: 479px) {
+    .scan-manual { flex-direction: column; }
+    .scan-manual button { width: 100%; }
+}
+
+/* ── Top navbar (staff / supervisor) ───────────────────────────────────── */
+.topnav-shell { display: flex; min-height: 100vh; flex-direction: column; }
+.topnav-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--green-deep);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 4px 24px -8px rgba(15,77,40,.35);
+}
+.topnav-inner {
+    display: flex; align-items: center; gap: 1rem;
+    min-height: 3.75rem;
+}
+
+.topnav-brand {
+    display: flex; align-items: center; gap: .65rem;
+    flex-shrink: 0; text-decoration: none; color: inherit;
+}
+.topnav-brand img { height: 1.75rem; width: 1.75rem; }
+.topnav-brand .wordmark { font-size: .95rem; font-weight: 600; color: var(--on-green); letter-spacing: -.02em; }
+.topnav-brand .wordmark b { font-weight: 700; }
+.topnav-brand .sub { display: none; font-size: 10px; color: var(--on-green-soft); }
+@media (min-width: 768px) { .topnav-brand .sub { display: block; } }
+
+.topnav-links {
+    display: none; align-items: center; gap: .25rem;
+    flex: 1 1 auto; min-width: 0; overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none; -ms-overflow-style: none;
+}
+.topnav-links::-webkit-scrollbar { display: none; }
+@media (min-width: 768px) { .topnav-links { display: flex; } }
+
+.topnav-link {
+    display: inline-flex; align-items: center; gap: .45rem;
+    padding: .5rem .85rem; border-radius: .6rem;
+    font-size: .8125rem; font-weight: 600; white-space: nowrap;
+    color: var(--on-green-soft); text-decoration: none;
+    transition: background .15s, color .15s;
+}
+.topnav-link:hover { background: rgba(255,255,255,.08); color: var(--on-green); }
+.topnav-link.on {
+    background: #155f37; color: var(--on-green);
+    box-shadow: inset 0 -2px 0 var(--brass);
+}
+.topnav-link svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
+
+.topnav-actions { display: flex; align-items: center; gap: .5rem; margin-left: auto; flex-shrink: 0; }
+
+.topnav-burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.5rem; height: 2.5rem; flex-shrink: 0;
+    border-radius: .5rem; border: 0; cursor: pointer;
+    color: var(--on-green); background: rgba(255,255,255,.08);
+    transition: background .15s;
+}
+.topnav-burger:hover { background: rgba(255,255,255,.14); }
+.topnav-burger svg { width: 1.35rem; height: 1.35rem; }
+@media (min-width: 768px) { .topnav-burger { display: none; } }
+
+.topnav-drawer {
+    border-top: 1px solid rgba(255,255,255,.08);
+    background: var(--green-deep);
+    box-shadow: 0 12px 32px -8px rgba(15,77,40,.4);
+}
+.topnav-drawer-inner {
+    display: flex; flex-direction: column; gap: .2rem;
+    padding-block: .65rem .85rem;
+}
+.topnav-drawer .topnav-link {
+    width: 100%; justify-content: flex-start;
+    padding: .65rem .85rem;
+}
+
+.topnav-mobile {
+    display: none;
+}
+
+/* Super-admin sidebar: drawer on tablet/phone */
+.sidebar-backdrop {
+    position: fixed; inset: 0; z-index: 55;
+    background: rgba(22, 33, 27, .45);
+    backdrop-filter: blur(2px);
+}
+@media (min-width: 1024px) { .sidebar-backdrop { display: none !important; } }
+
+@media (max-width: 1023px) {
+    .admin-shell > aside {
+        position: fixed !important;
+        left: 0; top: 0;
+        height: 100dvh !important;
+        width: 16rem !important;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        z-index: 60;
+    }
+    .admin-shell.mobile-nav-open > aside {
+        transform: translateX(0);
+        box-shadow: 4px 0 24px -4px rgba(15,77,40,.25);
+    }
+}
+
+}
+
+.topnav-pagebar {
+    border-bottom: 1px solid var(--hairline);
+    background: rgba(251,252,251,.92); backdrop-filter: blur(8px);
+    padding-block: .75rem;
+}
+@media (min-width: 640px) { .topnav-pagebar { padding-block: .85rem; } }
+.topnav-pagebar .app-frame {
+    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+}
+.topnav-pagebar h1 { font-size: 1.25rem; font-weight: 600; color: var(--green-deep); letter-spacing: -.02em; }
+@media (min-width: 640px) { .topnav-pagebar h1 { font-size: 1.75rem; } }
+
+.topnav-main { flex: 1; width: 100%; padding-block: 1rem 2.5rem; }
+@media (min-width: 1024px) { .topnav-main { padding-block: 1.25rem 3rem; } }
+
+.sp-grid-wide {
+    width: 100%;
+    grid-template-columns: var(--app-profile-rail) minmax(0, 1fr);
+    gap: 24px;
 }
 
 /* ── Super-admin analytics command center (Direction 1a) ─────────────────── */

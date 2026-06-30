@@ -89,7 +89,7 @@
         }
     @endphp
 
-    <div class="mx-auto max-w-7xl space-y-4">
+    <div class="page-shell">
 
         {{-- ── Region A: header + filters ──────────────────────────────────── --}}
         <div class="an-header">
@@ -299,6 +299,7 @@
                 @if ($atRisk->isEmpty())
                     <div class="sp-empty">Nothing overdue — the pipeline is on time.</div>
                 @else
+                    <div class="table-wrap">
                     <table class="reg">
                         <thead>
                             <tr><th>Tracking</th><th>Type</th><th>Stage</th><th>Assignee</th><th>Over SLA</th><th></th></tr>
@@ -316,6 +317,7 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 @endif
             </div>
 

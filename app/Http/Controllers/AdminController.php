@@ -33,7 +33,7 @@ class AdminController extends Controller
         $from = Carbon::now()->subDays($range - 1)->startOfDay();
         $to = Carbon::now()->endOfDay();
 
-        $analytics = new AdminAnalytics($from, $to, null, $documentType);
+        $analytics = new AdminAnalytics($from, $to, $documentType);
 
         $filters = [
             'range' => $range,
@@ -52,10 +52,8 @@ class AdminController extends Controller
             'bottlenecks' => $analytics->bottlenecks(),
             'timeByStage' => $analytics->timeByStage(),
             'typeBreakdown' => $analytics->typeBreakdown(),
-            'byDepartment' => collect(),
             'atRisk' => $analytics->atRisk(),
             'fastestStaff' => $analytics->fastestStaff(),
-            'busiestDepartments' => collect(),
             'heatmap' => $analytics->throughputHeatmap(),
         ]);
     }

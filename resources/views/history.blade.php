@@ -73,7 +73,7 @@
                                                 {{ str_replace('_', ' ', ucfirst($doc->status)) }}
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 text-sm">{{ $doc->currentDepartment->name ?? 'None' }}</td>
+                                        <td class="px-6 py-4 text-sm">{{ $doc->assignedTo->name ?? 'Unassigned' }}</td>
                                         <td class="px-6 py-4 text-sm">{{ $doc->created_at->format('Y-m-d H:i') }}</td>
                                         <td class="px-6 py-4 text-sm">
                                             <a href="{{ route('track.show', $doc->tracking_number) }}" class="text-emerald-600 hover:underline">View</a>

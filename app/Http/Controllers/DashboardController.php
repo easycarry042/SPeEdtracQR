@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
-use App\Models\DocumentScan;
 use App\Support\AssignmentScope;
 use Illuminate\Support\Facades\DB;
 
@@ -27,10 +26,6 @@ class DashboardController extends Controller
         $completed = $this->scopeDocuments(Document::query())->where('status', DocumentStatus::Completed->value)->count();
 
         $recentActivity = $this->scopeDocuments(Document::query()->latest('created_at'))->take(5)->get();
-
-        $recentScans = $this->scopeScans(
-            DocumentScan::with(['document', 'user'])->latest('scanned_at')
-        )->take(10)->get();
 
         $statusSummary = $this->scopeDocuments(Document::query())
             ->select('status', DB::raw('COUNT(*) as total'))
@@ -63,24 +58,17 @@ class DashboardController extends Controller
 
         $atRiskCount = $atRiskDocuments->count();
 
-        // ── Routing slip: the single most at-risk in-transit document ─────────
+        // ── Routing slip: the single most at-risk active document ─────────────
         $slip = $this->buildRoutingSlip();
-
-        // ── Predictive insights (self-hosted PredictiveAnalytics engine) ──────
-        $bottlenecks = collect();
-        $anomalies = collect();
 
         return view('dashboard', compact(
             'totalRequests',
             'pendingRequest',
             'completed',
             'recentActivity',
-            'recentScans',
             'statusSummary',
             'atRiskDocuments',
             'atRiskCount',
-            'bottlenecks',
-            'anomalies',
             'dept',
             'isOrgWide',
             'slip'

@@ -27,7 +27,7 @@ class CheckDocumentSla extends Command
 
     public function handle(): int
     {
-        $documents = Document::with(['assignedTo.department'])
+        $documents = Document::with('assignedTo')
             ->whereNotNull('assigned_to')
             ->whereNotNull('status_changed_at')
             ->get();
@@ -49,17 +49,10 @@ class CheckDocumentSla extends Command
                 continue;
             }
 
-            // The mail views still expect a Department for context. Skip rather
-            // than risk a TypeError if neither the assignee nor the document has one.
-            $department = $assignee->department ?? $document->currentDepartment;
-            if (! $department) {
-                continue;
-            }
-
             $elapsed = $document->status_changed_at->diffInHours(now());
 
             if ($elapsed >= $sla && ! $document->sla_breach_notified_at) {
-                Mail::to($assignee->email)->send(new SlaBreachMail($document, $department));
+                Mail::to($assignee->email)->send(new SlaBreachMail($document));
                 $document->forceFill([
                     'sla_breach_notified_at' => now(),
                     // Sticky lifetime marker for the staff SLA-rate KPI (set once).
@@ -69,7 +62,7 @@ class CheckDocumentSla extends Command
             } elseif ($elapsed >= $sla * self::WARNING_RATIO
                 && ! $document->sla_warning_notified_at
                 && ! $document->sla_breach_notified_at) {
-                Mail::to($assignee->email)->send(new SlaWarningMail($document, $department));
+                Mail::to($assignee->email)->send(new SlaWarningMail($document));
                 $document->forceFill(['sla_warning_notified_at' => now()])->save();
                 $warned++;
             }

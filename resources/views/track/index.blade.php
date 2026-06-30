@@ -1,7 +1,7 @@
 <x-app-layout>
     {{-- Shown only when no documents are currently in progress; otherwise
          /track redirects straight to the latest in-progress document. --}}
-    <div class="mx-auto max-w-lg py-6">
+    <div class="mx-auto w-full max-w-lg py-6">
         <div class="rounded-2xl border border-gray-200/90 bg-white p-8 text-center shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>

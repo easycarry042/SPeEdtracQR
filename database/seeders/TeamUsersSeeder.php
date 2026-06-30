@@ -25,8 +25,6 @@ class TeamUsersSeeder extends Seeder
             // Accounting
             ['Jose Reyes',      'jose.reyes@speedtraqr.com',         'staff1234',   'staff'],
 
-            
-            
             // Engineering
             ['Ana Cruz',        'ana.cruz@speedtraqr.com',           'staff1234',   'staff'],
 

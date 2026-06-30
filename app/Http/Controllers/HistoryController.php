@@ -13,7 +13,7 @@ class HistoryController extends Controller
 
     public function index(Request $request)
     {
-        $query = $this->scopeDocuments(Document::query()->with('currentDepartment'));
+        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
 
         $this->applyFilters($query, $request);
 
@@ -26,21 +26,21 @@ class HistoryController extends Controller
 
     public function export(Request $request)
     {
-        $query = $this->scopeDocuments(Document::query()->with('currentDepartment'));
+        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
 
         $this->applyFilters($query, $request);
 
         $documents = $query->orderBy('created_at', 'desc')->get();
 
         $handle = fopen('php://temp', 'w+');
-        fputcsv($handle, ['Tracking Number', 'Document Type', 'Citizen Name', 'Status', 'Current Department', 'Created At']);
+        fputcsv($handle, ['Tracking Number', 'Document Type', 'Citizen Name', 'Status', 'Assignee', 'Created At']);
         foreach ($documents as $doc) {
             fputcsv($handle, [
                 $doc->tracking_number,
                 $doc->document_type,
                 $doc->citizen_name ?? 'N/A',
                 $doc->status,
-                $doc->currentDepartment->name ?? 'None',
+                $doc->assignedTo->name ?? 'Unassigned',
                 $doc->created_at,
             ]);
         }

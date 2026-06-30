@@ -17,11 +17,11 @@ class RoleSeeder extends Seeder
 
         foreach ($roles as $role) {
             Role::firstOrCreate([
-                'name'       => $role,
+                'name' => $role,
                 'guard_name' => 'web',
             ]);
         }
 
-        $this->command->info('Roles seeded: ' . implode(', ', $roles));
+        $this->command->info('Roles seeded: '.implode(', ', $roles));
     }
 }

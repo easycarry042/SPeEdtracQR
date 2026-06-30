@@ -14,7 +14,7 @@
         </x-slot>
     @endguest
 
-    <div class="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
+    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2">
         @unless($isPublicView)
             {{-- Fixed-height panel; the list scrolls inside it --}}
             <div class="flex flex-col rounded-xl border border-[#e6ece8] bg-white p-3 lg:h-[calc(100vh-9rem)]">

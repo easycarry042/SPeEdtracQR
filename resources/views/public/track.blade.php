@@ -18,17 +18,16 @@
                         {{ ucfirst($document->status) }}
                     </span>
                 </p>
-                <p><strong>Current Location:</strong> 
-                    {{ $document->currentDepartment->name ?? 'Not yet assigned' }}
+                <p><strong>Handled by:</strong>
+                    {{ $document->assignedTo->name ?? 'Not yet assigned' }}
                 </p>
                 <hr>
-                <h5>Routing History</h5>
+                <h5>Progress</h5>
                 <ul class="list-group">
-                    @foreach($document->scans as $scan)
+                    @foreach(\App\Enums\DocumentStatus::flow() as $stage)
+                        @php $reached = $document->statusEnum()->position() >= $stage->position(); @endphp
                         <li class="list-group-item d-flex justify-content-between">
-                            <span>{{ $scan->action == 'in' ? '📥 Entered' : '📤 Exited' }}</span>
-                            <span><strong>{{ $scan->department->name }}</strong></span>
-                            <span>{{ $scan->scanned_at->format('M d, Y h:i A') }}</span>
+                            <span>{{ $reached ? '✅' : '⬜' }} {{ $stage->label() }}</span>
                         </li>
                     @endforeach
                 </ul>

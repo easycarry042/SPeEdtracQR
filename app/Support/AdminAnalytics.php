@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Enums\DocumentStatus;
-use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,14 +14,13 @@ use Spatie\Activitylog\Models\Activity;
  * Org-wide read model for the super-admin analytics command center (Direction 1a).
  *
  * Every metric is sourced from the MANUAL status model — documents.status,
- * status_changed_at, completed_at, assigned_to, current_department_id — plus the
- * Spatie activity log for per-stage timing. It deliberately does NOT touch the
- * deprecated scan/routing tables (document_scans / route_steps).
+ * status_changed_at, completed_at, assigned_to — plus the Spatie activity log
+ * for per-stage timing. Department has been removed from the system; analytics
+ * are by-staff and by-document-type only.
  *
- * Two filter dimensions apply everywhere: an optional department and document
- * type (the "slice"). Flow metrics (created/completed throughput, type mix,
- * KPIs) additionally honour the selected date window; snapshot metrics (status
- * distribution, active load, at-risk) describe "now" within the slice.
+ * The document-type "slice" applies everywhere. Flow metrics (created/completed
+ * throughput, type mix, KPIs) additionally honour the selected date window;
+ * snapshot metrics (status distribution, active load, at-risk) describe "now".
  */
 class AdminAnalytics
 {
@@ -39,7 +37,6 @@ class AdminAnalytics
     public function __construct(
         private Carbon $from,
         private Carbon $to,
-        private ?int $departmentId = null,
         private ?string $documentType = null,
     ) {
         // Previous window of equal length, ending just before $from, for deltas.
@@ -285,43 +282,12 @@ class AdminAnalytics
             ->map(fn ($r) => ['label' => $r->document_type, 'value' => (int) $r->total]);
     }
 
-    /** "How do departments compare?" — volume + on-time rate per department. */
-    public function byDepartment(): Collection
-    {
-        $departments = Department::query()
-            ->when($this->departmentId, fn ($q) => $q->whereKey($this->departmentId))
-            ->get(['id', 'name']);
-
-        return $departments->map(function (Department $dept) {
-            $docs = $this->scopedFor($dept->id)
-                ->whereBetween('created_at', [$this->from, $this->to])
-                ->get(['status', 'status_changed_at', 'updated_at', 'created_at', 'sla_breached_at']);
-
-            $volume = $docs->count();
-            $offTrack = $docs->filter(function (Document $d) {
-                if ($d->sla_breached_at) {
-                    return true;
-                }
-
-                return in_array($d->status, DocumentStatus::activeValues(), true) && $d->isOverdue();
-            })->count();
-
-            return [
-                'name' => $dept->name,
-                'volume' => $volume,
-                'on_time' => $volume > 0 ? (int) round(($volume - $offTrack) / $volume * 100) : null,
-            ];
-        })
-            ->sortByDesc('volume')
-            ->values();
-    }
-
     // ── Region D: supporting data ────────────────────────────────────────────
 
     /** "Exactly what needs attention." — overdue active docs, worst first. */
     public function atRisk(int $limit = 12): Collection
     {
-        return $this->activeDocuments(['assignedTo', 'currentDepartment'])
+        return $this->activeDocuments(['assignedTo'])
             ->filter->isOverdue()
             ->map(function (Document $doc) {
                 $stage = $doc->statusEnum();
@@ -332,7 +298,6 @@ class AdminAnalytics
                     'document' => $doc,
                     'stage' => $stage,
                     'assignee' => $doc->assignedTo?->name,
-                    'department' => $doc->currentDepartment?->name,
                     'hours_over' => round($elapsed - ($stage->slaHours() ?? 0), 1),
                     'url' => route('track.show', $doc->tracking_number),
                 ];
@@ -369,12 +334,6 @@ class AdminAnalytics
             ->values();
     }
 
-    /** Ranked widget: departments by volume in window. */
-    public function busiestDepartments(int $limit = 5): Collection
-    {
-        return $this->byDepartment()->take($limit);
-    }
-
     /**
      * Org-wide system throughput: documents processed per day over 26 weeks,
      * shaped for the contribution-style heatmap (weeks × days). "Processed" =
@@ -400,16 +359,10 @@ class AdminAnalytics
 
     // ── internals ────────────────────────────────────────────────────────────
 
-    /** Base query carrying the slice (department + type) filters only. */
+    /** Base query carrying the document-type "slice" filter only. */
     private function scoped(): Builder
     {
-        return $this->scopedFor($this->departmentId);
-    }
-
-    private function scopedFor(?int $departmentId): Builder
-    {
         return Document::query()
-            ->when($departmentId, fn ($q) => $q->where('current_department_id', $departmentId))
             ->when($this->documentType, fn ($q) => $q->where('document_type', $this->documentType));
     }
 

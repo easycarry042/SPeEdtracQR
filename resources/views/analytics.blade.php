@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="page-shell page-shell-loose">
         @php
             /* ---------- donut geometry (document type = shares of a whole) ---------- */
             $palette   = ['#167a3a', '#5cb87f', '#c79a3e', '#0f4d28', '#8fce9f'];

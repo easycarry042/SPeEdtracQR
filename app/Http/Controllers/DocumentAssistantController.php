@@ -23,7 +23,7 @@ class DocumentAssistantController extends Controller
         ]);
 
         $document = Document::where('tracking_number', $trackingNumber)
-            ->with(['scans.department', 'scans.user', 'currentDepartment', 'routeSteps.department'])
+            ->with('assignedTo')
             ->firstOrFail();
 
         $result = $assistant->answer($document, $validated['question']);
