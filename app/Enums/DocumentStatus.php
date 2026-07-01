@@ -22,6 +22,7 @@ enum DocumentStatus: string
     case Completed = 'completed';
     case Returned = 'returned'; // side state — off the linear flow
     case OnHold = 'on_hold';    // side state — blocked/waiting; SLA paused
+    case Denied = 'denied';     // terminal — supervisor rejected the request
 
     /** EDIT LABELS HERE. */
     public function label(): string
@@ -34,6 +35,7 @@ enum DocumentStatus: string
             self::Completed => 'Completed',
             self::Returned => 'Returned / For Revision',
             self::OnHold => 'On Hold',
+            self::Denied => 'Denied',
         };
     }
 
@@ -52,7 +54,7 @@ enum DocumentStatus: string
     /** Stages where the document is finished and the SLA clock stops. */
     public function isTerminal(): bool
     {
-        return $this === self::Completed;
+        return $this === self::Completed || $this === self::Denied;
     }
 
     /** All stored status values. */
@@ -61,12 +63,14 @@ enum DocumentStatus: string
         return array_map(fn (self $s) => $s->value, self::cases());
     }
 
-    /** Open/active stages (everything except Completed) — used for "in progress" counts. */
+    /** Open/active stages (everything except the terminal ones) — used for "in progress" counts. */
     public static function activeValues(): array
     {
+        $terminal = [self::Completed->value, self::Denied->value];
+
         return array_values(array_filter(
             self::values(),
-            fn (string $v) => $v !== self::Completed->value,
+            fn (string $v) => ! in_array($v, $terminal, true),
         ));
     }
 
@@ -120,7 +124,7 @@ enum DocumentStatus: string
             // Terminal + off-line side states have no SLA. On Hold PAUSES the
             // clock — a null budget means isOverdue() is always false and the
             // hourly CheckDocumentSla sweep skips it.
-            self::Completed, self::Returned, self::OnHold => null,
+            self::Completed, self::Returned, self::OnHold, self::Denied => null,
         };
     }
 
@@ -135,7 +139,7 @@ enum DocumentStatus: string
         return match ($this) {
             self::Completed, self::Approved => 'green',
             self::InProgress, self::InReview => 'brass',
-            self::Returned => 'warn',
+            self::Returned, self::Denied => 'warn',
             self::OnHold => 'hold',
             self::Pending => 'muted',
         };

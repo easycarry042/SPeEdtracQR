@@ -51,6 +51,7 @@ class PublicTicketController extends Controller
             'consent' => 'accepted',
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
+            'attachments.*.mimes' => 'Each file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -80,7 +81,6 @@ class PublicTicketController extends Controller
             $document,
             collect($request->file('attachments', []))->filter()->all(),
             null,
-            null,
         );
 
         activity()
@@ -92,7 +92,10 @@ class PublicTicketController extends Controller
             activity()->performedOn($document)->log('Emailed TicketSubmitted to citizen');
         }
 
-        return redirect()->route('track.show', $trackingNumber)
-            ->with('ticket_submitted', $trackingNumber);
+        // Show the QR + tracking number first (do NOT jump straight to the
+        // tracker) so the citizen can save the QR before navigating away.
+        return view('public.request-submitted', [
+            'document' => $document->fresh(),
+        ]);
     }
 }

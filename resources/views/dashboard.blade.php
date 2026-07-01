@@ -85,9 +85,15 @@
         </section>
         @endif
 
-        <section class="space-y-4">
+        <section class="space-y-4" x-data="reviewPanel(@js([
+            'requests' => $pendingPayload,
+            'mode' => 'supervisor',
+            'staff' => $assignableStaff,
+            'assignBase' => url('/documents'),
+            'denyBase' => url('/documents'),
+        ]))">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Recent Activity</h2>
+                <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Requests</h2>
                 <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
                     Show all
                     <span aria-hidden="true">›</span>
@@ -105,42 +111,44 @@
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Date</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Category</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Status</th>
+                                <th scope="col" class="px-4 py-3.5 text-right text-xs font-semibold tracking-wider text-gray-600">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                            @forelse($recentActivity as $activity)
-                                <x-document-row
-                                    class="activity-row even:bg-gray-50/50"
-                                    :index="$loop->iteration"
-                                    :date="$activity->created_at->format('M j, Y')"
-                                    :tracking="$activity->tracking_number"
-                                    :fileName="$activity->citizen_name ?: 'File '.substr($activity->tracking_number, -5)"
-                                    :category="$activity->document_type"
-                                    :status="$activity->status"
-                                />
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="px-4 py-12 text-center">
-                                        <div class="mx-auto flex max-w-sm flex-col items-center">
-                                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                                                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-                                            </div>
-                                            <p class="mt-3 text-sm font-semibold text-gray-700">No documents yet</p>
-                                            <p class="mt-1 text-sm text-gray-500">Create the first submission to start tracking it through the office.</p>
-                                            @can('create documents')
-                                            <button type="button" onclick="openCreateDocumentModal()" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                                New Submission
-                                            </button>
-                                            @endcan
-                                        </div>
+                            <template x-for="(req, i) in requests" :key="req.id">
+                                <tr class="even:bg-gray-50/50">
+                                    <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="i + 1"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-800" x-text="req.citizen_name || ('File ' + req.tracking_number.slice(-5))"></td>
+                                    <td class="px-4 py-3"><span class="font-mono text-sm font-semibold text-emerald-800" x-text="req.tracking_number"></span></td>
+                                    <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="req.submitted_at"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="req.document_type"></td>
+                                    <td class="px-4 py-3"><span class="pill p-muted">Pending</span></td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button type="button" @click="open(req)"
+                                                class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.46 12C3.73 7.94 7.52 5 12 5s8.27 2.94 9.54 7c-1.27 4.06-5.06 7-9.54 7s-8.27-2.94-9.54-7z"/></svg>
+                                            Review
+                                        </button>
                                     </td>
                                 </tr>
-                            @endforelse
+                            </template>
+                            <tr x-show="requests.length === 0">
+                                <td colspan="7" class="px-4 py-12 text-center">
+                                    <div class="mx-auto flex max-w-sm flex-col items-center">
+                                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                                            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                                        </div>
+                                        <p class="mt-3 text-sm font-semibold text-gray-700">No pending requests</p>
+                                        <p class="mt-1 text-sm text-gray-500">New citizen submissions awaiting approval will appear here.</p>
+                                    </div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            @include('partials.review-modal', ['mode' => 'supervisor'])
         </section>
     </div>
 </x-app-layout>

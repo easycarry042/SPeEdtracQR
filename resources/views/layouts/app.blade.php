@@ -23,10 +23,11 @@
     $isSystemAdmin = $user?->can('manage system') ?? false;
     $isSupervisor = $user?->hasRole('Supervisor') ?? false;
     $useTopNav = auth()->check() && ! $isSystemAdmin;
-    $homeRoute = $isSupervisor ? route('admin.dashboard') : route('staff.profile', ['user' => auth()->id()]);
-    $homeActive = $isSupervisor ? request()->routeIs('admin.dashboard') : request()->routeIs('staff.profile');
+    $homeRoute = $isSupervisor ? route('dashboard') : route('staff.profile', ['user' => auth()->id()]);
+    $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.profile');
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',
+        request()->routeIs('staff.dashboard') => 'Requests',
         request()->routeIs('dashboard'), request()->routeIs('admin.dashboard') => 'Dashboard',
         request()->routeIs('analytics*') => 'Analytics',
         request()->routeIs('track.*') => 'Track Document',

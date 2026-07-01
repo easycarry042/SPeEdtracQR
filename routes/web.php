@@ -16,7 +16,9 @@ use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
 use Illuminate\Support\Facades\Route;
@@ -34,8 +36,14 @@ Route::get('/', function () {
 
     $user = auth()->user();
 
-    if ($user->can('manage system') || $user->hasRole('Supervisor') || $user->hasRole('department_admin')) {
+    // super_admin gets the org-wide analytics command center; supervisors get the
+    // operational Requests dashboard (they cannot access admin.dashboard).
+    if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
+    }
+
+    if ($user->hasRole('Supervisor') || $user->hasRole('department_admin')) {
+        return redirect()->route('dashboard');
     }
 
     return redirect()->route('staff.profile', ['user' => $user->id]);
@@ -136,10 +144,21 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Staff directory + quick search (any staff can view any profile — transparency model).
-    // Registered BEFORE /staff/{user} so the literal paths win over route-model binding.
+    // Staff directory + quick search (any staff can view any profile).
     Route::get('/staff', [StaffProfileController::class, 'index'])->name('staff.index');
     Route::get('/staff/search', [StaffProfileController::class, 'search'])->name('staff.search');
+
+    // Staff operational dashboard — requests assigned to the authenticated staff member.
+    Route::get('/my-dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
+
+    // Supervisor approve = assign to staff + move to In Progress.
+    Route::post('/documents/{document}/assign-approve', [ReviewController::class, 'assignApprove'])->name('documents.assign-approve');
+    // Supervisor deny = reject the request (terminal).
+    Route::post('/documents/{document}/deny', [ReviewController::class, 'deny'])->name('documents.deny');
+
+    // Staff review lifecycle: open (→ In Review) and approve (→ Completed).
+    Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
+    Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
 
     // Staff profile (identity rail + activity feed). Viewable by any staff user.
     Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');

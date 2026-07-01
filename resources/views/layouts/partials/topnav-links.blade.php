@@ -12,6 +12,13 @@
     @endif
 </a>
 
+@unless($isSupervisor)
+<a href="{{ route('staff.dashboard') }}" class="{{ $link(request()->routeIs('staff.dashboard')) }}">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    Requests
+</a>
+@endunless
+
 @can('view reports')
 <a href="{{ route('analytics') }}" class="{{ $link(request()->routeIs('analytics*')) }}">
     <svg fill="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="10" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>

@@ -69,16 +69,13 @@
 
                 <div class="flex items-center justify-between border-t border-gray-100 pt-4">
                     @if($user->id !== auth()->id())
-                        <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="m-0">
-                            @csrf @method('PATCH')
-                            <button type="submit"
-                                    class="rounded-xl border px-4 py-2.5 text-sm font-semibold transition
-                                        {{ $user->is_active
-                                            ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
-                                            : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' }}">
-                                {{ $user->is_active ? 'Deactivate Account' : 'Activate Account' }}
-                            </button>
-                        </form>
+                        <button type="submit" form="toggle-active-form"
+                                class="rounded-xl border px-4 py-2.5 text-sm font-semibold transition
+                                    {{ $user->is_active
+                                        ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
+                                        : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' }}">
+                            {{ $user->is_active ? 'Deactivate Account' : 'Activate Account' }}
+                        </button>
                     @else
                         <span></span>
                     @endif
@@ -95,6 +92,12 @@
                     </div>
                 </div>
             </form>
+
+            @if($user->id !== auth()->id())
+                <form id="toggle-active-form" method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="hidden">
+                    @csrf @method('PATCH')
+                </form>
+            @endif
         </div>
     </div>
 </x-app-layout>

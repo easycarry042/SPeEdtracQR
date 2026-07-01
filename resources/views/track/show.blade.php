@@ -14,29 +14,87 @@
         </x-slot>
     @endguest
 
-    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2">
+    @php
+        $supervisorView = $supervisorView ?? false;
+        $staffView = $staffView ?? false;
+        $tabbed = $supervisorView || $staffView;
+    @endphp
+    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2"
+         @if($tabbed) x-data="{ tab: @js($activeTab ?? 'inprogress') }" @endif>
         @unless($isPublicView)
             {{-- Fixed-height panel; the list scrolls inside it --}}
             <div class="flex flex-col rounded-xl border border-[#e6ece8] bg-white p-3 lg:h-[calc(100vh-9rem)]">
-                <div class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
-                    @foreach($documents as $item)
-                        <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#0f4d28] bg-[#eaf4ee]' : 'border-[#e6ece8] bg-white hover:bg-[#f3f8f5]' }}">
-                            <div class="flex items-center gap-3">
-                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
-                                </span>
-                                <div>
-                                    <p class="text-[14px] font-semibold text-[#16211b]">{{ $item->document_type }}</p>
-                                    <p class="text-[13px] text-[#51625a]">{{ $item->status }}</p>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[13px] text-[#51625a]">{{ $item->created_at->format('m/d/y') }}</p>
-                                <span class="text-xl text-[#51625a]">›</span>
-                            </div>
-                        </a>
+                @if($tabbed)
+                    @php
+                        // (left tab key, label, count) — supervisor: Pending/In Progress,
+                        // staff: In Progress/Completed.
+                        $leftTab = $supervisorView
+                            ? ['key' => 'pending', 'label' => 'Pending', 'count' => $pending->count()]
+                            : ['key' => 'inprogress', 'label' => 'In Progress', 'count' => $myActive->count()];
+                        $rightTab = $supervisorView
+                            ? ['key' => 'inprogress', 'label' => 'In Progress', 'count' => $inProgress->count()]
+                            : ['key' => 'completed', 'label' => 'Completed', 'count' => $myCompleted->count()];
+                        $leftList = $supervisorView ? $pending : $myActive;
+                        $rightList = $supervisorView ? $inProgress : $myCompleted;
+                    @endphp
+
+                    {{-- Tabs --}}
+                    <div class="mb-3 flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+                        @foreach([$leftTab, $rightTab] as $t)
+                            <button type="button" @click="tab = '{{ $t['key'] }}'"
+                                    :class="tab === '{{ $t['key'] }}' ? 'bg-emerald-700 text-white shadow-sm' : 'text-gray-600 hover:bg-white'"
+                                    class="flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition">
+                                {{ $t['label'] }} <span class="ml-1 rounded-full bg-black/10 px-1.5 text-xs">{{ $t['count'] }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+
+                    {{-- Two lists; clicking an item opens it in the detail box on the right --}}
+                    @foreach([['key' => $leftTab['key'], 'list' => $leftList, 'empty' => $supervisorView ? 'No pending requests.' : 'Nothing in progress.'], ['key' => $rightTab['key'], 'list' => $rightList, 'empty' => $supervisorView ? 'No requests in progress.' : 'No completed requests yet.']] as $section)
+                        <div x-show="tab === '{{ $section['key'] }}'" @if(! $loop->first) x-cloak @endif class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+                            @forelse($section['list'] as $item)
+                                <a href="{{ route('track.show', ['trackingNumber' => $item->tracking_number, 'tab' => $section['key']]) }}"
+                                   class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#0f4d28] bg-[#eaf4ee]' : 'border-[#e6ece8] bg-white hover:bg-[#f3f8f5]' }}">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-[14px] font-semibold text-[#16211b]">{{ $item->document_type }}</p>
+                                            <p class="truncate text-[13px] text-[#51625a]">{{ $item->citizen_name ?: $item->tracking_number }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="ml-2 shrink-0 text-right">
+                                        <p class="text-[13px] text-[#51625a]">{{ $item->created_at->format('m/d/y') }}</p>
+                                        <span class="text-xl text-[#51625a]">›</span>
+                                    </div>
+                                </a>
+                            @empty
+                                <p class="px-2 py-8 text-center text-sm text-gray-400">{{ $section['empty'] }}</p>
+                            @endforelse
+                        </div>
                     @endforeach
-                </div>
+                @else
+                    <div class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+                        @foreach($documents as $item)
+                            <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#0f4d28] bg-[#eaf4ee]' : 'border-[#e6ece8] bg-white hover:bg-[#f3f8f5]' }}">
+                                <div class="flex items-center gap-3">
+                                    <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
+                                    </span>
+                                    <div>
+                                        <p class="text-[14px] font-semibold text-[#16211b]">{{ $item->document_type }}</p>
+                                        <p class="text-[13px] text-[#51625a]">{{ $item->status }}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[13px] text-[#51625a]">{{ $item->created_at->format('m/d/y') }}</p>
+                                    <span class="text-xl text-[#51625a]">›</span>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         @endunless
 
@@ -58,6 +116,13 @@
                 </div>
             </div>
 
+            @php
+                $isPendingReview = $supervisorView && $document->statusEnum() === \App\Enums\DocumentStatus::Pending;
+                $isStaffActionable = $staffView
+                    && (int) $document->assigned_to === (int) auth()->id()
+                    && in_array($document->status, ['in_progress', 'in_review', 'approved'], true);
+            @endphp
+
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <x-status-badge :status="$document->status" />
                 @unless($isPublicView)
@@ -68,6 +133,136 @@
                     </a>
                 @endunless
             </div>
+
+            {{-- ── Pending review + assign (supervisor) — inline, no modal ───────── --}}
+            @if($isPendingReview)
+                <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/50 p-5"
+                     x-data="{
+                        staffId: '',
+                        submitting: false,
+                        denyOpen: false,
+                        denyReason: '',
+                        approve() {
+                            if (!this.staffId || this.submitting) return;
+                            this.submitting = true;
+                            const fd = new FormData();
+                            fd.append('assigned_to', this.staffId);
+                            fetch('{{ route('documents.assign-approve', $document) }}', {
+                                method: 'POST',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                body: fd,
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
+                                else { this.submitting = false; alert('Could not approve. Please try again.'); }
+                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                        },
+                        confirmDeny() {
+                            if (this.submitting) return;
+                            this.submitting = true;
+                            const fd = new FormData();
+                            if (this.denyReason.trim()) fd.append('reason', this.denyReason.trim());
+                            fetch('{{ route('documents.deny', $document) }}', {
+                                method: 'POST',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                body: fd,
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
+                                else { this.submitting = false; alert('Could not deny. Please try again.'); }
+                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                        }
+                     }">
+                    <p class="text-sm font-bold text-emerald-900">Review &amp; assign</p>
+
+                    <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                        <div class="flex justify-between gap-3 border-b border-emerald-100 pb-1"><dt class="text-emerald-800/70">Email</dt><dd class="text-right font-medium text-emerald-950">{{ $document->citizen_email ?: '—' }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-emerald-100 pb-1"><dt class="text-emerald-800/70">Contact</dt><dd class="text-right font-medium text-emerald-950">{{ $document->citizen_contact ?: '—' }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-emerald-100 pb-1"><dt class="text-emerald-800/70">Submitted</dt><dd class="text-right font-medium text-emerald-950">{{ $document->created_at?->format('M j, Y g:i A') }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-emerald-100 pb-1"><dt class="text-emerald-800/70">Purpose</dt><dd class="text-right font-medium text-emerald-950">{{ $document->purpose ?: '—' }}</dd></div>
+                    </dl>
+
+                    @if($document->description)
+                        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-emerald-800/70">Description</p>
+                        <p class="mt-1 whitespace-pre-line text-sm text-emerald-950">{{ $document->description }}</p>
+                    @endif
+
+                    <label class="mt-4 block text-sm font-semibold text-emerald-900">Assign to Staff <span class="text-red-500">*</span></label>
+                    <select x-model="staffId" class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                        <option value="">Select a staff member…</option>
+                        @foreach($assignableStaff as $member)
+                            <option value="{{ $member->id }}">{{ $member->name }}</option>
+                        @endforeach
+                    </select>
+
+                    <div class="mt-4 flex items-center justify-between gap-3">
+                        <button type="button" @click="denyOpen = true" :disabled="submitting"
+                                class="rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 transition enabled:hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50">
+                            Deny
+                        </button>
+                        <button type="button" @click="approve()" :disabled="!staffId || submitting"
+                                class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                            <span x-show="!submitting">Approve</span>
+                            <span x-show="submitting">Approving…</span>
+                        </button>
+                    </div>
+
+                    {{-- Deny reason modal --}}
+                    <div x-show="denyOpen" x-cloak
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                         @keydown.escape.window="denyOpen = false" @click.self="denyOpen = false">
+                        <div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl" x-show="denyOpen" x-transition>
+                            <div class="border-b border-gray-100 px-6 py-4">
+                                <h3 class="text-base font-bold text-gray-900">Deny request</h3>
+                                <p class="mt-0.5 text-sm text-gray-500">This rejects the request. You can add an optional reason for the record.</p>
+                            </div>
+                            <div class="px-6 py-5">
+                                <label class="block text-sm font-semibold text-gray-700">Reason <span class="font-normal text-gray-400">(optional)</span></label>
+                                <textarea x-model="denyReason" rows="4" maxlength="1000" placeholder="e.g. Incomplete requirements, duplicate request…"
+                                          class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm focus:border-red-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20"></textarea>
+                            </div>
+                            <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                                <button type="button" @click="denyOpen = false" :disabled="submitting"
+                                        class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                                    Cancel
+                                </button>
+                                <button type="button" @click="confirmDeny()" :disabled="submitting"
+                                        class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-show="!submitting">Deny request</span>
+                                    <span x-show="submitting">Denying…</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            {{-- ── Review + complete (assigned staff) — inline ──────────────────── --}}
+            @if($isStaffActionable)
+                <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/50 p-5"
+                     x-data="{
+                        submitting: false,
+                        complete() {
+                            if (this.submitting) return;
+                            this.submitting = true;
+                            fetch('{{ route('documents.review.complete', $document) }}', {
+                                method: 'PATCH',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
+                                else { this.submitting = false; alert('Could not complete. Please try again.'); }
+                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                        }
+                     }">
+                    <p class="text-sm font-bold text-emerald-900">Review</p>
+                    <p class="mt-1 text-sm text-emerald-800/80">Approving marks this request <strong>Completed</strong> and moves it to your History.</p>
+                    <div class="mt-4 flex justify-end">
+                        <button type="button" @click="complete()" :disabled="submitting"
+                                class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                            <span x-show="!submitting">Approve</span>
+                            <span x-show="submitting">Approving…</span>
+                        </button>
+                    </div>
+                </div>
+            @endif
 
             @unless($isPublicView)
                 @if(session('status'))
@@ -223,7 +418,22 @@
                 </div>
             </div>
         </div>
+
     </div>
+
+    {{-- Opening an assigned, in-progress request (clicking it) moves it to
+         "In Review", mirroring the old Review action. Reloads once so the badge
+         and stepper reflect the new stage. --}}
+    @if(($isStaffActionable ?? false) && $document->status === 'in_progress')
+        <script>
+            fetch('{{ route('documents.review.open', $document) }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+            }).then(r => r.ok ? r.json() : null).then(d => {
+                if (d && d.status === 'in_review') { window.location.reload(); }
+            }).catch(() => {});
+        </script>
+    @endif
 
     @unless($isPublicView)
     <script>

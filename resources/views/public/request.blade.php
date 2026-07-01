@@ -77,6 +77,7 @@
             <div>
                 <label class="mb-1 block text-sm font-semibold text-gray-700">Supporting files (optional — images, PDF or Word, up to 5)</label>
                 <input type="file" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
+                <p class="mt-1 text-xs text-gray-500">Accepted: JPG, PNG, WEBP, PDF, or DOC/DOCX — max 10 MB each.</p>
             </div>
 
             <label class="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm text-emerald-900">

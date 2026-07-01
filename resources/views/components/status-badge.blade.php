@@ -10,6 +10,7 @@
         'approved' => ['class' => 'p-green', 'label' => 'Approved'],
         'pending' => ['class' => 'p-muted', 'label' => 'Pending'],
         'rejected' => ['class' => 'p-red', 'label' => 'Rejected'],
+        'denied' => ['class' => 'p-red', 'label' => 'Denied'],
         'returned' => ['class' => 'p-red', 'label' => 'Returned'],
         'completed' => ['class' => 'p-green', 'label' => 'Completed'],
         // Blocked/waiting — amber warning, distinct from Returned's red.

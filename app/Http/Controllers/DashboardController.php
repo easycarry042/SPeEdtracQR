@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\AssignmentScope;
+use App\Support\RequestReview;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -26,6 +27,20 @@ class DashboardController extends Controller
         $completed = $this->scopeDocuments(Document::query())->where('status', DocumentStatus::Completed->value)->count();
 
         $recentActivity = $this->scopeDocuments(Document::query()->latest('created_at'))->take(5)->get();
+
+        // The "Requests" table lists awaiting-approval work only: still Pending
+        // and not yet assigned to a staff member. Approving (assign) removes it.
+        $pendingRequests = $this->scopeDocuments(
+            Document::with('attachments')
+                ->where('status', DocumentStatus::Pending->value)
+                ->whereNull('assigned_to')
+                ->latest('created_at')
+        )->get();
+
+        $pendingPayload = $pendingRequests->map(fn ($d) => RequestReview::forModal($d))->values();
+
+        // Staff who can be assigned a request.
+        $assignableStaff = RequestReview::assignableStaff();
 
         $statusSummary = $this->scopeDocuments(Document::query())
             ->select('status', DB::raw('COUNT(*) as total'))
@@ -66,6 +81,9 @@ class DashboardController extends Controller
             'pendingRequest',
             'completed',
             'recentActivity',
+            'pendingRequests',
+            'pendingPayload',
+            'assignableStaff',
             'statusSummary',
             'atRiskDocuments',
             'atRiskCount',
