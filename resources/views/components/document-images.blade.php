@@ -57,6 +57,7 @@
                         </form>
                     @endif
                 </div>
+            @endif
         @endforeach
         @if($images->count() > $limit)
             <span class="flex {{ $thumbClass }} items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">+{{ $images->count() - $limit }}</span>
