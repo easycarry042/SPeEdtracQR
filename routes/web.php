@@ -151,12 +151,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff operational dashboard — requests assigned to the authenticated staff member.
     Route::get('/my-dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
 
-    // Supervisor approve = assign to staff + move to In Progress.
+    // Supervisor approve = assign to staff (staff must accept on Requests page).
     Route::post('/documents/{document}/assign-approve', [ReviewController::class, 'assignApprove'])->name('documents.assign-approve');
     // Supervisor deny = reject the request (terminal).
     Route::post('/documents/{document}/deny', [ReviewController::class, 'deny'])->name('documents.deny');
 
-    // Staff review lifecycle: open (→ In Review) and approve (→ Completed).
+    // Staff assignment triage on the Requests page.
+    Route::post('/documents/{document}/assignment/accept', [ReviewController::class, 'acceptAssignment'])->name('documents.assignment.accept');
+    Route::post('/documents/{document}/assignment/decline', [ReviewController::class, 'declineAssignment'])->name('documents.assignment.decline');
+    Route::post('/documents/{document}/assignment/revision', [ReviewController::class, 'requestRevision'])->name('documents.assignment.revision');
+
+    // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
     Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
     Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
 

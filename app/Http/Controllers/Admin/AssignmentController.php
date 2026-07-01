@@ -78,12 +78,9 @@ class AssignmentController extends Controller
             'assigned_to' => $assignedTo,
             'assigned_by' => $assignedTo ? auth()->id() : null,
             'assigned_at' => $assignedTo ? now() : null,
+            'accepted_at' => null,
         ]);
 
-        if ($assignedTo && $document->statusEnum() === DocumentStatus::Pending) {
-            $document->applyStatus(DocumentStatus::InProgress);
-            $document->save();
-        }
         DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
 
         $assignee = $assignedTo ? User::find($assignedTo) : null;
@@ -123,6 +120,7 @@ class AssignmentController extends Controller
             'assigned_to' => $user->id,
             'assigned_by' => $user->id,
             'assigned_at' => now(),
+            'accepted_at' => now(),
         ]);
 
         if ($document->statusEnum() === DocumentStatus::Pending) {

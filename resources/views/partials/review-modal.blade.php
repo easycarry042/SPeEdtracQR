@@ -16,7 +16,9 @@
                         <p class="font-mono text-lg font-extrabold text-emerald-950" x-text="active.tracking_number"></p>
                         <p class="mt-0.5 text-sm text-gray-600" x-text="active.document_type"></p>
                     </div>
-                    <span class="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700" x-text="active.status_label"></span>
+                    <span class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                          :class="active.needs_triage ? 'bg-sky-100 text-sky-800' : 'bg-gray-100 text-gray-700'"
+                          x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
                 </div>
 
                 <div class="max-h-[55vh] space-y-5 overflow-y-auto px-6 py-5">
@@ -78,19 +80,31 @@
                                     <option :value="member.id" x-text="member.name"></option>
                                 </template>
                             </select>
-                            <p class="mt-2 text-xs text-emerald-800/80">Approving assigns the request and moves it to <strong>In Progress</strong>.</p>
+                            <p class="mt-2 text-xs text-emerald-800/80">Approving assigns the request to the selected staff member. They must <strong>accept it on their Requests page</strong> before work begins.</p>
                         </div>
                     @else
                         <div class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-sm text-emerald-900">
-                            Approving marks this request <strong>Completed</strong> and moves it to your History.
+                            <template x-if="active && active.needs_triage">
+                                <div class="space-y-2">
+                                    <p class="font-semibold text-emerald-950">Review this assignment before deciding.</p>
+                                    <p>Check the citizen details and attachments above, then choose <strong>Accept</strong> to start work, <strong>Decline</strong> to send it back to the supervisor, or <strong>Request revision</strong> if the citizen must fix something first.</p>
+                                    <p class="text-xs text-emerald-800/70">You can also <a :href="'/track/' + active.tracking_number" target="_blank" rel="noopener" class="font-semibold underline">open the full track page</a> for the complete timeline.</p>
+                                </div>
+                            </template>
+                            <template x-if="active && !active.needs_triage && active.status === 'approved'">
+                                <p>This request is at <strong>Approved</strong>. Use <strong>Approve</strong> below to mark it <strong>Completed</strong> and move it to your History.</p>
+                            </template>
+                            <template x-if="active && !active.needs_triage && active.status !== 'approved'">
+                                <p>Advance this request on the <a :href="'/track/' + active.tracking_number" class="font-semibold underline">Track page</a> until it reaches <strong>Approved</strong>, then return here to approve it for completion.</p>
+                            </template>
                         </div>
                     @endif
                 </div>
 
-                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                <div class="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
                     <button type="button" @click="close()"
                             class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
-                        Cancel
+                        <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
                     </button>
 
                     @if($mode === 'supervisor')
@@ -104,11 +118,32 @@
                             <span x-show="submitting">Approving…</span>
                         </button>
                     @else
-                        <button type="button" @click="approve()" :disabled="submitting"
-                                class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-show="!submitting">Approve</span>
-                            <span x-show="submitting">Approving…</span>
-                        </button>
+                        <template x-if="active && active.needs_triage">
+                            <div class="flex flex-wrap items-center justify-end gap-3">
+                                <button type="button" @click="revisionOpen = true" :disabled="submitting"
+                                        class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-800 transition enabled:hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50">
+                                    Request revision
+                                </button>
+                                <button type="button" @click="declineOpen = true" :disabled="submitting"
+                                        class="rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 transition enabled:hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50">
+                                    Decline
+                                </button>
+                                <button type="button" @click="acceptAssignment()" :disabled="submitting"
+                                        class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-show="!submitting">Accept</span>
+                                    <span x-show="submitting">Accepting…</span>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="active && active.status === 'approved'">
+                            <div>
+                                <button type="button" @click="approve()" :disabled="submitting"
+                                        class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-show="!submitting">Approve</span>
+                                    <span x-show="submitting">Approving…</span>
+                                </button>
+                            </div>
+                        </template>
                     @endif
                 </div>
 
@@ -140,6 +175,62 @@
                     </div>
                 </div>
                 @endif
+
+                @if($mode === 'staff')
+                <div x-show="declineOpen" x-cloak
+                     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+                     @keydown.escape.window="declineOpen = false" @click.self="declineOpen = false">
+                    <div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl" x-show="declineOpen" x-transition>
+                        <div class="border-b border-gray-100 px-6 py-4">
+                            <h3 class="text-base font-bold text-gray-900">Decline assignment</h3>
+                            <p class="mt-0.5 text-sm text-gray-500">This returns the request to the supervisor queue. You can add an optional note.</p>
+                        </div>
+                        <div class="px-6 py-5">
+                            <label class="block text-sm font-semibold text-gray-700">Note <span class="font-normal text-gray-400">(optional)</span></label>
+                            <textarea x-model="declineReason" rows="3" maxlength="1000" placeholder="e.g. Not in my area of responsibility…"
+                                      class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm focus:border-red-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20"></textarea>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                            <button type="button" @click="declineOpen = false" :disabled="submitting"
+                                    class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                                Cancel
+                            </button>
+                            <button type="button" @click="declineAssignment()" :disabled="submitting"
+                                    class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="!submitting">Decline assignment</span>
+                                <span x-show="submitting">Declining…</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="revisionOpen" x-cloak
+                     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+                     @keydown.escape.window="revisionOpen = false" @click.self="revisionOpen = false">
+                    <div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl" x-show="revisionOpen" x-transition>
+                        <div class="border-b border-gray-100 px-6 py-4">
+                            <h3 class="text-base font-bold text-gray-900">Request revision</h3>
+                            <p class="mt-0.5 text-sm text-gray-500">Tell the citizen what needs to be fixed. The request will be marked Returned / For Revision.</p>
+                        </div>
+                        <div class="px-6 py-5">
+                            <label class="block text-sm font-semibold text-gray-700">What needs to be revised? <span class="text-red-500">*</span></label>
+                            <textarea x-model="revisionReason" rows="4" maxlength="1000" required placeholder="e.g. Missing barangay clearance, illegible ID photo…"
+                                      class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm focus:border-amber-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"></textarea>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                            <button type="button" @click="revisionOpen = false" :disabled="submitting"
+                                    class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                                Cancel
+                            </button>
+                            <button type="button" @click="requestRevision()" :disabled="submitting || !revisionReason.trim()"
+                                    class="rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="!submitting">Send for revision</span>
+                                <span x-show="submitting">Sending…</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                @endif
             </div>
         </template>
     </div>
@@ -162,6 +253,10 @@
             submitting: false,
             denyOpen: false,
             denyReason: '',
+            declineOpen: false,
+            declineReason: '',
+            revisionOpen: false,
+            revisionReason: '',
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
@@ -172,8 +267,11 @@
                 this.selectedStaff = '';
                 this.denyOpen = false;
                 this.denyReason = '';
-                // Staff: opening the review transitions the request to "In Review".
-                if (this.mode === 'staff' && req.status !== 'in_review') {
+                this.declineOpen = false;
+                this.declineReason = '';
+                this.revisionOpen = false;
+                this.revisionReason = '';
+                if (this.mode === 'staff' && req.status === 'in_progress' && !req.needs_triage) {
                     this.markInReview(req);
                 }
             },
@@ -209,6 +307,7 @@
             approve() {
                 if (!this.active || this.submitting) return;
                 if (this.mode === 'supervisor' && !this.selectedStaff) return;
+                if (this.mode === 'staff' && this.active.status !== 'approved') return;
 
                 let url, opts;
                 const headers = { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' };
@@ -230,7 +329,11 @@
                         return;
                     }
                     this.submitting = false;
-                    alert('Could not complete the action. Please try again.');
+                    r.json().then((d) => {
+                        alert(d.message || 'Could not complete the action. Please try again.');
+                    }).catch(() => {
+                        alert('Could not complete the action. Please try again.');
+                    });
                 }).catch(() => {
                     this.submitting = false;
                     alert('Network error. Please try again.');
@@ -242,6 +345,61 @@
                 this.submitting = false;
                 this.denyOpen = false;
                 this.denyReason = '';
+                this.declineOpen = false;
+                this.declineReason = '';
+                this.revisionOpen = false;
+                this.revisionReason = '';
+            },
+
+            postAction(url, opts) {
+                this.submitting = true;
+                return fetch(url, opts).then((r) => {
+                    if (r.ok) {
+                        this.afterSuccess();
+                        return;
+                    }
+                    this.submitting = false;
+                    return r.json().then((d) => {
+                        alert(d.message || 'Could not complete the action. Please try again.');
+                    }).catch(() => {
+                        alert('Could not complete the action. Please try again.');
+                    });
+                }).catch(() => {
+                    this.submitting = false;
+                    alert('Network error. Please try again.');
+                });
+            },
+
+            acceptAssignment() {
+                if (!this.active || this.submitting || !this.active.needs_triage) return;
+                this.postAction(`${this.openBase}/${this.active.id}/assignment/accept`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                });
+            },
+
+            declineAssignment() {
+                if (!this.active || this.submitting) return;
+                const fd = new FormData();
+                if (this.declineReason.trim()) {
+                    fd.append('reason', this.declineReason.trim());
+                }
+                this.postAction(`${this.openBase}/${this.active.id}/assignment/decline`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                });
+            },
+
+            requestRevision() {
+                if (!this.active || this.submitting || !this.revisionReason.trim()) return;
+                const fd = new FormData();
+                fd.append('reason', this.revisionReason.trim());
+                this.postAction(`${this.openBase}/${this.active.id}/assignment/revision`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                });
             },
 
             deny() {

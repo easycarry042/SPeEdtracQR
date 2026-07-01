@@ -44,6 +44,7 @@ class RequestReview
             'description' => $document->description,
             'status' => $document->status,
             'status_label' => $document->statusEnum()->label(),
+            'needs_triage' => self::needsTriage($document),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => optional($document->created_at)->format('M j, Y g:i A'),
             'attachments' => $document->attachments->map(function ($a) {
@@ -56,5 +57,20 @@ class RequestReview
                 ];
             })->values()->all(),
         ];
+    }
+
+    /** Assigned ticket awaiting staff Accept / Decline / Revision on the Requests page. */
+    public static function needsTriage(Document $document): bool
+    {
+        if ($document->assigned_to === null) {
+            return false;
+        }
+
+        return $document->assigned_to !== null
+            && $document->accepted_at === null
+            && in_array($document->status, [
+                \App\Enums\DocumentStatus::Pending->value,
+                \App\Enums\DocumentStatus::InProgress->value,
+            ], true);
     }
 }

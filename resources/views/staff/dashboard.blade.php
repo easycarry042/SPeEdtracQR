@@ -46,14 +46,17 @@
                                     <td class="px-4 py-3 text-sm text-gray-500" x-text="req.document_type"></td>
                                     <td class="px-4 py-3">
                                         <span class="pill"
-                                              :class="req.status === 'approved' ? 'p-green' : 'p-amber'"
-                                              x-text="req.status_label"></span>
+                                              :class="req.needs_triage ? 'p-muted' : (req.status === 'approved' ? 'p-green' : 'p-amber')"
+                                              x-text="req.needs_triage ? 'New assignment' : req.status_label"></span>
                                     </td>
                                     <td class="px-4 py-3 text-right">
                                         <button type="button" @click="open(req)"
-                                                class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800">
+                                                class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition"
+                                                :class="req.needs_triage
+                                                    ? 'bg-emerald-800 text-white hover:bg-emerald-900'
+                                                    : 'bg-emerald-700 text-white hover:bg-emerald-800'">
                                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.46 12C3.73 7.94 7.52 5 12 5s8.27 2.94 9.54 7c-1.27 4.06-5.06 7-9.54 7s-8.27-2.94-9.54-7z"/></svg>
-                                            Review
+                                            <span x-text="req.needs_triage ? 'Review assignment' : 'Review'"></span>
                                         </button>
                                     </td>
                                 </tr>

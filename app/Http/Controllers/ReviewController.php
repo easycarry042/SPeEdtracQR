@@ -9,6 +9,7 @@ use App\Mail\AssignmentNotice;
 use App\Models\Document;
 use App\Models\User;
 use App\Support\AssignmentScope;
+use App\Support\RequestReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -39,12 +40,8 @@ class ReviewController extends Controller
             'assigned_to' => $assignee->id,
             'assigned_by' => auth()->id(),
             'assigned_at' => now(),
+            'accepted_at' => null,
         ]);
-
-        if ($document->statusEnum() === DocumentStatus::Pending) {
-            $document->applyStatus(DocumentStatus::InProgress);
-            $document->save();
-        }
 
         DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
 
@@ -53,7 +50,7 @@ class ReviewController extends Controller
             ->causedBy(auth()->user())
             ->log("Assigned to {$assignee->name}");
 
-        $comment = $document->logSystemComment("Assigned to {$assignee->name} — In Progress");
+        $comment = $document->logSystemComment("Assigned to {$assignee->name} — awaiting staff acceptance");
         DocumentCommentPosted::dispatch($comment);
 
         if ($assignee->email && config('tracking.notify_staff_on_assignment', true)) {
@@ -120,23 +117,140 @@ class ReviewController extends Controller
         ]);
     }
 
-    /** Approving completes the request: Approved → Completed. */
+    /** Final staff sign-off: Approved → Completed (history). */
     public function complete(Document $document)
     {
         $this->authorizeReview($document);
 
         if ($document->statusEnum()->isTerminal()) {
-            return $this->done($document, 'This request is already completed.');
+            return $this->done($document, 'This request is already closed.');
         }
 
-        // Staff approval = completion. Record the Approved step for the audit
-        // trail, then finalize as Completed.
         if ($document->statusEnum() !== DocumentStatus::Approved) {
-            $this->applyAndLog($document, DocumentStatus::Approved, 'Approved');
+            $message = 'Advance this request to Approved on the status stepper before approving it for completion.';
+
+            if (request()->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return redirect()->back()->withErrors(['status' => $message]);
         }
+
         $this->applyAndLog($document, DocumentStatus::Completed, 'Completed');
 
-        return $this->done($document, "{$document->tracking_number} marked completed.");
+        return $this->done($document, "{$document->tracking_number} marked completed and moved to History.");
+    }
+
+    /** Staff accepts a supervisor assignment: Pending → In Progress. */
+    public function acceptAssignment(Document $document)
+    {
+        $this->authorizeAssignedStaff($document);
+
+        if (! RequestReview::needsTriage($document)) {
+            return $this->assignmentError('This request is no longer awaiting acceptance.');
+        }
+
+        if ($document->statusEnum() === DocumentStatus::Pending) {
+            $this->applyAndLog($document, DocumentStatus::InProgress, 'Accepted assignment');
+            $document->refresh();
+        } else {
+            activity()
+                ->performedOn($document)
+                ->causedBy(auth()->user())
+                ->log('Accepted assignment');
+
+            $actor = auth()->user()?->name ?? 'Staff';
+            $comment = $document->logSystemComment("Accepted assignment by {$actor}");
+            DocumentCommentPosted::dispatch($comment);
+        }
+
+        $document->accepted_at = now();
+        $document->save();
+
+        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+
+        return $this->done($document, "Accepted {$document->tracking_number}.");
+    }
+
+    /** Staff declines an assignment — returns it to the supervisor queue. */
+    public function declineAssignment(Request $request, Document $document)
+    {
+        $this->authorizeAssignedStaff($document);
+
+        if (! RequestReview::needsTriage($document)) {
+            return $this->assignmentError('This request is no longer awaiting acceptance.');
+        }
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $reason = $validated['reason'] ?? null;
+
+        $document->update([
+            'assigned_to' => null,
+            'assigned_by' => null,
+            'assigned_at' => null,
+            'accepted_at' => null,
+        ]);
+
+        if ($document->statusEnum() === DocumentStatus::InProgress) {
+            $document->applyStatus(DocumentStatus::Pending);
+            $document->save();
+        }
+
+        $actor = auth()->user()?->name ?? 'Staff';
+        activity()
+            ->performedOn($document)
+            ->causedBy(auth()->user())
+            ->log('Declined assignment'.($reason ? ': '.$reason : ''));
+
+        $comment = $document->logSystemComment("Assignment declined by {$actor}".($reason ? " — {$reason}" : ''));
+        DocumentCommentPosted::dispatch($comment);
+        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+
+        return $this->done($document, "Declined {$document->tracking_number}.");
+    }
+
+    /** Staff sends the request back for citizen revision. */
+    public function requestRevision(Request $request, Document $document)
+    {
+        $this->authorizeAssignedStaff($document);
+
+        if (! RequestReview::needsTriage($document)) {
+            return $this->assignmentError('This request cannot be returned for revision at its current stage.');
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $from = $document->statusEnum();
+        $document->applyStatus(DocumentStatus::Returned);
+        $document->remarks = $validated['reason'];
+        $document->save();
+
+        activity()
+            ->performedOn($document)
+            ->causedBy(auth()->user())
+            ->withProperties(['from' => $from->value, 'to' => DocumentStatus::Returned->value])
+            ->log('Returned for revision: '.$validated['reason']);
+
+        DocumentStatusUpdated::dispatch($document, auth()->user());
+
+        $actor = auth()->user()?->name ?? 'Staff';
+        $comment = $document->logSystemComment("Returned for revision by {$actor} — {$validated['reason']}");
+        DocumentCommentPosted::dispatch($comment);
+
+        return $this->done($document, "{$document->tracking_number} returned for revision.");
+    }
+
+    private function assignmentError(string $message)
+    {
+        if (request()->expectsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return redirect()->back()->withErrors(['status' => $message]);
     }
 
     private function applyAndLog(Document $document, DocumentStatus $to, string $verb): void
@@ -189,5 +303,17 @@ class ReviewController extends Controller
             && (int) $document->assigned_to === (int) $user->id;
 
         abort_unless($isAssignedStaff, 403, 'Only the assigned staff member can review this request.');
+    }
+
+    private function authorizeAssignedStaff(Document $document): void
+    {
+        $user = auth()->user();
+
+        abort_if($user === null, 403);
+
+        $isAssignedStaff = $document->assigned_to !== null
+            && (int) $document->assigned_to === (int) $user->id;
+
+        abort_unless($isAssignedStaff, 403, 'Only the assigned staff member can act on this request.');
     }
 }

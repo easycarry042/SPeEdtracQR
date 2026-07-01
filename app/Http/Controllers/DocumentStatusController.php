@@ -29,6 +29,10 @@ class DocumentStatusController extends Controller
             return $this->fail('This document is already at the final stage.');
         }
 
+        if ($next === DocumentStatus::Completed) {
+            return $this->fail('Use Approve on the Requests page to mark this document completed and move it to History.');
+        }
+
         return $this->transition($document, $next, 'Advanced');
     }
 

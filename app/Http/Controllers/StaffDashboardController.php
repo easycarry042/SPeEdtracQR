@@ -17,8 +17,9 @@ class StaffDashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Active assigned work: everything past Pending and not yet finished.
+        // Active assigned work, including newly assigned tickets awaiting acceptance.
         $activeStatuses = [
+            DocumentStatus::Pending->value,
             DocumentStatus::InProgress->value,
             DocumentStatus::InReview->value,
             DocumentStatus::Approved->value,

@@ -118,9 +118,8 @@
 
             @php
                 $isPendingReview = $supervisorView && $document->statusEnum() === \App\Enums\DocumentStatus::Pending;
-                $isStaffActionable = $staffView
-                    && (int) $document->assigned_to === (int) auth()->id()
-                    && in_array($document->status, ['in_progress', 'in_review', 'approved'], true);
+                $isStaffAssigned = $staffView && (int) $document->assigned_to === (int) auth()->id();
+                $isStaffApprovable = $isStaffAssigned && $document->status === 'approved';
             @endphp
 
             <div class="mt-5 flex flex-wrap items-center gap-3">
@@ -235,8 +234,8 @@
                 </div>
             @endif
 
-            {{-- ── Review + complete (assigned staff) — inline ──────────────────── --}}
-            @if($isStaffActionable)
+            {{-- ── Final approve (assigned staff) — only at Approved stage ─────── --}}
+            @if($isStaffApprovable)
                 <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/50 p-5"
                      x-data="{
                         submitting: false,
@@ -248,12 +247,12 @@
                                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                             }).then(r => {
                                 if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
-                                else { this.submitting = false; alert('Could not complete. Please try again.'); }
+                                else { this.submitting = false; r.json().then(d => alert(d.message || 'Could not complete. Advance to Approved first.')); }
                             }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
                         }
                      }">
-                    <p class="text-sm font-bold text-emerald-900">Review</p>
-                    <p class="mt-1 text-sm text-emerald-800/80">Approving marks this request <strong>Completed</strong> and moves it to your History.</p>
+                    <p class="text-sm font-bold text-emerald-900">Ready to complete</p>
+                    <p class="mt-1 text-sm text-emerald-800/80">This request is at <strong>Approved</strong>. Approving marks it <strong>Completed</strong> and moves it to your History.</p>
                     <div class="mt-4 flex justify-end">
                         <button type="button" @click="complete()" :disabled="submitting"
                                 class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
@@ -424,7 +423,7 @@
     {{-- Opening an assigned, in-progress request (clicking it) moves it to
          "In Review", mirroring the old Review action. Reloads once so the badge
          and stepper reflect the new stage. --}}
-    @if(($isStaffActionable ?? false) && $document->status === 'in_progress')
+    @if(($isStaffAssigned ?? false) && $document->status === 'in_progress')
         <script>
             fetch('{{ route('documents.review.open', $document) }}', {
                 method: 'POST',
