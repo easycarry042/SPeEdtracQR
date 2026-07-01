@@ -147,8 +147,8 @@
                 <form method="POST" action="{{ route('track.citizen-upload', $document->tracking_number) }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
                     <div>
-                        <label for="citizen_attachments" class="block text-sm font-medium text-gray-700">Photos (up to 5)</label>
-                        <input type="file" id="citizen_attachments" name="attachments[]" accept="image/*" multiple required
+                        <label for="citizen_attachments" class="block text-sm font-medium text-gray-700">Files (up to 5 — images, PDF or Word)</label>
+                        <input type="file" id="citizen_attachments" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple required
                                class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-emerald-700" />
                     </div>
                     <div>

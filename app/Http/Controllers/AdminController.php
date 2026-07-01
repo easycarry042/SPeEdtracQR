@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\User;
 use App\Support\AdminAnalytics;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -55,6 +56,8 @@ class AdminController extends Controller
             'atRisk' => $analytics->atRisk(),
             'fastestStaff' => $analytics->fastestStaff(),
             'heatmap' => $analytics->throughputHeatmap(),
+            // Staff the admin can (re)assign an at-risk document to, from the panel.
+            'assignableStaff' => User::permission('advance documents')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 }

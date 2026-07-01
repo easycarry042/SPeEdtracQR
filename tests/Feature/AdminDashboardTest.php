@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -52,5 +53,36 @@ class AdminDashboardTest extends TestCase
         $this->actingAs($this->userWithRole('staff'))
             ->get(route('admin.dashboard'))
             ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_super_admin_analytics_redirects_to_the_dashboard(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        // Analytics is folded into the command center for super admins.
+        $this->actingAs($this->userWithRole('super_admin'))
+            ->get(route('analytics'))
+            ->assertRedirect(route('admin.dashboard'));
+    }
+
+    public function test_super_admin_can_reassign_an_at_risk_document(): void
+    {
+        $this->seedRolesAndPermissions();
+        $admin = $this->userWithRole('super_admin');
+        $staff = User::factory()->create()->assignRole('staff');
+
+        $document = Document::create([
+            'tracking_number' => 'SPD-ATRISK-01',
+            'document_type' => 'Business Permit',
+            'status' => 'pending',
+            'created_by' => $admin->id,
+            'status_changed_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.assignments.assign', $document), ['assigned_to' => $staff->id])
+            ->assertRedirect();
+
+        $this->assertSame($staff->id, $document->fresh()->assigned_to);
     }
 }

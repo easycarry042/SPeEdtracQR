@@ -47,7 +47,7 @@ class PublicTicketController extends Controller
             'citizen_email' => 'required|email|max:255',
             'citizen_contact' => 'nullable|string|max:255',
             'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'image|max:10240', // 10 MB each, images only
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240', // 10 MB each: images, PDF or Word
             'consent' => 'accepted',
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',

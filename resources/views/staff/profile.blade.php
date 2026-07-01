@@ -105,6 +105,7 @@
                             <div>
                                 <div class="ty">{{ $doc->document_type }}</div>
                                 <span class="code">{{ $doc->tracking_number }}</span>
+                                <x-document-origin :source="$doc->source" :by="$doc->creator?->name" :at="$doc->created_at" class="origin-row" />
                                 @include('staff.partials.hold-note', ['doc' => $doc])
                             </div>
                             <x-status-badge :status="$doc->status" />
@@ -162,6 +163,7 @@
                             <div>
                                 <div class="ty">{{ $doc->document_type }}</div>
                                 <span class="code">{{ $doc->tracking_number }}</span>
+                                <x-document-origin :source="$doc->source" :by="$doc->creator?->name" :at="$doc->created_at" class="origin-row" />
                                 @include('staff.partials.hold-note', ['doc' => $doc])
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
@@ -181,6 +183,7 @@
                             <div>
                                 <div class="ty">{{ $doc->document_type }}</div>
                                 <span class="code">{{ $doc->tracking_number }}</span>
+                                <x-document-origin :source="$doc->source" :by="$doc->creator?->name" :at="$doc->created_at" class="origin-row" />
                             </div>
                             <span style="font-size:12px;color:var(--ink-soft);">{{ optional($doc->completed_at)->format('M d, Y') }}</span>
                         </a>

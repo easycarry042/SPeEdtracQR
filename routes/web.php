@@ -136,6 +136,11 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Staff directory + quick search (any staff can view any profile — transparency model).
+    // Registered BEFORE /staff/{user} so the literal paths win over route-model binding.
+    Route::get('/staff', [StaffProfileController::class, 'index'])->name('staff.index');
+    Route::get('/staff/search', [StaffProfileController::class, 'search'])->name('staff.search');
+
     // Staff profile (identity rail + activity feed). Viewable by any staff user.
     Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');
     Route::post('/staff/highlights', [StaffProfileController::class, 'store'])->name('staff.highlights.store');
@@ -181,6 +186,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');
     Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
+    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 });
 
 require __DIR__.'/auth.php';

@@ -77,8 +77,11 @@
 
             @if($document->attachments->isNotEmpty())
                 <div class="mt-5">
-                    <p class="text-[14px] font-bold text-[#16211b]">Attached Images</p>
-                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" />
+                    <p class="text-[14px] font-bold text-[#16211b]">Attached Files</p>
+                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" :manage="! $isPublicView" />
+                    @unless($isPublicView)
+                        <p class="mt-1 text-[12px] text-[#7c8b83]">Hover a file and tap × to remove one placed by mistake.</p>
+                    @endunless
                 </div>
             @endif
 
@@ -124,6 +127,49 @@
                     </p>
                 @endif
                 <x-routing-stepper :document="$document" :controls="! $isPublicView" />
+            </div>
+
+            {{-- Origin / Creation — how this document entered the office --}}
+            <div class="mt-8">
+                <h3 class="text-2xl font-extrabold text-[#16211b]">Origin</h3>
+                <div class="mt-3 rounded-xl border border-[#eaf4ee] bg-[#fafcfb] p-4 text-[14px] text-[#334b40]">
+                    <div class="mb-3">
+                        <x-document-origin :source="$document->source" :by="$document->creator?->name" :at="$document->created_at" />
+                    </div>
+
+                    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-[#51625a]">Submitted by</dt>
+                            <dd class="font-medium">{{ $document->citizen_name ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-[#51625a]">Email</dt>
+                            <dd class="font-medium break-all">{{ $document->citizen_email ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-[#51625a]">Contact</dt>
+                            <dd class="font-medium">{{ $document->citizen_contact ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-[#51625a]">Created</dt>
+                            <dd class="font-medium">{{ $document->created_at?->format('M d, Y \a\t h:i A') ?? '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-[#51625a]">{{ $document->source === 'online' ? 'Entered' : 'Encoded by' }}</dt>
+                            <dd class="font-medium">{{ $document->source === 'online' ? 'Online submission (citizen self-service)' : ($document->creator?->name ?? 'Staff') }}</dd>
+                        </div>
+                        @if($document->purpose)
+                            <div class="flex gap-2">
+                                <dt class="w-28 shrink-0 text-[#51625a]">Purpose</dt>
+                                <dd class="font-medium">{{ $document->purpose }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+
+                    @if($document->description)
+                        <p class="mt-3 border-t border-[#eaf4ee] pt-3"><span class="text-[#51625a]">Details:</span> {{ $document->description }}</p>
+                    @endif
+                </div>
             </div>
 
             <div class="mt-8">

@@ -27,7 +27,7 @@ class AttachmentController extends Controller
 
         $request->validate([
             'attachments' => 'required|array|min:1|max:10',
-            'attachments.*' => 'image|max:10240',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
         ]);
 
         $created = $this->storeAttachmentsForDocument(
@@ -63,5 +63,39 @@ class AttachmentController extends Controller
 
         // Inline so images render in <img>; not forced as a download.
         return $disk->response($attachment->file_path);
+    }
+
+    /**
+     * Delete a wrongly-placed attachment. Same access gate as store(): the
+     * assignee / creator / admin who can act on the document may remove its files.
+     */
+    public function destroy(DocumentAttachment $attachment)
+    {
+        $document = $attachment->document;
+
+        abort_if($document === null, 404);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+        abort_unless(
+            auth()->user()?->can('scan documents') || auth()->user()?->can('create documents'),
+            403,
+        );
+
+        Storage::disk('local')->delete($attachment->file_path);
+
+        // If this was the document's cover file, repoint it to the next attachment.
+        if ($document->attachment_path === $attachment->file_path) {
+            $next = $document->attachments()->whereKeyNot($attachment->id)->orderBy('sort_order')->first();
+            $document->update(['attachment_path' => $next?->file_path]);
+        }
+
+        $attachment->delete();
+
+        activity()->performedOn($document)->causedBy(auth()->user())->log('Removed an attachment');
+
+        if (request()->expectsJson()) {
+            return response()->json(['message' => 'Attachment removed.']);
+        }
+
+        return back()->with('status', 'Attachment removed.');
     }
 }

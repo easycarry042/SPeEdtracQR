@@ -25,7 +25,7 @@
                  only the form column scrolls. On smaller screens the whole body scrolls. --}}
             <div id="createModalBody" class="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-y-auto p-6 lg:grid-cols-2 lg:overflow-hidden">
                 <div class="min-h-0 rounded-2xl bg-gray-100/80 p-4">
-                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="image/*" multiple class="sr-only">
+                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="image/*,.pdf,.doc,.docx" multiple class="sr-only">
 
                     <div
                         id="dropZone"
@@ -39,12 +39,12 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
                             </svg>
                             <p class="text-lg font-semibold text-gray-600 sm:text-xl">Drop your file here</p>
-                            <p class="mt-2 text-sm text-gray-500">or <span class="font-semibold text-emerald-800 underline">click to browse</span> — images only (multiple allowed)</p>
+                            <p class="mt-2 text-sm text-gray-500">or <span class="font-semibold text-emerald-800 underline">click to browse</span> — images, PDF or Word (multiple allowed)</p>
                         </div>
                         <div id="dropZonePreview" class="hidden w-full flex-col gap-3 p-4">
                             <p id="previewCount" class="text-sm font-semibold text-gray-800"></p>
                             <div id="previewGrid" class="grid max-h-[320px] w-full grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3"></div>
-                            <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove all photos</button>
+                            <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove all files</button>
                         </div>
                     </div>
                 </div>
@@ -88,6 +88,10 @@
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Name</label>
                             <input name="citizen_name" value="{{ old('citizen_name') }}" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Email</label>
+                            <input name="citizen_email" type="email" value="{{ old('citizen_email') }}" placeholder="name@gmail.com" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Contact</label>
@@ -249,6 +253,14 @@
             return file && file.type.startsWith('image/');
         }
 
+        const ALLOWED_EXT = ['pdf', 'doc', 'docx'];
+        function isAllowed(file) {
+            if (!file) return false;
+            if (isImage(file)) return true;
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            return ALLOWED_EXT.includes(ext);
+        }
+
         function syncInputFiles() {
             const dt = new DataTransfer();
             selectedFiles.forEach(f => dt.items.add(f));
@@ -256,9 +268,9 @@
         }
 
         function addFiles(fileList) {
-            const incoming = Array.from(fileList || []).filter(isImage);
+            const incoming = Array.from(fileList || []).filter(isAllowed);
             if (!incoming.length) {
-                alert('Please choose image files only (PNG, JPG, etc.).');
+                alert('Please choose images, PDF or Word files only.');
                 return;
             }
             incoming.forEach(file => {
@@ -267,7 +279,7 @@
                 selectedFiles.push(file);
             });
             if (selectedFiles.length >= MAX_FILES) {
-                alert('You can attach up to ' + MAX_FILES + ' images per submission.');
+                alert('You can attach up to ' + MAX_FILES + ' files per submission.');
             }
             syncInputFiles();
             renderPreview();
@@ -288,15 +300,25 @@
             placeholder.classList.add('hidden');
             previewWrap.classList.remove('hidden');
             previewWrap.classList.add('flex');
-            previewCount.textContent = selectedFiles.length + ' photo' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
+            previewCount.textContent = selectedFiles.length + ' file' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
 
             selectedFiles.forEach((file, index) => {
-                const url = URL.createObjectURL(file);
-                objectUrls.set(index, url);
                 const wrap = document.createElement('div');
                 wrap.className = 'relative overflow-hidden rounded-lg ring-1 ring-gray-200';
+                let media;
+                if (isImage(file)) {
+                    const url = URL.createObjectURL(file);
+                    objectUrls.set(index, url);
+                    media = `<img src="${url}" alt="" class="h-24 w-full object-cover bg-gray-100">`;
+                } else {
+                    const ext = (file.name.split('.').pop() || 'file').toUpperCase();
+                    media = `<div class="flex h-24 w-full flex-col items-center justify-center gap-1 bg-gray-100 text-gray-500">
+                        <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/></svg>
+                        <span class="text-[10px] font-bold">${ext}</span>
+                    </div>`;
+                }
                 wrap.innerHTML = `
-                    <img src="${url}" alt="" class="h-24 w-full object-cover bg-gray-100">
+                    ${media}
                     <button type="button" data-index="${index}" class="remove-preview absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-black/80">×</button>
                     <p class="truncate px-1 py-0.5 text-[10px] text-gray-600">${file.name}</p>
                 `;

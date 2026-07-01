@@ -168,17 +168,28 @@
 
             {{-- Throughput (2/3) --}}
             <div class="panel an-span-4">
-                <div class="ph"><h2>Is the pipeline keeping up?</h2><span class="sub">created vs completed · per week</span></div>
+                <div class="ph"><h2>Is the pipeline keeping up?</h2><span class="sub">new requests vs. finished, each week</span></div>
                 <div class="pb">
-                    @if (collect($throughput)->sum(fn ($w) => $w['created'] + $w['completed']) === 0)
+                    @php
+                        $tputCreated = collect($throughput)->sum('created');
+                        $tputCompleted = collect($throughput)->sum('completed');
+                    @endphp
+                    @if ($tputCreated + $tputCompleted === 0)
                         <div class="sp-empty">No throughput in this window yet.</div>
                     @else
-                        <div class="vbars" style="height:170px;">
+                        <p class="chart-summary"><b>{{ $tputCreated }}</b> created · <b>{{ $tputCompleted }}</b> completed in this period</p>
+                        <div class="vbars vbars-axis" style="height:170px;">
                             @foreach ($throughput as $w)
                                 <div class="vbar">
                                     <div class="grp">
-                                        <div class="col pale" style="height:{{ round($w['created'] / $tputMax * 100) }}%" title="{{ $w['created'] }} created"></div>
-                                        <div class="col" style="height:{{ round($w['completed'] / $tputMax * 100) }}%" title="{{ $w['completed'] }} completed"></div>
+                                        <div class="gcol" title="{{ $w['created'] }} created">
+                                            <span class="num">{{ $w['created'] ?: '' }}</span>
+                                            <div class="col pale" style="height:{{ $w['created'] ? max(3, round($w['created'] / $tputMax * 100)) : 0 }}%"></div>
+                                        </div>
+                                        <div class="gcol" title="{{ $w['completed'] }} completed">
+                                            <span class="num">{{ $w['completed'] ?: '' }}</span>
+                                            <div class="col" style="height:{{ $w['completed'] ? max(3, round($w['completed'] / $tputMax * 100)) : 0 }}%"></div>
+                                        </div>
                                     </div>
                                     <div class="cap">{{ $w['label'] }}</div>
                                 </div>
@@ -239,7 +250,7 @@
                     @if (collect($timeByStage)->sum('hours') == 0)
                         <div class="sp-empty">Not enough stage history yet.</div>
                     @else
-                        <div class="vbars" style="height:150px;">
+                        <div class="vbars vbars-axis" style="height:150px;">
                             @foreach ($timeByStage as $stg)
                                 @php $isMax = $stg['hours'] >= $stageMaxHours && $stg['hours'] > 0; @endphp
                                 <div class="vbar">
@@ -260,7 +271,7 @@
                     @if ($typeBreakdown->isEmpty())
                         <div class="sp-empty">No documents in this window yet.</div>
                     @else
-                        <div class="vbars" style="height:140px;">
+                        <div class="vbars vbars-axis" style="height:140px;">
                             @foreach ($typeBreakdown as $t)
                                 <div class="vbar">
                                     <div class="num">{{ $t['value'] }}</div>
@@ -273,29 +284,16 @@
                 </div>
             </div>
 
-            {{-- By staff workload (1/2) --}}
-            <div class="panel an-span-3">
-                <div class="ph"><h2>Current staff load</h2><span class="sub">active + completed</span></div>
-                <div class="pb" style="padding-top:6px;">
-                    @forelse ($staffWorkload as $d)
-                        <div class="barrow">
-                            <div class="nm">{{ $d['name'] }}</div>
-                            <div class="track"><div class="fill" style="width:{{ round((($d['active'] + $d['completed']) / max(1, $staffWorkload->max(fn ($w) => $w['active'] + $w['completed']))) * 100) }}%"></div></div>
-                            <div class="val">{{ $d['active'] + $d['completed'] }}</div>
-                        </div>
-                    @empty
-                        <div class="sp-empty">No staff activity yet.</div>
-                    @endforelse
-                </div>
-            </div>
+            {{-- (The duplicate "Current staff load" panel was removed — "Who is overloaded?"
+                 above already covers per-staff load.) --}}
         </div>
 
         {{-- ── Region D: supporting data ───────────────────────────────────── --}}
-        <div class="an-grid">
+        <div class="an-grid" x-data="{ open: false, sel: {} }">
 
-            {{-- At-risk table (2/3) --}}
+            {{-- At-risk table (2/3) — click a row to view + (re)assign in a panel --}}
             <div class="panel an-span-4">
-                <div class="ph"><h2>Exactly what needs attention</h2><span class="sub">{{ $atRisk->count() }} overdue · click a row to act</span></div>
+                <div class="ph"><h2>Exactly what needs attention</h2><span class="sub">{{ $atRisk->count() }} overdue · click a row to assign</span></div>
                 @if ($atRisk->isEmpty())
                     <div class="sp-empty">Nothing overdue — the pipeline is on time.</div>
                 @else
@@ -306,13 +304,26 @@
                         </thead>
                         <tbody>
                             @foreach ($atRisk as $row)
-                                <tr onclick="window.location='{{ $row['url'] }}'" style="cursor:pointer">
+                                @php
+                                    $rowData = [
+                                        'tracking' => $row['document']->tracking_number,
+                                        'type' => $row['document']->document_type,
+                                        'citizen' => $row['document']->citizen_name,
+                                        'purpose' => $row['document']->purpose,
+                                        'stageLabel' => $row['stage']->label(),
+                                        'assignee' => $row['assignee'],
+                                        'assignedTo' => $row['document']->assigned_to,
+                                        'hoursOver' => $row['hours_over'],
+                                        'assignUrl' => route('admin.assignments.assign', $row['document']),
+                                    ];
+                                @endphp
+                                <tr @click="sel = @js($rowData); open = true" style="cursor:pointer">
                                     <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
                                     <td>{{ $row['document']->document_type }}</td>
                                     <td><x-status-badge :status="$row['stage']->value" /></td>
                                     <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
                                     <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['hours_over'] }}h</td>
-                                    <td><a href="{{ $row['url'] }}" class="cr-btn cr-btn-sm" onclick="event.stopPropagation()">Open →</a></td>
+                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Assign →</button></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -338,7 +349,42 @@
                         @endforelse
                     </div>
                 </div>
-                <div class="panel"><div class="ph"><h2>Document type mix</h2><span class="sub">top categories</span></div><div class="pb"><div class="sp-empty">See volume-by-type chart above.</div></div></div>
+            </div>
+
+            {{-- Reassign panel (admins can't open track.show — it redirects them here) --}}
+            <div x-show="open" x-cloak class="admin-modal" @keydown.escape.window="open = false">
+                <div class="admin-modal-backdrop" @click="open = false"></div>
+                <div class="admin-modal-card">
+                    <div class="admin-modal-head">
+                        <div>
+                            <div style="font-weight:700;color:var(--green-deep);" x-text="sel.type"></div>
+                            <span class="code" x-text="sel.tracking"></span>
+                        </div>
+                        <button type="button" class="cr-btn cr-btn-sm" @click="open = false">✕</button>
+                    </div>
+                    <dl class="admin-modal-body">
+                        <div><dt>Citizen</dt><dd x-text="sel.citizen || '—'"></dd></div>
+                        <div><dt>Purpose</dt><dd x-text="sel.purpose || '—'"></dd></div>
+                        <div><dt>Stage</dt><dd x-text="sel.stageLabel"></dd></div>
+                        <div><dt>Assignee</dt><dd x-text="sel.assignee || 'Unassigned'"></dd></div>
+                        <div><dt>Over SLA</dt><dd><span x-text="sel.hoursOver"></span>h</dd></div>
+                    </dl>
+                    <form method="POST" :action="sel.assignUrl">
+                        @csrf @method('PATCH')
+                        <label class="admin-modal-label">Assign to
+                            <select name="assigned_to">
+                                <option value="">Unassigned</option>
+                                @foreach ($assignableStaff as $st)
+                                    <option value="{{ $st->id }}" :selected="sel.assignedTo == {{ $st->id }}">{{ $st->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <div class="admin-modal-actions">
+                            <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
+                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Save assignment</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 

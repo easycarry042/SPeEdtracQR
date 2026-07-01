@@ -35,6 +35,11 @@
     History
 </a>
 
+<a href="{{ route('staff.index') }}" class="{{ $link(request()->routeIs('staff.index')) }}">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>
+    Staff
+</a>
+
 @if($isSupervisor)
     <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="{{ $link(request()->routeIs('staff.profile')) }}">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0"/></svg>

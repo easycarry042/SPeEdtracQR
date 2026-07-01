@@ -87,6 +87,7 @@ class StaffProfile
     {
         return Document::where('assigned_to', $this->user->id)
             ->whereIn('status', DocumentStatus::activeValues())
+            ->with('creator:id,name')
             ->latest('status_changed_at')
             ->get()
             ->each(fn ($d) => $d->setAttribute('overdue', $d->isOverdue()));
@@ -97,21 +98,25 @@ class StaffProfile
     {
         return Document::where('assigned_to', $this->user->id)
             ->where('status', DocumentStatus::Completed->value)
+            ->with('creator:id,name')
             ->latest('completed_at')
             ->limit($limit)
             ->get();
     }
 
     /**
-     * Merged activity feed: manual highlights + auto-logged activity-log events
-     * caused by this user, normalised and sorted newest-first.
+     * De-noised activity feed. Staff posts and completions are prominent,
+     * ungrouped cards. All other system/activity-log events are collapsed into
+     * ONE chunk per document (a "N updates" card that expands). This is purely a
+     * display grouping — the raw activity log is untouched.
      *
      * @return Collection<int, array>
      */
-    public function feed(int $limit = 30): Collection
+    public function feed(int $limit = 40): Collection
     {
+        // 1) Manual staff posts — prominent.
         $manual = $this->user->highlights()
-            ->with('document:id,tracking_number,document_type,status')
+            ->with(['document:id,tracking_number,document_type,status,source,created_by,created_at', 'document.creator:id,name'])
             ->limit($limit)
             ->get()
             ->map(fn (StaffHighlight $h) => [
@@ -123,28 +128,49 @@ class StaffProfile
                 'at' => $h->created_at,
             ]);
 
-        $auto = Activity::where('causer_type', $this->user->getMorphClass())
+        // 2) Completions — prominent.
+        $completions = $this->completions($limit)->map(fn (Document $d) => [
+            'kind' => 'completion',
+            'author' => $this->user->name,
+            'document' => $this->documentChip($d),
+            'at' => $d->completed_at,
+        ]);
+
+        // 3) System/activity-log events, collapsed into one chunk per document
+        //    (the "→ Completed" transition is excluded — it's shown as a completion card).
+        $groups = Activity::where('causer_type', $this->user->getMorphClass())
             ->where('causer_id', $this->user->id)
             ->where('subject_type', (new Document)->getMorphClass())
             ->latest()
-            ->limit($limit)
-            ->get()
-            ->map(function (Activity $a) {
-                $doc = $a->subject; // may be null if soft-deleted
-                $props = $a->properties ?? collect();
+            ->limit(200)
+            ->get(['subject_id', 'description', 'properties', 'created_at'])
+            ->reject(fn (Activity $a) => data_get($a->properties, 'to') === DocumentStatus::Completed->value
+                || data_get($a->properties, 'attributes.status') === DocumentStatus::Completed->value)
+            ->groupBy('subject_id')
+            ->map(function (Collection $items, $docId) {
+                $doc = Document::find($docId); // subject may be soft-deleted
+                if (! $doc) {
+                    return null;
+                }
+                $ordered = $items->sortByDesc('created_at')->values();
 
                 return [
-                    'kind' => 'auto',
-                    'type' => 'system',
-                    'body' => $a->description,
+                    'kind' => 'system_group',
                     'author' => 'System',
-                    'document' => $doc ? $this->documentChip($doc) : null,
-                    'status' => $props['to'] ?? ($doc?->status),
-                    'at' => $a->created_at,
+                    'document' => $this->documentChip($doc),
+                    'count' => $ordered->count(),
+                    'latest_status' => $doc->status,
+                    'at' => optional($ordered->first())->created_at,
+                    'items' => $ordered->map(fn (Activity $a) => [
+                        'body' => $a->description,
+                        'at' => $a->created_at,
+                    ])->all(),
                 ];
-            });
+            })
+            ->filter()
+            ->values();
 
-        return $manual->concat($auto)
+        return $manual->concat($completions)->concat($groups)
             ->sortByDesc('at')
             ->take($limit)
             ->values();
@@ -160,6 +186,9 @@ class StaffProfile
             'tracking_number' => $doc->tracking_number,
             'document_type' => $doc->document_type,
             'status' => $doc->status,
+            'source' => $doc->source,
+            'created_by_name' => $doc->creator?->name,
+            'created_at' => $doc->created_at,
             'url' => route('track.show', $doc->tracking_number),
         ];
     }

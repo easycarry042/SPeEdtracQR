@@ -18,6 +18,12 @@ class AnalyticsController extends Controller
 
     public function index(Request $request)
     {
+        // Super admins get the full analytics command center on their dashboard;
+        // the standalone page would just duplicate it.
+        if (auth()->user()?->can('manage system')) {
+            return redirect()->route('admin.dashboard');
+        }
+
         $user = auth()->user();
         $isOrgWide = AssignmentScope::canViewAll($user);
         $dept = null;

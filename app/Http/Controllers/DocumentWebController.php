@@ -33,13 +33,14 @@ class DocumentWebController extends Controller
         $request->validate([
             'document_type' => 'required|string|max:255',
             'citizen_name' => 'nullable|string',
+            'citizen_email' => 'nullable|email|max:255',
             'citizen_contact' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'purpose' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
-            'attachment' => 'nullable|image|max:10240',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
             'attachments' => 'nullable|array|max:10',
-            'attachments.*' => 'image|max:10240',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -51,11 +52,13 @@ class DocumentWebController extends Controller
             'tracking_number' => $trackingNumber,
             'document_type' => $request->document_type,
             'citizen_name' => $request->citizen_name,
+            'citizen_email' => $request->citizen_email,
             'citizen_contact' => $request->citizen_contact,
             'description' => $request->description,
             'purpose' => $request->purpose,
             'status' => DocumentStatus::Pending->value,
             'status_changed_at' => now(),
+            'source' => 'walk_in', // staff-encoded intake; public form sets 'online'
             'created_by' => auth()->id(),
             'remarks' => $request->remarks,
         ]);
