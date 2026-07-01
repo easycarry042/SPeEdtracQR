@@ -37,17 +37,23 @@
                     @error('email')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div x-data="{ show: false }" class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700">New Password <span class="text-gray-400 font-normal">(leave blank to keep current)</span></label>
-                        <input type="password" name="password" autocomplete="new-password"
-                               class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 @error('password') border-red-400 @enderror">
+                        <div class="relative mt-1">
+                            <input :type="show ? 'text' : 'password'" name="password" autocomplete="new-password"
+                                   class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-11 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 @error('password') border-red-400 @enderror">
+                            <x-password-toggle />
+                        </div>
                         @error('password')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700">Confirm New Password</label>
-                        <input type="password" name="password_confirmation" autocomplete="new-password"
-                               class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                        <div class="relative mt-1">
+                            <input :type="show ? 'text' : 'password'" name="password_confirmation" autocomplete="new-password"
+                                   class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-11 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                            <x-password-toggle />
+                        </div>
                     </div>
                 </div>
 

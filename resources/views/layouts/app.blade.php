@@ -23,7 +23,13 @@
     $isSystemAdmin = $user?->can('manage system') ?? false;
     $isSupervisor = $user?->hasRole('Supervisor') ?? false;
     $useTopNav = auth()->check() && ! $isSystemAdmin;
-    $homeRoute = $isSupervisor ? route('dashboard') : route('staff.profile', ['user' => auth()->id()]);
+    // Guests can reach app-layout pages (e.g. the public /track page), so fall
+    // back to the site root when there is no authenticated user to link to.
+    $homeRoute = match (true) {
+        $isSupervisor => route('dashboard'),
+        (bool) $user => route('staff.profile', ['user' => $user->id]),
+        default => url('/'),
+    };
     $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.profile');
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',

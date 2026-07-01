@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -44,22 +45,40 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            // Only ACTIVE accounts block the address. Archived (soft-deleted) users
+            // keep their row + the DB unique constraint, so we ignore them here and
+            // revive the account below instead of colliding.
+            'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|string',
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'is_active' => true,
-        ]);
+        // Re-adding an email that belongs to an archived account restores and
+        // updates that account (a fresh insert would hit the unique constraint).
+        $user = User::onlyTrashed()->where('email', $validated['email'])->first();
 
-        $user->assignRole($validated['role']);
+        if ($user) {
+            $user->restore();
+            $user->update([
+                'name' => $validated['name'],
+                'password' => Hash::make($validated['password']),
+                'is_active' => true,
+            ]);
+            $message = "Archived account for {$user->name} was restored and updated.";
+        } else {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'is_active' => true,
+            ]);
+            $message = "User {$user->name} created successfully.";
+        }
+
+        $user->syncRoles([$validated['role']]);
 
         return redirect()->route('admin.users.index')
-            ->with('success', "User {$user->name} created successfully.");
+            ->with('success', $message);
     }
 
     public function edit(User $user)
@@ -73,7 +92,7 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,'.$user->id,
+            'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)->whereNull('deleted_at')],
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|string',
         ]);
