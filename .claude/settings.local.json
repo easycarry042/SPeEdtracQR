@@ -8,7 +8,10 @@
       "Bash(php -l app/Http/Requests/Auth/LoginRequest.php)",
       "Bash(php -l app/Http/Controllers/ScanController.php)",
       "Bash(php -r 'require \"vendor/autoload.php\"; $p = \\\\Carbon\\\\Carbon::now\\(\\)->subHours\\(5\\); echo \"now->diffInHours\\(past\\) = \".\\\\Carbon\\\\Carbon::now\\(\\)->diffInHours\\($p\\).\"\\\\n\";')",
-      "Read(//home/andrewpc/**)"
+      "Read(//home/andrewpc/**)",
+      "Bash(awk '/^## God Nodes/,/^## /{if\\(!/^## Surprising/\\) print}' graphify-out/GRAPH_REPORT.md)",
+      "Bash(awk '/^## Surprising/,/^## /{if\\(!/^## Suggested/\\) print}' graphify-out/GRAPH_REPORT.md)",
+      "Bash(awk '/^## Suggested Questions/,0' graphify-out/GRAPH_REPORT.md)"
     ]
   }
 }
