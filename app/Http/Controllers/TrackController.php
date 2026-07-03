@@ -210,7 +210,6 @@ class TrackController extends Controller
             'routingChain' => collect(),
             'routingSteps' => collect(),
             'timeline' => $timeline,
-            'isPublicView' => $isPublicView,
             'canAct' => $canAct,
             'isLastStop' => $isLastStop,
             'nextDepartment' => $nextDepartment,

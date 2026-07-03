@@ -21,8 +21,7 @@
     @endphp
     <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2"
          @if($tabbed) x-data="{ tab: @js($activeTab ?? 'inprogress') }" @endif>
-        @unless($isPublicView)
-            {{-- Fixed-height panel; the list scrolls inside it --}}
+        {{-- Fixed-height panel; the list scrolls inside it --}}
             <div class="flex flex-col rounded-xl border border-[#e6ece8] bg-white p-3 lg:h-[calc(100vh-9rem)]">
                 @if($tabbed)
                     @php
@@ -96,10 +95,9 @@
                     </div>
                 @endif
             </div>
-        @endunless
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="rounded-xl border border-[#e6ece8] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto {{ $isPublicView ? 'lg:col-span-2' : '' }}">
+        <div class="rounded-xl border border-[#e6ece8] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
                     <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
@@ -124,13 +122,11 @@
 
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <x-status-badge :status="$document->status" />
-                @unless($isPublicView)
-                    <a href="{{ route('documents.edit', $document) }}"
-                       class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-                        Edit details
-                    </a>
-                @endunless
+                <a href="{{ route('documents.edit', $document) }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                    Edit details
+                </a>
             </div>
 
             {{-- ── Pending review + assign (supervisor) — inline, no modal ───────── --}}
@@ -263,33 +259,27 @@
                 </div>
             @endif
 
-            @unless($isPublicView)
-                @if(session('status'))
-                    <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">{{ session('status') }}</div>
-                @endif
-            @endunless
+            @if(session('status'))
+                <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">{{ session('status') }}</div>
+            @endif
 
             @if($document->attachments->isNotEmpty())
                 <div class="mt-5">
                     <p class="text-[14px] font-bold text-[#16211b]">Attached Files</p>
-                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" :manage="! $isPublicView" />
-                    @unless($isPublicView)
-                        <p class="mt-1 text-[12px] text-[#7c8b83]">Hover a file and tap × to remove one placed by mistake.</p>
-                    @endunless
+                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" :manage="true" />
+                    <p class="mt-1 text-[12px] text-[#7c8b83]">Hover a file and tap × to remove one placed by mistake.</p>
                 </div>
             @endif
 
-            @unless($isPublicView)
-                <div class="mt-6 flex flex-wrap gap-2">
-                    <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
-                        Print QR sticker
-                    </a>
-                    <a href="{{ route('scan.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
-                        Open scanner
-                    </a>
-                </div>
-            @endunless
+            <div class="mt-6 flex flex-wrap gap-2">
+                <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
+                    Print QR sticker
+                </a>
+                <a href="{{ route('scan.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
+                    Open scanner
+                </a>
+            </div>
 
             {{-- Predictive insights (self-hosted analytics) --}}
             @if(!empty($anomaly))
@@ -315,12 +305,12 @@
 
             <div class="mt-8">
                 <div class="mb-3 text-[14px] font-bold text-[#16211b]">Status Progress</div>
-                @if(! $isPublicView && $document->assigned_to)
+                @if($document->assigned_to)
                     <p class="mb-2 text-[13px] text-[#51625a]">
                         Assigned to <span class="font-semibold text-[#0f4d28]">{{ $document->assignedTo->name ?? '—' }}</span>
                     </p>
                 @endif
-                <x-routing-stepper :document="$document" :controls="! $isPublicView" />
+                <x-routing-stepper :document="$document" :controls="true" />
             </div>
 
             {{-- Origin / Creation — how this document entered the office --}}
@@ -434,7 +424,6 @@
         </script>
     @endif
 
-    @unless($isPublicView)
     <script>
         (function () {
             const root = document.getElementById('collab');
@@ -478,5 +467,4 @@
             });
         })();
     </script>
-    @endunless
 </x-app-layout>
