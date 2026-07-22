@@ -41,7 +41,7 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    @include('partials.qr-scan-helpers')
     <script>
         (function () {
             const trackBase = @json(url('/track'));
@@ -53,17 +53,11 @@
             const cameraToggleLabel = document.getElementById('cameraToggleLabel');
             const readerEl = document.getElementById('reader');
 
-            // Tracking number format: SPD-YYYYMMDD-XXXXXX (6 base32 chars).
-            const TRACKING_RE = /SPD-\d{8}-[0-9A-Z]{6}/i;
+            const extractTracking = window.SpeedQr.extractTracking;
 
             function showError(message) {
                 errorEl.textContent = message;
                 errorEl.classList.remove('hidden');
-            }
-
-            function extractTracking(decodedText) {
-                const match = (decodedText || '').match(TRACKING_RE);
-                return match ? match[0].toUpperCase() : null;
             }
 
             function openDocument(tracking) {
@@ -98,19 +92,18 @@
                     });
             });
 
-            // Live camera scanner — started/stopped on demand.
-            let scanner = null;
+            // Live camera scanner — started/stopped on demand via the shared helper.
+            let cameraOn = false;
 
             function stopCamera() {
-                if (!scanner) return;
-                scanner.stop().catch(() => {});
-                scanner = null;
+                window.SpeedQr.stop();
+                cameraOn = false;
                 readerEl.classList.add('hidden');
                 cameraToggleLabel.textContent = 'Open camera scanner';
             }
 
             cameraToggle.addEventListener('click', function () {
-                if (scanner) {
+                if (cameraOn) {
                     stopCamera();
                     return;
                 }
@@ -118,13 +111,13 @@
                 errorEl.classList.add('hidden');
                 readerEl.classList.remove('hidden');
                 cameraToggleLabel.textContent = 'Close camera scanner';
+                cameraOn = true;
 
-                scanner = new Html5Qrcode('reader');
-                scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, (decodedText) => {
+                window.SpeedQr.start('reader', (decodedText) => {
                     const tracking = extractTracking(decodedText) || decodedText.trim();
                     stopCamera();
                     if (tracking) openDocument(tracking);
-                }, () => {}).catch(() => {
+                }, () => {
                     stopCamera();
                     showError('Could not start the camera. Check permissions, or upload a QR image instead.');
                 });

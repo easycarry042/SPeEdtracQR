@@ -26,7 +26,8 @@ class QrLifecycleTest extends TestCase
     private function doc(User $staff, array $attributes = []): Document
     {
         return Document::create(array_merge([
-            'tracking_number' => 'SPD-QR-'.strtoupper(uniqid()),
+            // Real production format — the custody scan regex depends on it.
+            'tracking_number' => 'SPD-'.now()->format('Ymd').'-'.substr(strtoupper(uniqid()), -6),
             'document_type' => 'Business Permit',
             'citizen_name' => 'Jane Citizen',
             'status' => 'in_progress',
@@ -37,22 +38,24 @@ class QrLifecycleTest extends TestCase
         ], $attributes));
     }
 
-    public function test_staff_can_record_physical_custody(): void
+    public function test_staff_can_record_physical_custody_by_scanning(): void
     {
         $staff = $this->staff();
         $doc = $this->doc($staff);
 
+        $scan = ['capture_method' => 'scan', 'scanned_value' => url('/track/'.$doc->tracking_number)];
+
         $this->actingAs($staff)
-            ->post(route('documents.custody.store', $doc))
+            ->post(route('documents.custody.store', $doc), $scan)
             ->assertRedirect();
 
         $custody = $doc->fresh()->currentCustody();
         $this->assertNotNull($custody);
         $this->assertSame($staff->id, $custody->user_id);
 
-        // A second staff member taking the folder becomes the new custodian.
+        // A second staff member scanning the folder becomes the new custodian.
         $other = User::factory()->create()->assignRole('receiving_staff');
-        $this->actingAs($other)->post(route('documents.custody.store', $doc));
+        $this->actingAs($other)->post(route('documents.custody.store', $doc), $scan);
 
         $this->assertSame($other->id, $doc->fresh()->currentCustody()->user_id);
         $this->assertSame(2, $doc->custodyEvents()->count());
