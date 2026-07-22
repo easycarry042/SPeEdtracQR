@@ -43,9 +43,22 @@ class DocumentStatusController extends Controller
 
         // Hard stage gates: unmet requirements (and a missing review note for
         // →Approved) block the transition with a per-requirement message.
-        StatusGate::validate($document, $next, $validated['note'] ?? null);
+        $note = trim((string) ($validated['note'] ?? '')) ?: null;
+        StatusGate::validate($document, $next, $note);
 
-        return $this->transition($document, $next, 'Advanced', $validated['note'] ?? null);
+        // The transition note is a real work note: persist it as an internal
+        // staff comment so it shows in the feed and satisfies future gates.
+        if ($note) {
+            $comment = $document->comments()->create([
+                'author_id' => auth()->id(),
+                'author_type' => 'staff',
+                'body' => $note,
+                'visibility' => 'internal',
+            ]);
+            DocumentCommentPosted::dispatch($comment);
+        }
+
+        return $this->transition($document, $next, 'Advanced');
     }
 
     public function revert(Request $request, Document $document)

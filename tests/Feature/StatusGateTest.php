@@ -145,10 +145,35 @@ class StatusGateTest extends TestCase
         $this->actingAs($staff)
             ->get(route('track.show', $doc->tracking_number))
             ->assertOk()
-            // Advance gate panel with the →In Review checklist, unmet.
+            // Advance gate panel with the →In Review checklist, unmet — a
+            // typed note can satisfy it, and the panel says so.
             ->assertSee('Confirm — move to In Review')
-            ->assertSee('At least one attachment or work note on file')
-            ->assertSee('Resolve the unmet requirements above to continue');
+            ->assertSee('An attachment or work note on file')
+            ->assertSee('or add a note below')
+            ->assertSee('Add a work note above');
+    }
+
+    public function test_a_transition_note_satisfies_the_work_evidence_gate(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff); // in_progress, nothing on file
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents; started processing.',
+            ])
+            ->assertOk();
+
+        $doc->refresh();
+        $this->assertSame('in_review', $doc->status);
+
+        // The note was persisted as a real staff work note on the file.
+        $this->assertTrue(
+            $doc->comments()->where('author_type', 'staff')
+                ->where('body', 'Verified the submitted documents; started processing.')
+                ->exists()
+        );
     }
 
     public function test_return_for_revision_requires_a_reason(): void

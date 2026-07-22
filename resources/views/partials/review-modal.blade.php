@@ -301,19 +301,16 @@
                     <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="advanceOpen" x-transition>
                         <div class="border-b border-hairline px-6 py-4">
                             <h3 class="text-base font-bold text-ink">Advance to <span x-text="advanceTargetLabel()"></span></h3>
-                            <p class="mt-0.5 text-sm text-ink-soft"
-                               x-text="advanceNoteRequired()
-                                   ? 'This is the review sign-off — record what was checked and why it passes.'
-                                   : 'Moves the request to the next stage. Add a note for the record if useful.'"></p>
+                            <p class="mt-0.5 text-sm text-ink-soft" x-text="advanceHint()"></p>
                         </div>
                         <div class="px-6 py-5">
                             <label class="block text-sm font-semibold text-ink">
-                                <span x-text="advanceNoteRequired() ? 'Review note' : 'Note'"></span>
+                                <span x-text="active && active.status === 'in_review' ? 'Review note' : (advanceNoteRequired() ? 'Work note' : 'Note')"></span>
                                 <span x-show="advanceNoteRequired()" class="text-status-red">*</span>
                                 <span x-show="!advanceNoteRequired()" class="font-normal text-ink-soft">(optional)</span>
                             </label>
                             <textarea x-model="advanceNote" rows="3" maxlength="1000"
-                                      :placeholder="advanceNoteRequired() ? 'e.g. Requirements verified against the checklist; clearances valid' : 'Anything worth recording about this step…'"
+                                      :placeholder="active && active.status === 'in_review' ? 'e.g. Requirements verified against the checklist; clearances valid' : (advanceNoteRequired() ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step…')"
                                       class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
                         </div>
                         <div class="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
@@ -579,8 +576,22 @@
             },
 
             // ─── Advance: confirm panel with a transition note ───
-            /** The →Approved step is the review sign-off, so its note is required. */
-            advanceNoteRequired() { return this.active && this.active.status === 'in_review'; },
+            /**
+             * A note is required when (a) →Approved: the review sign-off, or
+             * (b) →In Review with nothing on file: the note becomes the work
+             * record that satisfies the stage gate.
+             */
+            advanceNoteRequired() {
+                if (!this.active) return false;
+                if (this.active.status === 'in_review') return true;
+                return this.active.status === 'in_progress' && !this.active.has_work_evidence;
+            },
+            advanceHint() {
+                if (!this.active) return '';
+                if (this.active.status === 'in_review') return 'This is the review sign-off — record what was checked and why it passes.';
+                if (this.active.status === 'in_progress' && !this.active.has_work_evidence) return 'Nothing is on file for this request yet — your note becomes its work record.';
+                return 'Moves the request to the next stage. Add a note for the record if useful.';
+            },
             advanceTargetLabel() {
                 const idx = this.stageIndex(this.active ? this.active.status : null);
                 return idx >= 0 && this.flow[idx + 1] ? this.flow[idx + 1].label : '';
@@ -589,9 +600,12 @@
             confirmAdvance() {
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
                 const fd = new FormData();
-                if (this.advanceNote.trim()) fd.append('note', this.advanceNote.trim());
+                const hadNote = !!this.advanceNote.trim();
+                if (hadNote) fd.append('note', this.advanceNote.trim());
                 this.advanceOpen = false;
-                return this.patchStatus('status/advance', {}, fd).then(() => { this.advanceNote = ''; });
+                // A submitted note is stored as a staff work note on the file.
+                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, fd)
+                    .then(() => { this.advanceNote = ''; });
             },
 
             // ─── Move back: always carries a reason for the audit trail ───

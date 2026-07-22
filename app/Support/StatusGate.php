@@ -19,8 +19,12 @@ class StatusGate
     /**
      * Requirement checklist for entering $to.
      * Each item: ['key' => string, 'label' => string, 'passed' => bool].
+     *
+     * A note submitted WITH the transition counts as work evidence for
+     * →In Review — the controller persists it as a staff comment, so the
+     * record stays consistent with what the gate accepted.
      */
-    public static function checks(Document $document, DocumentStatus $to): array
+    public static function checks(Document $document, DocumentStatus $to, ?string $note = null): array
     {
         return match ($to) {
             DocumentStatus::InProgress => [
@@ -38,8 +42,9 @@ class StatusGate
             DocumentStatus::InReview => [
                 [
                     'key' => 'work_evidence',
-                    'label' => 'At least one attachment or work note on file',
-                    'passed' => $document->attachments()->exists()
+                    'label' => 'An attachment or work note on file',
+                    'passed' => trim((string) $note) !== ''
+                        || $document->attachments()->exists()
                         || $document->comments()->where('author_type', 'staff')->exists(),
                 ],
             ],
@@ -58,7 +63,7 @@ class StatusGate
     /** Throws a ValidationException listing every unmet requirement. */
     public static function validate(Document $document, DocumentStatus $to, ?string $note = null): void
     {
-        $failed = array_filter(self::checks($document, $to), fn (array $c) => ! $c['passed']);
+        $failed = array_filter(self::checks($document, $to, $note), fn (array $c) => ! $c['passed']);
 
         $messages = array_map(
             fn (array $c) => "Requirement not met: {$c['label']}.",
