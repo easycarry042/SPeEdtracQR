@@ -6,8 +6,10 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesByDepartment;
 use App\Models\Document;
 use App\Support\AssignmentScope;
+use App\Support\DocumentSeal;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Spatie\Activitylog\Models\Activity;
 
 class TrackController extends Controller
@@ -200,6 +202,18 @@ class TrackController extends Controller
         $prediction = null;
         $anomaly = null;
 
+        // QR lifecycle: physical custody (staff) + authenticity seal (issued docs).
+        $custody = auth()->check() ? $document->currentCustody() : null;
+        $verifyUrl = null;
+        $sealSvg = null;
+        if ($document->statusEnum() === DocumentStatus::Completed) {
+            $verifyUrl = DocumentSeal::url($document);
+            // SVG backend — no GD needed, embeds inline.
+            $sealSvg = base64_encode(
+                QrCode::format('svg')->size(120)->margin(0)->generate($verifyUrl)
+            );
+        }
+
         $isPublicView = ! auth()->check();
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
 
@@ -222,6 +236,9 @@ class TrackController extends Controller
             'nextDepartment' => $nextDepartment,
             'prediction' => $prediction,
             'anomaly' => $anomaly,
+            'custody' => $custody,
+            'verifyUrl' => $verifyUrl,
+            'sealSvg' => $sealSvg,
         ]);
     }
 

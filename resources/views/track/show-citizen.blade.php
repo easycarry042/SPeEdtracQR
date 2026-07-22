@@ -87,6 +87,28 @@
                      class="mt-4 hidden rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm font-medium text-green-deep">
                     Status updated! Refreshing…
                 </div>
+
+                {{-- QR-gated pickup: the emailed/printed QR is the claim stub. --}}
+                @if($document->status === 'completed')
+                    @if($document->claimed_at)
+                        <div class="mt-4 rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm text-green-deep">
+                            <b>Released.</b> This document was claimed at the counter on
+                            <span class="id-chip">{{ $document->claimed_at->format('M d, Y') }}</span>.
+                        </div>
+                    @else
+                        <div class="mt-4 rounded-xl border border-hairline-strong bg-green-wash px-4 py-3 text-sm text-green-deep">
+                            <b>Ready for pickup.</b> Bring your QR code (from your confirmation email or printed slip)
+                            to the counter — staff will scan it to release your document. No QR means slower manual verification.
+                        </div>
+                    @endif
+
+                    @if(! empty($verifyUrl))
+                        <p class="mt-3 text-xs text-ink-soft">
+                            Third parties can confirm this document is genuine at any time via its
+                            <a href="{{ $verifyUrl }}" class="font-semibold text-green underline">official verification page</a>.
+                        </p>
+                    @endif
+                @endif
             </div>
         </div>
 

@@ -43,6 +43,8 @@ class Document extends Model
         'blocked_by',
         'held_at',
         'held_by',
+        'claimed_at',
+        'released_by',
     ];
 
     /** Allowed values for the `blocked_by` hold tag. */
@@ -60,6 +62,7 @@ class Document extends Model
         'notify_citizen' => 'boolean',
         'hold_until' => 'date',
         'held_at' => 'datetime',
+        'claimed_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -105,6 +108,23 @@ class Document extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function releasedBy()
+    {
+        return $this->belongsTo(User::class, 'released_by');
+    }
+
+    /** Physical custody trail, newest first. */
+    public function custodyEvents()
+    {
+        return $this->hasMany(DocumentCustodyEvent::class)->latest();
+    }
+
+    /** Who physically holds the paper folder right now (latest custody event). */
+    public function currentCustody(): ?DocumentCustodyEvent
+    {
+        return $this->custodyEvents()->with('user:id,name')->first();
     }
 
     /** Staff member responsible for advancing this document through its stages. */
