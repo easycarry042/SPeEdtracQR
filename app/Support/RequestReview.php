@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -47,6 +48,13 @@ class RequestReview
             'needs_triage' => self::needsTriage($document),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => optional($document->created_at)->format('M j, Y g:i A'),
+            // Cockpit context: lets the in-modal status controls render the hold
+            // banner, the returned reason, and restore the stepper position on hold.
+            'status_before_hold' => $document->status_before_hold,
+            'blocked_by' => $document->blocked_by,
+            'hold_reason' => $document->hold_reason,
+            'hold_until' => optional($document->hold_until)->format('M j, Y'),
+            'remarks' => $document->remarks,
             'attachments' => $document->attachments->map(function ($a) {
                 $ext = strtolower(pathinfo($a->file_path, PATHINFO_EXTENSION));
 
@@ -69,8 +77,8 @@ class RequestReview
         return $document->assigned_to !== null
             && $document->accepted_at === null
             && in_array($document->status, [
-                \App\Enums\DocumentStatus::Pending->value,
-                \App\Enums\DocumentStatus::InProgress->value,
+                DocumentStatus::Pending->value,
+                DocumentStatus::InProgress->value,
             ], true);
     }
 }

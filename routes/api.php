@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\ScanController;
-use Illuminate\Support\Facades\Route;
-
-Route::middleware(['web', 'auth'])->group(function () {
-    Route::post('/scan', [ScanController::class, 'store'])->name('api.scan.store');
-    Route::post('/scan/sync', [ScanController::class, 'sync'])->name('api.scan.sync');
-});
+/*
+ * No API routes.
+ *
+ * Scanning is a browser-side lookup only (see the web `/scan` route). The
+ * legacy scan-to-advance (`api.scan.store`) and offline-sync (`api.scan.sync`)
+ * endpoints were retired with the move to manual status progression.
+ */

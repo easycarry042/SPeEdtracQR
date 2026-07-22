@@ -17,12 +17,16 @@ class StaffDashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Active assigned work, including newly assigned tickets awaiting acceptance.
+        // Active assigned work, including newly assigned tickets awaiting acceptance
+        // and items the staff member has parked (Returned / On Hold) — those stay
+        // on the dashboard so they can be resumed from the same cockpit modal.
         $activeStatuses = [
             DocumentStatus::Pending->value,
             DocumentStatus::InProgress->value,
             DocumentStatus::InReview->value,
             DocumentStatus::Approved->value,
+            DocumentStatus::Returned->value,
+            DocumentStatus::OnHold->value,
         ];
 
         $requests = Document::with('attachments')
@@ -34,6 +38,11 @@ class StaffDashboardController extends Controller
         return view('staff.dashboard', [
             'requests' => $requests,
             'requestPayload' => $requests->map(fn ($d) => RequestReview::forModal($d))->values(),
+            // The forward line, so the modal cockpit can render the stepper and
+            // compute the next stage entirely client-side (no reload per advance).
+            'flow' => collect(DocumentStatus::flow())
+                ->map(fn ($s) => ['value' => $s->value, 'label' => $s->label()])
+                ->values()->all(),
             'assignedCount' => $requests->count(),
             'completedCount' => Document::where('assigned_to', $user->id)
                 ->where('status', DocumentStatus::Completed->value)

@@ -174,7 +174,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
-    Route::get('/scanner', fn () => redirect()->route('scan.index'))->name('scanner');
 
     Route::get('/documents/create', [DocumentWebController::class, 'create'])->name('documents.create');
     Route::post('/documents', [DocumentWebController::class, 'store'])->name('documents.store');
@@ -183,7 +182,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/documents/{document}', [DocumentWebController::class, 'update'])->name('documents.update');
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
-    Route::post('/documents/{document}/undo-scan', [ScanController::class, 'undoLast'])->name('documents.undo-scan');
 
     // Per-document staff collaboration feed (assignee or admin).
     Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');

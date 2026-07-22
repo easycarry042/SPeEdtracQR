@@ -55,12 +55,19 @@ class DocumentStatusController extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'string'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $target = DocumentStatus::tryFrom($validated['status']);
         if (! $target || in_array($target, [DocumentStatus::OnHold, DocumentStatus::Completed], true)) {
             // On Hold has its own endpoint (it needs a reason); Completed is reached via advance().
             throw ValidationException::withMessages(['status' => 'Unknown or disallowed status stage.']);
+        }
+
+        // A reason accompanies "Return for revision" so the citizen learns what to
+        // fix — mirrors the triage revision path. Stored as remarks (transition saves).
+        if (! empty($validated['reason'])) {
+            $document->remarks = $validated['reason'];
         }
 
         return $this->transition($document, $target, 'Set status');
