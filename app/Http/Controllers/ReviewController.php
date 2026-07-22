@@ -8,10 +8,12 @@ use App\Events\DocumentStatusUpdated;
 use App\Mail\AssignmentNotice;
 use App\Models\Document;
 use App\Models\User;
+use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Staff review lifecycle: opening a review moves a request to "In Review", and
@@ -57,6 +59,9 @@ class ReviewController extends Controller
             Mail::to($assignee->email)->send(new AssignmentNotice($document->fresh(), $assignee));
             activity()->performedOn($document)->causedBy(auth()->user())->log("Emailed AssignmentNotice to {$assignee->name}");
         }
+
+        // Header-bell ping for the assignee.
+        $assignee->notify(DocumentEvent::assigned($document, auth()->user()->name));
 
         return $this->done($document, "Assigned {$document->tracking_number} to {$assignee->name}.");
     }
@@ -207,6 +212,12 @@ class ReviewController extends Controller
         $comment = $document->logSystemComment("Assignment declined by {$actor}".($reason ? " — {$reason}" : ''));
         DocumentCommentPosted::dispatch($comment);
         DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+
+        // Header-bell ping for supervisors: the request is back in the queue.
+        Notification::send(
+            DocumentEvent::supervisors(auth()->id()),
+            DocumentEvent::declined($document, $actor, $reason),
+        );
 
         return $this->done($document, "Declined {$document->tracking_number}.");
     }

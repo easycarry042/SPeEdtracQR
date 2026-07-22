@@ -6,10 +6,12 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Mail\TicketSubmitted;
 use App\Models\Document;
+use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\DocumentFormOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Phase 2 — citizen self-service ticket creation (no account).
@@ -86,6 +88,12 @@ class PublicTicketController extends Controller
         activity()
             ->performedOn($document)
             ->log('Citizen submitted online request');
+
+        // Header-bell ping: supervisors have a new request to triage.
+        Notification::send(
+            DocumentEvent::supervisors(),
+            DocumentEvent::newTicket($document),
+        );
 
         if ($document->citizen_email) {
             Mail::to($document->citizen_email)->send(new TicketSubmitted($document));

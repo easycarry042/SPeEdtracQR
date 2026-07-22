@@ -16,6 +16,7 @@ use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\ReviewController;
@@ -180,6 +181,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff profile (identity rail + activity feed). Viewable by any staff user.
     Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');
     Route::post('/staff/highlights', [StaffProfileController::class, 'store'])->name('staff.highlights.store');
+
+    // Header bell: open a notification (mark read + follow) / clear all.
+    Route::get('/notifications/{id}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

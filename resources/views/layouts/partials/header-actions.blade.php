@@ -40,6 +40,11 @@
     </div>
 </div>
 
+@php
+    // Real unread feed for the bell (database notifications, see DocumentEvent).
+    $bellUnread = auth()->check() ? auth()->user()->unreadNotifications()->latest()->take(10)->get() : collect();
+    $bellCount = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
+@endphp
 <div class="relative" id="notifDropdown">
     <button type="button"
             id="notifBtn"
@@ -48,17 +53,38 @@
             title="Notifications"
             aria-haspopup="true">
         <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2z"/></svg>
-        @if(($headerNotifications ?? collect())->isNotEmpty())
-            <span class="absolute right-1 top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{{ $headerNotifications->count() }}</span>
+        @if($bellCount > 0)
+            <span class="absolute right-1 top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
         @endif
     </button>
     <div id="notifPanel"
          class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl shadow-gray-900/15"
          style="z-index:9999;">
-        <p class="border-b border-gray-100 px-4 pb-2 text-xs font-semibold tracking-wide text-gray-500">Notifications</p>
-        {{-- Department notifications were retired with the department model; an
-             assignment-based notifications feed is a parked follow-up. --}}
-        <p class="px-4 py-6 text-center text-sm text-gray-500">You&apos;re all caught up — no new notifications.</p>
+        <div class="flex items-center justify-between border-b border-gray-100 px-4 pb-2">
+            <p class="text-xs font-semibold tracking-wide text-gray-500">Notifications</p>
+            @if($bellCount > 0)
+                <form method="POST" action="{{ route('notifications.read-all') }}">
+                    @csrf
+                    <button type="submit" class="text-[11px] font-semibold text-green hover:underline">Mark all as read</button>
+                </form>
+            @endif
+        </div>
+        @forelse($bellUnread as $notification)
+            <a href="{{ route('notifications.open', $notification->id) }}"
+               class="block border-b border-gray-50 px-4 py-2.5 transition hover:bg-green-wash/60">
+                <div class="flex items-baseline justify-between gap-2">
+                    <p class="text-[13px] font-bold text-ink">{{ data_get($notification->data, 'title', 'Update') }}</p>
+                    <span class="shrink-0 text-[11px] text-ink-soft">{{ $notification->created_at->diffForHumans(short: true) }}</span>
+                </div>
+                <p class="mt-0.5 line-clamp-2 text-xs text-ink-soft">{{ data_get($notification->data, 'body') }}</p>
+                <p class="mt-0.5 font-mono text-[10.5px] text-green-deep">{{ data_get($notification->data, 'tracking') }}</p>
+            </a>
+        @empty
+            <p class="px-4 py-6 text-center text-sm text-gray-500">You&apos;re all caught up — no new notifications.</p>
+        @endforelse
+        @if($bellCount > 10)
+            <p class="px-4 pt-2 text-center text-[11px] text-ink-soft">+ {{ $bellCount - 10 }} more unread</p>
+        @endif
     </div>
 </div>
 
