@@ -13,6 +13,8 @@ class DocumentCustodyEvent extends Model
     protected $fillable = [
         'document_id',
         'user_id',
+        'capture_method',
+        'override_reason',
         'note',
     ];
 
