@@ -71,6 +71,7 @@ class StaffCockpitRenderTest extends TestCase
 
         $this->actingAs($staff)
             ->patchJson(route('documents.status.set', $doc), [
+                'expected_status' => 'in_review',
                 'status' => 'returned',
                 'reason' => 'Missing barangay clearance',
             ])

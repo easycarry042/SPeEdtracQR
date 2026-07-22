@@ -24,6 +24,18 @@ class AssignmentController extends Controller
         $query = Document::with(['assignedTo', 'creator'])->latest();
         $query = AssignmentScope::applyDocumentScope($query);
 
+        // Unclaimed tab: same desk, filtered to documents nobody owns yet.
+        $filter = $request->string('filter')->toString();
+        if ($filter === 'unclaimed') {
+            abort_unless(AssignmentScope::canViewUnclaimedQueue(auth()->user()), 403);
+            $query->whereNull('assigned_to');
+        }
+
+        // Deep link from the staff directory: documents owned by one person.
+        if ($request->filled('assignee')) {
+            $query->where('assigned_to', (int) $request->get('assignee'));
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
@@ -41,29 +53,16 @@ class AssignmentController extends Controller
         $staff = $this->assignableStaff();
         $statuses = DocumentStatus::cases();
 
-        return view('admin.assignments.index', compact('documents', 'staff', 'statuses'));
+        return view('admin.assignments.index', compact('documents', 'staff', 'statuses', 'filter'));
     }
 
-    public function unclaimed(Request $request)
+    /**
+     * Legacy standalone Unclaimed queue — folded into the Assignments desk as
+     * a tab; the old URL redirects into it.
+     */
+    public function unclaimed()
     {
-        abort_unless(AssignmentScope::canViewUnclaimedQueue(auth()->user()), 403);
-
-        $query = Document::with(['assignedTo', 'creator'])
-            ->whereNull('assigned_to')
-            ->latest();
-
-        if ($request->filled('q')) {
-            $term = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($term) {
-                $q->where('tracking_number', 'like', $term)
-                    ->orWhere('citizen_name', 'like', $term)
-                    ->orWhere('document_type', 'like', $term);
-            });
-        }
-
-        $documents = AssignmentScope::applyDocumentScope($query)->paginate(20)->withQueryString();
-
-        return view('admin.assignments.unclaimed', compact('documents'));
+        return redirect()->route('admin.assignments.index', ['filter' => 'unclaimed']);
     }
 
     public function assign(Request $request, Document $document)

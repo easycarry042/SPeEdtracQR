@@ -11,6 +11,8 @@ use App\Http\Controllers\CitizenDocumentUploadController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
+use App\Http\Controllers\DocumentCustodyController;
+use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\ScanController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
+use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,8 +39,8 @@ Route::get('/', function () {
 
     $user = auth()->user();
 
-    // super_admin gets the org-wide analytics command center; supervisors get the
-    // operational Requests dashboard (they cannot access admin.dashboard).
+    // Landing mirrors the post-login redirect: super_admin → command center,
+    // supervisors → Dashboard, intake-only → Look up hub, staff → Requests.
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -46,7 +49,11 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    return redirect()->route('staff.profile', ['user' => $user->id]);
+    if ($user->can('scan documents') && ! $user->can('create documents')) {
+        return redirect()->route('track.index', ['find' => 1]);
+    }
+
+    return redirect()->route('staff.dashboard');
 });
 
 /*
@@ -80,6 +87,11 @@ Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
     ->name('track.ask');
+
+// Public authenticity check — the signed QR on an issued document lands here.
+Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('verify.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -185,6 +197,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Per-document staff collaboration feed (assignee or admin).
     Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+
+    // Physical custody trail — "the folder is now with me" (scan or click).
+    Route::post('/documents/{document}/custody', [DocumentCustodyController::class, 'store'])->name('documents.custody.store');
+
+    // QR-gated release: citizen presents their QR, staff mark the hand-over.
+    Route::patch('/documents/{document}/release', [DocumentReleaseController::class, 'store'])->name('documents.release');
 
     // Manual status progression by the assigned staff member (or an admin).
     Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');

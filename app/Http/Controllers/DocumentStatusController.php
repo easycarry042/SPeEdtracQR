@@ -8,6 +8,7 @@ use App\Events\DocumentStatusUpdated;
 use App\Mail\ActionNeededMail;
 use App\Mail\StatusUpdated;
 use App\Models\Document;
+use App\Support\StatusGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
@@ -20,9 +21,16 @@ use Illuminate\Validation\ValidationException;
  */
 class DocumentStatusController extends Controller
 {
-    public function advance(Document $document)
+    public function advance(Request $request, Document $document)
     {
         $this->authorizeChange($document);
+
+        $validated = $request->validate([
+            'expected_status' => ['required', 'string'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        StatusGate::assertExpectedStatus($document, $validated['expected_status']);
 
         $next = $document->statusEnum()->next();
         if (! $next) {
@@ -33,19 +41,31 @@ class DocumentStatusController extends Controller
             return $this->fail('Use Approve on the Requests page to mark this document completed and move it to History.');
         }
 
-        return $this->transition($document, $next, 'Advanced');
+        // Hard stage gates: unmet requirements (and a missing review note for
+        // →Approved) block the transition with a per-requirement message.
+        StatusGate::validate($document, $next, $validated['note'] ?? null);
+
+        return $this->transition($document, $next, 'Advanced', $validated['note'] ?? null);
     }
 
-    public function revert(Document $document)
+    public function revert(Request $request, Document $document)
     {
         $this->authorizeChange($document);
+
+        // Moving a document backwards always carries a "why" for the audit trail.
+        $validated = $request->validate([
+            'expected_status' => ['required', 'string'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        StatusGate::assertExpectedStatus($document, $validated['expected_status']);
 
         $previous = $document->statusEnum()->previous();
         if (! $previous) {
             return $this->fail('This document is already at the first stage.');
         }
 
-        return $this->transition($document, $previous, 'Moved back');
+        return $this->transition($document, $previous, 'Moved back', $validated['reason']);
     }
 
     /** Set an explicit stage — used for the off-line "Returned / For Revision" state. */
@@ -54,9 +74,15 @@ class DocumentStatusController extends Controller
         $this->authorizeChange($document);
 
         $validated = $request->validate([
+            'expected_status' => ['required', 'string'],
             'status' => ['required', 'string'],
-            'reason' => ['nullable', 'string', 'max:1000'],
+            // "Return for revision" must tell the citizen what to fix.
+            'reason' => ['required_if:status,'.DocumentStatus::Returned->value, 'nullable', 'string', 'max:1000'],
+        ], [
+            'reason.required_if' => 'A reason is required when returning a document for revision.',
         ]);
+
+        StatusGate::assertExpectedStatus($document, $validated['expected_status']);
 
         $target = DocumentStatus::tryFrom($validated['status']);
         if (! $target || in_array($target, [DocumentStatus::OnHold, DocumentStatus::Completed], true)) {
@@ -64,13 +90,13 @@ class DocumentStatusController extends Controller
             throw ValidationException::withMessages(['status' => 'Unknown or disallowed status stage.']);
         }
 
-        // A reason accompanies "Return for revision" so the citizen learns what to
-        // fix — mirrors the triage revision path. Stored as remarks (transition saves).
+        // The reason is stored as remarks (transition saves) so the citizen
+        // tracking page can show what to fix — mirrors the triage revision path.
         if (! empty($validated['reason'])) {
             $document->remarks = $validated['reason'];
         }
 
-        return $this->transition($document, $target, 'Set status');
+        return $this->transition($document, $target, 'Set status', $validated['reason'] ?? null);
     }
 
     /**
@@ -209,9 +235,10 @@ class DocumentStatusController extends Controller
         return back()->with('status', $message);
     }
 
-    private function transition(Document $document, DocumentStatus $to, string $verb)
+    private function transition(Document $document, DocumentStatus $to, string $verb, ?string $note = null)
     {
         $from = $document->statusEnum();
+        $note = trim((string) $note) ?: null;
 
         $document->applyStatus($to);
         $document->save();
@@ -219,14 +246,22 @@ class DocumentStatusController extends Controller
         activity()
             ->performedOn($document)
             ->causedBy(auth()->user())
-            ->withProperties(['from' => $from->value, 'to' => $to->value])
+            ->withProperties(array_filter([
+                'from' => $from->value,
+                'to' => $to->value,
+                'note' => $note,
+            ]))
             ->log("{$verb}: {$from->label()} → {$to->label()}");
 
         DocumentStatusUpdated::dispatch($document, auth()->user());
 
         // Mirror into the unified per-document feed (staff timeline).
         $actor = auth()->user()?->name ?? 'Staff';
-        $systemComment = $document->logSystemComment("{$verb}: {$from->label()} → {$to->label()} (by {$actor})");
+        $line = "{$verb}: {$from->label()} → {$to->label()} (by {$actor})";
+        if ($note) {
+            $line .= " — {$note}";
+        }
+        $systemComment = $document->logSystemComment($line);
         DocumentCommentPosted::dispatch($systemComment);
 
         $this->notifyCitizen($document, $to);

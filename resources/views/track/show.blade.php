@@ -90,6 +90,68 @@
                 </a>
             </div>
 
+            {{-- ── Physical custody: where is the paper folder right now? ────── --}}
+            @if(! $document->statusEnum()->isTerminal())
+                <div class="custody-strip">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h5l2 3h11v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"/></svg>
+                    @if($custody)
+                        <span>Folder with <b>{{ $custody->user->name ?? 'staff' }}</b> <span class="mono">since {{ $custody->created_at->format('M d, h:i A') }}</span></span>
+                    @else
+                        <span>No physical custody recorded yet.</span>
+                    @endif
+                    @if(! $custody || (int) $custody->user_id !== (int) auth()->id())
+                        <form method="POST" action="{{ route('documents.custody.store', $document) }}">
+                            @csrf
+                            <button type="submit" class="cr-btn cr-btn-sm">I have this folder</button>
+                        </form>
+                    @endif
+                </div>
+            @endif
+
+            {{-- ── QR-gated release: Completed docs are claimed at the counter ── --}}
+            @if($document->status === 'completed')
+                @php
+                    $canRelease = auth()->user()->can('scan documents') || auth()->user()->can('assign documents') || auth()->user()->can('manage system');
+                @endphp
+                @if($errors->has('release'))
+                    <div class="gate-errors" role="alert"><p>{{ $errors->first('release') }}</p></div>
+                @endif
+                @if($document->claimed_at)
+                    <div class="release-stamp">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                        <span>Released to citizen on <b class="mono">{{ $document->claimed_at->format('M d, Y h:i A') }}</b>{{ $document->releasedBy ? ' by '.$document->releasedBy->name : '' }}</span>
+                    </div>
+                @elseif($canRelease)
+                    <div class="release-panel" x-data="{ open: false }">
+                        <div class="rp-head">
+                            <p><b>Ready for release.</b> The citizen claims this by presenting their QR code at the counter.</p>
+                            <button type="button" class="cr-btn cr-btn-primary cr-btn-sm" @click="open = !open">Release to citizen</button>
+                        </div>
+                        <div x-show="open" x-cloak class="rp-confirm">
+                            <p>Confirm the person at the counter matches the record:</p>
+                            <p class="rp-name">{{ $document->citizen_name ?? 'No citizen name on record' }}</p>
+                            <form method="POST" action="{{ route('documents.release', $document) }}" class="mt-2 flex flex-wrap gap-2">
+                                @csrf @method('PATCH')
+                                <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Confirm — mark as released</button>
+                                <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
+                            </form>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Authenticity seal: signed QR anyone can scan to verify. --}}
+                @if($sealSvg)
+                    <div class="seal-panel">
+                        <img src="data:image/svg+xml;base64,{{ $sealSvg }}" alt="Authenticity verification QR code" width="84" height="84">
+                        <div>
+                            <p class="seal-title">Authenticity seal</p>
+                            <p class="seal-sub">Anyone scanning this QR gets an official yes/no that this document is genuine — the link is cryptographically signed.</p>
+                            <a href="{{ $verifyUrl }}" target="_blank" class="cr-link">Open verification page →</a>
+                        </div>
+                    </div>
+                @endif
+            @endif
+
             {{-- ── Pending review + assign (supervisor) — inline, no modal ───────── --}}
             @if($isPendingReview)
                 <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
@@ -237,7 +299,7 @@
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
                     Print QR sticker
                 </a>
-                <a href="{{ route('scan.index') }}" class="cr-btn">
+                <a href="{{ route('track.index', ['find' => 1]) }}" class="cr-btn">
                     Open scanner
                 </a>
             </div>

@@ -5,9 +5,10 @@ namespace App\Http\Controllers;
 class ScanController extends Controller
 {
     /**
-     * QR lookup tool. Scanning identifies a document and opens it — it does not
-     * record IN/OUT or advance status (advancement is manual; see
-     * DocumentStatusController). The page redirects to the public track page.
+     * Legacy /scan entry point. The scanner is folded into the Look up hub
+     * (track.index?find=1): scanning identifies a document and opens it — it
+     * does not record IN/OUT or advance status (advancement is manual; see
+     * DocumentStatusController).
      */
     public function index()
     {
@@ -15,6 +16,6 @@ class ScanController extends Controller
             return redirect()->route('admin.dashboard');
         }
 
-        return view('scan.index');
+        return redirect()->route('track.index', ['find' => 1]);
     }
 }

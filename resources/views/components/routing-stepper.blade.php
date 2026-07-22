@@ -81,9 +81,35 @@
 
 @if($canAct)
     @php
-        $hasNext = $stage->next() !== null;
+        $next = $stage->next();
+        $hasNext = $next !== null && $next !== DocumentStatus::Completed;
         $hasPrev = $stage->previous() !== null;
+
+        // Stage-gate data for the confirm panel: server-computed checklist, so
+        // the UI and DocumentStatusController can never disagree. (Fully
+        // qualified — a `use` inside this conditional @php block is a fatal.)
+        $gateChecks = $hasNext ? \App\Support\StatusGate::checks($document, $next) : [];
+        $gatePassed = collect($gateChecks)->every(fn ($c) => $c['passed']);
+        $noteRequired = $hasNext && \App\Support\StatusGate::noteRequired($next);
+        $willEmailCitizen = $hasNext
+            && config('tracking.notify_citizen.enabled', true)
+            && ($document->notify_citizen ?? true)
+            && $document->citizen_email
+            && config('tracking.notify_citizen.stages.'.$next->value, false);
     @endphp
+
+    {{-- Server-side gate failures (unmet requirements, stale page, missing note). --}}
+    @if($errors->hasAny(['status', 'note', 'reason', 'expected_status']))
+        <div class="gate-errors" role="alert">
+            @foreach($errors->getMessages() as $field => $messages)
+                @if(in_array($field, ['status', 'note', 'reason', 'expected_status'], true))
+                    @foreach($messages as $message)
+                        <p>{{ $message }}</p>
+                    @endforeach
+                @endif
+            @endforeach
+        </div>
+    @endif
 
     @if($held)
         {{-- Blocked: the only forward action is to lift the hold and resume. --}}
@@ -94,32 +120,32 @@
             </form>
         </div>
     @else
-        <div class="step-controls" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 2px 2px;">
+        <div x-data="{ gate: null, note: '', reason: '' }"
+             @keydown.escape.window="gate = null"
+             style="margin:10px 2px 2px;">
+        <div class="step-controls" style="display:flex;flex-wrap:wrap;gap:8px;">
             @if($hasPrev)
-                <form method="POST" action="{{ route('documents.status.revert', $document) }}">
-                    @csrf @method('PATCH')
-                    <button type="submit" class="btn-step btn-step-back">← Move back</button>
-                </form>
+                <button type="button" class="btn-step btn-step-back"
+                        :class="gate === 'back' && 'is-open'"
+                        @click="gate = gate === 'back' ? null : 'back'; reason = ''">← Move back</button>
             @endif
 
             @if($hasNext)
-                <form method="POST" action="{{ route('documents.status.advance', $document) }}">
-                    @csrf @method('PATCH')
-                    <button type="submit" class="btn-step btn-step-fwd">Advance →</button>
-                </form>
+                <button type="button" class="btn-step btn-step-fwd"
+                        :class="gate === 'advance' && 'is-open'"
+                        @click="gate = gate === 'advance' ? null : 'advance'; note = ''">Advance →</button>
             @endif
 
             @if(! $returned && ! $stage->isTerminal())
-                <form method="POST" action="{{ route('documents.status.set', $document) }}">
-                    @csrf @method('PATCH')
-                    <input type="hidden" name="status" value="{{ DocumentStatus::Returned->value }}">
-                    <button type="submit" class="btn-step btn-step-return">Return for revision</button>
-                </form>
+                <button type="button" class="btn-step btn-step-return"
+                        :class="gate === 'return' && 'is-open'"
+                        @click="gate = gate === 'return' ? null : 'return'; reason = ''">Return for revision</button>
             @endif
 
             @if($returned)
                 <form method="POST" action="{{ route('documents.status.set', $document) }}">
                     @csrf @method('PATCH')
+                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
                     <input type="hidden" name="status" value="{{ DocumentStatus::InProgress->value }}">
                     <button type="submit" class="btn-step btn-step-fwd">Resume → In Progress</button>
                 </form>
@@ -156,6 +182,92 @@
                     </div>
                 </div>
             @endunless
+        </div>
+
+        {{-- ─── Stage-gate confirm panels ─────────────────────────────── --}}
+
+        @if($hasNext)
+            <div x-show="gate === 'advance'" x-cloak class="gate-panel">
+                <p class="gate-head">{{ $stage->label() }} <span aria-hidden="true">→</span> <b>{{ $next->label() }}</b></p>
+
+                @if($gateChecks !== [])
+                    <ul class="gate-checks">
+                        @foreach($gateChecks as $check)
+                            <li class="{{ $check['passed'] ? 'ok' : 'no' }}">
+                                @if($check['passed'])
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                @else
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                @endif
+                                <span>{{ $check['label'] }}<span class="sr-only">{{ $check['passed'] ? ' — met' : ' — not met' }}</span></span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                <form method="POST" action="{{ route('documents.status.advance', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
+                    <label>{{ $noteRequired ? 'Review note (required)' : 'Note (optional)' }}
+                        <textarea name="note" rows="2" maxlength="1000" x-model="note" @if($noteRequired) required @endif
+                                  placeholder="{{ $noteRequired ? 'What was checked and why this passes review' : 'Anything worth recording about this step' }}"></textarea>
+                    </label>
+                    @if($willEmailCitizen)
+                        <p class="gate-mail">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path stroke-linecap="round" stroke-linejoin="round" d="m3 7 9 6 9-6"/></svg>
+                            The citizen will be emailed about this change.
+                        </p>
+                    @endif
+                    @unless($gatePassed)
+                        <p class="gate-blocked">Resolve the unmet requirements above to continue.</p>
+                    @endunless
+                    <div class="gate-actions">
+                        <button type="submit" class="btn-step btn-step-fwd"
+                                :disabled="{{ $gatePassed ? 'false' : 'true' }} || ({{ $noteRequired ? 'true' : 'false' }} && ! note.trim())">
+                            Confirm — move to {{ $next->label() }}
+                        </button>
+                        <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
+        @if($hasPrev)
+            <div x-show="gate === 'back'" x-cloak class="gate-panel">
+                <p class="gate-head"><b>{{ $stage->previous()->label() }}</b> <span aria-hidden="true">←</span> {{ $stage->label() }}</p>
+                <form method="POST" action="{{ route('documents.status.revert', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
+                    <label>Reason (required)
+                        <textarea name="reason" rows="2" maxlength="1000" x-model="reason" required
+                                  placeholder="Why is this moving back a stage?"></textarea>
+                    </label>
+                    <div class="gate-actions">
+                        <button type="submit" class="btn-step btn-step-fwd" :disabled="! reason.trim()">Confirm — move back</button>
+                        <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
+        @if(! $returned && ! $stage->isTerminal())
+            <div x-show="gate === 'return'" x-cloak class="gate-panel">
+                <p class="gate-head">{{ $stage->label() }} <span aria-hidden="true">→</span> <b>{{ DocumentStatus::Returned->label() }}</b></p>
+                <form method="POST" action="{{ route('documents.status.set', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
+                    <input type="hidden" name="status" value="{{ DocumentStatus::Returned->value }}">
+                    <label>What must the citizen fix? (required)
+                        <textarea name="reason" rows="2" maxlength="1000" x-model="reason" required
+                                  placeholder="e.g. The uploaded barangay clearance is expired — a current one is needed"></textarea>
+                    </label>
+                    <div class="gate-actions">
+                        <button type="submit" class="btn-step btn-step-return" :disabled="! reason.trim()">Confirm — return for revision</button>
+                        <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        @endif
         </div>
     @endif
 @endif

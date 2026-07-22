@@ -7,17 +7,10 @@
         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 3 10v10a1 1 0 0 0 1 1h6v-7h4v7h6a1 1 0 0 0 1-1V10l-9-7z"/></svg>
         Dashboard
     @else
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0"/></svg>
-        My Profile
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Requests
     @endif
 </a>
-
-@unless($isSupervisor)
-<a href="{{ route('staff.dashboard') }}" class="{{ $link(request()->routeIs('staff.dashboard')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-    Requests
-</a>
-@endunless
 
 @can('view reports')
 <a href="{{ route('analytics') }}" class="{{ $link(request()->routeIs('analytics*')) }}">
@@ -26,33 +19,10 @@
 </a>
 @endcan
 
-@can('scan documents')
-<a href="{{ route('track.index') }}" class="{{ $link(request()->routeIs('track.*')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M5 4l13 8-13 8V4z"/></svg>
-    Track
+<a href="{{ route('track.index') }}" class="{{ $link(request()->routeIs('track.*') || request()->routeIs('scan.*')) }}">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
+    Look up
 </a>
-<a href="{{ route('scan.index') }}" class="{{ $link(request()->routeIs('scan.*')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M5 19H3a2 2 0 01-2-2v-2m8-4h.01M12 12h.01M16 12h.01M8 12h.01"/></svg>
-    Scan
-</a>
-@endcan
-
-<a href="{{ route('history') }}" class="{{ $link(request()->routeIs('history*')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
-    History
-</a>
-
-<a href="{{ route('staff.index') }}" class="{{ $link(request()->routeIs('staff.index')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>
-    Staff
-</a>
-
-@if($isSupervisor)
-    <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="{{ $link(request()->routeIs('staff.profile')) }}">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0"/></svg>
-        My Profile
-    </a>
-@endif
 
 @can('manage users')
 <a href="{{ route('admin.users.index') }}" class="{{ $link(request()->routeIs('admin.users*')) }}">
@@ -62,12 +32,8 @@
 @endcan
 
 @can('assign documents')
-<a href="{{ route('admin.assignments.index') }}" class="{{ $link(request()->routeIs('admin.assignments.index')) }}">
+<a href="{{ route('admin.assignments.index') }}" class="{{ $link(request()->routeIs('admin.assignments*')) }}">
     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
     Assignments
-</a>
-<a href="{{ route('admin.assignments.unclaimed') }}" class="{{ $link(request()->routeIs('admin.assignments.unclaimed')) }}">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-    Unclaimed
 </a>
 @endcan

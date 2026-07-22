@@ -9,9 +9,11 @@ use App\Models\User;
 use App\Support\AssignmentScope;
 use App\Support\StaffProfile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 /**
  * Staff profile (Direction 1b): identity rail + tabbed feed. Any authenticated
@@ -27,12 +29,16 @@ class StaffProfileController extends Controller
     public function index(Request $request)
     {
         $q = trim((string) $request->get('q'));
+        $roles = Role::orderBy('name')->pluck('name');
+        $role = in_array($request->get('role'), $roles->all(), true) ? $request->get('role') : '';
+        $sort = in_array($request->get('sort'), ['name', 'load', 'completed'], true) ? $request->get('sort') : 'name';
 
         $users = User::query()
             ->with('roles:id,name')
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('name', 'like', "%{$q}%")
                 ->orWhere('email', 'like', "%{$q}%")))
+            ->when($role !== '', fn ($query) => $query->role($role))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
@@ -49,6 +55,30 @@ class StaffProfileController extends Controller
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
 
+        $completedThisMonth = Document::whereNotNull('assigned_to')
+            ->where('status', DocumentStatus::Completed->value)
+            ->where('status_changed_at', '>=', now()->startOfMonth())
+            ->select('assigned_to', DB::raw('COUNT(*) as total'))
+            ->groupBy('assigned_to')
+            ->pluck('total', 'assigned_to');
+
+        // Overdue = active docs past their per-stage SLA budget. The budget is
+        // per-stage PHP logic (DocumentStatus::slaHours), so evaluate the small
+        // active set in memory rather than duplicating it in SQL.
+        $overdue = Document::whereNotNull('assigned_to')
+            ->whereIn('status', DocumentStatus::activeValues())
+            ->get(['id', 'assigned_to', 'status', 'status_changed_at', 'updated_at', 'created_at'])
+            ->filter(fn (Document $d) => $d->isOverdue())
+            ->countBy('assigned_to');
+
+        // Presence: most recent activity-log entry per user.
+        $lastActive = DB::table('activity_log')
+            ->where('causer_type', User::class)
+            ->whereNotNull('causer_id')
+            ->select('causer_id', DB::raw('MAX(created_at) as last'))
+            ->groupBy('causer_id')
+            ->pluck('last', 'causer_id');
+
         $staff = $users->map(fn (User $u) => [
             'id' => $u->id,
             'name' => $u->name,
@@ -56,10 +86,24 @@ class StaffProfileController extends Controller
             'initials' => collect(explode(' ', $u->name))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode(''),
             'assigned' => (int) ($assigned[$u->id] ?? 0),
             'completed' => (int) ($completed[$u->id] ?? 0),
+            'month' => (int) ($completedThisMonth[$u->id] ?? 0),
+            'overdue' => (int) ($overdue[$u->id] ?? 0),
+            'last_active' => isset($lastActive[$u->id])
+                ? Carbon::parse($lastActive[$u->id])->diffForHumans(short: true)
+                : null,
             'url' => route('staff.profile', $u->id),
         ]);
 
-        return view('staff.directory', compact('staff', 'q'));
+        $staff = match ($sort) {
+            'load' => $staff->sortByDesc('assigned')->values(),
+            'completed' => $staff->sortByDesc('completed')->values(),
+            default => $staff,
+        };
+
+        // Scale for the open-load bar: the heaviest current load on the page.
+        $loadMax = max(1, (int) $staff->max('assigned'));
+
+        return view('staff.directory', compact('staff', 'q', 'role', 'sort', 'roles', 'loadMax'));
     }
 
     /** JSON quick-search for the top-bar "jump to a person" dropdown. */
