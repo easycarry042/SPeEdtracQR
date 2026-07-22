@@ -237,7 +237,7 @@
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
                     Print QR sticker
                 </a>
-                <a href="{{ route('scan.index') }}" class="cr-btn">
+                <a href="{{ route('track.index', ['find' => 1]) }}" class="cr-btn">
                     Open scanner
                 </a>
             </div>

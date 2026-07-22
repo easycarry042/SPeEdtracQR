@@ -27,20 +27,19 @@
     // back to the site root when there is no authenticated user to link to.
     $homeRoute = match (true) {
         $isSupervisor => route('dashboard'),
-        (bool) $user => route('staff.profile', ['user' => $user->id]),
+        (bool) $user => route('staff.dashboard'),
         default => url('/'),
     };
-    $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.profile');
+    $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.dashboard');
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',
         request()->routeIs('staff.dashboard') => 'Requests',
         request()->routeIs('dashboard'), request()->routeIs('admin.dashboard') => 'Dashboard',
         request()->routeIs('analytics*') => 'Analytics',
-        request()->routeIs('track.*') => 'Track Document',
-        request()->routeIs('scan.*') => 'Scan',
+        request()->routeIs('track.*'), request()->routeIs('scan.*') => 'Look up',
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
-        request()->routeIs('admin.assignments.unclaimed') => 'Unclaimed Queue',
+        request()->routeIs('admin.assignments*') => 'Assignments',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
@@ -151,13 +150,8 @@
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Dashboard</span>
                         </a>
                         {{-- Analytics is folded into the command-center Dashboard for super admins;
-                             the standalone Analytics page stays for Supervisors via the topnav. --}}
-                        <a href="{{ route('history') }}" class="{{ request()->routeIs('history*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('history*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">History</span>
-                        </a>
+                             the standalone Analytics page stays for Supervisors via the topnav.
+                             History moved into the account menu (header-actions). --}}
                         <a href="{{ route('staff.index') }}" class="{{ request()->routeIs('staff.index') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('staff.index') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
                                 <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>

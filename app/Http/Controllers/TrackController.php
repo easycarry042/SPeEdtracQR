@@ -26,6 +26,13 @@ class TrackController extends Controller
             return redirect()->route('track.show', $trackingNumber);
         }
 
+        // Explicit finder mode (?find=1): render the Look up hub (tracking
+        // search + QR image upload + live camera) instead of auto-opening a
+        // work item. This is where /scan and "Open scanner" land.
+        if ($request->boolean('find')) {
+            return view('track.index');
+        }
+
         // Supervisors land on the unified Track view (track.show) with the
         // Pending / In Progress split folded into its sidebar. Pick a sensible
         // default document to open: the first pending request, else the first

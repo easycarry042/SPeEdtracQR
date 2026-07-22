@@ -12,8 +12,19 @@
             <p class="mt-1 text-sm text-gray-500">Assign the staff member responsible for advancing each document through its status stages.</p>
         </div>
 
+        {{-- All / Unclaimed tabs --}}
+        <div class="flex gap-1 rounded-xl bg-gray-100 p-1 w-fit">
+            <a href="{{ route('admin.assignments.index') }}"
+               class="rounded-lg px-4 py-1.5 text-sm font-semibold {{ $filter !== 'unclaimed' ? 'bg-white text-emerald-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">All</a>
+            <a href="{{ route('admin.assignments.index', ['filter' => 'unclaimed']) }}"
+               class="rounded-lg px-4 py-1.5 text-sm font-semibold {{ $filter === 'unclaimed' ? 'bg-white text-emerald-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">Unclaimed</a>
+        </div>
+
         {{-- Filters --}}
         <form method="GET" class="flex flex-wrap gap-3">
+            @if($filter === 'unclaimed')
+                <input type="hidden" name="filter" value="unclaimed">
+            @endif
             <input type="text" name="q" value="{{ request('q') }}" autocomplete="off"
                    placeholder="Search tracking #, citizen, or type…"
                    class="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[220px]">
@@ -52,17 +63,27 @@
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ $document->citizen_name ?? '—' }}</td>
                                 <td class="px-4 py-3 text-sm"><x-status-badge :status="$document->status" /></td>
                                 <td class="px-4 py-3">
-                                    <form method="POST" action="{{ route('admin.assignments.assign', $document) }}" class="flex items-center gap-2">
-                                        @csrf @method('PATCH')
-                                        <select name="assigned_to"
-                                                class="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                            <option value="">— Unassigned —</option>
-                                            @foreach($staff as $member)
-                                                <option value="{{ $member->id }}" @selected((int) $document->assigned_to === (int) $member->id)>{{ $member->name }}</option>
-                                            @endforeach
-                                        </select>
-                                        <button type="submit" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">Save</button>
-                                    </form>
+                                    <div class="flex items-center gap-2">
+                                        <form method="POST" action="{{ route('admin.assignments.assign', $document) }}" class="flex flex-1 items-center gap-2">
+                                            @csrf @method('PATCH')
+                                            <select name="assigned_to"
+                                                    class="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                                                <option value="">— Unassigned —</option>
+                                                @foreach($staff as $member)
+                                                    <option value="{{ $member->id }}" @selected((int) $document->assigned_to === (int) $member->id)>{{ $member->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <button type="submit" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">Save</button>
+                                        </form>
+                                        @if($document->assigned_to === null)
+                                            @can('accept documents')
+                                                <form method="POST" action="{{ route('documents.accept', $document) }}">
+                                                    @csrf @method('PATCH')
+                                                    <button type="submit" class="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Accept</button>
+                                                </form>
+                                            @endcan
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty

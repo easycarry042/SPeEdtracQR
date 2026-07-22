@@ -36,8 +36,8 @@ Route::get('/', function () {
 
     $user = auth()->user();
 
-    // super_admin gets the org-wide analytics command center; supervisors get the
-    // operational Requests dashboard (they cannot access admin.dashboard).
+    // Landing mirrors the post-login redirect: super_admin → command center,
+    // supervisors → Dashboard, intake-only → Look up hub, staff → Requests.
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -46,7 +46,11 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    return redirect()->route('staff.profile', ['user' => $user->id]);
+    if ($user->can('scan documents') && ! $user->can('create documents')) {
+        return redirect()->route('track.index', ['find' => 1]);
+    }
+
+    return redirect()->route('staff.dashboard');
 });
 
 /*
