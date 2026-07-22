@@ -145,6 +145,10 @@
                 </div>
 
                 <div class="flex flex-wrap items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                    {{-- Stage-gate / concurrency failures surface here, inline — no alert(). --}}
+                    <p x-show="gateError" x-cloak x-text="gateError" role="alert"
+                       class="w-full rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red"></p>
+
                     <button type="button" @click="close()" class="cr-btn !px-5 !py-2.5 !text-sm">
                         <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
                     </button>
@@ -290,6 +294,66 @@
                     </div>
                 </div>
 
+                {{-- Cockpit: confirm an advance with a transition note (required for the review sign-off →Approved). --}}
+                <div x-show="advanceOpen" x-cloak
+                     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+                     @keydown.escape.window="advanceOpen = false" @click.self="advanceOpen = false">
+                    <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="advanceOpen" x-transition>
+                        <div class="border-b border-hairline px-6 py-4">
+                            <h3 class="text-base font-bold text-ink">Advance to <span x-text="advanceTargetLabel()"></span></h3>
+                            <p class="mt-0.5 text-sm text-ink-soft"
+                               x-text="advanceNoteRequired()
+                                   ? 'This is the review sign-off — record what was checked and why it passes.'
+                                   : 'Moves the request to the next stage. Add a note for the record if useful.'"></p>
+                        </div>
+                        <div class="px-6 py-5">
+                            <label class="block text-sm font-semibold text-ink">
+                                <span x-text="advanceNoteRequired() ? 'Review note' : 'Note'"></span>
+                                <span x-show="advanceNoteRequired()" class="text-status-red">*</span>
+                                <span x-show="!advanceNoteRequired()" class="font-normal text-ink-soft">(optional)</span>
+                            </label>
+                            <textarea x-model="advanceNote" rows="3" maxlength="1000"
+                                      :placeholder="advanceNoteRequired() ? 'e.g. Requirements verified against the checklist; clearances valid' : 'Anything worth recording about this step…'"
+                                      class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                            <button type="button" @click="advanceOpen = false" :disabled="submitting"
+                                    class="cr-btn !px-5 !py-2.5 !text-sm disabled:opacity-50">Cancel</button>
+                            <button type="button" @click="confirmAdvance()" :disabled="submitting || (advanceNoteRequired() && !advanceNote.trim())"
+                                    class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="!submitting">Confirm — advance</span>
+                                <span x-show="submitting">Advancing…</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Cockpit: move back a stage — the reason is part of the audit trail. --}}
+                <div x-show="revertOpen" x-cloak
+                     class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+                     @keydown.escape.window="revertOpen = false" @click.self="revertOpen = false">
+                    <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="revertOpen" x-transition>
+                        <div class="border-b border-hairline px-6 py-4">
+                            <h3 class="text-base font-bold text-ink">Move back a stage</h3>
+                            <p class="mt-0.5 text-sm text-ink-soft">Moves the request one stage backwards. The reason is recorded in the document's history.</p>
+                        </div>
+                        <div class="px-6 py-5">
+                            <label class="block text-sm font-semibold text-ink">Why is this moving back? <span class="text-status-red">*</span></label>
+                            <textarea x-model="revertReason" rows="3" maxlength="1000" required placeholder="e.g. Advanced by mistake, review found an issue…"
+                                      class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                            <button type="button" @click="revertOpen = false" :disabled="submitting"
+                                    class="cr-btn !px-5 !py-2.5 !text-sm disabled:opacity-50">Cancel</button>
+                            <button type="button" @click="confirmRevert()" :disabled="submitting || !revertReason.trim()"
+                                    class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="!submitting">Confirm — move back</span>
+                                <span x-show="submitting">Moving…</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- Cockpit: return an in-progress request to the citizen for revision. --}}
                 <div x-show="returnOpen" x-cloak
                      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
@@ -394,6 +458,11 @@
             holdUntil: '',
             returnOpen: false,
             returnReason: '',
+            advanceOpen: false,
+            advanceNote: '',
+            revertOpen: false,
+            revertReason: '',
+            gateError: '',
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
@@ -474,32 +543,66 @@
                 Object.assign(this.active, extra);
             },
 
-            /** PATCH a status endpoint and update in place — modal stays open. */
+            /**
+             * PATCH a status endpoint and update in place — modal stays open.
+             * Every call carries expected_status (optimistic concurrency: the
+             * server refuses if someone else moved the document first) and
+             * failures render inline via gateError, never alert().
+             */
             patchStatus(path, extra = {}, body = null) {
                 if (!this.active || this.submitting) return Promise.resolve();
                 this.submitting = true;
-                const opts = { method: 'PATCH', headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' } };
-                if (body) opts.body = body;
+                this.gateError = '';
+                const fd = body || new FormData();
+                if (!fd.has('expected_status')) fd.append('expected_status', this.active.status);
+                const opts = { method: 'PATCH', headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' }, body: fd };
                 return fetch(`${this.openBase}/${this.active.id}/${path}`, opts)
                     .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
                     .then(({ ok, d }) => {
                         this.submitting = false;
-                        if (ok) this.applyResult(d.status, extra);
-                        else alert(d.message || 'Could not update the status. Please try again.');
+                        if (ok) return this.applyResult(d.status, extra);
+                        // Laravel 422s carry per-field errors; show every unmet gate.
+                        this.gateError = d.errors
+                            ? Object.values(d.errors).flat().join(' ')
+                            : (d.message || 'Could not update the status. Please try again.');
                     })
-                    .catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                    .catch(() => { this.submitting = false; this.gateError = 'Network error. Please try again.'; });
             },
 
             runPrimary() {
                 switch (this.prog().primary.type) {
-                    case 'advance': return this.patchStatus('status/advance');
+                    case 'advance': return this.openAdvance();
                     case 'approve': return this.approve();
                     case 'resume': return this.setStatus('in_progress');
                     case 'unhold': return this.patchStatus('unhold', { blocked_by: null, hold_reason: null, hold_until: null, status_before_hold: null });
                 }
             },
 
-            revertStatus() { return this.patchStatus('status/revert'); },
+            // ─── Advance: confirm panel with a transition note ───
+            /** The →Approved step is the review sign-off, so its note is required. */
+            advanceNoteRequired() { return this.active && this.active.status === 'in_review'; },
+            advanceTargetLabel() {
+                const idx = this.stageIndex(this.active ? this.active.status : null);
+                return idx >= 0 && this.flow[idx + 1] ? this.flow[idx + 1].label : '';
+            },
+            openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
+            confirmAdvance() {
+                if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
+                const fd = new FormData();
+                if (this.advanceNote.trim()) fd.append('note', this.advanceNote.trim());
+                this.advanceOpen = false;
+                return this.patchStatus('status/advance', {}, fd).then(() => { this.advanceNote = ''; });
+            },
+
+            // ─── Move back: always carries a reason for the audit trail ───
+            revertStatus() { this.revertReason = ''; this.gateError = ''; this.revertOpen = true; },
+            confirmRevert() {
+                if (!this.revertReason.trim()) return;
+                const fd = new FormData();
+                fd.append('reason', this.revertReason.trim());
+                this.revertOpen = false;
+                return this.patchStatus('status/revert', {}, fd).then(() => { this.revertReason = ''; });
+            },
 
             setStatus(value, reason) {
                 const fd = new FormData();
@@ -544,6 +647,11 @@
                 this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
+                this.advanceOpen = false;
+                this.advanceNote = '';
+                this.revertOpen = false;
+                this.revertReason = '';
+                this.gateError = '';
             },
 
             openById(id) {
@@ -607,6 +715,11 @@
                 this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
+                this.advanceOpen = false;
+                this.advanceNote = '';
+                this.revertOpen = false;
+                this.revertReason = '';
+                this.gateError = '';
             },
 
             postAction(url, opts) {

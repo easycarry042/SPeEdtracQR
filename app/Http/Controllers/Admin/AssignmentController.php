@@ -31,6 +31,11 @@ class AssignmentController extends Controller
             $query->whereNull('assigned_to');
         }
 
+        // Deep link from the staff directory: documents owned by one person.
+        if ($request->filled('assignee')) {
+            $query->where('assigned_to', (int) $request->get('assignee'));
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
