@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
+use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class DocumentWebController extends Controller
 {
@@ -71,6 +73,13 @@ class DocumentWebController extends Controller
         }
 
         $this->storeDocumentAttachments($document, $request);
+
+        // Header-bell ping: supervisors have a new request to triage
+        // (skip the creator if they can triage it themselves).
+        Notification::send(
+            DocumentEvent::supervisors(auth()->id()),
+            DocumentEvent::newTicket($document),
+        );
 
         return redirect()->route('documents.created', $document);
     }

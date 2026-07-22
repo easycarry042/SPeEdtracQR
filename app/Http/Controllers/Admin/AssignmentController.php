@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\AssignmentNotice;
 use App\Models\Document;
 use App\Models\User;
+use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -98,6 +99,11 @@ class AssignmentController extends Controller
         if ($assignee && $assignee->email && config('tracking.notify_staff_on_assignment', true)) {
             Mail::to($assignee->email)->send(new AssignmentNotice($document->fresh(), $assignee));
             activity()->performedOn($document)->causedBy(auth()->user())->log("Emailed AssignmentNotice to {$name}");
+        }
+
+        // Header-bell ping for the assignee (not for self-assignment).
+        if ($assignee && (int) $assignee->id !== (int) auth()->id()) {
+            $assignee->notify(DocumentEvent::assigned($document, auth()->user()->name));
         }
 
         // Assignment is purely manual (admin picks the staff member); it does NOT
