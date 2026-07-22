@@ -2,30 +2,30 @@
     {{-- Shown only when no documents are currently in progress; otherwise
          /track redirects straight to the latest in-progress document. --}}
     <div class="mx-auto w-full max-w-lg py-6">
-        <div class="rounded-2xl border border-gray-200/90 bg-white p-8 text-center shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
-            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+        <div class="panel p-8 text-center">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
             </div>
-            <p class="mt-3 font-semibold text-gray-700">No documents in progress</p>
-            <p class="mt-1 text-sm text-gray-500">Documents currently being processed will show up here automatically.</p>
+            <p class="mt-3 font-semibold text-ink">No documents in progress</p>
+            <p class="mt-1 text-sm text-ink-soft">Documents currently being processed will show up here automatically.</p>
 
-            <form method="GET" action="{{ route('track.index') }}" class="mt-6 space-y-3 border-t border-gray-100 pt-6">
-                <p class="text-sm text-gray-600">Or look up any document by tracking number</p>
-                <input id="trackingInput" name="tracking_number" class="w-full rounded-xl border border-gray-200 px-4 py-3 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="SPD-YYYYMMDD-XXXXXX">
-                <button type="submit" class="w-full rounded-xl bg-emerald-800 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+            <form method="GET" action="{{ route('track.index') }}" class="mt-6 space-y-3 border-t border-hairline pt-6">
+                <p class="text-sm text-ink-soft">Or look up any document by tracking number</p>
+                <input id="trackingInput" name="tracking_number" class="w-full rounded-lg border border-hairline-strong px-4 py-3 text-center font-mono text-sm text-ink shadow-sm transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20" placeholder="SPD-YYYYMMDD-XXXXXX">
+                <button type="submit" class="w-full rounded-lg bg-green py-3 font-semibold text-white transition hover:bg-green-deep focus:outline-none focus:ring-2 focus:ring-green/40 focus:ring-offset-2">
                     Search
                 </button>
             </form>
 
             {{-- Upload-to-scan: decode a saved QR image client-side, then jump to the document. --}}
-            <div class="mt-4 border-t border-gray-100 pt-6">
-                <p class="text-sm text-gray-600">Have your QR code saved as an image?</p>
-                <label for="qrFile" class="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50">
+            <div class="mt-4 border-t border-hairline pt-6">
+                <p class="text-sm text-ink-soft">Have your QR code saved as an image?</p>
+                <label for="qrFile" class="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-hairline-strong bg-green-wash/40 py-3 text-sm font-semibold text-green-deep transition hover:border-green-bright hover:bg-green-wash">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
                     <span id="qrFileLabel">Upload QR code image</span>
                 </label>
                 <input id="qrFile" type="file" accept="image/*" class="hidden">
-                <p id="qrError" class="mt-2 hidden text-sm font-semibold text-red-600"></p>
+                <p id="qrError" class="mt-2 hidden text-sm font-semibold text-status-red"></p>
             </div>
         </div>
     </div>

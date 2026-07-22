@@ -1,27 +1,21 @@
 <x-app-layout>
     <div class="mx-auto w-full max-w-3xl">
-        <div class="mb-6 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 text-sm text-emerald-950 shadow-sm">
-            <p class="font-semibold">Look up a document</p>
-            <ul class="mt-2 list-inside list-disc space-y-1 text-emerald-900/90">
+        <div class="mb-6 rounded-[10px] border border-hairline bg-green-wash/50 p-4 text-sm text-ink">
+            <p class="font-semibold text-green-deep">Look up a document</p>
+            <ul class="mt-2 list-inside list-disc space-y-1 text-ink-soft">
                 <li>Scan the QR on the folder, or type the tracking number, to open the document.</li>
-                <li>Scanning is for <strong>identification only</strong> — it no longer changes a document's status.</li>
-                <li>To move a document forward, open it and use the <strong>Status Progress</strong> controls (assigned staff / admin).</li>
+                <li>Scanning is for <strong class="text-ink">identification only</strong> — it no longer changes a document's status.</li>
+                <li>To move a document forward, open it and use the <strong class="text-ink">Status Progress</strong> controls (assigned staff / admin).</li>
             </ul>
         </div>
 
-        <div class="rounded-xl border border-[#e6ece8] bg-white p-5">
-            <div id="reader" class="overflow-hidden rounded-lg border border-gray-300"></div>
+        <div class="panel p-5">
+            <div id="reader" class="min-h-[280px] overflow-hidden rounded-lg border border-hairline-strong"></div>
 
             <div class="mt-4 scan-manual">
                 <input id="manualTracking" placeholder="SPD-YYYYMMDD-XXXXXX"
-                       class="flex-1 rounded-lg border border-gray-300 px-3 py-2 font-mono tracking-widest">
-                <button id="manualSubmit" class="rounded-lg bg-[#0f4d28] px-4 py-2 font-bold text-white">Open</button>
-            </div>
-
-            <div id="result" class="mt-3 hidden">
-                <div id="resultInner" class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900 shadow-sm">
-                    <span id="resultText" class="flex-1 leading-snug"></span>
-                </div>
+                       class="flex-1 rounded-lg border border-hairline-strong px-3 py-2 font-mono tracking-widest text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
+                <button id="manualSubmit" class="cr-btn cr-btn-primary !px-4 !py-2 !text-sm">Open</button>
             </div>
         </div>
     </div>

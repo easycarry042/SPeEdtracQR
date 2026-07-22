@@ -29,16 +29,16 @@
                     @if($isImage)
                         {{-- data-lightbox-src opens the in-page viewer; href is the no-JS fallback --}}
                         <a href="{{ $url }}" target="_blank" rel="noopener" data-lightbox-src="{{ $url }}"
-                           class="block overflow-hidden rounded-lg ring-1 ring-gray-200 transition hover:ring-emerald-400"
+                           class="block overflow-hidden rounded-lg ring-1 ring-hairline transition hover:ring-green-bright"
                            title="View image">
-                            <img src="{{ $url }}" alt="Document attachment" class="{{ $thumbClass }} object-cover bg-gray-100"
+                            <img src="{{ $url }}" alt="Document attachment" class="{{ $thumbClass }} object-cover bg-green-wash"
                                  loading="lazy"
                                  onerror="this.classList.add('opacity-40'); this.alt='Image unavailable';">
                         </a>
                     @else
                         {{-- Non-image (PDF / Word): a file chip that opens/downloads the document. --}}
                         <a href="{{ $url }}" target="_blank" rel="noopener"
-                           class="flex {{ $thumbClass }} flex-col items-center justify-center gap-1 rounded-lg bg-gray-100 text-gray-500 ring-1 ring-gray-200 transition hover:ring-emerald-400"
+                           class="flex {{ $thumbClass }} flex-col items-center justify-center gap-1 rounded-lg bg-green-wash text-ink-soft ring-1 ring-hairline transition hover:ring-green-bright"
                            title="Open {{ strtoupper($ext) }} file">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/></svg>
                             <span class="text-[9px] font-bold uppercase">{{ $ext }}</span>
@@ -51,7 +51,7 @@
                               class="absolute -right-1.5 -top-1.5">
                             @csrf @method('DELETE')
                             <button type="submit" title="Remove file"
-                                    class="flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-white shadow ring-2 ring-white transition hover:bg-rose-700">
+                                    class="flex h-5 w-5 items-center justify-center rounded-full bg-status-red text-white shadow ring-2 ring-white transition hover:bg-[#6e1f1f]">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
                             </button>
                         </form>
@@ -60,7 +60,7 @@
             @endif
         @endforeach
         @if($images->count() > $limit)
-            <span class="flex {{ $thumbClass }} items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">+{{ $images->count() - $limit }}</span>
+            <span class="flex {{ $thumbClass }} items-center justify-center rounded-lg bg-green-wash text-xs font-semibold text-ink-soft">+{{ $images->count() - $limit }}</span>
         @endif
     </div>
 @endif
