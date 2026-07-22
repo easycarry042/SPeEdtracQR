@@ -46,6 +46,14 @@ class RequestReview
             'status' => $document->status,
             'status_label' => $document->statusEnum()->label(),
             'needs_triage' => self::needsTriage($document),
+            // Whether the viewing user can actually drive this document's status
+            // forward — lets the cockpit disable the advance/revert/hold controls
+            // instead of rendering an action that the server will then 403.
+            'can_advance' => $document->canBeAdvancedBy(auth()->user()),
+            // Stage-gate context: whether →In Review's evidence requirement is
+            // already met, so the cockpit can ask for a note up front.
+            'has_work_evidence' => $document->attachments->isNotEmpty()
+                || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => optional($document->created_at)->format('M j, Y g:i A'),
             // Cockpit context: lets the in-modal status controls render the hold

@@ -57,6 +57,8 @@
 
         <p class="mt-6 text-center text-sm text-gray-500">
             <a href="{{ route('public.request.create') }}" class="font-semibold text-emerald-800 hover:underline">Submit another request</a>
+            <span class="mx-2 text-gray-300">·</span>
+            <a href="{{ url('/') }}" class="font-semibold text-emerald-800 hover:underline">Back to home</a>
         </p>
     </main>
 </body>

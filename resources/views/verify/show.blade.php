@@ -64,5 +64,11 @@
             This check is provided by SPeED TraQR, the document tracking system of the San Pedro records office.
             Verification links are cryptographically signed — a matching tracking number alone is not proof of authenticity.
         </p>
+
+        <p class="mt-4 text-center text-sm">
+            <a href="{{ url('/') }}" class="font-semibold text-green underline">Go to homepage</a>
+            <span class="mx-2 text-ink-soft">·</span>
+            <a href="{{ route('citizen.track') }}" class="font-semibold text-green underline">Track a document</a>
+        </p>
     </div>
 </x-citizen-layout>

@@ -19,6 +19,12 @@
     </header>
 
     <main class="mx-auto max-w-3xl px-6 py-10">
+        <a href="{{ url('/') }}"
+           onclick="if (document.referrer && history.length > 1) { event.preventDefault(); history.back(); }"
+           class="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7 7-7M3 12h18"/></svg>
+            Back
+        </a>
         <h1 class="text-3xl font-extrabold tracking-tight text-emerald-950">Submit a request online</h1>
         <p class="mt-2 text-sm text-gray-600">Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.</p>
 

@@ -205,4 +205,26 @@ class Document extends Model
         // anchor is in the past; order operands so the diff is positive.
         return $anchor->diffInHours(now()) > $sla;
     }
+
+    /**
+     * Only the assigned staff member (holding `advance documents`) or an admin
+     * (`manage system` / `assign documents`) may move this document's status
+     * stage. Single source of truth for DocumentStatusController's server-side
+     * gate and every place that renders the advance/revert/hold controls, so
+     * the UI never offers an action the backend will then reject.
+     */
+    public function canBeAdvancedBy(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->can('manage system') || $user->can('assign documents')) {
+            return true;
+        }
+
+        return $user->can('advance documents')
+            && $this->assigned_to !== null
+            && (int) $this->assigned_to === (int) $user->id;
+    }
 }

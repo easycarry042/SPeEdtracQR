@@ -15,13 +15,7 @@
     $held    = $stage === DocumentStatus::OnHold;
 
     // Who may operate the controls: the assigned staff member, or an admin.
-    $user   = auth()->user();
-    $isAdmin = $user?->can('manage system') || $user?->can('assign documents');
-    $canAct = $controls && $user && ($isAdmin || (
-        $user->can('advance documents')
-        && $document->assigned_to !== null
-        && (int) $document->assigned_to === (int) $user->id
-    ));
+    $canAct = $controls && $document->canBeAdvancedBy(auth()->user());
 @endphp
 
 @if($returned)
@@ -91,6 +85,10 @@
         $gateChecks = $hasNext ? \App\Support\StatusGate::checks($document, $next) : [];
         $gatePassed = collect($gateChecks)->every(fn ($c) => $c['passed']);
         $noteRequired = $hasNext && \App\Support\StatusGate::noteRequired($next);
+        // When the ONLY unmet requirement is work evidence, a typed note
+        // satisfies it (the server stores it as a staff work note).
+        $failingKeys = collect($gateChecks)->reject(fn ($c) => $c['passed'])->pluck('key')->all();
+        $noteCanSatisfy = $failingKeys === ['work_evidence'];
         $willEmailCitizen = $hasNext
             && config('tracking.notify_citizen.enabled', true)
             && ($document->notify_citizen ?? true)
@@ -193,14 +191,23 @@
                 @if($gateChecks !== [])
                     <ul class="gate-checks">
                         @foreach($gateChecks as $check)
-                            <li class="{{ $check['passed'] ? 'ok' : 'no' }}">
-                                @if($check['passed'])
-                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                @else
-                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
-                                @endif
-                                <span>{{ $check['label'] }}<span class="sr-only">{{ $check['passed'] ? ' — met' : ' — not met' }}</span></span>
-                            </li>
+                            @if(! $check['passed'] && $check['key'] === 'work_evidence')
+                                {{-- Live row: typing a note below satisfies this requirement. --}}
+                                <li :class="note.trim() ? 'ok' : 'no'" class="no">
+                                    <svg x-show="note.trim()" x-cloak width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                    <svg x-show="! note.trim()" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                    <span>{{ $check['label'] }} — or add a note below</span>
+                                </li>
+                            @else
+                                <li class="{{ $check['passed'] ? 'ok' : 'no' }}">
+                                    @if($check['passed'])
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                    @else
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                    @endif
+                                    <span>{{ $check['label'] }}<span class="sr-only">{{ $check['passed'] ? ' — met' : ' — not met' }}</span></span>
+                                </li>
+                            @endif
                         @endforeach
                     </ul>
                 @endif
@@ -208,9 +215,9 @@
                 <form method="POST" action="{{ route('documents.status.advance', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
                     @csrf @method('PATCH')
                     <input type="hidden" name="expected_status" value="{{ $document->status }}">
-                    <label>{{ $noteRequired ? 'Review note (required)' : 'Note (optional)' }}
-                        <textarea name="note" rows="2" maxlength="1000" x-model="note" @if($noteRequired) required @endif
-                                  placeholder="{{ $noteRequired ? 'What was checked and why this passes review' : 'Anything worth recording about this step' }}"></textarea>
+                    <label>{{ $noteRequired ? 'Review note (required)' : ($noteCanSatisfy ? 'Work note (required — nothing on file yet)' : 'Note (optional)') }}
+                        <textarea name="note" rows="2" maxlength="1000" x-model="note" @if($noteRequired || $noteCanSatisfy) required @endif
+                                  placeholder="{{ $noteRequired ? 'What was checked and why this passes review' : ($noteCanSatisfy ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step') }}"></textarea>
                     </label>
                     @if($willEmailCitizen)
                         <p class="gate-mail">
@@ -219,11 +226,15 @@
                         </p>
                     @endif
                     @unless($gatePassed)
-                        <p class="gate-blocked">Resolve the unmet requirements above to continue.</p>
+                        @if($noteCanSatisfy)
+                            <p class="gate-blocked" x-show="! note.trim()">Add a work note above — or attach a file to this document first.</p>
+                        @else
+                            <p class="gate-blocked">Resolve the unmet requirements above to continue.</p>
+                        @endif
                     @endunless
                     <div class="gate-actions">
                         <button type="submit" class="btn-step btn-step-fwd"
-                                :disabled="{{ $gatePassed ? 'false' : 'true' }} || ({{ $noteRequired ? 'true' : 'false' }} && ! note.trim())">
+                                :disabled="{{ $gatePassed ? 'false' : ($noteCanSatisfy ? '! note.trim()' : 'true') }} || ({{ $noteRequired ? 'true' : 'false' }} && ! note.trim())">
                             Confirm — move to {{ $next->label() }}
                         </button>
                         <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>

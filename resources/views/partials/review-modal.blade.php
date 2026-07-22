@@ -187,8 +187,8 @@
                         <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
                             <div class="flex flex-wrap items-center justify-end gap-3">
                                 <div class="relative" x-show="prog().canRevert || prog().canReturn || prog().canHold">
-                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting"
-                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:opacity-50">More ▾</button>
+                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting || active.can_advance === false"
+                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">More ▾</button>
                                     <div x-show="moreOpen" x-cloak x-transition.opacity
                                          @click.outside="moreOpen = false" @keydown.escape.window="moreOpen = false"
                                          class="absolute bottom-full right-0 z-[70] mb-2 w-60 rounded-xl border border-hairline bg-paper p-1.5 shadow-xl">
@@ -200,7 +200,8 @@
                                                 class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">Put on hold</button>
                                     </div>
                                 </div>
-                                <button type="button" @click="runPrimary()" :disabled="submitting"
+                                <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
+                                        :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
                                         class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
                                     <span x-show="!submitting" x-text="prog().primary.label"></span>
                                     <span x-show="submitting">Working…</span>
@@ -301,19 +302,16 @@
                     <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="advanceOpen" x-transition>
                         <div class="border-b border-hairline px-6 py-4">
                             <h3 class="text-base font-bold text-ink">Advance to <span x-text="advanceTargetLabel()"></span></h3>
-                            <p class="mt-0.5 text-sm text-ink-soft"
-                               x-text="advanceNoteRequired()
-                                   ? 'This is the review sign-off — record what was checked and why it passes.'
-                                   : 'Moves the request to the next stage. Add a note for the record if useful.'"></p>
+                            <p class="mt-0.5 text-sm text-ink-soft" x-text="advanceHint()"></p>
                         </div>
                         <div class="px-6 py-5">
                             <label class="block text-sm font-semibold text-ink">
-                                <span x-text="advanceNoteRequired() ? 'Review note' : 'Note'"></span>
+                                <span x-text="active && active.status === 'in_review' ? 'Review note' : (advanceNoteRequired() ? 'Work note' : 'Note')"></span>
                                 <span x-show="advanceNoteRequired()" class="text-status-red">*</span>
                                 <span x-show="!advanceNoteRequired()" class="font-normal text-ink-soft">(optional)</span>
                             </label>
                             <textarea x-model="advanceNote" rows="3" maxlength="1000"
-                                      :placeholder="advanceNoteRequired() ? 'e.g. Requirements verified against the checklist; clearances valid' : 'Anything worth recording about this step…'"
+                                      :placeholder="active && active.status === 'in_review' ? 'e.g. Requirements verified against the checklist; clearances valid' : (advanceNoteRequired() ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step…')"
                                       class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
                         </div>
                         <div class="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
@@ -524,6 +522,9 @@
             nodeClass(i) { return this.isDone(i) ? 'done' : (this.isCurrent(i) ? 'now' : 'todo'); },
 
             cockpitHint() {
+                if (this.active && this.active.can_advance === false) {
+                    return 'You\'re not able to move this request forward — it\'s assigned to you but your role doesn\'t include the advance-documents permission. Ask an admin to reassign it or grant that permission.';
+                }
                 const p = this.prog();
                 switch (p.primary.type) {
                     case 'approve': return 'This request is at Approved. Approve it to mark it Completed and move it to your History.';
@@ -549,13 +550,18 @@
              * server refuses if someone else moved the document first) and
              * failures render inline via gateError, never alert().
              */
-            patchStatus(path, extra = {}, body = null) {
+            patchStatus(path, extra = {}, data = {}) {
                 if (!this.active || this.submitting) return Promise.resolve();
                 this.submitting = true;
                 this.gateError = '';
-                const fd = body || new FormData();
-                if (!fd.has('expected_status')) fd.append('expected_status', this.active.status);
-                const opts = { method: 'PATCH', headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' }, body: fd };
+                // IMPORTANT: send JSON, never FormData — PHP does not parse
+                // multipart bodies on PATCH, so FormData fields arrive empty.
+                const payload = { expected_status: this.active.status, ...data };
+                const opts = {
+                    method: 'PATCH',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                };
                 return fetch(`${this.openBase}/${this.active.id}/${path}`, opts)
                     .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
                     .then(({ ok, d }) => {
@@ -579,8 +585,22 @@
             },
 
             // ─── Advance: confirm panel with a transition note ───
-            /** The →Approved step is the review sign-off, so its note is required. */
-            advanceNoteRequired() { return this.active && this.active.status === 'in_review'; },
+            /**
+             * A note is required when (a) →Approved: the review sign-off, or
+             * (b) →In Review with nothing on file: the note becomes the work
+             * record that satisfies the stage gate.
+             */
+            advanceNoteRequired() {
+                if (!this.active) return false;
+                if (this.active.status === 'in_review') return true;
+                return this.active.status === 'in_progress' && !this.active.has_work_evidence;
+            },
+            advanceHint() {
+                if (!this.active) return '';
+                if (this.active.status === 'in_review') return 'This is the review sign-off — record what was checked and why it passes.';
+                if (this.active.status === 'in_progress' && !this.active.has_work_evidence) return 'Nothing is on file for this request yet — your note becomes its work record.';
+                return 'Moves the request to the next stage. Add a note for the record if useful.';
+            },
             advanceTargetLabel() {
                 const idx = this.stageIndex(this.active ? this.active.status : null);
                 return idx >= 0 && this.flow[idx + 1] ? this.flow[idx + 1].label : '';
@@ -588,27 +608,27 @@
             openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
             confirmAdvance() {
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
-                const fd = new FormData();
-                if (this.advanceNote.trim()) fd.append('note', this.advanceNote.trim());
+                const hadNote = !!this.advanceNote.trim();
+                const data = hadNote ? { note: this.advanceNote.trim() } : {};
                 this.advanceOpen = false;
-                return this.patchStatus('status/advance', {}, fd).then(() => { this.advanceNote = ''; });
+                // A submitted note is stored as a staff work note on the file.
+                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, data)
+                    .then(() => { this.advanceNote = ''; });
             },
 
             // ─── Move back: always carries a reason for the audit trail ───
             revertStatus() { this.revertReason = ''; this.gateError = ''; this.revertOpen = true; },
             confirmRevert() {
                 if (!this.revertReason.trim()) return;
-                const fd = new FormData();
-                fd.append('reason', this.revertReason.trim());
+                const data = { reason: this.revertReason.trim() };
                 this.revertOpen = false;
-                return this.patchStatus('status/revert', {}, fd).then(() => { this.revertReason = ''; });
+                return this.patchStatus('status/revert', {}, data).then(() => { this.revertReason = ''; });
             },
 
             setStatus(value, reason) {
-                const fd = new FormData();
-                fd.append('status', value);
-                if (reason) fd.append('reason', reason);
-                return this.patchStatus('status', {}, fd);
+                const data = { status: value };
+                if (reason) data.reason = reason;
+                return this.patchStatus('status', {}, data);
             },
 
             returnForRevision() {
@@ -621,10 +641,11 @@
             putOnHold() {
                 if (!this.holdReason.trim()) return;
                 const prev = this.active ? this.active.status : null;
-                const fd = new FormData();
-                fd.append('hold_reason', this.holdReason.trim());
-                fd.append('blocked_by', this.holdBlockedBy);
-                if (this.holdUntil) fd.append('hold_until', this.holdUntil);
+                const data = {
+                    hold_reason: this.holdReason.trim(),
+                    blocked_by: this.holdBlockedBy,
+                };
+                if (this.holdUntil) data.hold_until = this.holdUntil;
                 const extra = {
                     blocked_by: this.holdBlockedBy,
                     hold_reason: this.holdReason.trim(),
@@ -632,7 +653,7 @@
                     status_before_hold: prev,
                 };
                 this.holdOpen = false;
-                this.patchStatus('hold', extra, fd).then(() => { this.holdReason = ''; this.holdUntil = ''; this.holdBlockedBy = 'citizen'; });
+                this.patchStatus('hold', extra, data).then(() => { this.holdReason = ''; this.holdUntil = ''; this.holdBlockedBy = 'citizen'; });
             },
 
             open(req) {
