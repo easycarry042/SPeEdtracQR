@@ -13,6 +13,7 @@ use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Admin assignment desk: lists documents and lets an admin assign the staff
@@ -73,6 +74,16 @@ class AssignmentController extends Controller
         ]);
 
         $assignedTo = $validated['assigned_to'] ?? null;
+
+        // The dashboard's rendered advance control trusts this assignment to mean
+        // the assignee can actually act on the document — so the assignee must
+        // hold `advance documents`, not just exist. Otherwise the request would
+        // show a live Advance button that always 403s (see StatusController).
+        if ($assignedTo && ! User::find($assignedTo)?->can('advance documents')) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'That user does not have permission to advance documents.',
+            ]);
+        }
 
         $document->update([
             'assigned_to' => $assignedTo,

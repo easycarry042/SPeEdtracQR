@@ -187,8 +187,8 @@
                         <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
                             <div class="flex flex-wrap items-center justify-end gap-3">
                                 <div class="relative" x-show="prog().canRevert || prog().canReturn || prog().canHold">
-                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting"
-                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:opacity-50">More ▾</button>
+                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting || active.can_advance === false"
+                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">More ▾</button>
                                     <div x-show="moreOpen" x-cloak x-transition.opacity
                                          @click.outside="moreOpen = false" @keydown.escape.window="moreOpen = false"
                                          class="absolute bottom-full right-0 z-[70] mb-2 w-60 rounded-xl border border-hairline bg-paper p-1.5 shadow-xl">
@@ -200,7 +200,8 @@
                                                 class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">Put on hold</button>
                                     </div>
                                 </div>
-                                <button type="button" @click="runPrimary()" :disabled="submitting"
+                                <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
+                                        :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
                                         class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
                                     <span x-show="!submitting" x-text="prog().primary.label"></span>
                                     <span x-show="submitting">Working…</span>
@@ -521,6 +522,9 @@
             nodeClass(i) { return this.isDone(i) ? 'done' : (this.isCurrent(i) ? 'now' : 'todo'); },
 
             cockpitHint() {
+                if (this.active && this.active.can_advance === false) {
+                    return 'You\'re not able to move this request forward — it\'s assigned to you but your role doesn\'t include the advance-documents permission. Ask an admin to reassign it or grant that permission.';
+                }
                 const p = this.prog();
                 switch (p.primary.type) {
                     case 'approve': return 'This request is at Approved. Approve it to mark it Completed and move it to your History.';
@@ -546,13 +550,18 @@
              * server refuses if someone else moved the document first) and
              * failures render inline via gateError, never alert().
              */
-            patchStatus(path, extra = {}, body = null) {
+            patchStatus(path, extra = {}, data = {}) {
                 if (!this.active || this.submitting) return Promise.resolve();
                 this.submitting = true;
                 this.gateError = '';
-                const fd = body || new FormData();
-                if (!fd.has('expected_status')) fd.append('expected_status', this.active.status);
-                const opts = { method: 'PATCH', headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' }, body: fd };
+                // IMPORTANT: send JSON, never FormData — PHP does not parse
+                // multipart bodies on PATCH, so FormData fields arrive empty.
+                const payload = { expected_status: this.active.status, ...data };
+                const opts = {
+                    method: 'PATCH',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                };
                 return fetch(`${this.openBase}/${this.active.id}/${path}`, opts)
                     .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
                     .then(({ ok, d }) => {
@@ -599,12 +608,11 @@
             openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
             confirmAdvance() {
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
-                const fd = new FormData();
                 const hadNote = !!this.advanceNote.trim();
-                if (hadNote) fd.append('note', this.advanceNote.trim());
+                const data = hadNote ? { note: this.advanceNote.trim() } : {};
                 this.advanceOpen = false;
                 // A submitted note is stored as a staff work note on the file.
-                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, fd)
+                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, data)
                     .then(() => { this.advanceNote = ''; });
             },
 
@@ -612,17 +620,15 @@
             revertStatus() { this.revertReason = ''; this.gateError = ''; this.revertOpen = true; },
             confirmRevert() {
                 if (!this.revertReason.trim()) return;
-                const fd = new FormData();
-                fd.append('reason', this.revertReason.trim());
+                const data = { reason: this.revertReason.trim() };
                 this.revertOpen = false;
-                return this.patchStatus('status/revert', {}, fd).then(() => { this.revertReason = ''; });
+                return this.patchStatus('status/revert', {}, data).then(() => { this.revertReason = ''; });
             },
 
             setStatus(value, reason) {
-                const fd = new FormData();
-                fd.append('status', value);
-                if (reason) fd.append('reason', reason);
-                return this.patchStatus('status', {}, fd);
+                const data = { status: value };
+                if (reason) data.reason = reason;
+                return this.patchStatus('status', {}, data);
             },
 
             returnForRevision() {
@@ -635,10 +641,11 @@
             putOnHold() {
                 if (!this.holdReason.trim()) return;
                 const prev = this.active ? this.active.status : null;
-                const fd = new FormData();
-                fd.append('hold_reason', this.holdReason.trim());
-                fd.append('blocked_by', this.holdBlockedBy);
-                if (this.holdUntil) fd.append('hold_until', this.holdUntil);
+                const data = {
+                    hold_reason: this.holdReason.trim(),
+                    blocked_by: this.holdBlockedBy,
+                };
+                if (this.holdUntil) data.hold_until = this.holdUntil;
                 const extra = {
                     blocked_by: this.holdBlockedBy,
                     hold_reason: this.holdReason.trim(),
@@ -646,7 +653,7 @@
                     status_before_hold: prev,
                 };
                 this.holdOpen = false;
-                this.patchStatus('hold', extra, fd).then(() => { this.holdReason = ''; this.holdUntil = ''; this.holdBlockedBy = 'citizen'; });
+                this.patchStatus('hold', extra, data).then(() => { this.holdReason = ''; this.holdUntil = ''; this.holdBlockedBy = 'citizen'; });
             },
 
             open(req) {

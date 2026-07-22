@@ -14,6 +14,7 @@ use App\Support\RequestReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Staff review lifecycle: opening a review moves a request to "In Review", and
@@ -37,6 +38,15 @@ class ReviewController extends Controller
         ]);
 
         $assignee = User::findOrFail($validated['assigned_to']);
+
+        // Mirrors AssignmentController::assign — an assignee without this
+        // permission would see a live Advance button on their dashboard that
+        // DocumentStatusController then rejects.
+        if (! $assignee->can('advance documents')) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'That user does not have permission to advance documents.',
+            ]);
+        }
 
         $document->update([
             'assigned_to' => $assignee->id,

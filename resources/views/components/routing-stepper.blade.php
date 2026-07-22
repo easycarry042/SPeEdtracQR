@@ -15,13 +15,7 @@
     $held    = $stage === DocumentStatus::OnHold;
 
     // Who may operate the controls: the assigned staff member, or an admin.
-    $user   = auth()->user();
-    $isAdmin = $user?->can('manage system') || $user?->can('assign documents');
-    $canAct = $controls && $user && ($isAdmin || (
-        $user->can('advance documents')
-        && $document->assigned_to !== null
-        && (int) $document->assigned_to === (int) $user->id
-    ));
+    $canAct = $controls && $document->canBeAdvancedBy(auth()->user());
 @endphp
 
 @if($returned)

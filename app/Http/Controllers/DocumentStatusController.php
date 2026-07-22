@@ -333,17 +333,6 @@ class DocumentStatusController extends Controller
      */
     private function authorizeChange(Document $document): void
     {
-        $user = auth()->user();
-
-        $isAdmin = $user?->can('manage system') || $user?->can('assign documents');
-        if ($isAdmin) {
-            return;
-        }
-
-        $isAssignedStaff = $user?->can('advance documents')
-            && $document->assigned_to !== null
-            && (int) $document->assigned_to === (int) $user->id;
-
-        abort_unless($isAssignedStaff, 403, 'Only the assigned staff member or an admin can change this document\'s status.');
+        abort_unless($document->canBeAdvancedBy(auth()->user()), 403, 'Only the assigned staff member or an admin can change this document\'s status.');
     }
 }
