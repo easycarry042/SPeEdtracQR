@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use Illuminate\Http\Request;
 
 class HistoryController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
     public function index(Request $request)
     {

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 use App\Support\RequestReview;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
     public function index()
     {

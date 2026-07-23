@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 use Carbon\CarbonPeriod;
@@ -14,7 +14,7 @@ use Illuminate\Validation\Rule;
 
 class AnalyticsController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
     public function index(Request $request)
     {
@@ -26,19 +26,17 @@ class AnalyticsController extends Controller
 
         $user = auth()->user();
         $isOrgWide = AssignmentScope::canViewAll($user);
-        $dept = null;
-
         $documentTypes = $this->scopedDocuments()->distinct()->orderBy('document_type')->pluck('document_type');
         $statuses = DocumentStatus::values();
 
         $summary = $this->buildSummary();
 
-        $topDepartments = collect();
+        $topStaff = collect();
         $statusBreakdown = collect();
         $byType = collect();
 
         if ($isOrgWide) {
-            $topDepartments = Document::query()
+            $topStaff = Document::query()
                 ->leftJoin('users', 'documents.assigned_to', '=', 'users.id')
                 ->select(DB::raw("COALESCE(users.name, 'Unassigned') as name"), DB::raw('COUNT(documents.id) as total'))
                 ->groupBy('users.name')
@@ -75,7 +73,7 @@ class AnalyticsController extends Controller
 
         // ---- Reshape into the plain arrays the Civic Record analytics view expects ----
         $kpis = [
-            'in_transit' => $summary['at_department'],
+            'in_progress' => $summary['in_progress'],
             'completed' => $summary['completed'],
             'submitted_month' => $summary['submitted_month'],
             'overdue' => $summary['overdue'],
@@ -86,9 +84,9 @@ class AnalyticsController extends Controller
             'count' => (int) $row->total,
         ])->all();
 
-        $topDepartments = $topDepartments->map(fn ($row) => [
+        $topStaff = $topStaff->map(fn ($row) => [
             'name' => $row->name,
-            'scans' => (int) $row->total,
+            'assigned' => (int) $row->total,
         ])->all();
 
         $categories = $documentTypes->all();
@@ -97,15 +95,14 @@ class AnalyticsController extends Controller
         return view('analytics', compact(
             'documentTypes',
             'statuses',
-            'topDepartments',
+            'topStaff',
             'statusBreakdown',
             'byType',
             'summary',
             'kpis',
             'categories',
             'activity',
-            'isOrgWide',
-            'dept'
+            'isOrgWide'
         ));
     }
 
@@ -219,7 +216,7 @@ class AnalyticsController extends Controller
 
     private function buildSummary(): array
     {
-        $atDeptNow = $this->scopeDocuments(
+        $inProgressNow = $this->scopeDocuments(
             Document::query()->whereIn('status', DocumentStatus::activeValues())
         )->count();
 
@@ -238,7 +235,7 @@ class AnalyticsController extends Controller
             ->count();
 
         return [
-            'at_department' => $atDeptNow,
+            'in_progress' => $inProgressNow,
             'completed' => $completed,
             'submitted_month' => $submittedThisMonth,
             'overdue' => $overdue,

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 use App\Support\DocumentSeal;
@@ -14,7 +14,7 @@ use Spatie\Activitylog\Models\Activity;
 
 class TrackController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
     public function index(Request $request)
     {
@@ -103,7 +103,15 @@ class TrackController extends Controller
     {
         $document = Document::where('tracking_number', $trackingNumber)
             ->with('attachments')
-            ->firstOrFail();
+            ->first();
+
+        // Soft-fail: a typo'd or unknown number lands back on the Look up hub
+        // with a clear message instead of a bare 404 page.
+        if (! $document) {
+            return redirect()
+                ->route('track.index', ['find' => 1])
+                ->withErrors(['lookup' => "No document found for \"{$trackingNumber}\". Check the number and try again."]);
+        }
 
         if (auth()->user()?->can('manage system')) {
             return redirect()->route('admin.dashboard');

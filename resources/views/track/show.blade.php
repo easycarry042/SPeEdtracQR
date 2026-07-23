@@ -244,6 +244,7 @@
                      x-data="{
                         staffId: '',
                         submitting: false,
+                        islandError: '',
                         denyOpen: false,
                         denyReason: '',
                         approve() {
@@ -256,9 +257,9 @@
                                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                                 body: fd,
                             }).then(r => {
-                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
-                                else { this.submitting = false; alert('Could not approve. Please try again.'); }
-                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; this.islandError = 'Could not approve. Please try again.'; }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
                         },
                         confirmDeny() {
                             if (this.submitting) return;
@@ -270,9 +271,9 @@
                                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                                 body: fd,
                             }).then(r => {
-                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
-                                else { this.submitting = false; alert('Could not deny. Please try again.'); }
-                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; this.islandError = 'Could not deny. Please try again.'; }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
                         }
                      }">
                     <p class="text-sm font-bold text-green-deep">Review &amp; assign</p>
@@ -288,6 +289,8 @@
                         <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-soft">Description</p>
                         <p class="mt-1 whitespace-pre-line text-sm text-ink">{{ $document->description }}</p>
                     @endif
+
+                    <p x-show="islandError" x-cloak x-text="islandError" class="mt-3 rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red" role="alert"></p>
 
                     <label class="mt-4 block text-sm font-semibold text-green-deep">Assign to Staff <span class="text-status-red">*</span></label>
                     <select x-model="staffId" class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
@@ -344,6 +347,7 @@
                 <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
                      x-data="{
                         submitting: false,
+                        islandError: '',
                         complete() {
                             if (this.submitting) return;
                             this.submitting = true;
@@ -351,13 +355,14 @@
                                 method: 'PATCH',
                                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                             }).then(r => {
-                                if (r.ok) { window.location.href = '{{ route('track.index') }}'; }
-                                else { this.submitting = false; r.json().then(d => alert(d.message || 'Could not complete. Advance to Approved first.')); }
-                            }).catch(() => { this.submitting = false; alert('Network error. Please try again.'); });
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; r.json().then(d => { this.islandError = d.message || 'Could not complete. Advance to Approved first.'; }); }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
                         }
                      }">
                     <p class="text-sm font-bold text-green-deep">Ready to complete</p>
                     <p class="mt-1 text-sm text-ink-soft">This request is at <strong>Approved</strong>. Approving marks it <strong>Completed</strong> and moves it to your History.</p>
+                    <p x-show="islandError" x-cloak x-text="islandError" class="mt-3 rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red" role="alert"></p>
                     <div class="mt-4 flex justify-end">
                         <button type="button" @click="complete()" :disabled="submitting"
                                 class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
