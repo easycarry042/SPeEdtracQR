@@ -21,6 +21,7 @@
         "axios": "^1.15.2",
         "html5-qrcode": "^2.3.8",
         "laravel-echo": "^2.3.7",
-        "pusher-js": "^8.5.0"
+        "pusher-js": "^8.5.0",
+        "tesseract.js": "^7.0.0"
     }
 }

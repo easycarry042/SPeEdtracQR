@@ -19,6 +19,24 @@
             </div>
         </div>
 
+        @if(($internalAwaiting ?? 0) > 0)
+            <a href="{{ route('requests.index') }}"
+               class="flex items-center justify-between gap-4 rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-4 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
+                <div class="flex items-center gap-4">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4"/></svg>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold text-emerald-900">
+                            {{ $internalAwaiting }} internal request{{ $internalAwaiting !== 1 ? 's' : '' }} awaiting your office
+                        </p>
+                        <p class="text-xs text-emerald-800/70">Approve, return, or deny them on the Internal Requests page.</p>
+                    </div>
+                </div>
+                <span class="text-sm font-semibold text-emerald-700">Open inbox →</span>
+            </a>
+        @endif
+
         @if($slip)
             <x-routing-slip :slip="$slip" />
         @endif

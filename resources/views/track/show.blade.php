@@ -386,7 +386,13 @@
             @endif
 
             <div class="mt-6 flex flex-wrap gap-2">
-                <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-primary">
+                @if($document->isInternal() && auth()->check())
+                    <a href="{{ route('requests.show', $document) }}" class="cr-btn cr-btn-primary">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg>
+                        Open internal request chain
+                    </a>
+                @endif
+                <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn {{ $document->isInternal() ? '' : 'cr-btn-primary' }}">
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
                     Print QR sticker
                 </a>

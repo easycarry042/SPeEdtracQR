@@ -19,6 +19,9 @@ class Document extends Model
         'citizen_contact',
         'citizen_email',
         'source',
+        'origin',
+        'requesting_department_id',
+        'amount',
         'notify_citizen',
         'description',
         'purpose',
@@ -50,6 +53,12 @@ class Document extends Model
     /** Allowed values for the `blocked_by` hold tag. */
     public const BLOCKED_BY = ['citizen', 'internal', 'external'];
 
+    /** Citizen-facing ticket (guest/staff created) — the original flow. */
+    public const ORIGIN_EXTERNAL = 'external';
+
+    /** Dept-to-dept request (supervisor created) travelling an endorsement chain. */
+    public const ORIGIN_INTERNAL = 'internal';
+
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
@@ -60,6 +69,7 @@ class Document extends Model
         'sla_breach_notified_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'notify_citizen' => 'boolean',
+        'amount' => 'decimal:2',
         'hold_until' => 'date',
         'held_at' => 'datetime',
         'claimed_at' => 'datetime',
@@ -125,6 +135,49 @@ class Document extends Model
     public function currentCustody(): ?DocumentCustodyEvent
     {
         return $this->custodyEvents()->with('user:id,name')->first();
+    }
+
+    /** Whether this is an internal dept-to-dept request (vs a citizen ticket). */
+    public function isInternal(): bool
+    {
+        return $this->origin === self::ORIGIN_INTERNAL;
+    }
+
+    /** Office that filed this internal request (null for external tickets). */
+    public function requestingDepartment()
+    {
+        return $this->belongsTo(Department::class, 'requesting_department_id');
+    }
+
+    /** Endorsement chain of an internal request, in hop order. */
+    public function requestSteps()
+    {
+        return $this->hasMany(RequestStep::class)->orderBy('step_order')->orderBy('id');
+    }
+
+    /** The hop the request is sitting at right now (null when no chain or all done). */
+    public function currentRequestStep(): ?RequestStep
+    {
+        return $this->requestSteps()->where('status', RequestStep::STATUS_CURRENT)->first();
+    }
+
+    /**
+     * Whether this user is the one who must act on the request's current hop:
+     * a supervisor of the department the request is sitting at. Single source
+     * of truth for RequestStepController's gate and the action panel in views.
+     */
+    public function canActOnCurrentStep(?User $user): bool
+    {
+        if (! $user || ! $this->isInternal()) {
+            return false;
+        }
+
+        $step = $this->currentRequestStep();
+
+        return $step !== null
+            && $user->can('act on internal requests')
+            && $user->department_id !== null
+            && (int) $user->department_id === (int) $step->department_id;
     }
 
     /** Staff member responsible for advancing this document through its stages. */

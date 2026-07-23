@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'is_active', 'department_id', 'signature_path'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -35,6 +35,14 @@ class User extends Authenticatable
     }
 
     // ========== RELATIONSHIPS ==========
+
+    /**
+     * The municipal office this user belongs to (null for org-wide accounts).
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
 
     /**
      * Documents that this user created

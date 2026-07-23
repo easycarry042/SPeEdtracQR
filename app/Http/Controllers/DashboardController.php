@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
+use App\Models\RequestStep;
 use App\Support\AssignmentScope;
 use App\Support\RequestReview;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +31,11 @@ class DashboardController extends Controller
 
         // The "Requests" table lists awaiting-approval work only: still Pending
         // and not yet assigned to a staff member. Approving (assign) removes it.
+        // Internal dept-to-dept requests are excluded — they travel their own
+        // endorsement chain (see the Internal Requests inbox), never this desk.
         $pendingRequests = $this->scopeDocuments(
             Document::with('attachments')
+                ->where('origin', '!=', Document::ORIGIN_INTERNAL)
                 ->where('status', DocumentStatus::Pending->value)
                 ->whereNull('assigned_to')
                 ->latest('created_at')
@@ -76,6 +80,17 @@ class DashboardController extends Controller
         // ── Routing slip: the single most at-risk active document ─────────────
         $slip = $this->buildRoutingSlip();
 
+        // Internal requests currently sitting at this supervisor's office (0
+        // for org-wide accounts — they triage from the inbox instead).
+        $internalAwaiting = $user->department_id
+            ? Document::where('origin', Document::ORIGIN_INTERNAL)
+                ->whereIn('status', DocumentStatus::activeValues())
+                ->whereHas('requestSteps', fn ($q) => $q
+                    ->where('status', RequestStep::STATUS_CURRENT)
+                    ->where('department_id', $user->department_id))
+                ->count()
+            : 0;
+
         return view('dashboard', compact(
             'totalRequests',
             'pendingRequest',
@@ -89,7 +104,8 @@ class DashboardController extends Controller
             'atRiskCount',
             'dept',
             'isOrgWide',
-            'slip'
+            'slip',
+            'internalAwaiting'
         ));
     }
 

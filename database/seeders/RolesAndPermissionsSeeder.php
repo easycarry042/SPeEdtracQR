@@ -16,6 +16,8 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $permissions = [
             'create documents',
+            'create internal requests', // supervisor-only dept-to-dept requests
+            'act on internal requests', // approve/deny/return hops of internal requests
             'scan documents',
             'advance documents', // move an assigned document through its status stages
             'assign documents',  // assign the staff member responsible for a document
@@ -41,6 +43,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $supervisorRole = Role::firstOrCreate(['name' => 'Supervisor']);
         $supervisorRole->syncPermissions([
             'assign documents', 'view reports', 'view all documents',
+            'create internal requests', 'act on internal requests',
         ]);
         if ($legacyDeptAdminRole) {
             foreach ($legacyDeptAdminRole->users as $user) {

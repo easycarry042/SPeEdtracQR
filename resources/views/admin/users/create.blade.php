@@ -64,7 +64,19 @@
                         </select>
                         @error('role')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
-                    <div></div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Department</label>
+                        <select name="department_id"
+                                class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none @error('department_id') border-red-400 @enderror">
+                            <option value="">None (org-wide)</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}" @selected(old('department_id') == $department->id)>
+                                    {{ $department->name }} ({{ $department->code }})
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('department_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">

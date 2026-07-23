@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         // withTrashed: archived accounts stay listed (with a Restore action) instead of vanishing.
-        $query = User::withTrashed()->with(['roles'])->orderBy('name');
+        $query = User::withTrashed()->with(['roles', 'department'])->orderBy('name');
 
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
@@ -37,8 +38,9 @@ class UserController extends Controller
     public function create()
     {
         $roles = $this->assignableRoles();
+        $departments = $this->assignableDepartments();
 
-        return view('admin.users.create', compact('roles'));
+        return view('admin.users.create', compact('roles', 'departments'));
     }
 
     public function store(Request $request)
@@ -51,6 +53,7 @@ class UserController extends Controller
             'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|string',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         // Re-adding an email that belongs to an archived account restores and
@@ -63,6 +66,7 @@ class UserController extends Controller
                 'name' => $validated['name'],
                 'password' => Hash::make($validated['password']),
                 'is_active' => true,
+                'department_id' => $validated['department_id'] ?? null,
             ]);
             $message = "Archived account for {$user->name} was restored and updated.";
         } else {
@@ -71,6 +75,7 @@ class UserController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'is_active' => true,
+                'department_id' => $validated['department_id'] ?? null,
             ]);
             $message = "User {$user->name} created successfully.";
         }
@@ -84,8 +89,9 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = $this->assignableRoles();
+        $departments = $this->assignableDepartments();
 
-        return view('admin.users.edit', compact('user', 'roles'));
+        return view('admin.users.edit', compact('user', 'roles', 'departments'));
     }
 
     public function update(Request $request, User $user)
@@ -95,11 +101,13 @@ class UserController extends Controller
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)->whereNull('deleted_at')],
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|string',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'department_id' => $validated['department_id'] ?? null,
         ]);
 
         if (! empty($validated['password'])) {
@@ -162,5 +170,10 @@ class UserController extends Controller
     private function assignableRoles()
     {
         return Role::orderBy('name')->get();
+    }
+
+    private function assignableDepartments()
+    {
+        return Department::active()->orderBy('name')->get();
     }
 }

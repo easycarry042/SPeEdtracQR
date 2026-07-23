@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\RouteTemplateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
@@ -16,11 +18,14 @@ use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
+use App\Http\Controllers\InternalRequestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
+use App\Http\Controllers\RequestStepController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\SignatureController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
@@ -120,6 +125,23 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
 
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+
+        // Departments (office directory for internal request routing)
+        Route::get('departments', [DepartmentController::class, 'index'])->name('departments.index');
+        Route::get('departments/create', [DepartmentController::class, 'create'])->name('departments.create');
+        Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store');
+        Route::get('departments/{department}/edit', [DepartmentController::class, 'edit'])->name('departments.edit');
+        Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
+        Route::patch('departments/{department}/toggle-active', [DepartmentController::class, 'toggleActive'])->name('departments.toggle-active');
+
+        // Route templates (endorsement chains prefilled onto internal requests)
+        Route::get('route-templates', [RouteTemplateController::class, 'index'])->name('route-templates.index');
+        Route::get('route-templates/create', [RouteTemplateController::class, 'create'])->name('route-templates.create');
+        Route::post('route-templates', [RouteTemplateController::class, 'store'])->name('route-templates.store');
+        Route::get('route-templates/{routeTemplate}/edit', [RouteTemplateController::class, 'edit'])->name('route-templates.edit');
+        Route::put('route-templates/{routeTemplate}', [RouteTemplateController::class, 'update'])->name('route-templates.update');
+        Route::patch('route-templates/{routeTemplate}/toggle-active', [RouteTemplateController::class, 'toggleActive'])->name('route-templates.toggle-active');
+        Route::delete('route-templates/{routeTemplate}', [RouteTemplateController::class, 'destroy'])->name('route-templates.destroy');
     });
 
 // Document assignment desk (admins assign the responsible staff member)
@@ -163,6 +185,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Staff operational dashboard — requests assigned to the authenticated staff member.
     Route::get('/my-dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
+
+    // Internal dept-to-dept requests (supervisor wizard: OCR upload → route → QR).
+    // The inbox authorizes in-controller: dept supervisors AND org-wide admins enter.
+    Route::get('/requests', [InternalRequestController::class, 'index'])->name('requests.index');
+    Route::middleware('permission:create internal requests')->group(function () {
+        Route::get('/requests/create', [InternalRequestController::class, 'create'])->name('requests.create');
+        Route::post('/requests', [InternalRequestController::class, 'store'])->name('requests.store');
+    });
+    Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
+    Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
+
+    // Hop actions on the endorsement chain (current-department supervisors only;
+    // each action re-confirms the password, approval affixes the e-signature).
+    Route::middleware('permission:act on internal requests')->group(function () {
+        Route::post('/requests/{document}/steps/approve', [RequestStepController::class, 'approve'])->name('requests.steps.approve');
+        Route::post('/requests/{document}/steps/deny', [RequestStepController::class, 'deny'])->name('requests.steps.deny');
+        Route::post('/requests/{document}/steps/return', [RequestStepController::class, 'returnToRequester'])->name('requests.steps.return');
+    });
+    Route::get('/request-steps/{requestStep}/signature', [RequestStepController::class, 'signature'])->name('requests.steps.signature');
+
+    // Registered e-signature (drawn once on the profile page).
+    Route::post('/profile/signature', [SignatureController::class, 'store'])->name('profile.signature.store');
+    Route::get('/profile/signature', [SignatureController::class, 'show'])->name('profile.signature.show');
+    Route::delete('/profile/signature', [SignatureController::class, 'destroy'])->name('profile.signature.destroy');
 
     // Supervisor approve = assign to staff (staff must accept on Requests page).
     Route::post('/documents/{document}/assign-approve', [ReviewController::class, 'assignApprove'])->name('documents.assign-approve');

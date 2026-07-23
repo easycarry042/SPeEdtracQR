@@ -58,6 +58,39 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** An internal request arrived at this department's hop — its supervisors must act. */
+    public static function internalHopArrived(Document $document, string $action): self
+    {
+        return new self(
+            event: 'internal_hop',
+            title: 'Internal request awaiting your office',
+            body: ($document->purpose ?? $document->document_type)." — {$action}.",
+            url: route('requests.show', $document),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** The chain moved (approved/denied/returned/completed) — tell the filing supervisor. */
+    public static function internalOutcome(Document $document, string $summary): self
+    {
+        return new self(
+            event: 'internal_outcome',
+            title: 'Internal request update',
+            body: ($document->purpose ?? $document->document_type)." — {$summary}",
+            url: route('requests.show', $document),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** Supervisors of one department (the ones who can act on its hops). */
+    public static function departmentSupervisors(int $departmentId, ?int $excludeUserId = null): Collection
+    {
+        return User::permission('act on internal requests')
+            ->where('department_id', $departmentId)
+            ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
+            ->get();
+    }
+
     /** Everyone who triages/assigns (Supervisors + super_admin), minus the actor. */
     public static function supervisors(?int $excludeUserId = null): Collection
     {
