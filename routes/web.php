@@ -46,7 +46,7 @@ Route::get('/', function () {
         return redirect()->route('admin.dashboard');
     }
 
-    if ($user->hasRole('Supervisor') || $user->hasRole('department_admin')) {
+    if ($user->hasRole('Supervisor')) {
         return redirect()->route('dashboard');
     }
 
