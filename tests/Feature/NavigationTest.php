@@ -90,6 +90,29 @@ class NavigationTest extends TestCase
             ->assertSee('Look up a document');
     }
 
+    public function test_unknown_tracking_number_soft_fails_back_to_the_hub(): void
+    {
+        // A guest scanning a bogus/forged code gets the hub + message, not a 404.
+        $this->get(route('track.show', 'SPD-20260101-ZZZZZZ'))
+            ->assertRedirect(route('track.index', ['find' => 1]));
+
+        $this->get(route('track.index', ['find' => 1]))
+            ->assertOk()
+            ->assertSee('Upload QR image');
+    }
+
+    public function test_look_up_hub_leads_with_the_qr_upload_button(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $this->actingAs($this->userWithRole('staff'))
+            ->get(route('track.index', ['find' => 1]))
+            ->assertOk()
+            ->assertSee('Upload QR image')
+            ->assertSee('drag one onto the button')
+            ->assertSeeInOrder(['Type the tracking number', 'Upload QR image', 'Open camera scanner']);
+    }
+
     public function test_unclaimed_queue_is_a_tab_on_the_assignments_desk(): void
     {
         $this->seedRolesAndPermissions();

@@ -30,7 +30,15 @@
             scanner = null;
         }
 
-        return { TRACKING_RE, extractTracking, start, stop };
+        /** Non-prompting camera check: resolves true when a videoinput exists. */
+        function hasCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return Promise.resolve(false);
+            return navigator.mediaDevices.enumerateDevices()
+                .then((devices) => devices.some((d) => d.kind === 'videoinput'))
+                .catch(() => false);
+        }
+
+        return { TRACKING_RE, extractTracking, start, stop, hasCamera };
     })();
 </script>
 @endonce

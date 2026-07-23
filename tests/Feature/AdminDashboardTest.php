@@ -23,7 +23,7 @@ class AdminDashboardTest extends TestCase
         $this->actingAs($this->userWithRole('super_admin'))
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('City of San Pedro · Analytics');
+            ->assertSee('City of San Pedro · Command center');
     }
 
     public function test_command_center_accepts_filter_params(): void

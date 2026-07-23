@@ -60,9 +60,6 @@
         // Document type breakdown
         $typeMax = max(1, collect($typeBreakdown)->max('value') ?? 0);
 
-        // Department comparison
-        $deptMax = 1;
-
         // Staff workload
         $wlMax = max(1, $staffWorkload->max(fn ($r) => $r['completed'] + $r['active']) ?? 0);
 
@@ -94,7 +91,7 @@
         {{-- ── Region A: header + filters ──────────────────────────────────── --}}
         <div class="an-header">
             <div>
-                <h1 style="font-size:18px;font-weight:700;color:var(--green-deep);margin:0;">City of San Pedro · Analytics</h1>
+                <h1 style="font-size:18px;font-weight:700;color:var(--green-deep);margin:0;">City of San Pedro · Command center</h1>
                 <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;display:flex;align-items:center;gap:6px;">
                     <span class="live-dot"></span> live · updated {{ $updatedAt->diffForHumans() }}
                 </div>

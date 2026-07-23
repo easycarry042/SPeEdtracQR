@@ -18,8 +18,7 @@ class AssignmentScope
 
         return $user->can('manage system')
             || $user->hasRole('super_admin')
-            || $user->hasRole('Supervisor')
-            || $user->hasRole('department_admin');
+            || $user->hasRole('Supervisor');
     }
 
     public static function canViewUnclaimedQueue(?User $user = null): bool

@@ -688,6 +688,17 @@
                 }
             },
 
+            /**
+             * Supervisor resolutions (assign / deny) settle IN PLACE: the row
+             * leaves the pending list reactively, the modal closes, and errors
+             * render inline — no full page reload.
+             */
+            resolveActive() {
+                const id = this.active ? this.active.id : null;
+                this.close();
+                if (id !== null) this.requests = this.requests.filter((r) => r.id !== id);
+            },
+
             approve() {
                 if (!this.active || this.submitting) return;
                 if (this.mode === 'supervisor' && !this.selectedStaff) return;
@@ -708,19 +719,22 @@
 
                 this.submitting = true;
                 fetch(url, opts).then((r) => {
+                    this.submitting = false;
                     if (r.ok) {
-                        this.afterSuccess();
+                        // Supervisor: the request is assigned — drop it in place.
+                        // Staff completing a review still reloads (KPIs/History move).
+                        if (this.mode === 'supervisor') this.resolveActive();
+                        else this.afterSuccess();
                         return;
                     }
-                    this.submitting = false;
                     r.json().then((d) => {
-                        alert(d.message || 'Could not complete the action. Please try again.');
+                        this.gateError = d.errors ? Object.values(d.errors).flat().join(' ') : (d.message || 'Could not complete the action. Please try again.');
                     }).catch(() => {
-                        alert('Could not complete the action. Please try again.');
+                        this.gateError = 'Could not complete the action. Please try again.';
                     });
                 }).catch(() => {
                     this.submitting = false;
-                    alert('Network error. Please try again.');
+                    this.gateError = 'Network error. Please try again.';
                 });
             },
 
@@ -822,7 +836,9 @@
                     body: fd,
                 }).then((r) => {
                     if (r.ok) {
-                        this.afterSuccess();
+                        // Denied requests leave the pending queue in place.
+                        this.submitting = false;
+                        this.resolveActive();
                         return;
                     }
                     this.submitting = false;

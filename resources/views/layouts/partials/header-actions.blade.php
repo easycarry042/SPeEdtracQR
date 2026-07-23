@@ -108,9 +108,13 @@
         </div>
         <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">My Profile</a>
         <a href="{{ route('history') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">History</a>
-        <a href="{{ route('staff.index') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Staff directory</a>
-        <div class="my-1 border-t border-gray-200"></div>
-        <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
+        {{-- Staff directory + Settings live in the super_admin sidebar; only
+             topnav roles need them here (avoids duplicate menu entries). --}}
+        @unless(auth()->user()?->can('manage system'))
+            <a href="{{ route('staff.index') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Staff directory</a>
+            <div class="my-1 border-t border-gray-200"></div>
+            <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
+        @endunless
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="w-full px-4 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50">Logout</button>

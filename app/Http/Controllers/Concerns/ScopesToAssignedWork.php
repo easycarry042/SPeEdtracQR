@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Concerns;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 
-trait ScopesByDepartment
+trait ScopesToAssignedWork
 {
     protected function scopeDocuments($query)
     {
