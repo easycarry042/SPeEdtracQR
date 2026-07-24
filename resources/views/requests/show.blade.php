@@ -1,27 +1,26 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-2xl font-bold tracking-tight text-emerald-950">Internal Request</h1>
-            <span class="font-mono text-sm font-bold text-emerald-800">{{ $document->tracking_number }}</span>
+            <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Request</h1>
+            <span class="id-chip">{{ $document->tracking_number }}</span>
             @php $stage = $document->statusEnum(); @endphp
-            <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
-                {{ match($stage->band()) {
-                    'green' => 'bg-emerald-100 text-emerald-800',
-                    'brass' => 'bg-amber-100 text-amber-800',
-                    'warn' => 'bg-red-100 text-red-700',
-                    'hold' => 'bg-amber-100 text-amber-700',
-                    default => 'bg-gray-100 text-gray-600',
-                } }}">
-                {{ $stage->label() }}
-            </span>
+            <span class="pill {{ match($stage->band()) {
+                    'green' => 'p-green',
+                    'brass', 'hold' => 'p-amber',
+                    'warn' => 'p-red',
+                    default => 'p-muted',
+                } }}">{{ $stage->label() }}</span>
         </div>
     </x-slot>
 
     <div class="page-shell page-shell-loose">
 
         @if(session('status'))
-            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                {{ session('status') }}
+            <div class="panel">
+                <div class="pb flex items-center gap-2 text-[13px] font-medium text-green-deep">
+                    <svg class="h-4 w-4 text-green" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    {{ session('status') }}
+                </div>
             </div>
         @endif
 
@@ -29,81 +28,85 @@
 
             {{-- Left: request details + chain --}}
             <div class="space-y-6 lg:col-span-3">
-                <div class="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-md">
-                    <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-900">Request</h2>
-                    <dl class="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-                        <div class="sm:col-span-2">
-                            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">What is requested</dt>
-                            <dd class="mt-0.5 text-sm font-semibold text-gray-800">{{ $document->purpose }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Route</dt>
-                            <dd class="mt-0.5 text-sm text-gray-800">{{ $document->document_type }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Amount</dt>
-                            <dd class="mt-0.5 text-sm text-gray-800">
-                                {{ $document->amount !== null ? '₱'.number_format((float) $document->amount, 2) : 'No budget involved' }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Filed by</dt>
-                            <dd class="mt-0.5 text-sm text-gray-800">
-                                {{ $document->creator?->name ?? '—' }} · {{ $document->requestingDepartment?->name }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Filed on</dt>
-                            <dd class="mt-0.5 text-sm text-gray-800">{{ $document->created_at->format('M j, Y g:i A') }}</dd>
-                        </div>
-                        @if($document->description)
+                <section class="panel">
+                    <div class="ph"><h2>Request</h2></div>
+                    <div class="pb">
+                        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
                             <div class="sm:col-span-2">
-                                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Details</dt>
-                                <dd class="mt-0.5 whitespace-pre-line text-sm text-gray-700">{{ $document->description }}</dd>
+                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">What is requested</dt>
+                                <dd class="mt-0.5 text-[14px] font-semibold text-ink">{{ $document->purpose }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Route</dt>
+                                <dd class="mt-0.5 text-[14px] text-ink">{{ $document->document_type }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Amount</dt>
+                                <dd class="mt-0.5 text-[14px] text-ink">
+                                    {{ $document->amount !== null ? '₱'.number_format((float) $document->amount, 2) : 'No budget involved' }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Filed by</dt>
+                                <dd class="mt-0.5 text-[14px] text-ink">
+                                    {{ $document->creator?->name ?? '—' }} · {{ $document->requestingDepartment?->name }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Filed on</dt>
+                                <dd class="mt-0.5 text-[14px] text-ink">{{ $document->created_at->format('M j, Y g:i A') }}</dd>
+                            </div>
+                            @if($document->description)
+                                <div class="sm:col-span-2">
+                                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Details</dt>
+                                    <dd class="mt-0.5 whitespace-pre-line text-[14px] text-ink">{{ $document->description }}</dd>
+                                </div>
+                            @endif
+                        </dl>
+
+                        @if($document->attachments->isNotEmpty())
+                            <div class="mt-5 border-t border-hairline pt-4">
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Files</p>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @foreach($document->attachments as $attachment)
+                                        <a href="{{ $attachment->authorizedUrl() }}" target="_blank" class="cr-btn cr-btn-sm">
+                                            {{ str_ends_with($attachment->file_path, '-qr-stamped.png') ? 'QR-stamped copy' : 'Paper scan' }}
+                                        </a>
+                                    @endforeach
+                                    <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-sm">
+                                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
+                                        Print QR sticker
+                                    </a>
+                                </div>
                             </div>
                         @endif
-                    </dl>
+                    </div>
+                </section>
 
-                    @if($document->attachments->isNotEmpty())
-                        <div class="mt-5 border-t border-gray-100 pt-4">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Files</p>
-                            <div class="mt-2 flex flex-wrap gap-2">
-                                @foreach($document->attachments as $attachment)
-                                    <a href="{{ $attachment->authorizedUrl() }}" target="_blank"
-                                       class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100">
-                                        {{ str_ends_with($attachment->file_path, '-qr-stamped.png') ? 'QR-stamped copy' : 'Paper scan' }}
-                                    </a>
-                                @endforeach
-                                <a href="{{ route('documents.sticker', $document) }}" target="_blank"
-                                   class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100">
-                                    Print QR sticker
-                                </a>
-                            </div>
-                        </div>
-                    @endif
-                </div>
-
-                <div class="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-md">
-                    <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-900">Endorsement chain</h2>
-                    <div class="mt-5">
+                <section class="panel">
+                    <div class="ph"><h2>Endorsement chain</h2></div>
+                    <div class="pb">
                         @include('requests.partials.chain')
                     </div>
-                </div>
+                </section>
             </div>
 
             {{-- Right: action panel --}}
             <div class="lg:col-span-2">
                 @if($canAct && $currentStep)
-                    <div class="sticky top-24 rounded-2xl border border-amber-200 bg-white shadow-md"
-                         x-data="{ mode: 'approve' }">
-                        <div class="rounded-t-2xl border-b border-amber-100 bg-amber-50/60 px-6 py-4">
-                            <h2 class="text-base font-semibold text-amber-900">Your office holds this request</h2>
-                            <p class="mt-0.5 text-sm text-amber-800/80">{{ $currentStep->department?->name }} — {{ $currentStep->action }}</p>
+                    @php $hasSignature = (bool) auth()->user()->signature_path; @endphp
+                    <div class="panel sticky top-24" x-data="{ mode: 'approve', denyAck: false, hasSignature: {{ $hasSignature ? 'true' : 'false' }} }">
+                        <div class="ph">
+                            <h2>
+                                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Your office holds this request
+                            </h2>
+                            <span class="sub">{{ $currentStep->action }}</span>
                         </div>
 
-                        <div class="p-6">
+                        <div class="pb">
                             @if($errors->any())
-                                <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                                <div class="mb-4 rounded-[8px] border border-status-red-wash bg-status-red-wash px-4 py-3 text-[13px] font-medium text-status-red">
                                     <ul class="list-inside list-disc space-y-0.5">
                                         @foreach($errors->all() as $error)
                                             <li>{{ $error }}</li>
@@ -112,23 +115,20 @@
                                 </div>
                             @endif
 
-                            @unless(auth()->user()->signature_path)
-                                <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            @unless($hasSignature)
+                                <div class="mb-4 rounded-[8px] border border-status-amber-wash bg-status-amber-wash px-4 py-3 text-[13px] text-status-amber" role="alert">
                                     You have no registered e-signature yet, so you cannot approve.
-                                    <a href="{{ route('profile.edit') }}" class="font-semibold underline">Register it on your Profile</a> first.
+                                    <a href="{{ route('profile.edit') }}" class="font-semibold underline">Register it on your Profile</a> first — you can still return or deny.
                                 </div>
                             @endunless
 
-                            <div class="flex gap-2">
-                                <button type="button" @click="mode = 'approve'"
-                                        :class="mode === 'approve' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                        class="flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition">Approve</button>
-                                <button type="button" @click="mode = 'return'"
-                                        :class="mode === 'return' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                        class="flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition">Return</button>
-                                <button type="button" @click="mode = 'deny'"
-                                        :class="mode === 'deny' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                        class="flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition">Deny</button>
+                            <div class="segchips w-full" role="tablist" aria-label="Decision">
+                                <button type="button" role="tab" :aria-selected="mode === 'approve'" @click="mode = 'approve'"
+                                        :class="mode === 'approve' ? 'on' : ''" class="flex-1 justify-center">Approve</button>
+                                <button type="button" role="tab" :aria-selected="mode === 'return'" @click="mode = 'return'"
+                                        :class="mode === 'return' ? 'on' : ''" class="flex-1 justify-center">Return</button>
+                                <button type="button" role="tab" :aria-selected="mode === 'deny'" @click="mode = 'deny'; denyAck = false"
+                                        :class="mode === 'deny' ? 'on' : ''" class="flex-1 justify-center">Deny</button>
                             </div>
 
                             <form method="POST"
@@ -138,32 +138,42 @@
                                   class="mt-5 space-y-4">
                                 @csrf
 
-                                <p class="text-sm text-gray-600">
+                                <p class="text-[13px] text-ink-soft">
                                     <span x-show="mode === 'approve'">Approving affixes your registered e-signature and passes the request to the next office.</span>
                                     <span x-show="mode === 'return'" x-cloak>Returning sends the request back to {{ $document->requestingDepartment?->name }} for revision.</span>
                                     <span x-show="mode === 'deny'" x-cloak>Denying ends this request permanently. The filing office is notified.</span>
                                 </p>
 
                                 <div>
-                                    <label class="block text-sm font-semibold text-gray-700">
-                                        Remarks <span x-show="mode !== 'approve'" class="text-red-500">*</span>
+                                    <label for="req-remarks" class="block text-[13px] font-semibold text-ink">
+                                        Remarks <span x-show="mode !== 'approve'" class="text-status-red">*</span>
                                     </label>
-                                    <textarea name="remarks" rows="3" maxlength="500"
+                                    <textarea id="req-remarks" name="remarks" rows="3" maxlength="500"
                                               :required="mode !== 'approve'"
                                               :placeholder="mode === 'approve' ? 'Optional note for the record' : 'Explain the decision so the filing office knows what to fix'"
-                                              class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30">{{ old('remarks') }}</textarea>
+                                              class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ old('remarks') }}</textarea>
                                 </div>
 
+                                {{-- Permanent-action guard: Deny must be explicitly acknowledged. --}}
+                                <label x-show="mode === 'deny'" x-cloak class="flex items-start gap-2 rounded-[8px] border border-status-red-wash bg-status-red-wash px-3 py-2.5 text-[13px] text-status-red">
+                                    <input type="checkbox" x-model="denyAck" class="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red focus:ring-status-red/30">
+                                    <span>I understand denying <strong>permanently ends</strong> this request and cannot be undone.</span>
+                                </label>
+
                                 <div>
-                                    <label class="block text-sm font-semibold text-gray-700">Confirm your password <span class="text-red-500">*</span></label>
-                                    <input type="password" name="password" required autocomplete="current-password"
-                                           class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                    <p class="mt-1 text-xs text-gray-500">Identity is re-confirmed on every decision — this is what makes the e-signature credible.</p>
+                                    <label for="req-password" class="block text-[13px] font-semibold text-ink">Confirm your password <span class="text-status-red">*</span></label>
+                                    <input id="req-password" type="password" name="password" required autocomplete="current-password"
+                                           class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
+                                    <p class="mt-1 text-[12px] text-ink-soft">Identity is re-confirmed on every decision — this is what makes the e-signature credible.</p>
                                 </div>
 
                                 <button type="submit"
-                                        :class="mode === 'approve' ? 'bg-emerald-700 hover:bg-emerald-800' : (mode === 'return' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700')"
-                                        class="w-full rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition">
+                                        :disabled="(mode === 'approve' && !hasSignature) || (mode === 'deny' && !denyAck)"
+                                        :class="{
+                                            'cr-btn-primary': mode === 'approve',
+                                            'cr-btn-danger': mode === 'deny',
+                                        }"
+                                        class="cr-btn w-full justify-center py-2.5 text-[13px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                                     <span x-show="mode === 'approve'">Approve &amp; sign</span>
                                     <span x-show="mode === 'return'" x-cloak>Return for revision</span>
                                     <span x-show="mode === 'deny'" x-cloak>Deny request</span>
@@ -172,21 +182,23 @@
                         </div>
                     </div>
                 @else
-                    <div class="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-md">
-                        <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-900">Status</h2>
-                        <p class="mt-3 text-sm text-gray-600">
-                            @if($currentStep)
-                                Awaiting <span class="font-semibold text-gray-800">{{ $currentStep->department?->name }}</span> — {{ $currentStep->action }}.
-                                @if($currentStep->started_at)
-                                    There since {{ $currentStep->started_at->diffForHumans() }}.
+                    <section class="panel">
+                        <div class="ph"><h2>Status</h2></div>
+                        <div class="pb">
+                            <p class="text-[13px] text-ink-soft">
+                                @if($currentStep)
+                                    Awaiting <span class="font-semibold text-ink">{{ $currentStep->department?->name }}</span> — {{ $currentStep->action }}.
+                                    @if($currentStep->started_at)
+                                        There since {{ $currentStep->started_at->diffForHumans() }}.
+                                    @endif
+                                @elseif($stage->isTerminal() || $stage === \App\Enums\DocumentStatus::Returned)
+                                    This request is {{ strtolower($stage->label()) }}. No office action is pending.
+                                @else
+                                    No hop is currently open on this request.
                                 @endif
-                            @elseif($stage->isTerminal() || $stage === \App\Enums\DocumentStatus::Returned)
-                                This request is {{ strtolower($stage->label()) }}. No office action is pending.
-                            @else
-                                No hop is currently open on this request.
-                            @endif
-                        </p>
-                    </div>
+                            </p>
+                        </div>
+                    </section>
                 @endif
             </div>
         </div>

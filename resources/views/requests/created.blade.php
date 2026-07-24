@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h1 class="text-2xl font-bold tracking-tight text-emerald-950">Internal Request Filed</h1>
+        <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Request Filed</h1>
     </x-slot>
 
     @php
@@ -14,60 +14,51 @@
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
             {{-- QR + actions --}}
-            <div class="rounded-2xl border border-gray-200/90 bg-white p-8 text-center shadow-md">
-                <p class="text-sm text-gray-600">Paste the QR sticker on the paper request — every office it reaches scans it to confirm custody.</p>
+            <section class="panel">
+                <div class="pb p-8 text-center">
+                    <p class="text-[13px] text-ink-soft">Paste the QR sticker on the paper request — every office it reaches scans it to confirm custody.</p>
 
-                <div class="mx-auto mt-6 flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 bg-white p-3 shadow-inner [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
-                    {!! $qrSvg !!}
-                </div>
+                    <div class="mx-auto mt-6 flex h-56 w-56 items-center justify-center rounded-[10px] border border-hairline bg-white p-3 [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full"
+                         role="img" aria-label="QR code for tracking number {{ $document->tracking_number }}">
+                        {!! $qrSvg !!}
+                    </div>
 
-                <p class="mt-6 font-mono text-2xl font-extrabold text-emerald-950 sm:text-3xl">{{ $document->tracking_number }}</p>
-                <p class="mt-2 text-lg text-gray-900">{{ $document->purpose }}</p>
-                <p class="mt-1 text-sm text-gray-600">
-                    {{ $document->document_type }} · {{ $document->requestingDepartment?->name }}
-                    @if($document->amount !== null)
-                        · ₱{{ number_format((float) $document->amount, 2) }}
-                    @endif
-                </p>
+                    <p class="mt-6"><span class="id-chip text-lg sm:text-xl">{{ $document->tracking_number }}</span></p>
+                    <p class="mt-3 text-[15px] text-ink">{{ $document->purpose }}</p>
+                    <p class="mt-1 text-[13px] text-ink-soft">
+                        {{ $document->document_type }} · {{ $document->requestingDepartment?->name }}
+                        @if($document->amount !== null)
+                            · ₱{{ number_format((float) $document->amount, 2) }}
+                        @endif
+                    </p>
 
-                <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-                    <a href="{{ route('documents.sticker', $document) }}" target="_blank"
-                       class="inline-flex items-center justify-center rounded-xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
-                        Print QR sticker
-                    </a>
-                    @if($stampedCopy)
-                        <a href="{{ $stampedCopy->authorizedUrl() }}" target="_blank"
-                           class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
-                            QR-stamped digital copy
+                    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+                        <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-primary">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
+                            Print QR sticker
                         </a>
-                    @endif
-                    @if($originalScan)
-                        <a href="{{ $originalScan->authorizedUrl() }}" target="_blank"
-                           class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
-                            Original scan
-                        </a>
-                    @endif
-                    <a href="{{ route('dashboard') }}"
-                       class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
-                        Back to dashboard
-                    </a>
+                        @if($stampedCopy)
+                            <a href="{{ $stampedCopy->authorizedUrl() }}" target="_blank" class="cr-btn">QR-stamped digital copy</a>
+                        @endif
+                        @if($originalScan)
+                            <a href="{{ $originalScan->authorizedUrl() }}" target="_blank" class="cr-btn">Original scan</a>
+                        @endif
+                        <a href="{{ route('requests.index') }}" class="cr-btn">Internal Requests</a>
+                    </div>
                 </div>
-            </div>
+            </section>
 
             {{-- Endorsement chain --}}
-            <div class="rounded-2xl border border-gray-200/90 bg-white p-8 shadow-md">
-                <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-900">Endorsement chain</h2>
-                <p class="mt-0.5 text-xs text-gray-500">The route this request follows. The highlighted office holds it now.</p>
-
-                <div class="mt-6">
+            <section class="panel">
+                <div class="ph"><h2>Endorsement chain</h2><span class="sub">The highlighted office holds it now</span></div>
+                <div class="pb">
                     @include('requests.partials.chain')
-                </div>
 
-                <a href="{{ route('requests.show', $document) }}"
-                   class="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline">
-                    Open the full request view →
-                </a>
-            </div>
+                    <a href="{{ route('requests.show', $document) }}" class="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-green hover:underline">
+                        Open the full request view →
+                    </a>
+                </div>
+            </section>
         </div>
     </div>
 </x-app-layout>

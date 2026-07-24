@@ -1,33 +1,24 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex items-center gap-3">
-            <a href="{{ route('admin.route-templates.index') }}" class="text-sm font-medium text-emerald-600 hover:underline">Route Templates</a>
-            <span class="text-gray-400">/</span>
-            <h1 class="text-2xl font-bold tracking-tight text-emerald-950">Edit {{ $routeTemplate->name }}</h1>
+            <a href="{{ route('admin.route-templates.index') }}" class="text-[13px] font-medium text-green hover:underline">Route Templates</a>
+            <span class="text-ink-soft">/</span>
+            <h1 class="text-2xl font-bold tracking-tight text-green-deep">Edit {{ $routeTemplate->name }}</h1>
         </div>
     </x-slot>
 
     <div class="page-shell">
-        <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
-            <div class="border-b border-gray-100 px-6 py-4">
-                <h2 class="text-base font-semibold text-gray-800">Template Details</h2>
-            </div>
-
-            <form method="POST" action="{{ route('admin.route-templates.update', $routeTemplate) }}" class="space-y-5 p-6">
+        <section class="panel">
+            <div class="ph"><h2>Template Details</h2></div>
+            <form method="POST" action="{{ route('admin.route-templates.update', $routeTemplate) }}" class="pb space-y-5 p-6">
                 @csrf @method('PUT')
                 @include('admin.route-templates.partials.form')
 
-                <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
-                    <a href="{{ route('admin.route-templates.index') }}"
-                       class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            class="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800">
-                        Save Changes
-                    </button>
+                <div class="flex items-center justify-end gap-3 border-t border-hairline pt-4">
+                    <a href="{{ route('admin.route-templates.index') }}" class="cr-btn">Cancel</a>
+                    <button type="submit" class="cr-btn cr-btn-primary">Save Changes</button>
                 </div>
             </form>
-        </div>
+        </section>
     </div>
 </x-app-layout>

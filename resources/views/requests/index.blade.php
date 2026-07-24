@@ -1,11 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <h1 class="text-2xl font-bold tracking-tight text-emerald-950">Internal Requests</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Requests</h1>
             @if($canFile)
-                <a href="{{ route('requests.create') }}"
-                   class="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800">
-                    + File Request
+                <a href="{{ route('requests.create') }}" class="cr-btn cr-btn-primary">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    File Request
                 </a>
             @endif
         </div>
@@ -27,50 +27,48 @@
     <div class="page-shell page-shell-loose" x-data="{ tab: 'awaiting' }">
 
         @if(session('status'))
-            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                {{ session('status') }}
-            </div>
+            <div class="panel"><div class="pb text-[13px] font-medium text-green-deep">{{ session('status') }}</div></div>
         @endif
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap gap-2">
+            <div class="segchips" role="tablist" aria-label="Request queues">
                 @foreach($tabs as $tab)
-                    <button type="button" @click="tab = '{{ $tab['key'] }}'"
-                            :class="tab === '{{ $tab['key'] }}' ? 'bg-emerald-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'"
-                            class="rounded-xl px-4 py-2 text-sm font-semibold transition">
+                    <button type="button" role="tab" :aria-selected="tab === '{{ $tab['key'] }}'"
+                            @click="tab = '{{ $tab['key'] }}'" :class="tab === '{{ $tab['key'] }}' ? 'on' : ''">
                         {{ $tab['label'] }}
-                        <span class="ml-1.5 rounded-full px-2 py-0.5 text-xs"
-                              :class="tab === '{{ $tab['key'] }}' ? 'bg-white/20' : 'bg-gray-100'">{{ $tab['list']->count() }}</span>
+                        <span class="ml-1.5 rounded-full bg-white/70 px-1.5 text-[11px] font-semibold text-ink-soft">{{ $tab['list']->count() }}</span>
                     </button>
                 @endforeach
             </div>
 
-            <form method="GET" class="flex gap-2">
-                <input type="text" name="q" value="{{ $search }}" placeholder="Search tracking # or request…"
-                       class="w-56 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900">Search</button>
+            <form method="GET" class="flex items-center gap-2">
+                <div class="field">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
+                    <input type="text" name="q" value="{{ $search }}" placeholder="Search tracking # or request…" aria-label="Search internal requests" class="w-52">
+                </div>
+                <button type="submit" class="cr-btn cr-btn-primary">Search</button>
                 @if($search !== '')
-                    <a href="{{ route('requests.index') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">Clear</a>
+                    <a href="{{ route('requests.index') }}" class="cr-btn">Clear</a>
                 @endif
             </form>
         </div>
 
         @foreach($tabs as $tab)
             <div x-show="tab === '{{ $tab['key'] }}'" @if(!$loop->first) x-cloak @endif>
-                <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                <div class="panel">
+                    <div class="table-wrap">
+                        <table class="reg">
+                            <thead>
                                 <tr>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Request</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">From</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Amount</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Current hop</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
-                                    <th class="px-4 py-3.5"></th>
+                                    <th>Request</th>
+                                    <th>From</th>
+                                    <th>Amount</th>
+                                    <th>Current stage</th>
+                                    <th>Status</th>
+                                    <th></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100 bg-white">
+                            <tbody>
                                 @forelse($tab['list'] as $doc)
                                     @php
                                         $current = $doc->requestSteps->firstWhere('status', \App\Models\RequestStep::STATUS_CURRENT);
@@ -78,53 +76,42 @@
                                         $aging = $current?->started_at;
                                         $stale = $aging && $aging->diffInHours(now()) >= 48;
                                     @endphp
-                                    <tr class="transition hover:bg-gray-50/60">
-                                        <td class="px-4 py-3">
-                                            <a href="{{ route('requests.show', $doc) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">
-                                                {{ $doc->purpose }}
-                                            </a>
-                                            <p class="mt-0.5 font-mono text-xs text-gray-400">{{ $doc->tracking_number }} · {{ $doc->document_type }}</p>
+                                    <tr>
+                                        <td>
+                                            <a href="{{ route('requests.show', $doc) }}" class="nm text-ink hover:text-green hover:underline">{{ $doc->purpose }}</a>
+                                            <p class="mt-0.5 font-mono text-[11px] text-ink-soft">{{ $doc->tracking_number }} · {{ $doc->document_type }}</p>
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                        <td class="muted">
                                             {{ $doc->requestingDepartment?->code ?? '—' }}
-                                            <p class="text-xs text-gray-400">{{ $doc->creator?->name }}</p>
+                                            <p class="text-[11px] text-ink-soft">{{ $doc->creator?->name }}</p>
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-600">
-                                            {{ $doc->amount !== null ? '₱'.number_format((float) $doc->amount, 2) : '—' }}
-                                        </td>
-                                        <td class="px-4 py-3">
+                                        <td class="muted">{{ $doc->amount !== null ? '₱'.number_format((float) $doc->amount, 2) : '—' }}</td>
+                                        <td>
                                             @if($current)
-                                                <p class="text-sm font-semibold text-gray-700">{{ $current->department?->name }}</p>
-                                                <p class="text-xs {{ $stale ? 'font-semibold text-red-600' : 'text-gray-400' }}">
+                                                <p class="text-[13px] font-medium text-ink">{{ $current->department?->name }}</p>
+                                                <p class="text-[11px] {{ $stale ? 'font-semibold text-status-red' : 'text-ink-soft' }}">
                                                     {{ $current->action }}
                                                     @if($aging) · {{ $aging->diffForHumans() }} @endif
                                                 </p>
                                             @else
-                                                <span class="text-sm text-gray-400">—</span>
+                                                <span class="muted text-[13px]">—</span>
                                             @endif
                                         </td>
-                                        <td class="px-4 py-3">
-                                            <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
-                                                {{ match($stage->band()) {
-                                                    'green' => 'bg-emerald-100 text-emerald-800',
-                                                    'brass' => 'bg-amber-100 text-amber-800',
-                                                    'warn' => 'bg-red-100 text-red-700',
-                                                    'hold' => 'bg-amber-100 text-amber-700',
-                                                    default => 'bg-gray-100 text-gray-600',
-                                                } }}">
-                                                {{ $stage->label() }}
-                                            </span>
+                                        <td>
+                                            <span class="pill {{ match($stage->band()) {
+                                                'green' => 'p-green',
+                                                'brass', 'hold' => 'p-amber',
+                                                'warn' => 'p-red',
+                                                default => 'p-muted',
+                                            } }}">{{ $stage->label() }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <a href="{{ route('requests.show', $doc) }}"
-                                               class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50">
-                                                Open
-                                            </a>
+                                        <td class="text-right">
+                                            <a href="{{ route('requests.show', $doc) }}" class="cr-btn cr-btn-sm">Open</a>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                                        <td colspan="6" class="py-10 text-center text-[13px] text-ink-soft">
                                             @if($tab['key'] === 'awaiting' && $department)
                                                 Nothing is awaiting {{ $department->name }} right now.
                                             @elseif($tab['key'] === 'filed')
