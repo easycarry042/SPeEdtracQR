@@ -17,9 +17,9 @@ use Illuminate\Support\Facades\Notification;
 
 /**
  * Supervisor-only wizard for internal dept-to-dept requests (e.g. procurement):
- * upload the paper request, OCR-prefill the details client-side, pick a route
- * template, and get a QR-stamped chain of endorsement steps. External citizen
- * ticket creation (DocumentWebController) is untouched by this flow.
+ * enter the details, attach the scanned paper request, pick a route template,
+ * and get a QR-stamped chain of endorsement steps. External citizen ticket
+ * creation (DocumentWebController) is untouched by this flow.
  */
 class InternalRequestController extends Controller
 {

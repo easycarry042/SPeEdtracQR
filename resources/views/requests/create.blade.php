@@ -3,11 +3,11 @@
         <h1 class="text-2xl font-bold tracking-tight text-green-deep">File Internal Request</h1>
     </x-slot>
 
-    <div class="page-shell" x-data="requestWizard()">
+    <div class="page-shell" x-data="requestForm()">
 
         {{-- Step indicator --}}
         <nav class="flex items-center gap-2 text-[13px]" aria-label="Progress">
-            <template x-for="(label, i) in ['Paper & OCR', 'Details & Route', 'Review']" :key="i">
+            <template x-for="(label, i) in ['Details', 'Review']" :key="i">
                 <div class="flex items-center gap-2">
                     <button type="button" @click="if (i + 1 < step) step = i + 1"
                             :aria-current="step === i + 1 ? 'step' : false"
@@ -18,7 +18,7 @@
                               x-text="step > i + 1 ? '✓' : i + 1"></span>
                         <span x-text="label"></span>
                     </button>
-                    <span x-show="i < 2" class="h-px w-6 bg-hairline-strong"></span>
+                    <span x-show="i < 1" class="h-px w-6 bg-hairline-strong"></span>
                 </div>
             </template>
         </nav>
@@ -36,75 +36,13 @@
                     {{-- Browsers cannot repopulate a file input after a failed submit. --}}
                     <p class="mt-2 flex items-center gap-1.5 font-semibold">
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
-                        If you attached a paper scan, please re-attach it — it was not kept through the error.
+                        If you attached a scanned document, please re-attach it — it was not kept through the error.
                     </p>
                 </div>
             @endif
 
-            {{-- ============ STEP 1: Paper upload + OCR ============ --}}
+            {{-- ============ STEP 1: Details ============ --}}
             <section x-show="step === 1" class="panel">
-                <div class="ph">
-                    <h2>Scan the paper request</h2>
-                    <span class="sub">Upload a photo or scan of the signed request from {{ $department->name }}.</span>
-                </div>
-
-                <div class="grid grid-cols-1 gap-5 p-4 lg:grid-cols-2 lg:p-6">
-                    <div class="space-y-3">
-                        <label class="flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-hairline-strong bg-[#f4f7f5] p-6 text-center transition hover:border-green focus-within:border-green focus-within:ring-2 focus-within:ring-green/25"
-                               :class="fileName ? 'border-green bg-green-wash' : ''">
-                            <template x-if="previewUrl">
-                                <img :src="previewUrl" alt="Preview of the uploaded paper request" class="max-h-64 rounded-[8px] border border-hairline">
-                            </template>
-                            <template x-if="!previewUrl">
-                                <div>
-                                    <svg class="mx-auto h-10 w-10 text-ink-soft" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
-                                    <p class="mt-2 text-[13px] font-semibold text-ink">Click or press Enter to upload the paper request</p>
-                                    <p class="text-[12px] text-ink-soft">JPG, PNG, WEBP or PDF · up to 10&nbsp;MB</p>
-                                </div>
-                            </template>
-                            <span x-show="fileName" x-text="fileName" class="max-w-full truncate text-[12px] font-medium text-green-deep"></span>
-                            {{-- sr-only (not hidden) keeps the input keyboard-focusable and Tab-reachable. --}}
-                            <input type="file" name="paper_scan" accept="image/jpeg,image/png,image/webp,application/pdf"
-                                   class="sr-only" x-ref="paperInput" @change="onFileChange($event)">
-                        </label>
-                        @error('paper_scan')<p class="text-[12px] text-status-red">{{ $message }}</p>@enderror
-
-                        <div class="flex flex-wrap items-center gap-3">
-                            <button type="button" @click="runExtraction()" :disabled="!canOcr || ocrRunning"
-                                    class="cr-btn cr-btn-primary"
-                                    :class="(!canOcr || ocrRunning) ? 'cursor-not-allowed opacity-40' : ''">
-                                <span x-show="!ocrRunning">Extract text (OCR)</span>
-                                <span x-show="ocrRunning" x-text="`Reading… ${ocrProgress}%`"></span>
-                            </button>
-                            <p x-show="fileName && !canOcr" class="text-[12px] text-ink-soft">OCR works on image uploads; PDFs are attached as-is.</p>
-                        </div>
-
-                        <div x-show="ocrRunning" class="h-2 overflow-hidden rounded-full bg-[#eef2ef]" role="progressbar" :aria-valuenow="ocrProgress" aria-valuemin="0" aria-valuemax="100">
-                            <div class="h-full rounded-full bg-green-bright transition-all" :style="`width:${ocrProgress}%`"></div>
-                        </div>
-                        <p x-show="ocrError" x-text="ocrError" class="text-[12px] text-status-red" role="alert"></p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="ocr-text" class="block text-[13px] font-semibold text-ink">Extracted text</label>
-                        <textarea id="ocr-text" x-model="ocrText" rows="10" placeholder="Run OCR to see the recognized text here. You can correct mistakes before continuing."
-                                  class="w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 font-mono text-[12px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25"></textarea>
-                        <p class="text-[12px] text-ink-soft">OCR is never trusted blindly — you review and can edit everything on the next step.</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-end gap-3 border-t border-hairline px-4 py-4 lg:px-6">
-                    <button type="button" @click="skipOcr()" class="cr-btn">Skip — type manually</button>
-                    <button type="button" @click="applyOcr()" :disabled="!ocrText.trim()"
-                            class="cr-btn cr-btn-primary"
-                            :class="!ocrText.trim() ? 'cursor-not-allowed opacity-40' : ''">
-                        Use extracted text →
-                    </button>
-                </div>
-            </section>
-
-            {{-- ============ STEP 2: Details + route ============ --}}
-            <section x-show="step === 2" x-cloak class="panel">
                 <div class="ph">
                     <h2>Request details</h2>
                     <span class="sub">Filing on behalf of {{ $department->name }} ({{ $department->code }})</span>
@@ -136,7 +74,6 @@
                         <div>
                             <label for="amount" class="block text-[13px] font-semibold text-ink">Estimated Amount (₱)</label>
                             <input id="amount" type="number" name="amount" x-model="form.amount" min="0" step="0.01"
-                                   @input="amountGuessed = false"
                                    placeholder="Leave blank if no budget is involved"
                                    class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('amount') border-status-red @enderror">
                             <p class="mt-1 text-[12px]" :class="amountNumber !== null && amountNumber >= threshold ? 'font-semibold text-status-amber' : 'text-ink-soft'">
@@ -144,18 +81,37 @@
                                 <span x-show="amountNumber !== null && amountNumber < threshold" x-text="`${formatPeso(amountNumber)} — below ${formatPeso(threshold)}: Small Value Procurement path.`"></span>
                                 <span x-show="amountNumber !== null && amountNumber >= threshold" x-text="`${formatPeso(amountNumber)} — at or above ${formatPeso(threshold)}: Public Bidding path (RA 12009).`"></span>
                             </p>
-                            <p x-show="amountGuessed" x-cloak class="mt-1 flex items-center gap-1 text-[12px] font-medium text-status-amber">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
-                                Read from the scan — confirm it before continuing, it decides the procurement path.
-                            </p>
                             @error('amount')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
                         </div>
 
                         <div>
                             <label for="description" class="block text-[13px] font-semibold text-ink">Details</label>
-                            <textarea id="description" name="description" x-model="form.description" rows="5" maxlength="5000"
-                                      placeholder="Specifications, justification, or the OCR text from the paper request."
+                            <textarea id="description" name="description" x-model="form.description" rows="4" maxlength="5000"
+                                      placeholder="Specifications, justification, or any notes for the approving offices."
                                       class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-[13px] font-semibold text-ink">Scanned document</label>
+                            <p class="mt-0.5 text-[12px] text-ink-soft">Attach the scanned copy of the signed paper request (from your office scanner or printer).</p>
+                            <label class="mt-2 flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[10px] border-2 border-dashed border-hairline-strong bg-[#f4f7f5] p-4 text-center transition hover:border-green focus-within:border-green focus-within:ring-2 focus-within:ring-green/25"
+                                   :class="fileName ? 'border-green bg-green-wash' : ''">
+                                <template x-if="previewUrl">
+                                    <img :src="previewUrl" alt="Preview of the scanned document" class="max-h-40 rounded-[8px] border border-hairline">
+                                </template>
+                                <template x-if="!previewUrl">
+                                    <div>
+                                        <svg class="mx-auto h-8 w-8 text-ink-soft" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+                                        <p class="mt-1.5 text-[13px] font-semibold text-ink">Click or press Enter to attach the scan</p>
+                                        <p class="text-[12px] text-ink-soft">JPG, PNG, WEBP or PDF · up to 10&nbsp;MB · optional</p>
+                                    </div>
+                                </template>
+                                <span x-show="fileName" x-text="fileName" class="max-w-full truncate text-[12px] font-medium text-green-deep"></span>
+                                {{-- sr-only (not hidden) keeps the input keyboard-focusable and Tab-reachable. --}}
+                                <input type="file" name="paper_scan" accept="image/jpeg,image/png,image/webp,application/pdf"
+                                       class="sr-only" x-ref="paperInput" @change="onFileChange($event)">
+                            </label>
+                            @error('paper_scan')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
                         </div>
                     </div>
 
@@ -196,8 +152,7 @@
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between gap-3 border-t border-hairline px-4 py-4 lg:px-6">
-                    <button type="button" @click="step = 1" class="cr-btn">← Back</button>
+                <div class="flex items-center justify-end gap-3 border-t border-hairline px-4 py-4 lg:px-6">
                     <button type="button" @click="goReview()" :disabled="!form.route_template_id || !form.purpose.trim()"
                             class="cr-btn cr-btn-primary"
                             :class="(!form.route_template_id || !form.purpose.trim()) ? 'cursor-not-allowed opacity-40' : ''">
@@ -206,8 +161,8 @@
                 </div>
             </section>
 
-            {{-- ============ STEP 3: Review + submit ============ --}}
-            <section x-show="step === 3" x-cloak class="panel">
+            {{-- ============ STEP 2: Review + submit ============ --}}
+            <section x-show="step === 2" x-cloak class="panel">
                 <div class="ph">
                     <h2>Review &amp; file</h2>
                     <span class="sub">A tracking number and QR are generated on filing.</span>
@@ -228,13 +183,10 @@
                     </div>
                     <div>
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Amount</dt>
-                        <dd class="mt-0.5 text-[14px] text-ink">
-                            <span x-text="amountNumber === null ? 'No budget involved' : formatPeso(amountNumber)"></span>
-                            <span x-show="amountGuessed && amountNumber !== null" x-cloak class="ml-1 rounded bg-status-amber-wash px-1.5 py-0.5 text-[10px] font-semibold text-status-amber">read from scan</span>
-                        </dd>
+                        <dd class="mt-0.5 text-[14px] text-ink" x-text="amountNumber === null ? 'No budget involved' : formatPeso(amountNumber)"></dd>
                     </div>
                     <div>
-                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Paper scan</dt>
+                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Scanned document</dt>
                         <dd class="mt-0.5 text-[14px] text-ink" x-text="fileName || 'None attached'"></dd>
                     </div>
                     <div class="sm:col-span-2">
@@ -252,38 +204,26 @@
                 </dl>
 
                 <div class="flex items-center justify-between gap-3 border-t border-hairline px-4 py-4 lg:px-6">
-                    <button type="button" @click="step = 2" class="cr-btn">← Back</button>
+                    <button type="button" @click="step = 1" class="cr-btn">← Back</button>
                     <button type="submit" class="cr-btn cr-btn-primary px-6">File Request</button>
                 </div>
             </section>
         </form>
     </div>
 
-    @vite('resources/js/ocr.js')
     <script>
-        function requestWizard() {
+        function requestForm() {
             return {
                 step: 1,
                 templates: @json($templatesJson),
                 threshold: {{ $biddingThreshold }},
                 fileName: '',
                 previewUrl: null,
-                canOcr: false,
-                ocrRunning: false,
-                ocrProgress: 0,
-                ocrError: '',
-                ocrText: '',
-                amountGuessed: false,
                 form: {
                     route_template_id: @json(old('route_template_id', '')),
                     purpose: @json(old('purpose', '')),
                     amount: @json(old('amount', '')),
                     description: @json(old('description', '')),
-                },
-
-                init() {
-                    // Coming back from a validation error skips straight to the form.
-                    if (this.form.purpose || this.form.route_template_id) { this.step = 2; }
                 },
 
                 get amountNumber() {
@@ -314,56 +254,13 @@
 
                 onFileChange(event) {
                     const file = event.target.files[0];
-                    this.ocrError = '';
-                    this.ocrText = '';
-                    if (!file) { this.fileName = ''; this.previewUrl = null; this.canOcr = false; return; }
+                    if (!file) { this.fileName = ''; this.previewUrl = null; return; }
                     this.fileName = file.name;
-                    this.canOcr = file.type.startsWith('image/');
-                    this.previewUrl = this.canOcr ? URL.createObjectURL(file) : null;
+                    this.previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
                 },
-
-                async runExtraction() {
-                    const file = this.$refs.paperInput.files[0];
-                    if (!file || !this.canOcr) { return; }
-                    this.ocrRunning = true;
-                    this.ocrProgress = 0;
-                    this.ocrError = '';
-                    try {
-                        this.ocrText = await window.runOcr(file, (p) => { this.ocrProgress = p; });
-                        if (!this.ocrText.trim()) {
-                            this.ocrError = 'No readable text found — try a sharper, well-lit photo, or type the details manually.';
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        this.ocrError = 'OCR failed to load or read the image. You can still type the details manually.';
-                    } finally {
-                        this.ocrRunning = false;
-                    }
-                },
-
-                applyOcr() {
-                    const text = this.ocrText.trim();
-                    if (text) {
-                        // First substantial line becomes the request summary…
-                        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
-                        if (!this.form.purpose && lines.length) { this.form.purpose = lines[0].slice(0, 255); }
-                        // …the largest peso-looking figure becomes the amount (flagged as a guess)…
-                        const matches = text.match(/(?:₱|PHP|P)?\s?\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2}/g) ?? [];
-                        const amounts = matches.map(m => parseFloat(m.replace(/[^\d.]/g, ''))).filter(n => Number.isFinite(n) && n > 0);
-                        if (!this.form.amount && amounts.length) {
-                            this.form.amount = String(Math.max(...amounts));
-                            this.amountGuessed = true;
-                        }
-                        // …and the full text lands in Details for reference.
-                        if (!this.form.description) { this.form.description = text; }
-                    }
-                    this.step = 2;
-                },
-
-                skipOcr() { this.step = 2; },
 
                 goReview() {
-                    if (this.form.route_template_id && this.form.purpose.trim()) { this.step = 3; }
+                    if (this.form.route_template_id && this.form.purpose.trim()) { this.step = 2; }
                 },
             };
         }
