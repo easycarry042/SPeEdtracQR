@@ -35,8 +35,11 @@
             @endif
         </form>
 
+        <div id="usersBar" class="cr-topbar mt-3 hidden" aria-hidden="true"></div>
+        <div id="usersLive" class="sr-only" role="status" aria-live="polite"></div>
+
         {{-- Table --}}
-        <div id="usersResults" class="space-y-6 transition-opacity duration-150">
+        <div id="usersResults" class="space-y-6 transition-opacity duration-150" aria-busy="false">
         <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -298,20 +301,36 @@
 
                 controller?.abort();
                 controller = new AbortController();
+
+                const bar = document.getElementById('usersBar');
+                const live = document.getElementById('usersLive');
                 results.classList.add('opacity-50');
+                results.setAttribute('aria-busy', 'true');
+                bar?.classList.remove('hidden');
+                if (live) { live.textContent = 'Loading users…'; }
 
                 fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
                     .then(response => response.text())
                     .then(html => {
                         const doc = new DOMParser().parseFromString(html, 'text/html');
                         const fresh = doc.getElementById('usersResults');
-                        if (fresh) results.innerHTML = fresh.innerHTML;
+                        if (fresh) { results.innerHTML = fresh.innerHTML; }
                         window.history.replaceState({}, '', url);
                         results.classList.remove('opacity-50');
+                        results.setAttribute('aria-busy', 'false');
+                        bar?.classList.add('hidden');
+                        if (live) {
+                            const rows = results.querySelectorAll('tbody tr').length;
+                            const hasEmpty = results.querySelector('.cr-empty');
+                            live.textContent = hasEmpty ? 'No users match your filters.' : `${rows} ${rows === 1 ? 'user' : 'users'} found.`;
+                        }
                     })
                     .catch(error => {
                         if (error.name !== 'AbortError') {
                             results.classList.remove('opacity-50');
+                            results.setAttribute('aria-busy', 'false');
+                            bar?.classList.add('hidden');
+                            if (live) { live.textContent = 'Could not load users. Please try again.'; }
                             console.error(error);
                         }
                     });

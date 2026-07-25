@@ -863,3 +863,8 @@ aside.sidebar-pinned {
 .cr-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent); animation: cr-shimmer 1.2s infinite; }
 @keyframes cr-shimmer { 100% { transform: translateX(100%); } }
 .cr-skel-row { height: 14px; margin: 12px 14px; }
+
+/* ─── Indeterminate top progress bar for async list refreshes (VSS) ─────── */
+.cr-topbar { height: 2px; overflow: hidden; position: relative; border-radius: 2px; background: var(--green-wash); }
+.cr-topbar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--green); border-radius: 2px; animation: cr-indet 1s ease-in-out infinite; }
+@keyframes cr-indet { 0% { transform: translateX(-110%); } 100% { transform: translateX(320%); } }
