@@ -38,6 +38,17 @@
         <div id="usersBar" class="cr-topbar mt-3 hidden" aria-hidden="true"></div>
         <div id="usersLive" class="sr-only" role="status" aria-live="polite"></div>
 
+        {{-- Bulk action bar — appears when one or more accounts are selected --}}
+        <div id="bulkBar" class="hidden items-center justify-between gap-3 rounded-xl border border-green bg-green-wash px-4 py-2.5">
+            <p class="text-sm font-semibold text-green-deep"><span id="bulkCount">0</span> selected</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="usersBulk('activate')" class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50">Activate</button>
+                <button type="button" onclick="usersBulk('deactivate')" class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50">Deactivate</button>
+                <button type="button" onclick="usersBulk('archive')" class="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50">Archive</button>
+                <button type="button" onclick="usersBulkClear()" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-ink-soft transition hover:text-ink">Clear</button>
+            </div>
+        </div>
+
         {{-- Table --}}
         <div id="usersResults" class="space-y-6 transition-opacity duration-150" aria-busy="false">
         <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
@@ -45,6 +56,9 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="w-10 px-4 py-3.5 text-left">
+                                <input type="checkbox" id="selectAllUsers" aria-label="Select all accounts on this page" class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            </th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Name</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Email</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Role</th>
@@ -55,6 +69,11 @@
                     <tbody class="divide-y divide-gray-100 bg-white">
                         @forelse($users as $user)
                             <tr class="hover:bg-gray-50/60 transition {{ $user->trashed() || ! $user->is_active ? 'opacity-60' : '' }}">
+                                <td class="px-4 py-3">
+                                    @if(! $user->trashed() && $user->id !== auth()->id())
+                                        <input type="checkbox" class="userRowCheck h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" data-id="{{ $user->id }}" aria-label="Select {{ $user->name }}">
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
@@ -143,7 +162,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     @if(request()->hasAny(['search','role']))
                                         <x-empty-state icon="search" title="No users match your filters">
                                             Try a different name, email, or role — or clear the filters to see everyone.
@@ -315,6 +334,7 @@
                         const doc = new DOMParser().parseFromString(html, 'text/html');
                         const fresh = doc.getElementById('usersResults');
                         if (fresh) { results.innerHTML = fresh.innerHTML; }
+                        document.dispatchEvent(new CustomEvent('users:refreshed'));
                         window.history.replaceState({}, '', url);
                         results.classList.remove('opacity-50');
                         results.setAttribute('aria-busy', 'false');
@@ -335,6 +355,75 @@
                         }
                     });
             }
+        })();
+    </script>
+
+    {{-- Bulk actions: select-all + per-row checkboxes → one action on many accounts.
+         Uses event delegation so it survives the live-search innerHTML swaps, and
+         builds a CSRF-signed form on submit (the row action cells already contain
+         their own <form>s, so the table itself can't be wrapped in one). --}}
+    <script>
+        (function () {
+            const bar   = document.getElementById('bulkBar');
+            const count = document.getElementById('bulkCount');
+            const token = document.querySelector('meta[name="csrf-token"]')?.content;
+            const bulkUrl = '{{ route('admin.users.bulk') }}';
+
+            function checked() { return Array.from(document.querySelectorAll('.userRowCheck:checked')); }
+
+            function updateBar() {
+                const n = checked().length;
+                count.textContent = n;
+                bar.classList.toggle('hidden', n === 0);
+                bar.classList.toggle('flex', n > 0);
+
+                const all = Array.from(document.querySelectorAll('.userRowCheck'));
+                const master = document.getElementById('selectAllUsers');
+                if (master) {
+                    master.checked = all.length > 0 && n === all.length;
+                    master.indeterminate = n > 0 && n < all.length;
+                }
+            }
+
+            document.addEventListener('change', function (e) {
+                if (e.target.id === 'selectAllUsers') {
+                    document.querySelectorAll('.userRowCheck').forEach(c => { c.checked = e.target.checked; });
+                    updateBar();
+                } else if (e.target.classList.contains('userRowCheck')) {
+                    updateBar();
+                }
+            });
+
+            // Recompute after a live-search swap replaces the rows.
+            document.addEventListener('users:refreshed', updateBar);
+
+            window.usersBulkClear = function () {
+                document.querySelectorAll('.userRowCheck').forEach(c => { c.checked = false; });
+                updateBar();
+            };
+
+            window.usersBulk = function (action) {
+                const ids = checked().map(c => c.dataset.id);
+                if (!ids.length) { return; }
+
+                const nouns = ids.length === 1 ? 'account' : 'accounts';
+                const prompts = {
+                    activate: null,
+                    deactivate: `Deactivate ${ids.length} ${nouns}? They won't be able to log in until reactivated.`,
+                    archive: `Archive ${ids.length} ${nouns}? They'll be hidden and unable to log in until restored.`,
+                };
+                if (prompts[action] && !confirm(prompts[action])) { return; }
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = bulkUrl;
+                form.innerHTML =
+                    `<input type="hidden" name="_token" value="${token}">` +
+                    `<input type="hidden" name="action" value="${action}">` +
+                    ids.map(id => `<input type="hidden" name="ids[]" value="${id}">`).join('');
+                document.body.appendChild(form);
+                form.submit();
+            };
         })();
     </script>
 </x-app-layout>

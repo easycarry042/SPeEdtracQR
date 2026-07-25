@@ -144,6 +144,45 @@ class UserController extends Controller
         return back()->with('success', "Account for {$user->name} has been archived.");
     }
 
+    /**
+     * Apply one action to several accounts at once. The current user is always
+     * excluded from the selection so an admin can't lock themselves out.
+     */
+    public function bulk(Request $request)
+    {
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['activate', 'deactivate', 'archive'])],
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', Rule::exists('users', 'id')],
+        ]);
+
+        $ids = collect($validated['ids'])
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $id === auth()->id())
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'No eligible accounts were selected (your own account is always excluded).');
+        }
+
+        $users = User::whereIn('id', $ids)->get();
+
+        $affected = match ($validated['action']) {
+            'activate' => tap($users->where('is_active', false), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => true]))->count(),
+            'deactivate' => tap($users->where('is_active', true), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => false]))->count(),
+            'archive' => $users->each->delete()->count(),
+        };
+
+        if ($affected === 0) {
+            return back()->with('error', 'Nothing changed — the selected accounts were already in that state.');
+        }
+
+        $verb = ['activate' => 'activated', 'deactivate' => 'deactivated', 'archive' => 'archived'][$validated['action']];
+
+        return back()->with('success', "{$affected} ".($affected === 1 ? 'account' : 'accounts')." {$verb}.");
+    }
+
     public function restore(User $user)
     {
         $user->restore();

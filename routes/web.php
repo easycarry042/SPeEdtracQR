@@ -164,6 +164,7 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
         Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
         Route::get('users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
         Route::put('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+        Route::post('users/bulk', [AdminUserController::class, 'bulk'])->name('users.bulk');
         Route::patch('users/{user}/toggle-active', [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::patch('users/{user}/archive', [AdminUserController::class, 'archive'])->name('users.archive');
         Route::patch('users/{user}/restore', [AdminUserController::class, 'restore'])->name('users.restore')->withTrashed();
