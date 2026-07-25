@@ -120,9 +120,13 @@ class QrCodeService
      * supervisor's chosen placement. Out-of-range values are clamped so the QR
      * always stays fully on the page.
      *
+     * A $sizeFraction (QR side as a fraction of the page's short edge, ~0.22 by
+     * default) lets a supervisor scale the stamp up or down; it is clamped to a
+     * scannable-but-not-overwhelming range.
+     *
      * @param  array{x: float, y: float}|null  $position
      */
-    public function stampQrOntoImage(string $scanRelativePath, string $qrRelativePath, string $trackingNumber, ?array $position = null): ?string
+    public function stampQrOntoImage(string $scanRelativePath, string $qrRelativePath, string $trackingNumber, ?array $position = null, ?float $sizeFraction = null): ?string
     {
         try {
             if (! extension_loaded('gd')) {
@@ -142,9 +146,11 @@ class QrCodeService
             $scanW = imagesx($scan);
             $scanH = imagesy($scan);
 
-            // QR sized to ~22% of the page's short edge: readable to phone
-            // cameras without covering the request's text.
-            $stampSize = (int) max(120, round(min($scanW, $scanH) * 0.22));
+            // QR sized to ~22% of the page's short edge by default: readable to
+            // phone cameras without covering the request's text. A supervisor's
+            // chosen size is clamped to a sane 12%–40% band.
+            $factor = $sizeFraction !== null ? max(0.12, min(0.40, $sizeFraction)) : 0.22;
+            $stampSize = (int) max(96, round(min($scanW, $scanH) * $factor));
             $pad = (int) round($stampSize * 0.06);
             $margin = (int) round($stampSize * 0.10);
 

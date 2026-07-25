@@ -124,6 +124,7 @@ class InternalRequestController extends Controller
             // Optional supervisor-chosen QR placement on the scanned page.
             'qr_x' => 'nullable|numeric|min:0|max:1',
             'qr_y' => 'nullable|numeric|min:0|max:1',
+            'qr_size' => 'nullable|numeric|min:0.12|max:0.40',
         ]);
 
         $template = RouteTemplate::active()->with('steps.department')->findOrFail($validated['route_template_id']);
@@ -187,6 +188,7 @@ class InternalRequestController extends Controller
                     $qrResult['relative_path'],
                     $trackingNumber,
                     $position,
+                    isset($validated['qr_size']) ? (float) $validated['qr_size'] : null,
                 );
 
                 if ($stampedPath !== null) {

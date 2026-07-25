@@ -171,10 +171,10 @@
                     <div class="sm:col-span-2" x-show="previewUrl" x-cloak>
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">QR placement on the page</dt>
                         <dd class="mt-1.5">
-                            <p class="mb-2 text-[12px] text-ink-soft">Drag the QR square onto a clear area of the paper — it will be stamped there. Defaults to the bottom-right corner.</p>
+                            <p class="mb-2 text-[12px] text-ink-soft">Drag the QR square onto a clear area of the paper, and use the slider to resize it — it will be stamped exactly there. Defaults to the bottom-right corner.</p>
                             <div class="inline-block select-none rounded-[8px] border border-hairline bg-[#f4f7f5] p-2">
-                                <div class="relative inline-block leading-none" x-ref="qrStage">
-                                    <img :src="previewUrl" alt="Scanned document" class="block max-h-[420px] w-auto rounded-[4px]" @load="initQrPlacement()" draggable="false">
+                                <div class="relative inline-block leading-none" data-qr-stage>
+                                    <img :src="previewUrl" alt="Scanned document" class="block max-h-[420px] w-auto rounded-[4px]" @load="initQrPlacement($event.target)" draggable="false">
                                     <div x-show="qr.ready"
                                          class="absolute cursor-move rounded-[3px] border-2 border-green bg-white/85 shadow-sm"
                                          :style="`left:${qr.x*100}%; top:${qr.y*100}%; width:${qr.size*100}%; aspect-ratio:1;`"
@@ -185,8 +185,19 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="mt-2 flex max-w-[420px] items-center gap-3" x-show="qr.ready" x-cloak>
+                                <span class="text-[11px] font-semibold text-ink-soft">Size</span>
+                                <input type="range" min="0.12" max="0.40" step="0.005" x-model.number="qr.scaleShort" @input="applyQrScale()" class="h-1.5 flex-1 accent-green" aria-label="QR code size">
+                                <button type="button" @click="qrModal = true" class="cr-btn cr-btn-sm shrink-0">
+                                    <svg class="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0-5 5M4 16v4m0 0h4m-4 0 5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
+                                    Adjust in detail
+                                </button>
+                            </div>
+
                             <input type="hidden" name="qr_x" :value="qr.ready ? qr.x.toFixed(4) : ''">
                             <input type="hidden" name="qr_y" :value="qr.ready ? qr.y.toFixed(4) : ''">
+                            <input type="hidden" name="qr_size" :value="qr.ready ? qr.scaleShort.toFixed(4) : ''">
                         </dd>
                     </div>
 
@@ -210,6 +221,40 @@
                 </div>
             </section>
         </form>
+
+        {{-- Detailed QR editor: a larger canvas to place & size the stamp precisely.
+             Shares the same `qr` state as the inline preview, so edits sync live. --}}
+        <div x-show="qrModal" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+             @keydown.escape.window="qrModal = false" @pointerdown.self="qrModal = false">
+            <div class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-hairline bg-paper shadow-2xl">
+                <div class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+                    <h2 class="text-sm font-semibold text-green-deep">Place &amp; size the QR code</h2>
+                    <button type="button" @click="qrModal = false" aria-label="Close editor"
+                            class="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="min-h-0 flex-1 overflow-auto bg-[#f4f7f5] p-4 text-center">
+                    <div class="relative inline-block select-none leading-none" data-qr-stage>
+                        <img :src="previewUrl" alt="Scanned document" class="block max-h-[70vh] w-auto rounded" @load="initQrPlacement($event.target)" draggable="false">
+                        <div x-show="qr.ready"
+                             class="absolute cursor-move rounded-[3px] border-2 border-green bg-white/85 shadow"
+                             :style="`left:${qr.x*100}%; top:${qr.y*100}%; width:${qr.size*100}%; aspect-ratio:1;`"
+                             @pointerdown="startDragQr($event)">
+                            <div class="flex h-full w-full items-center justify-center">
+                                <svg class="h-1/2 w-1/2 text-green" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625h1.5v1.5h-1.5v-1.5ZM16.5 14.625h1.5v1.5h-1.5v-1.5ZM19.5 14.625h.75v1.5h-.75v-1.5ZM13.5 17.625h1.5v1.5h-1.5v-1.5ZM19.5 17.625h.75v1.5h-.75v-1.5Z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 border-t border-hairline px-4 py-3">
+                    <span class="shrink-0 text-xs font-semibold text-ink-soft">Size</span>
+                    <input type="range" min="0.12" max="0.40" step="0.005" x-model.number="qr.scaleShort" @input="applyQrScale()" class="h-1.5 flex-1 accent-green" aria-label="QR code size">
+                    <button type="button" @click="qrModal = false" class="cr-btn cr-btn-primary shrink-0 px-5">Done</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -219,9 +264,12 @@
                 templates: @json($templatesJson),
                 fileName: '',
                 previewUrl: null,
+                qrModal: false,
                 // Normalized QR placement on the scanned page (fractions of the
-                // image). Stays unset for PDFs / no scan → server uses its default.
-                qr: { ready: false, x: 0.75, y: 0.75, size: 0.24, sizeH: 0.24, userMoved: false },
+                // image). `scaleShort` is the QR side as a fraction of the short
+                // edge (matches the server's 0.22 default). Stays unset for
+                // PDFs / no scan → server uses its defaults.
+                qr: { ready: false, x: 0.75, y: 0.75, size: 0.24, sizeH: 0.24, scaleShort: 0.22, imgW: 0, imgH: 0, userMoved: false },
                 form: {
                     route_template_id: @json(old('route_template_id', '')),
                     purpose: @json(old('purpose', '')),
@@ -239,33 +287,51 @@
                     const file = event.target.files[0];
                     this.qr.ready = false;
                     this.qr.userMoved = false;
+                    this.qr.scaleShort = 0.22;
                     if (!file) { this.fileName = ''; this.previewUrl = null; return; }
                     this.fileName = file.name;
                     this.previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
                 },
 
-                // Match the server's QR box geometry so the on-screen square lands
-                // where the stamp will actually be burned in.
-                initQrPlacement() {
-                    const img = this.$refs.qrStage?.querySelector('img');
+                // Recompute the on-screen box from `scaleShort` so it lands exactly
+                // where the server will burn it in (box = QR + white padding, i.e.
+                // scaleShort * shortEdge * 1.12), then keep it within the page.
+                recomputeQrBox() {
+                    const W = this.qr.imgW, H = this.qr.imgH;
+                    if (!W || !H) { return; }
+                    const boxPx = this.qr.scaleShort * Math.min(W, H) * 1.12;
+                    this.qr.size = boxPx / W;
+                    this.qr.sizeH = boxPx / H;
+                    this.qr.x = Math.max(0, Math.min(this.qr.x, 1 - this.qr.size));
+                    this.qr.y = Math.max(0, Math.min(this.qr.y, 1 - this.qr.sizeH));
+                },
+
+                // Called on each preview image load (inline + modal). Sizes the box
+                // to the server geometry and, until the user moves it, parks it in
+                // the bottom-right corner.
+                initQrPlacement(img) {
                     if (!img || !img.naturalWidth) { return; }
-                    const W = img.naturalWidth, H = img.naturalHeight;
-                    const shortEdge = Math.min(W, H);
-                    const stamp = Math.max(120, 0.22 * shortEdge);
-                    const box = stamp * 1.12;
-                    const margin = 0.10 * stamp;
-                    this.qr.size = box / W;
-                    this.qr.sizeH = box / H;
+                    this.qr.imgW = img.naturalWidth;
+                    this.qr.imgH = img.naturalHeight;
+                    this.recomputeQrBox();
                     if (!this.qr.userMoved) {
-                        this.qr.x = Math.max(0, 1 - box / W - margin / W);
-                        this.qr.y = Math.max(0, 1 - box / H - margin / H);
+                        const margin = 0.10 * this.qr.scaleShort * Math.min(this.qr.imgW, this.qr.imgH);
+                        this.qr.x = Math.max(0, 1 - this.qr.size - margin / this.qr.imgW);
+                        this.qr.y = Math.max(0, 1 - this.qr.sizeH - margin / this.qr.imgH);
                     }
                     this.qr.ready = true;
                 },
 
+                applyQrScale() {
+                    this.qr.userMoved = true;
+                    this.recomputeQrBox();
+                },
+
                 startDragQr(event) {
                     event.preventDefault();
-                    const img = this.$refs.qrStage.querySelector('img');
+                    const stage = event.target.closest('[data-qr-stage]');
+                    const img = stage?.querySelector('img');
+                    if (!img) { return; }
                     const rect = img.getBoundingClientRect();
                     const boxW = this.qr.size * rect.width;
                     const boxH = this.qr.sizeH * rect.height;

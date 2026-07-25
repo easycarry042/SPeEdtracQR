@@ -163,6 +163,44 @@ class InternalRequestTest extends TestCase
         $this->assertReddish($img, imagesx($img) - 3, imagesy($img) - 3);
     }
 
+    public function test_supervisor_chosen_qr_size_scales_the_stamp(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        // Large QR pinned to the top-left corner of a 600×800 red page.
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Chairs',
+            'paper_scan' => $this->solidPng(600, 800, [220, 20, 20]),
+            'qr_x' => 0,
+            'qr_y' => 0,
+            'qr_size' => 0.40,
+        ]);
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+        $stamped = $document->attachments->pluck('file_path')->first(fn ($p) => str_ends_with($p, '-qr-stamped.png'));
+        $img = imagecreatefromstring(Storage::disk('local')->get($stamped));
+
+        // At 0.40 the white QR box spans ~268px, so (200,200) is covered; the
+        // default 0.22 stamp (~147px) would leave that point red.
+        $this->assertWhitish($img, 200, 200);
+    }
+
+    public function test_qr_size_outside_the_allowed_band_is_rejected(): void
+    {
+        $supervisor = $this->tourismSupervisor();
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Chairs',
+            'qr_size' => 0.95,
+        ])->assertSessionHasErrors('qr_size');
+    }
+
     private function solidPng(int $width, int $height, array $rgb): UploadedFile
     {
         $image = imagecreatetruecolor($width, $height);
