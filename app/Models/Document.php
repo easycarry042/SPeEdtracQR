@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\DocumentStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -115,18 +117,18 @@ class Document extends Model
         $this->completed_at = $status->isTerminal() ? now() : null;
     }
 
-    public function creator()
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function releasedBy()
+    public function releasedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'released_by');
     }
 
     /** Physical custody trail, newest first. */
-    public function custodyEvents()
+    public function custodyEvents(): HasMany
     {
         return $this->hasMany(DocumentCustodyEvent::class)->latest();
     }
@@ -144,13 +146,13 @@ class Document extends Model
     }
 
     /** Office that filed this internal request (null for external tickets). */
-    public function requestingDepartment()
+    public function requestingDepartment(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'requesting_department_id');
     }
 
     /** Endorsement chain of an internal request, in hop order. */
-    public function requestSteps()
+    public function requestSteps(): HasMany
     {
         return $this->hasMany(RequestStep::class)->orderBy('step_order')->orderBy('id');
     }
@@ -202,30 +204,30 @@ class Document extends Model
     }
 
     /** Staff member responsible for advancing this document through its stages. */
-    public function assignedTo()
+    public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
     /** Admin who made the current assignment. */
-    public function assignedBy()
+    public function assignedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_by');
     }
 
     /** Staff member / admin who placed the document on hold. */
-    public function heldBy()
+    public function heldBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'held_by');
     }
 
-    public function attachments()
+    public function attachments(): HasMany
     {
         return $this->hasMany(DocumentAttachment::class)->orderBy('sort_order');
     }
 
     /** Top-level collaboration posts (replies are loaded via the `replies` relation). */
-    public function comments()
+    public function comments(): HasMany
     {
         return $this->hasMany(DocumentComment::class)->whereNull('parent_id')->latest();
     }

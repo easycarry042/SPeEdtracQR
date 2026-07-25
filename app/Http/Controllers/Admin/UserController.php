@@ -172,6 +172,7 @@ class UserController extends Controller
             'activate' => tap($users->where('is_active', false), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => true]))->count(),
             'deactivate' => tap($users->where('is_active', true), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => false]))->count(),
             'archive' => $users->each->delete()->count(),
+            default => 0,
         };
 
         if ($affected === 0) {

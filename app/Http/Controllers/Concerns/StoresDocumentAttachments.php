@@ -9,7 +9,9 @@ use Illuminate\Http\UploadedFile;
 trait StoresDocumentAttachments
 {
     /**
-     * @param  iterable<UploadedFile>  $files
+     * @param  iterable<UploadedFile|null>  $files  Entries may be null (e.g. an
+     *                                              optional file input that was
+     *                                              left empty); guarded below.
      * @return array<int, DocumentAttachment>
      */
     protected function storeAttachmentsForDocument(

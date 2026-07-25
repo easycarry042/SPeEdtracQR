@@ -220,11 +220,11 @@ class AnalyticsController extends Controller
             Document::query()->whereIn('status', DocumentStatus::activeValues())
         )->count();
 
-        $completed = $this->scopedDocuments(
+        $completed = $this->scopeDocuments(
             Document::query()->where('status', DocumentStatus::Completed->value)
         )->count();
 
-        $submittedThisMonth = $this->scopedDocuments(
+        $submittedThisMonth = $this->scopeDocuments(
             Document::query()->where('created_at', '>=', now()->startOfMonth())
         )->count();
 
