@@ -112,5 +112,42 @@
             </div>
         </form>
     </main>
+
+    {{-- Client-side error PREVENTION: catch the required fields before the
+         server round-trip and point the citizen straight at the problem.
+         Progressive enhancement only — the form still posts and is fully
+         re-validated server-side if JavaScript is unavailable. --}}
+    <script>
+        (function () {
+            const form = document.querySelector('form[action="{{ route('public.request.store') }}"]');
+            if (!form) { return; }
+
+            form.addEventListener('submit', function (e) {
+                form.querySelectorAll('[data-client-err]').forEach(n => n.remove());
+                const problems = [];
+                const check = (el, ok, msg) => { if (!ok) { problems.push({ el, msg }); } };
+
+                check(form.document_type, !!form.document_type.value, 'Please choose a request type.');
+                check(form.citizen_name, form.citizen_name.value.trim().length > 0, 'Please enter your name.');
+                const email = form.citizen_email.value.trim();
+                check(form.citizen_email, email.length > 0 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email), email.length ? 'Please enter a valid email address.' : 'Please enter your email.');
+                check(form.consent, form.consent.checked, 'Please agree to the data privacy notice to submit.');
+
+                if (!problems.length) { return; }
+                e.preventDefault();
+
+                problems.forEach(({ el, msg }, i) => {
+                    if (el.type !== 'checkbox') { el.classList.add('border-red-400', 'bg-red-50/40'); }
+                    const anchor = el.type === 'checkbox' ? el.closest('label') : el;
+                    const p = document.createElement('p');
+                    p.dataset.clientErr = '1';
+                    p.className = 'mt-1 text-xs font-medium text-red-600';
+                    p.textContent = msg;
+                    anchor.insertAdjacentElement('afterend', p);
+                    if (i === 0) { el.focus(); anchor.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+                });
+            });
+        })();
+    </script>
 </body>
 </html>
