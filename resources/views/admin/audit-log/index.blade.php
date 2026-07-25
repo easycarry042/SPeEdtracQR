@@ -86,8 +86,10 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-16 text-center text-sm text-gray-400">
-                                    No activity logs found.
+                                <td colspan="5">
+                                    <x-empty-state icon="clock" title="No activity logged yet">
+                                        Every create, edit, scan, and status change is recorded here for accountability. Actions will show up as staff use the system.
+                                    </x-empty-state>
                                 </td>
                             </tr>
                         @endforelse

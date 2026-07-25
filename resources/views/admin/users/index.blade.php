@@ -140,7 +140,23 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-400">No users found.</td>
+                                <td colspan="5">
+                                    @if(request()->hasAny(['search','role']))
+                                        <x-empty-state icon="search" title="No users match your filters">
+                                            Try a different name, email, or role — or clear the filters to see everyone.
+                                            <x-slot:action>
+                                                <a href="{{ route('admin.users.index') }}" class="cr-btn cr-btn-sm">Clear filters</a>
+                                            </x-slot:action>
+                                        </x-empty-state>
+                                    @else
+                                        <x-empty-state icon="users" title="No staff accounts yet">
+                                            Add your office's staff so they can be assigned documents and tracked.
+                                            <x-slot:action>
+                                                <a href="{{ route('admin.users.create') }}" onclick="if (window.openAddUserModal) { event.preventDefault(); openAddUserModal(); }" class="cr-btn cr-btn-sm cr-btn-primary">Add a user</a>
+                                            </x-slot:action>
+                                        </x-empty-state>
+                                    @endif
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -88,7 +88,11 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-400">No documents found.</td>
+                                <td colspan="5">
+                                    <x-empty-state icon="document" title="No documents to assign">
+                                        When documents come in, they'll appear here waiting to be assigned to a staff member. Nothing is currently in the queue.
+                                    </x-empty-state>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
