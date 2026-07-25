@@ -41,12 +41,6 @@
                                 <dd class="mt-0.5 text-[14px] text-ink">{{ $document->document_type }}</dd>
                             </div>
                             <div>
-                                <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Amount</dt>
-                                <dd class="mt-0.5 text-[14px] text-ink">
-                                    {{ $document->amount !== null ? '₱'.number_format((float) $document->amount, 2) : 'No budget involved' }}
-                                </dd>
-                            </div>
-                            <div>
                                 <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Filed by</dt>
                                 <dd class="mt-0.5 text-[14px] text-ink">
                                     {{ $document->creator?->name ?? '—' }} · {{ $document->requestingDepartment?->name }}
@@ -93,7 +87,26 @@
 
             {{-- Right: action panel --}}
             <div class="lg:col-span-2">
-                @if($canAct && $currentStep)
+                @if($canAct && $currentStep && ! $hasCustody)
+                    {{-- QR is load-bearing: the endorsement stays locked until this
+                         office scans the folder to prove the paper is in hand. --}}
+                    <div class="panel sticky top-24">
+                        <div class="ph">
+                            <h2>
+                                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m0 14v1m8-8h-1M5 12H4m1.6-6.4.7.7m11.4-.7-.7.7M3 7h5l2 3h11v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"/></svg>
+                                Scan to take custody
+                            </h2>
+                            <span class="sub">{{ $currentStep->action }}</span>
+                        </div>
+                        <div class="pb space-y-4">
+                            <p class="text-[13px] text-ink-soft">
+                                Your office holds this hop, but you must <b class="text-ink">scan the folder's QR</b> to
+                                confirm the paper is physically here before you can approve, return, or deny it.
+                            </p>
+                            @include('partials.custody-scan', ['document' => $document])
+                        </div>
+                    </div>
+                @elseif($canAct && $currentStep)
                     @php $hasSignature = (bool) auth()->user()->signature_path; @endphp
                     <div class="panel sticky top-24" x-data="{ mode: 'approve', denyAck: false, hasSignature: {{ $hasSignature ? 'true' : 'false' }} }">
                         <div class="ph">
@@ -112,6 +125,14 @@
                                             <li>{{ $error }}</li>
                                         @endforeach
                                     </ul>
+                                </div>
+                            @endif
+
+                            @php $custody = $document->currentCustody(); @endphp
+                            @if($custody)
+                                <div class="mb-4 flex items-center gap-2 rounded-[8px] border border-green/25 bg-green/5 px-4 py-2.5 text-[13px] text-ink" role="status">
+                                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true" class="text-green"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                    <span>Folder in hand — held by <b>{{ $custody->user->name ?? 'your office' }}</b>{{ $custody->capture_method === 'manual' ? ' (recorded manually)' : ' (QR scanned)' }}.</span>
                                 </div>
                             @endif
 

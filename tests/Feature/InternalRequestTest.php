@@ -61,7 +61,7 @@ class InternalRequestTest extends TestCase
             ->assertSessionHas('error');
     }
 
-    public function test_filing_a_large_procurement_request_materializes_the_bidding_chain(): void
+    public function test_filing_a_procurement_request_materializes_the_full_chain(): void
     {
         Storage::fake('local');
         Storage::fake('public');
@@ -71,8 +71,6 @@ class InternalRequestTest extends TestCase
         $response = $this->actingAs($supervisor)->post(route('requests.store'), [
             'route_template_id' => $template->id,
             'purpose' => 'New sound system for the plaza',
-            'description' => 'Full PA setup for municipal events.',
-            'amount' => 2_500_000,
         ]);
 
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
@@ -82,9 +80,9 @@ class InternalRequestTest extends TestCase
         $this->assertSame($supervisor->department_id, $document->requesting_department_id);
         $this->assertNotNull($document->qr_code_path);
 
+        // The route drives the chain directly — no amount branching.
         $actions = $document->requestSteps->pluck('action')->all();
-        $this->assertSame(['Approve request', 'Certify fund availability', 'Public Bidding', 'Delivery & inspection'], $actions);
-        $this->assertNotContains('Small Value Procurement', $actions);
+        $this->assertSame(['Approve request', 'Certify fund availability', 'Procurement', 'Delivery & inspection'], $actions);
 
         // The chain opens at the Mayor's Office hop; everything else waits.
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
@@ -94,21 +92,24 @@ class InternalRequestTest extends TestCase
         );
     }
 
-    public function test_filing_without_an_amount_skips_budget_and_procurement_steps(): void
+    public function test_a_non_monetary_route_materializes_its_own_chain(): void
     {
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+        $template = RouteTemplate::where('name', 'Vehicle Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
             'route_template_id' => $template->id,
-            'purpose' => 'Borrow projector for tourism summit',
+            'purpose' => 'Van to ferry delegates to the tourism summit',
         ]);
 
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
         $this->assertNull($document->amount);
-        $this->assertSame(['Approve request'], $document->requestSteps->pluck('action')->all());
+        $this->assertSame(
+            ['Approve vehicle use', 'Dispatch vehicle & issue trip ticket'],
+            $document->requestSteps->pluck('action')->all(),
+        );
     }
 
     public function test_uploaded_paper_scan_is_stored_and_a_qr_stamped_copy_is_archived(): void
@@ -121,7 +122,6 @@ class InternalRequestTest extends TestCase
         $this->actingAs($supervisor)->post(route('requests.store'), [
             'route_template_id' => $template->id,
             'purpose' => 'Ten monoblock chairs',
-            'amount' => 15_000,
             'paper_scan' => UploadedFile::fake()->image('purchase-request.jpg', 800, 1000),
         ]);
 
@@ -137,6 +137,56 @@ class InternalRequestTest extends TestCase
         $this->assertStringContainsString($document->tracking_number, $stamped);
     }
 
+    public function test_supervisor_chosen_qr_position_is_stamped_where_requested(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        // A solid-red page lets us tell stamped (white QR pad) from untouched red.
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Chairs',
+            'paper_scan' => $this->solidPng(600, 800, [220, 20, 20]),
+            'qr_x' => 0,
+            'qr_y' => 0,
+        ]);
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+        $stamped = $document->attachments->pluck('file_path')->first(fn ($p) => str_ends_with($p, '-qr-stamped.png'));
+        $this->assertNotNull($stamped, 'Expected a QR-stamped copy.');
+
+        $img = imagecreatefromstring(Storage::disk('local')->get($stamped));
+        // QR pinned to the top-left; the opposite corner stays the original red.
+        $this->assertWhitish($img, 3, 3);
+        $this->assertReddish($img, imagesx($img) - 3, imagesy($img) - 3);
+    }
+
+    private function solidPng(int $width, int $height, array $rgb): UploadedFile
+    {
+        $image = imagecreatetruecolor($width, $height);
+        imagefilledrectangle($image, 0, 0, $width, $height, imagecolorallocate($image, ...$rgb));
+        $path = tempnam(sys_get_temp_dir(), 'scan').'.png';
+        imagepng($image, $path);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'scan.png', 'image/png', null, true);
+    }
+
+    private function assertWhitish($image, int $x, int $y): void
+    {
+        $rgb = imagecolorsforindex($image, imagecolorat($image, $x, $y));
+        $this->assertGreaterThan(230, min($rgb['red'], $rgb['green'], $rgb['blue']), "Expected a white QR pad at ({$x},{$y}).");
+    }
+
+    private function assertReddish($image, int $x, int $y): void
+    {
+        $rgb = imagecolorsforindex($image, imagecolorat($image, $x, $y));
+        $this->assertGreaterThan(150, $rgb['red'], "Expected the original red at ({$x},{$y}).");
+        $this->assertLessThan(90, $rgb['green'], "Expected the original red at ({$x},{$y}).");
+    }
+
     public function test_created_page_shows_the_chain_and_rejects_external_documents(): void
     {
         Storage::fake('local');
@@ -147,7 +197,6 @@ class InternalRequestTest extends TestCase
         $this->actingAs($supervisor)->post(route('requests.store'), [
             'route_template_id' => $template->id,
             'purpose' => 'Vase for the lobby',
-            'amount' => 3_000,
         ]);
 
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
@@ -155,7 +204,7 @@ class InternalRequestTest extends TestCase
         $this->actingAs($supervisor)->get(route('requests.created', $document))
             ->assertOk()
             ->assertSee($document->tracking_number)
-            ->assertSee('Small Value Procurement')
+            ->assertSee('Procurement')
             ->assertSee('Awaiting this office');
 
         $external = Document::create([

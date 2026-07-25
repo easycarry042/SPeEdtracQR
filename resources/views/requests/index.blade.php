@@ -62,7 +62,6 @@
                                 <tr>
                                     <th>Request</th>
                                     <th>From</th>
-                                    <th>Amount</th>
                                     <th>Current stage</th>
                                     <th>Status</th>
                                     <th></th>
@@ -85,7 +84,6 @@
                                             {{ $doc->requestingDepartment?->code ?? '—' }}
                                             <p class="text-[11px] text-ink-soft">{{ $doc->creator?->name }}</p>
                                         </td>
-                                        <td class="muted">{{ $doc->amount !== null ? '₱'.number_format((float) $doc->amount, 2) : '—' }}</td>
                                         <td>
                                             @if($current)
                                                 <p class="text-[13px] font-medium text-ink">{{ $current->department?->name }}</p>
@@ -111,7 +109,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="py-10 text-center text-[13px] text-ink-soft">
+                                        <td colspan="5" class="py-10 text-center text-[13px] text-ink-soft">
                                             @if($tab['key'] === 'awaiting' && $department)
                                                 Nothing is awaiting {{ $department->name }} right now.
                                             @elseif($tab['key'] === 'filed')

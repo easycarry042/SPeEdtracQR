@@ -113,7 +113,16 @@ class QrCodeService
      * stampable raster image or GD is unavailable. Best-effort by design:
      * the original scan is always kept untouched as its own attachment.
      */
-    public function stampQrOntoImage(string $scanRelativePath, string $qrRelativePath, string $trackingNumber): ?string
+    /**
+     * Stamp the QR onto a raster scan of the paper request. By default it lands
+     * in the bottom-right corner; pass a normalized $position (['x' => 0..1,
+     * 'y' => 0..1] top-left of the QR box as a fraction of the page) to honour a
+     * supervisor's chosen placement. Out-of-range values are clamped so the QR
+     * always stays fully on the page.
+     *
+     * @param  array{x: float, y: float}|null  $position
+     */
+    public function stampQrOntoImage(string $scanRelativePath, string $qrRelativePath, string $trackingNumber, ?array $position = null): ?string
     {
         try {
             if (! extension_loaded('gd')) {
@@ -140,8 +149,18 @@ class QrCodeService
             $margin = (int) round($stampSize * 0.10);
 
             $boxSize = $stampSize + ($pad * 2);
-            $boxX = $scanW - $boxSize - $margin;
-            $boxY = $scanH - $boxSize - $margin;
+
+            if ($position !== null) {
+                // Supervisor-chosen placement: normalized top-left of the box,
+                // clamped so the whole box stays within the page bounds.
+                $boxX = (int) round($position['x'] * $scanW);
+                $boxY = (int) round($position['y'] * $scanH);
+                $boxX = (int) max(0, min($boxX, $scanW - $boxSize));
+                $boxY = (int) max(0, min($boxY, $scanH - $boxSize));
+            } else {
+                $boxX = $scanW - $boxSize - $margin;
+                $boxY = $scanH - $boxSize - $margin;
+            }
 
             // White pad behind the QR so it scans even on dark/busy paper.
             $white = imagecolorallocate($scan, 255, 255, 255);

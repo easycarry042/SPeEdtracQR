@@ -180,6 +180,27 @@ class Document extends Model
             && (int) $user->department_id === (int) $step->department_id;
     }
 
+    /**
+     * Whether the office holding the current hop has physically taken custody
+     * of the folder since that hop began. This is the precondition for acting
+     * on the endorsement chain: it binds every digital endorsement to a QR scan
+     * (an audited manual override still counts). Custody recorded while the
+     * request sat at an earlier office does not carry over to the new hop.
+     */
+    public function currentStepHasCustody(): bool
+    {
+        $step = $this->currentRequestStep();
+
+        if ($step === null || $step->started_at === null) {
+            return false;
+        }
+
+        return $this->custodyEvents()
+            ->where('created_at', '>=', $step->started_at)
+            ->whereHas('user', fn ($query) => $query->where('department_id', $step->department_id))
+            ->exists();
+    }
+
     /** Staff member responsible for advancing this document through its stages. */
     public function assignedTo()
     {

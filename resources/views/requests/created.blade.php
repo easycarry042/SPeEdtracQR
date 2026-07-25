@@ -27,9 +27,6 @@
                     <p class="mt-3 text-[15px] text-ink">{{ $document->purpose }}</p>
                     <p class="mt-1 text-[13px] text-ink-soft">
                         {{ $document->document_type }} · {{ $document->requestingDepartment?->name }}
-                        @if($document->amount !== null)
-                            · ₱{{ number_format((float) $document->amount, 2) }}
-                        @endif
                     </p>
 
                     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">

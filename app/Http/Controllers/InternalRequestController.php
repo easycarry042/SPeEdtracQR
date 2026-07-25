@@ -93,16 +93,15 @@ class InternalRequestController extends Controller
 
         $templates = RouteTemplate::active()->with('steps.department')->orderBy('name')->get();
 
-        // The wizard resolves the chain preview client-side as the amount
-        // changes, so ship each template's steps (+conditions) as JSON.
+        // The wizard previews the endorsement chain client-side as the route
+        // changes, so ship each template's resolved steps as JSON.
         $templatesJson = $templates->map(fn (RouteTemplate $template) => [
             'id' => $template->id,
             'name' => $template->name,
             'description' => $template->description,
-            'steps' => $template->steps->map(fn ($step) => [
+            'steps' => $template->stepsForAmount(null)->map(fn ($step) => [
                 'step_order' => $step->step_order,
                 'action' => $step->action,
-                'condition' => $step->condition,
                 'department' => ['name' => $step->department->name, 'code' => $step->department->code],
             ])->values(),
         ])->values();
@@ -111,7 +110,6 @@ class InternalRequestController extends Controller
             'department' => $department,
             'templates' => $templates,
             'templatesJson' => $templatesJson,
-            'biddingThreshold' => RouteTemplate::BIDDING_THRESHOLD,
         ]);
     }
 
@@ -122,35 +120,35 @@ class InternalRequestController extends Controller
         $validated = $request->validate([
             'route_template_id' => 'required|exists:route_templates,id',
             'purpose' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'amount' => 'nullable|numeric|min:0|max:999999999999',
             'paper_scan' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            // Optional supervisor-chosen QR placement on the scanned page.
+            'qr_x' => 'nullable|numeric|min:0|max:1',
+            'qr_y' => 'nullable|numeric|min:0|max:1',
         ]);
 
         $template = RouteTemplate::active()->with('steps.department')->findOrFail($validated['route_template_id']);
-        $amount = isset($validated['amount']) ? (float) $validated['amount'] : null;
 
-        $steps = $template->stepsForAmount($amount);
+        // The substance (amount, specifications) lives on the scanned paper; the
+        // route drives the chain directly, so no amount branching here.
+        $steps = $template->stepsForAmount(null);
         if ($steps->isEmpty()) {
             return back()->withInput()->withErrors([
-                'route_template_id' => 'This route has no applicable steps for the given amount. Check the template configuration.',
+                'route_template_id' => 'This route has no applicable steps. Check the template configuration.',
             ]);
         }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
-        $document = DB::transaction(function () use ($validated, $steps, $template, $amount, $department, $trackingNumber) {
+        $document = DB::transaction(function () use ($validated, $steps, $template, $department, $trackingNumber) {
             $document = Document::create([
                 'tracking_number' => $trackingNumber,
                 'document_type' => $template->name,
                 'purpose' => $validated['purpose'],
-                'description' => $validated['description'] ?? null,
                 'status' => DocumentStatus::Pending->value,
                 'status_changed_at' => now(),
                 'source' => 'walk_in',
                 'origin' => Document::ORIGIN_INTERNAL,
                 'requesting_department_id' => $department->id,
-                'amount' => $amount,
                 'created_by' => auth()->id(),
             ]);
 
@@ -180,10 +178,15 @@ class InternalRequestController extends Controller
             $attachments = $this->storeAttachmentsForDocument($document, [$request->file('paper_scan')]);
 
             if ($qrResult['success'] && $attachments !== []) {
+                $position = isset($validated['qr_x'], $validated['qr_y'])
+                    ? ['x' => (float) $validated['qr_x'], 'y' => (float) $validated['qr_y']]
+                    : null;
+
                 $stampedPath = $this->qrCodeService->stampQrOntoImage(
                     $attachments[0]->file_path,
                     $qrResult['relative_path'],
                     $trackingNumber,
+                    $position,
                 );
 
                 if ($stampedPath !== null) {
@@ -230,6 +233,7 @@ class InternalRequestController extends Controller
             'document' => $document,
             'canAct' => $document->canActOnCurrentStep(auth()->user()),
             'currentStep' => $document->currentRequestStep(),
+            'hasCustody' => $document->currentStepHasCustody(),
         ]);
     }
 

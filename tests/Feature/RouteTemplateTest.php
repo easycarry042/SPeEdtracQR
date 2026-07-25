@@ -112,21 +112,18 @@ class RouteTemplateTest extends TestCase
         );
     }
 
-    public function test_seeded_procurement_template_resolves_correctly(): void
+    public function test_seeded_procurement_template_resolves_a_fixed_chain(): void
     {
         $this->seed(DepartmentSeeder::class);
         $this->seed(RouteTemplateSeeder::class);
 
         $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
+        // The seeded chain no longer branches on amount — the peso figure lives
+        // on the scanned paper, not in the routing logic.
         $this->assertSame(
-            ['Approve request', 'Certify fund availability', 'Public Bidding', 'Delivery & inspection'],
-            $template->stepsForAmount(2_500_000)->pluck('action')->all(),
-        );
-
-        $this->assertSame(
-            ['Approve request', 'Certify fund availability', 'Small Value Procurement', 'Delivery & inspection'],
-            $template->stepsForAmount(50_000)->pluck('action')->all(),
+            ['Approve request', 'Certify fund availability', 'Procurement', 'Delivery & inspection'],
+            $template->stepsForAmount(null)->pluck('action')->all(),
         );
     }
 

@@ -151,10 +151,21 @@ class RequestStepController extends Controller
         ]);
     }
 
-    /** Gate + resolve the current hop; 403 unless this user holds it. */
+    /**
+     * Gate + resolve the current hop. 403 unless this user holds it, and the
+     * endorsement stays locked until the office has physically taken custody of
+     * the folder for this hop — the QR scan that proves the paper is in hand
+     * before any digital sign-off (approve, deny, or return) can be recorded.
+     */
     private function authorizeAction(Request $request, Document $document): RequestStep
     {
         abort_unless($document->canActOnCurrentStep($request->user()), 403);
+
+        if (! $document->currentStepHasCustody()) {
+            throw ValidationException::withMessages([
+                'custody' => 'Scan the folder\'s QR to take custody before acting on this request — the paper must be physically in your office first.',
+            ]);
+        }
 
         return $document->currentRequestStep();
     }

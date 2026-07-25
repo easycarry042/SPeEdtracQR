@@ -83,6 +83,16 @@ class InternalRequestFlowTest extends TestCase
         return ob_get_clean();
     }
 
+    /** Record that $user physically holds the folder for the request's current hop. */
+    private function takeCustody(Document $document, User $user, string $method = 'scan'): void
+    {
+        $document->custodyEvents()->create([
+            'user_id' => $user->id,
+            'capture_method' => $method,
+            'override_reason' => $method === 'manual' ? 'QR sticker torn off the folder' : null,
+        ]);
+    }
+
     public function test_supervisor_can_register_view_and_remove_their_signature(): void
     {
         $supervisor = $this->supervisorOf($this->mayor, withSignature: false);
@@ -125,6 +135,7 @@ class InternalRequestFlowTest extends TestCase
         $document = $this->makeRequest();
         $mayorSupervisor = $this->supervisorOf($this->mayor);
         $budgetSupervisor = $this->supervisorOf($this->budget);
+        $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), [
@@ -154,8 +165,10 @@ class InternalRequestFlowTest extends TestCase
         $document = $this->makeRequest();
         $document->requestSteps()->where('step_order', 1)->update(['status' => RequestStep::STATUS_APPROVED]);
         $document->requestSteps()->where('step_order', 2)->update(['status' => RequestStep::STATUS_CURRENT, 'started_at' => now()]);
+        $budgetSupervisor = $this->supervisorOf($this->budget);
+        $this->takeCustody($document, $budgetSupervisor);
 
-        $this->actingAs($this->supervisorOf($this->budget))
+        $this->actingAs($budgetSupervisor)
             ->post(route('requests.steps.approve', $document), ['password' => 'password'])
             ->assertRedirect(route('requests.show', $document));
 
@@ -180,8 +193,10 @@ class InternalRequestFlowTest extends TestCase
     public function test_wrong_password_blocks_the_decision(): void
     {
         $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
 
-        $this->actingAs($this->supervisorOf($this->mayor))
+        $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), ['password' => 'wrong-password'])
             ->assertSessionHasErrors('password');
 
@@ -191,8 +206,10 @@ class InternalRequestFlowTest extends TestCase
     public function test_approval_requires_a_registered_signature(): void
     {
         $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor, withSignature: false);
+        $this->takeCustody($document, $mayorSupervisor);
 
-        $this->actingAs($this->supervisorOf($this->mayor, withSignature: false))
+        $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), ['password' => 'password'])
             ->assertSessionHasErrors('signature');
 
@@ -203,6 +220,7 @@ class InternalRequestFlowTest extends TestCase
     {
         $document = $this->makeRequest();
         $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.deny', $document), ['password' => 'password'])
@@ -225,8 +243,10 @@ class InternalRequestFlowTest extends TestCase
     public function test_returning_a_hop_sends_the_request_back_for_revision(): void
     {
         $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
 
-        $this->actingAs($this->supervisorOf($this->mayor))
+        $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.return', $document), [
                 'password' => 'password',
                 'remarks' => 'Attach three price quotations first.',
@@ -241,8 +261,18 @@ class InternalRequestFlowTest extends TestCase
     public function test_show_page_offers_the_action_panel_only_to_the_holding_office(): void
     {
         $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
 
-        $this->actingAs($this->supervisorOf($this->mayor))
+        // Before custody, the holding office sees only the scan-to-take-custody step.
+        $this->actingAs($mayorSupervisor)
+            ->get(route('requests.show', $document))
+            ->assertOk()
+            ->assertSee('Scan to take custody')
+            ->assertDontSee('Confirm your password');
+
+        // Once the folder is scanned in, the decision form unlocks.
+        $this->takeCustody($document, $mayorSupervisor);
+        $this->actingAs($mayorSupervisor)
             ->get(route('requests.show', $document))
             ->assertOk()
             ->assertSee('Your office holds this request')
@@ -261,10 +291,85 @@ class InternalRequestFlowTest extends TestCase
             ->assertDontSee('Your office holds this request');
     }
 
+    public function test_endorsement_is_locked_until_the_office_scans_the_folder(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+
+        // No custody yet: approve, deny, and return are all refused.
+        foreach (['requests.steps.approve', 'requests.steps.deny', 'requests.steps.return'] as $route) {
+            $this->actingAs($mayorSupervisor)
+                ->post(route($route, $document), ['password' => 'password', 'remarks' => 'x'])
+                ->assertSessionHasErrors('custody');
+        }
+
+        $this->assertSame(RequestStep::STATUS_CURRENT, $document->fresh()->requestSteps->first()->status);
+
+        // After scanning the folder, the same approval goes through.
+        $this->takeCustody($document, $mayorSupervisor);
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->assertRedirect(route('requests.show', $document));
+
+        $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
+    }
+
+    public function test_manual_override_custody_satisfies_the_gate(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+
+        // The audited "QR unreadable" fallback still counts as custody.
+        $this->takeCustody($document, $mayorSupervisor, method: 'manual');
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->assertRedirect(route('requests.show', $document));
+
+        $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
+    }
+
+    public function test_custody_by_another_office_does_not_unlock_this_hop(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+
+        // A Budget-office user holding the folder is not the office that holds
+        // this hop, so the Mayor's endorsement stays locked.
+        $this->takeCustody($document, $this->supervisorOf($this->budget));
+
+        $this->assertFalse($document->currentStepHasCustody());
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->assertSessionHasErrors('custody');
+    }
+
+    public function test_custody_taken_before_the_hop_began_does_not_carry_over(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+
+        // Custody recorded before this hop started (e.g. while filing) is stale.
+        $stale = $document->custodyEvents()->create([
+            'user_id' => $mayorSupervisor->id,
+            'capture_method' => 'scan',
+        ]);
+        $stale->forceFill(['created_at' => now()->subDay()])->save();
+
+        $this->assertFalse($document->currentStepHasCustody());
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->assertSessionHasErrors('custody');
+    }
+
     public function test_step_signature_is_served_to_staff_and_hidden_from_guests(): void
     {
         $document = $this->makeRequest();
-        $this->actingAs($this->supervisorOf($this->mayor))
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+        $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), ['password' => 'password']);
 
         $step = $document->requestSteps()->first();

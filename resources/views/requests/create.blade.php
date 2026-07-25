@@ -72,26 +72,6 @@
                         </div>
 
                         <div>
-                            <label for="amount" class="block text-[13px] font-semibold text-ink">Estimated Amount (₱)</label>
-                            <input id="amount" type="number" name="amount" x-model="form.amount" min="0" step="0.01"
-                                   placeholder="Leave blank if no budget is involved"
-                                   class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('amount') border-status-red @enderror">
-                            <p class="mt-1 text-[12px]" :class="amountNumber !== null && amountNumber >= threshold ? 'font-semibold text-status-amber' : 'text-ink-soft'">
-                                <span x-show="amountNumber === null">No amount → budget/procurement steps are skipped automatically.</span>
-                                <span x-show="amountNumber !== null && amountNumber < threshold" x-text="`${formatPeso(amountNumber)} — below ${formatPeso(threshold)}: Small Value Procurement path.`"></span>
-                                <span x-show="amountNumber !== null && amountNumber >= threshold" x-text="`${formatPeso(amountNumber)} — at or above ${formatPeso(threshold)}: Public Bidding path (RA 12009).`"></span>
-                            </p>
-                            @error('amount')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
-                        </div>
-
-                        <div>
-                            <label for="description" class="block text-[13px] font-semibold text-ink">Details</label>
-                            <textarea id="description" name="description" x-model="form.description" rows="4" maxlength="5000"
-                                      placeholder="Specifications, justification, or any notes for the approving offices."
-                                      class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25"></textarea>
-                        </div>
-
-                        <div>
                             <label class="block text-[13px] font-semibold text-ink">Scanned document</label>
                             <p class="mt-0.5 text-[12px] text-ink-soft">Attach the scanned copy of the signed paper request (from your office scanner or printer).</p>
                             <label class="mt-2 flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[10px] border-2 border-dashed border-hairline-strong bg-[#f4f7f5] p-4 text-center transition hover:border-green focus-within:border-green focus-within:ring-2 focus-within:ring-green/25"
@@ -181,14 +161,35 @@
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Request</dt>
                         <dd class="mt-0.5 text-[14px] text-ink" x-text="form.purpose"></dd>
                     </div>
-                    <div>
-                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Amount</dt>
-                        <dd class="mt-0.5 text-[14px] text-ink" x-text="amountNumber === null ? 'No budget involved' : formatPeso(amountNumber)"></dd>
-                    </div>
-                    <div>
+                    <div class="sm:col-span-2">
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Scanned document</dt>
                         <dd class="mt-0.5 text-[14px] text-ink" x-text="fileName || 'None attached'"></dd>
                     </div>
+
+                    {{-- Drag the QR to where it should be stamped on the paper. Only
+                         raster scans can be stamped, so this appears for images. --}}
+                    <div class="sm:col-span-2" x-show="previewUrl" x-cloak>
+                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">QR placement on the page</dt>
+                        <dd class="mt-1.5">
+                            <p class="mb-2 text-[12px] text-ink-soft">Drag the QR square onto a clear area of the paper — it will be stamped there. Defaults to the bottom-right corner.</p>
+                            <div class="inline-block select-none rounded-[8px] border border-hairline bg-[#f4f7f5] p-2">
+                                <div class="relative inline-block leading-none" x-ref="qrStage">
+                                    <img :src="previewUrl" alt="Scanned document" class="block max-h-[420px] w-auto rounded-[4px]" @load="initQrPlacement()" draggable="false">
+                                    <div x-show="qr.ready"
+                                         class="absolute cursor-move rounded-[3px] border-2 border-green bg-white/85 shadow-sm"
+                                         :style="`left:${qr.x*100}%; top:${qr.y*100}%; width:${qr.size*100}%; aspect-ratio:1;`"
+                                         @pointerdown="startDragQr($event)">
+                                        <div class="flex h-full w-full items-center justify-center">
+                                            <svg class="h-1/2 w-1/2 text-green" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625h1.5v1.5h-1.5v-1.5ZM16.5 14.625h1.5v1.5h-1.5v-1.5ZM19.5 14.625h.75v1.5h-.75v-1.5ZM13.5 17.625h1.5v1.5h-1.5v-1.5ZM19.5 17.625h.75v1.5h-.75v-1.5Z"/></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" name="qr_x" :value="qr.ready ? qr.x.toFixed(4) : ''">
+                            <input type="hidden" name="qr_y" :value="qr.ready ? qr.y.toFixed(4) : ''">
+                        </dd>
+                    </div>
+
                     <div class="sm:col-span-2">
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Chain</dt>
                         <dd class="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-ink">
@@ -216,19 +217,14 @@
             return {
                 step: 1,
                 templates: @json($templatesJson),
-                threshold: {{ $biddingThreshold }},
                 fileName: '',
                 previewUrl: null,
+                // Normalized QR placement on the scanned page (fractions of the
+                // image). Stays unset for PDFs / no scan → server uses its default.
+                qr: { ready: false, x: 0.75, y: 0.75, size: 0.24, sizeH: 0.24, userMoved: false },
                 form: {
                     route_template_id: @json(old('route_template_id', '')),
                     purpose: @json(old('purpose', '')),
-                    amount: @json(old('amount', '')),
-                    description: @json(old('description', '')),
-                },
-
-                get amountNumber() {
-                    const n = parseFloat(this.form.amount);
-                    return Number.isFinite(n) && this.form.amount !== '' ? n : null;
                 },
 
                 get selectedTemplate() {
@@ -236,27 +232,58 @@
                 },
 
                 get resolvedSteps() {
-                    if (!this.selectedTemplate) { return []; }
-                    const amount = this.amountNumber;
-                    return this.selectedTemplate.steps.filter(s => {
-                        switch (s.condition) {
-                            case 'has_amount': return amount !== null;
-                            case 'below_threshold': return amount !== null && amount < this.threshold;
-                            case 'at_least_threshold': return amount !== null && amount >= this.threshold;
-                            default: return true;
-                        }
-                    });
-                },
-
-                formatPeso(value) {
-                    return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value);
+                    return this.selectedTemplate?.steps ?? [];
                 },
 
                 onFileChange(event) {
                     const file = event.target.files[0];
+                    this.qr.ready = false;
+                    this.qr.userMoved = false;
                     if (!file) { this.fileName = ''; this.previewUrl = null; return; }
                     this.fileName = file.name;
                     this.previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+                },
+
+                // Match the server's QR box geometry so the on-screen square lands
+                // where the stamp will actually be burned in.
+                initQrPlacement() {
+                    const img = this.$refs.qrStage?.querySelector('img');
+                    if (!img || !img.naturalWidth) { return; }
+                    const W = img.naturalWidth, H = img.naturalHeight;
+                    const shortEdge = Math.min(W, H);
+                    const stamp = Math.max(120, 0.22 * shortEdge);
+                    const box = stamp * 1.12;
+                    const margin = 0.10 * stamp;
+                    this.qr.size = box / W;
+                    this.qr.sizeH = box / H;
+                    if (!this.qr.userMoved) {
+                        this.qr.x = Math.max(0, 1 - box / W - margin / W);
+                        this.qr.y = Math.max(0, 1 - box / H - margin / H);
+                    }
+                    this.qr.ready = true;
+                },
+
+                startDragQr(event) {
+                    event.preventDefault();
+                    const img = this.$refs.qrStage.querySelector('img');
+                    const rect = img.getBoundingClientRect();
+                    const boxW = this.qr.size * rect.width;
+                    const boxH = this.qr.sizeH * rect.height;
+                    const startX = event.clientX, startY = event.clientY;
+                    const origX = this.qr.x * rect.width, origY = this.qr.y * rect.height;
+                    const move = (ev) => {
+                        const nx = Math.max(0, Math.min(origX + (ev.clientX - startX), rect.width - boxW));
+                        const ny = Math.max(0, Math.min(origY + (ev.clientY - startY), rect.height - boxH));
+                        this.qr.x = nx / rect.width;
+                        this.qr.y = ny / rect.height;
+                        this.qr.userMoved = true;
+                    };
+                    const up = () => {
+                        window.removeEventListener('pointermove', move);
+                        window.removeEventListener('pointerup', up);
+                    };
+                    window.addEventListener('pointermove', move);
+                    window.addEventListener('pointerup', up);
                 },
 
                 goReview() {

@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Department;
 use App\Models\RouteTemplate;
-use App\Models\RouteTemplateStep;
 use Illuminate\Database\Seeder;
 
 /**
@@ -30,13 +29,12 @@ class RouteTemplateSeeder extends Seeder
         $templates = [
             [
                 'name' => 'Procurement Request',
-                'description' => 'Purchase request flow under RA 12009: Mayor approval, Budget certification, BAC procurement (SVP below ₱2M, public bidding at ₱2M and above), then GSO delivery and inspection.',
+                'description' => 'Purchase request flow: Mayor approval, Budget certification, BAC procurement, then GSO delivery and inspection. The amount and specifications are read from the scanned paper request.',
                 'steps' => [
                     ['step_order' => 1, 'code' => 'OM', 'action' => 'Approve request', 'condition' => null],
-                    ['step_order' => 2, 'code' => 'BO', 'action' => 'Certify fund availability', 'condition' => RouteTemplateStep::CONDITION_HAS_AMOUNT],
-                    ['step_order' => 3, 'code' => 'BAC', 'action' => 'Small Value Procurement', 'condition' => RouteTemplateStep::CONDITION_BELOW_THRESHOLD],
-                    ['step_order' => 3, 'code' => 'BAC', 'action' => 'Public Bidding', 'condition' => RouteTemplateStep::CONDITION_AT_LEAST_THRESHOLD],
-                    ['step_order' => 4, 'code' => 'GSO', 'action' => 'Delivery & inspection', 'condition' => RouteTemplateStep::CONDITION_HAS_AMOUNT],
+                    ['step_order' => 2, 'code' => 'BO', 'action' => 'Certify fund availability', 'condition' => null],
+                    ['step_order' => 3, 'code' => 'BAC', 'action' => 'Procurement', 'condition' => null],
+                    ['step_order' => 4, 'code' => 'GSO', 'action' => 'Delivery & inspection', 'condition' => null],
                 ],
             ],
             [
