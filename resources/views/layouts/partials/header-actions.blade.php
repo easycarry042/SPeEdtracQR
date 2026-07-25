@@ -16,7 +16,7 @@
 </button>
 @endif
 
-<div class="relative"
+<div class="relative hidden sm:block"
      x-data="{ open: false, q: '', results: [],
         run() {
             if (! this.q.trim()) { this.results = []; return; }

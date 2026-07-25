@@ -547,6 +547,11 @@ aside.sidebar-pinned {
 .topnav-inner {
     display: flex; align-items: center; gap: 1rem;
     min-height: 3.75rem;
+    min-width: 0; /* let children shrink instead of overflowing the green bar */
+}
+@media (max-width: 640px) {
+    .topnav-inner { gap: .5rem; }
+    .topnav-actions { gap: .35rem; }
 }
 
 .topnav-brand {
