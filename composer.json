@@ -12,6 +12,8 @@
         "laravel/tinker": "^3.0",
         "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/laravel-activitylog": "^4.12",
+        "spatie/laravel-backup": "^10.3",
+        "spatie/laravel-health": "^1.40",
         "spatie/laravel-medialibrary": "^11.21",
         "spatie/laravel-permission": "^7.3"
     },

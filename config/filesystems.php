@@ -47,6 +47,15 @@ return [
             'report' => false,
         ],
 
+        // Dedicated store for spatie/laravel-backup archives, kept OUTSIDE
+        // storage/app so a backup never tries to include earlier backups.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('backups'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

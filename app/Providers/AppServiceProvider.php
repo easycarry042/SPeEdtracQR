@@ -13,6 +13,12 @@ use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Health\Checks\Checks\DatabaseCheck;
+use Spatie\Health\Checks\Checks\DebugModeCheck;
+use Spatie\Health\Checks\Checks\EnvironmentCheck;
+use Spatie\Health\Checks\Checks\ScheduleCheck;
+use Spatie\Health\Checks\Checks\UsedDiskSpaceCheck;
+use Spatie\Health\Facades\Health;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,6 +42,18 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, LogUserLogin::class);
         Event::listen(Logout::class, LogUserLogout::class);
+
+        // Runtime health probes surfaced at /health (see routes/web.php) and
+        // stored every 5 min by the scheduler. DebugMode/Environment expect a
+        // production posture, so they flag until the app is configured for the
+        // municipality handover — which is exactly when we want the reminder.
+        Health::checks([
+            DatabaseCheck::new(),
+            UsedDiskSpaceCheck::new(),
+            ScheduleCheck::new(),
+            DebugModeCheck::new(),
+            EnvironmentCheck::new(),
+        ]);
 
         View::composer('layouts.app', function ($view) {
             $user = auth()->user();

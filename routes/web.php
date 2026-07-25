@@ -31,6 +31,7 @@ use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
 use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -153,6 +154,12 @@ Route::middleware(['auth', 'verified', 'permission:assign documents'])
         Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
         Route::get('assignments/unclaimed', [AssignmentController::class, 'unclaimed'])->name('assignments.unclaimed');
     });
+
+// System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted
+// to system admins — it exposes operational state, not for public/uptime pings.
+Route::get('health', HealthCheckResultsController::class)
+    ->middleware(['auth', 'verified', 'permission:manage system'])
+    ->name('health');
 
 // User management (controller enforces department scoping for dept admins)
 Route::middleware(['auth', 'verified', 'permission:manage users'])
