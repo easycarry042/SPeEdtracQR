@@ -51,53 +51,60 @@
 <script>
 (function () {
     const NAV = @json($shortcuts->pluck('url', 'key'));
-    const overlay = document.getElementById('kbdHelp');
     let gPending = false, gTimer = null;
+
+    // Look the overlay up lazily and guard it, so a missing/renamed element can
+    // never stop the navigation listener from being attached.
+    const overlay = () => document.getElementById('kbdHelp');
+    const isOpen = () => { const o = overlay(); return o && !o.classList.contains('hidden'); };
+    const openHelp = () => { const o = overlay(); if (o) { o.classList.remove('hidden'); o.querySelector('[data-kbd-close]')?.focus(); } };
+    const closeHelp = () => { const o = overlay(); if (o) { o.classList.add('hidden'); } };
 
     function typingContext(el) {
         if (!el) { return false; }
         const tag = el.tagName;
         return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
     }
-    function openHelp() {
-        overlay.classList.remove('hidden');
-        overlay.querySelector('[data-kbd-close]')?.focus();
-    }
-    function closeHelp() { overlay.classList.add('hidden'); }
     function focusSearch() {
         const s = document.querySelector('input[type="search"], input[name="search"], #userSearch, [data-kbd-search]');
         if (s) { s.focus(); s.select?.(); return true; }
         return false;
     }
 
-    overlay.addEventListener('click', (e) => { if (e.target.closest('[data-kbd-close]')) { closeHelp(); } });
-    window.addEventListener('kbd-help', openHelp);
-
+    // Attach the key handler FIRST and unconditionally — nothing above can throw.
     document.addEventListener('keydown', function (e) {
         // ⌘/Ctrl-K → search, allowed even from a field.
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
             if (focusSearch()) { e.preventDefault(); }
             return;
         }
         if (e.metaKey || e.ctrlKey || e.altKey) { return; }
 
-        if (e.key === 'Escape') { if (!overlay.classList.contains('hidden')) { closeHelp(); } gPending = false; return; }
-        if (typingContext(e.target)) { return; }
+        if (e.key === 'Escape') { if (isOpen()) { closeHelp(); } gPending = false; return; }
+        if (typingContext(e.target)) { gPending = false; return; }
 
-        if (e.key === '?') { e.preventDefault(); overlay.classList.contains('hidden') ? openHelp() : closeHelp(); return; }
+        if (e.key === '?') { e.preventDefault(); isOpen() ? closeHelp() : openHelp(); return; }
         if (e.key === '/') { if (focusSearch()) { e.preventDefault(); } return; }
+
+        const key = (e.key || '').toLowerCase();
 
         if (gPending) {
             gPending = false;
             clearTimeout(gTimer);
-            const dest = NAV[e.key.toLowerCase()];
-            if (dest) { e.preventDefault(); window.location.href = dest; }
+            const dest = NAV[key];
+            if (dest) { e.preventDefault(); window.location.assign(dest); }
             return;
         }
-        if (e.key.toLowerCase() === 'g') {
+        if (key === 'g') {
             gPending = true;
-            gTimer = setTimeout(() => { gPending = false; }, 1200);
+            clearTimeout(gTimer);
+            gTimer = setTimeout(() => { gPending = false; }, 1500);
         }
     });
+
+    // Overlay wiring is best-effort and cannot block the handler above.
+    const o = overlay();
+    if (o) { o.addEventListener('click', (e) => { if (e.target.closest('[data-kbd-close]')) { closeHelp(); } }); }
+    window.addEventListener('kbd-help', openHelp);
 })();
 </script>
