@@ -41,7 +41,7 @@
         </form>
 
         {{-- Table --}}
-        <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
+        <div class="panel">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
