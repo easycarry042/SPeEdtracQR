@@ -251,6 +251,7 @@
                 </div>
             </div>
         @endif
+        @include('layouts.partials.keyboard-shortcuts')
     @else
         <main class="min-h-screen">
             {{ $slot }}

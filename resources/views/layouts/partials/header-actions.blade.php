@@ -108,6 +108,10 @@
         </div>
         <a href="{{ route('staff.profile', ['user' => auth()->id()]) }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">My Profile</a>
         <a href="{{ route('history') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">History</a>
+        <button type="button" onclick="window.dispatchEvent(new CustomEvent('kbd-help'))"
+                class="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
+            Keyboard shortcuts <kbd class="rounded border border-hairline-strong bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">?</kbd>
+        </button>
         {{-- Staff directory + Settings live in the super_admin sidebar; only
              topnav roles need them here (avoids duplicate menu entries). --}}
         @unless(auth()->user()?->can('manage system'))
