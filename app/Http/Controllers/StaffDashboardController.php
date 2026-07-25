@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Support\RequestReview;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 
 /**
  * Staff operational dashboard. Lists the requests assigned to the authenticated
@@ -13,7 +15,7 @@ use App\Support\RequestReview;
  */
 class StaffDashboardController extends Controller
 {
-    public function index()
+    public function index(): Factory|View
     {
         $user = auth()->user();
 
@@ -37,11 +39,11 @@ class StaffDashboardController extends Controller
 
         return view('staff.dashboard', [
             'requests' => $requests,
-            'requestPayload' => $requests->map(fn ($d) => RequestReview::forModal($d))->values(),
+            'requestPayload' => $requests->map(fn (Document $d): array => RequestReview::forModal($d))->values(),
             // The forward line, so the modal cockpit can render the stepper and
             // compute the next stage entirely client-side (no reload per advance).
             'flow' => collect(DocumentStatus::flow())
-                ->map(fn ($s) => ['value' => $s->value, 'label' => $s->label()])
+                ->map(fn ($s): array => ['value' => $s->value, 'label' => $s->label()])
                 ->values()->all(),
             'assignedCount' => $requests->count(),
             'completedCount' => Document::where('assigned_to', $user->id)

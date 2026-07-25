@@ -23,19 +23,18 @@ use Spatie\Health\Facades\Health;
 
 class AppServiceProvider extends ServiceProvider
 {
+    #[\Override]
     public function register(): void
     {
         // Provider-agnostic LLM backend for the document assistant (Pillar 3).
-        $this->app->singleton(LlmProvider::class, function () {
-            return match (config('ai.provider')) {
-                'ollama' => new OllamaProvider(
-                    config('ai.ollama.url'),
-                    config('ai.ollama.model'),
-                    config('ai.ollama.timeout'),
-                    config('ai.ollama.keep_alive'),
-                ),
-                default => new NullProvider,
-            };
+        $this->app->singleton(LlmProvider::class, fn () => match (config('ai.provider')) {
+            'ollama' => new OllamaProvider(
+                config('ai.ollama.url'),
+                config('ai.ollama.model'),
+                config('ai.ollama.timeout'),
+                config('ai.ollama.keep_alive'),
+            ),
+            default => new NullProvider,
         });
     }
 
@@ -46,7 +45,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Laravel Pulse dashboard (/pulse) — restrict to system admins so it is
         // safe outside local (Pulse defaults to local-only without this gate).
-        Gate::define('viewPulse', fn ($user) => (bool) $user->can('manage system'));
+        Gate::define('viewPulse', fn ($user): bool => (bool) $user->can('manage system'));
 
         // Runtime health probes surfaced at /health (see routes/web.php) and
         // stored every 5 min by the scheduler. DebugMode/Environment expect a
@@ -60,7 +59,7 @@ class AppServiceProvider extends ServiceProvider
             EnvironmentCheck::new(),
         ]);
 
-        View::composer('layouts.app', function ($view) {
+        View::composer('layouts.app', function ($view): void {
             $user = auth()->user();
 
             // Header notifications are slated for an assignment-based rebuild

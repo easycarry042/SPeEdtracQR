@@ -4,19 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
-    public function index()
+    public function index(): Factory|View
     {
         $departments = Department::withCount('users')->orderBy('name')->get();
 
-        return view('admin.departments.index', compact('departments'));
+        return view('admin.departments.index', ['departments' => $departments]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         return view('admin.departments.create');
     }
@@ -24,8 +26,8 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:departments,name',
-            'code' => 'required|string|max:10|alpha_num|unique:departments,code',
+            'name' => ['required', 'string', 'max:255', 'unique:departments,name'],
+            'code' => ['required', 'string', 'max:10', 'alpha_num', 'unique:departments,code'],
         ]);
 
         $department = Department::create([
@@ -34,13 +36,13 @@ class DepartmentController extends Controller
             'is_active' => true,
         ]);
 
-        return redirect()->route('admin.departments.index')
+        return to_route('admin.departments.index')
             ->with('success', "Department {$department->name} created successfully.");
     }
 
-    public function edit(Department $department)
+    public function edit(Department $department): Factory|View
     {
-        return view('admin.departments.edit', compact('department'));
+        return view('admin.departments.edit', ['department' => $department]);
     }
 
     public function update(Request $request, Department $department)
@@ -55,7 +57,7 @@ class DepartmentController extends Controller
             'code' => strtoupper($validated['code']),
         ]);
 
-        return redirect()->route('admin.departments.index')
+        return to_route('admin.departments.index')
             ->with('success', "Department {$department->name} updated successfully.");
     }
 

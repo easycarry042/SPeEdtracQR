@@ -9,6 +9,8 @@ use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 
@@ -25,7 +27,7 @@ class DocumentWebController extends Controller
         // The submission form now lives in a modal rendered by the layout
         // (resources/views/documents/partials/create-modal.blade.php). Keep
         // this route so old links still work and permission checks still apply.
-        return redirect()->route('dashboard')->with('openCreateModal', true);
+        return to_route('dashboard')->with('openCreateModal', true);
     }
 
     public function store(Request $request)
@@ -33,16 +35,16 @@ class DocumentWebController extends Controller
         $this->ensureCanCreate();
 
         $request->validate([
-            'document_type' => 'required|string|max:255',
-            'citizen_name' => 'nullable|string',
-            'citizen_email' => 'nullable|email|max:255',
-            'citizen_contact' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'purpose' => 'nullable|string|max:255',
-            'remarks' => 'nullable|string',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
-            'attachments' => 'nullable|array|max:10',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
+            'document_type' => ['required', 'string', 'max:255'],
+            'citizen_name' => ['nullable', 'string'],
+            'citizen_email' => ['nullable', 'email', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'remarks' => ['nullable', 'string'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -81,25 +83,25 @@ class DocumentWebController extends Controller
             DocumentEvent::newTicket($document),
         );
 
-        return redirect()->route('documents.created', $document);
+        return to_route('documents.created', $document);
     }
 
-    public function created(Document $document)
+    public function created(Document $document): Factory|View
     {
-        $this->authorizeDocumentView($document);
+        $this->authorizeDocumentView();
         $document->load(['attachments']);
 
-        return view('documents.created', compact('document'));
+        return view('documents.created', ['document' => $document]);
     }
 
-    public function edit(Document $document)
+    public function edit(Document $document): Factory|View
     {
         $this->ensureCanCreate();
         abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         $categoryOptions = $this->categoryOptions();
 
-        return view('documents.edit', compact('document', 'categoryOptions'));
+        return view('documents.edit', ['document' => $document, 'categoryOptions' => $categoryOptions]);
     }
 
     public function update(Request $request, Document $document)
@@ -109,27 +111,26 @@ class DocumentWebController extends Controller
 
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([
-            'document_type' => 'required|string|max:255',
-            'citizen_name' => 'nullable|string|max:255',
-            'citizen_contact' => 'nullable|string|max:255',
-            'purpose' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'remarks' => 'nullable|string',
+            'document_type' => ['required', 'string', 'max:255'],
+            'citizen_name' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'remarks' => ['nullable', 'string'],
         ]);
 
         $document->update($validated);
 
-        return redirect()
-            ->route('track.show', $document->tracking_number)
+        return to_route('track.show', $document->tracking_number)
             ->with('status', 'Document details updated.');
     }
 
-    public function printSticker(Document $document)
+    public function printSticker(Document $document): Factory|View
     {
-        $this->authorizeDocumentView($document);
+        $this->authorizeDocumentView();
         $trackingUrl = url('/track/'.$document->tracking_number);
 
-        return view('documents.qr-sticker', compact('document', 'trackingUrl'));
+        return view('documents.qr-sticker', ['document' => $document, 'trackingUrl' => $trackingUrl]);
     }
 
     public function complete(string $trackingNumber)
@@ -148,7 +149,7 @@ class DocumentWebController extends Controller
         return response()->json(['message' => "Document {$trackingNumber} marked as completed."]);
     }
 
-    private function authorizeDocumentView(Document $document): void
+    private function authorizeDocumentView(): void
     {
         if (! auth()->check()) {
             abort(403);

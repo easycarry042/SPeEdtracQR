@@ -13,9 +13,9 @@ class ScanController extends Controller
     public function index()
     {
         if (auth()->user()?->can('manage system')) {
-            return redirect()->route('admin.dashboard');
+            return to_route('admin.dashboard');
         }
 
-        return redirect()->route('track.index', ['find' => 1]);
+        return to_route('track.index', ['find' => 1]);
     }
 }

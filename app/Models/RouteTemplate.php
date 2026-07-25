@@ -39,7 +39,7 @@ class RouteTemplate extends Model
         return $this->hasMany(RouteTemplateStep::class)->orderBy('step_order')->orderBy('id');
     }
 
-    public function scopeActive(Builder $query): Builder
+    protected function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
     }
@@ -52,6 +52,6 @@ class RouteTemplate extends Model
      */
     public function stepsForAmount(?float $amount): Collection
     {
-        return $this->steps->filter(fn (RouteTemplateStep $step) => $step->appliesToAmount($amount))->values();
+        return $this->steps->filter(fn (RouteTemplateStep $step): bool => $step->appliesToAmount($amount))->values();
     }
 }

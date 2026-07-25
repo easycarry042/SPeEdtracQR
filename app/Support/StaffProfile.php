@@ -8,6 +8,7 @@ use App\Models\StaffHighlight;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -17,7 +18,7 @@ use Spatie\Activitylog\Models\Activity;
  */
 class StaffProfile
 {
-    public function __construct(private User $user) {}
+    public function __construct(private readonly User $user) {}
 
     /** Accountability KPIs shown in the identity rail. */
     public function kpis(): array
@@ -29,9 +30,9 @@ class StaffProfile
         $completed = $completedDocs->count();
 
         $avgDays = $completedDocs
-            ->filter(fn ($d) => $d->completed_at && $d->created_at)
+            ->filter(fn ($d): bool => $d->completed_at && $d->created_at)
             // Raw timestamp delta avoids Carbon version sign ambiguity.
-            ->avg(fn ($d) => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400);
+            ->avg(fn ($d): float|int => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400);
 
         $onTime = $completed > 0
             ? round($completedDocs->whereNull('sla_breached_at')->count() / $completed * 100)
@@ -59,7 +60,7 @@ class StaffProfile
             ->where('causer_id', $this->user->id)
             ->max('created_at');
 
-        return $ts ? Carbon::parse($ts) : null;
+        return $ts ? Date::parse($ts) : null;
     }
 
     /** Completions per day over the last 12 months for the contribution heatmap. */
@@ -119,7 +120,7 @@ class StaffProfile
             ->with(['document:id,tracking_number,document_type,status,source,created_by,created_at', 'document.creator:id,name'])
             ->limit($limit)
             ->get()
-            ->map(fn (StaffHighlight $h) => [
+            ->map(fn (StaffHighlight $h): array => [
                 'kind' => 'manual',
                 'type' => $h->highlight_type,
                 'body' => $h->body,
@@ -129,7 +130,7 @@ class StaffProfile
             ]);
 
         // 2) Completions — prominent.
-        $completions = $this->completions($limit)->map(fn (Document $d) => [
+        $completions = $this->completions($limit)->map(fn (Document $d): array => [
             'kind' => 'completion',
             'author' => $this->user->name,
             'document' => $this->documentChip($d),
@@ -144,10 +145,10 @@ class StaffProfile
             ->latest()
             ->limit(200)
             ->get(['subject_id', 'description', 'properties', 'created_at'])
-            ->reject(fn (Activity $a) => data_get($a->properties, 'to') === DocumentStatus::Completed->value
+            ->reject(fn (Activity $a): bool => data_get($a->properties, 'to') === DocumentStatus::Completed->value
                 || data_get($a->properties, 'attributes.status') === DocumentStatus::Completed->value)
             ->groupBy('subject_id')
-            ->map(function (Collection $items, $docId) {
+            ->map(function (Collection $items, $docId): ?array {
                 $doc = Document::find($docId); // subject may be soft-deleted
                 if (! $doc) {
                     return null;
@@ -160,8 +161,8 @@ class StaffProfile
                     'document' => $this->documentChip($doc),
                     'count' => $ordered->count(),
                     'latest_status' => $doc->status,
-                    'at' => optional($ordered->first())->created_at,
-                    'items' => $ordered->map(fn (Activity $a) => [
+                    'at' => $ordered->first()?->created_at,
+                    'items' => $ordered->map(fn (Activity $a): array => [
                         'body' => $a->description,
                         'at' => $a->created_at,
                     ])->all(),
@@ -178,7 +179,7 @@ class StaffProfile
 
     private function documentChip(?Document $doc): ?array
     {
-        if (! $doc) {
+        if (! $doc instanceof Document) {
             return null;
         }
 

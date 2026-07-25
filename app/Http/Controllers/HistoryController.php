@@ -5,13 +5,15 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class HistoryController extends Controller
 {
     use ScopesToAssignedWork;
 
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
 
@@ -21,7 +23,7 @@ class HistoryController extends Controller
         $documentTypes = $this->scopeDocuments(Document::query())->distinct()->pluck('document_type');
         $statuses = DocumentStatus::values();
 
-        return view('history.index', compact('documents', 'documentTypes', 'statuses'));
+        return view('history.index', ['documents' => $documents, 'documentTypes' => $documentTypes, 'statuses' => $statuses]);
     }
 
     public function export(Request $request)
@@ -56,7 +58,7 @@ class HistoryController extends Controller
     private function applyFilters($query, Request $request): void
     {
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
+            $query->where(function ($q) use ($request): void {
                 $q->where('tracking_number', 'like', '%'.$request->search.'%')
                     ->orWhere('citizen_name', 'like', '%'.$request->search.'%')
                     ->orWhere('document_type', 'like', '%'.$request->search.'%');

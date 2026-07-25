@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Support\DocumentSeal;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 /**
@@ -14,7 +16,7 @@ use Illuminate\Http\Request;
  */
 class VerificationController extends Controller
 {
-    public function show(Request $request, string $trackingNumber)
+    public function show(Request $request, string $trackingNumber): Factory|View
     {
         $document = Document::where('tracking_number', $trackingNumber)->first();
 

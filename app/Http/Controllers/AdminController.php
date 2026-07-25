@@ -5,16 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\User;
 use App\Support\AdminAnalytics;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
     /** Selectable look-back windows (days) for the command center. */
-    private const RANGES = [7, 30, 90];
+    private const array RANGES = [7, 30, 90];
 
-    public function dashboard(Request $request)
+    public function dashboard(Request $request): Factory|View
     {
         $documentTypes = Document::query()
             ->select('document_type')
@@ -31,8 +33,8 @@ class AdminController extends Controller
         $range = (int) ($validated['range'] ?? 30);
         $documentType = $validated['document_type'] ?? null;
 
-        $from = Carbon::now()->subDays($range - 1)->startOfDay();
-        $to = Carbon::now()->endOfDay();
+        $from = Date::now()->subDays($range - 1)->startOfDay();
+        $to = Date::now()->endOfDay();
 
         $analytics = new AdminAnalytics($from, $to, $documentType);
 
@@ -45,7 +47,7 @@ class AdminController extends Controller
         return view('admin.dashboard', [
             'filters' => $filters,
             'documentTypes' => $documentTypes,
-            'updatedAt' => Carbon::now(),
+            'updatedAt' => Date::now(),
             'kpis' => $analytics->kpis(),
             'throughput' => $analytics->throughput(),
             'statusDistribution' => $analytics->statusDistribution(),

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +23,7 @@ class SignatureController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'signature' => 'required|string|max:800000',
+            'signature' => ['required', 'string', 'max:800000'],
         ]);
 
         $dataUrl = $request->string('signature')->toString();
@@ -50,7 +52,7 @@ class SignatureController extends Controller
     }
 
     /** Serve the owner's own registered signature for the profile preview. */
-    public function show(Request $request)
+    public function show(Request $request): ResponseFactory|Response
     {
         $user = $request->user();
 

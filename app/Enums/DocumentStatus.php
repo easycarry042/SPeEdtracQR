@@ -85,7 +85,7 @@ enum DocumentStatus: string
 
         return array_values(array_filter(
             self::values(),
-            fn (string $v) => ! in_array($v, $terminal, true),
+            fn (string $v): bool => ! in_array($v, $terminal, true),
         ));
     }
 

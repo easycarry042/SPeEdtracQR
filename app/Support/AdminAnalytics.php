@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -25,19 +26,19 @@ use Spatie\Activitylog\Models\Activity;
 class AdminAnalytics
 {
     /** Active load at/above this is flagged as overloaded in the workload chart. */
-    private const OVERLOADED_AT = 8;
+    private const int OVERLOADED_AT = 8;
 
     /** Elapsed share of a stage's SLA at which a document is "at risk" (not yet breached). */
-    private const AT_RISK_FRACTION = 0.75;
+    private const float AT_RISK_FRACTION = 0.75;
 
-    private Carbon $prevFrom;
+    private readonly Carbon $prevFrom;
 
-    private Carbon $prevTo;
+    private readonly Carbon $prevTo;
 
     public function __construct(
-        private Carbon $from,
-        private Carbon $to,
-        private ?string $documentType = null,
+        private readonly Carbon $from,
+        private readonly Carbon $to,
+        private readonly ?string $documentType = null,
     ) {
         // Previous window of equal length, ending just before $from, for deltas.
         $seconds = $this->from->diffInSeconds($this->to);
@@ -129,7 +130,7 @@ class AdminAnalytics
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        return collect(DocumentStatus::cases())->map(fn (DocumentStatus $s) => [
+        return collect(DocumentStatus::cases())->map(fn (DocumentStatus $s): array => [
             'label' => $s->label(),
             'value' => (int) ($counts[$s->value] ?? 0),
             'band' => $s->band(),
@@ -160,13 +161,13 @@ class AdminAnalytics
 
         $names = User::whereIn('id', $ids)->pluck('name', 'id');
 
-        return $ids->map(fn ($id) => [
+        return $ids->map(fn ($id): array => [
             'name' => $names[$id] ?? 'Unknown',
             'completed' => (int) ($completed[$id] ?? 0),
             'active' => (int) ($active[$id] ?? 0),
             'overloaded' => (int) ($active[$id] ?? 0) >= self::OVERLOADED_AT,
         ])
-            ->sortByDesc(fn ($r) => $r['active'] + $r['completed'])
+            ->sortByDesc(fn ($r): float|int|array => $r['active'] + $r['completed'])
             ->take(8)
             ->values();
     }
@@ -261,8 +262,8 @@ class AdminAnalytics
         }
 
         return collect(DocumentStatus::cases())
-            ->reject(fn (DocumentStatus $s) => $s === DocumentStatus::OnHold) // paused time isn't a "slow stage"
-            ->map(fn (DocumentStatus $s) => [
+            ->reject(fn (DocumentStatus $s): bool => $s === DocumentStatus::OnHold) // paused time isn't a "slow stage"
+            ->map(fn (DocumentStatus $s): array => [
                 'label' => $s->label(),
                 'hours' => isset($count[$s->value]) && $count[$s->value] > 0
                     ? round($sum[$s->value] / $count[$s->value], 1)
@@ -282,7 +283,7 @@ class AdminAnalytics
             ->orderByDesc('total')
             ->take(6)
             ->get()
-            ->map(fn ($r) => ['label' => $r->document_type, 'value' => (int) $r->total]);
+            ->map(fn ($r): array => ['label' => $r->document_type, 'value' => (int) $r->total]);
     }
 
     // ── Region D: supporting data ────────────────────────────────────────────
@@ -292,7 +293,7 @@ class AdminAnalytics
     {
         return $this->activeDocuments(['assignedTo'])
             ->filter->isOverdue()
-            ->map(function (Document $doc) {
+            ->map(function (Document $doc): array {
                 $stage = $doc->statusEnum();
                 $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
                 $elapsed = abs($anchor->getTimestamp() - now()->getTimestamp()) / 3600;
@@ -325,11 +326,11 @@ class AdminAnalytics
         $names = User::whereIn('id', $docs->pluck('assigned_to')->unique())->pluck('name', 'id');
 
         return $docs->groupBy('assigned_to')
-            ->map(fn (Collection $group, $id) => [
+            ->map(fn (Collection $group, $id): array => [
                 'name' => $names[$id] ?? 'Unknown',
                 'count' => $group->count(),
                 'avg_days' => round($group->avg(
-                    fn (Document $d) => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
+                    fn (Document $d): float|int => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
                 ), 1),
             ])
             ->sortBy('avg_days')
@@ -400,7 +401,7 @@ class AdminAnalytics
         }
 
         return round($docs->avg(
-            fn (Document $d) => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
+            fn (Document $d): float|int => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
         ), 1);
     }
 
@@ -439,7 +440,7 @@ class AdminAnalytics
             ->pluck('total', 'd');
 
         $series = [];
-        foreach (Carbon::parse($this->from)->daysUntil($this->to) as $day) {
+        foreach (Date::parse($this->from)->daysUntil($this->to) as $day) {
             $series[$day->toDateString()] = (int) ($raw[$day->toDateString()] ?? 0);
         }
 
@@ -459,9 +460,9 @@ class AdminAnalytics
             ->get(['created_at', 'completed_at']);
 
         $series = [];
-        foreach (Carbon::parse($this->from)->daysUntil($this->to) as $day) {
+        foreach (Date::parse($this->from)->daysUntil($this->to) as $day) {
             $eod = $day->copy()->endOfDay();
-            $series[] = $docs->filter(fn (Document $d) => $d->created_at <= $eod
+            $series[] = $docs->filter(fn (Document $d): bool => $d->created_at <= $eod
                 && (! $d->completed_at || $d->completed_at > $eod))->count();
         }
 
@@ -478,7 +479,7 @@ class AdminAnalytics
 
         $buckets = [];
         foreach ($docs as $ts) {
-            $key = Carbon::parse($ts)->startOfWeek(Carbon::SUNDAY)->toDateString();
+            $key = Date::parse($ts)->startOfWeek(Carbon::SUNDAY)->toDateString();
             $buckets[$key] = ($buckets[$key] ?? 0) + 1;
         }
 
@@ -488,8 +489,8 @@ class AdminAnalytics
     private function emptyStageSeries(): Collection
     {
         return collect(DocumentStatus::cases())
-            ->reject(fn (DocumentStatus $s) => $s === DocumentStatus::OnHold)
-            ->map(fn (DocumentStatus $s) => [
+            ->reject(fn (DocumentStatus $s): bool => $s === DocumentStatus::OnHold)
+            ->map(fn (DocumentStatus $s): array => [
                 'label' => $s->label(),
                 'hours' => 0.0,
                 'band' => $s->band(),

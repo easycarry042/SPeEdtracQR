@@ -9,6 +9,8 @@ use App\Models\Document;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\DocumentFormOptions;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -26,7 +28,7 @@ class PublicTicketController extends Controller
 
     public function __construct(private QrCodeService $qrCodeService) {}
 
-    public function create()
+    public function create(): Factory|View
     {
         return view('public.request', [
             'categories' => DocumentFormOptions::categoryOptions(),
@@ -37,20 +39,20 @@ class PublicTicketController extends Controller
     {
         // Honeypot: bots fill hidden fields. Silently bounce without creating.
         if (filled($request->input('website'))) {
-            return redirect()->route('public.request.create')
+            return to_route('public.request.create')
                 ->with('status', 'Your request has been received.');
         }
 
         $validated = $request->validate([
-            'document_type' => 'required|string|max:255',
-            'purpose' => 'nullable|string|max:255',
-            'description' => 'nullable|string|max:5000',
-            'citizen_name' => 'required|string|max:255',
-            'citizen_email' => 'required|email|max:255',
-            'citizen_contact' => 'nullable|string|max:255',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240', // 10 MB each: images, PDF or Word
-            'consent' => 'accepted',
+            'document_type' => ['required', 'string', 'max:255'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'citizen_name' => ['required', 'string', 'max:255'],
+            'citizen_email' => ['required', 'email', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'], // 10 MB each: images, PDF or Word
+            'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
             'attachments.*.mimes' => 'Each file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
@@ -82,7 +84,6 @@ class PublicTicketController extends Controller
         $this->storeAttachmentsForDocument(
             $document,
             collect($request->file('attachments', []))->filter()->all(),
-            null,
         );
 
         activity()

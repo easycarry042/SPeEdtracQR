@@ -16,9 +16,9 @@ class QrCodeService
      * transcription mistakes when a citizen types the code by hand.
      * 30 chars ^ 6 positions ≈ 729M combos/day — resists enumeration.
      */
-    private const TRACKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+    private const string TRACKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 
-    private const TRACKING_SUFFIX_LENGTH = 6;
+    private const int TRACKING_SUFFIX_LENGTH = 6;
 
     public function generateTrackingNumber(): string
     {
@@ -161,8 +161,8 @@ class QrCodeService
                 // clamped so the whole box stays within the page bounds.
                 $boxX = (int) round($position['x'] * $scanW);
                 $boxY = (int) round($position['y'] * $scanH);
-                $boxX = (int) max(0, min($boxX, $scanW - $boxSize));
-                $boxY = (int) max(0, min($boxY, $scanH - $boxSize));
+                $boxX = max(0, min($boxX, $scanW - $boxSize));
+                $boxY = max(0, min($boxY, $scanH - $boxSize));
             } else {
                 $boxX = $scanW - $boxSize - $margin;
                 $boxY = $scanH - $boxSize - $margin;

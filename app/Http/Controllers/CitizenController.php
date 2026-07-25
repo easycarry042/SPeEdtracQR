@@ -1,13 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class CitizenController extends Controller
 {
     /** Citizen portal homepage — two option cards. */
-    public function index()
+    public function index(): Factory|View
     {
         return view('citizen.dashboard');
     }
@@ -22,7 +26,7 @@ class CitizenController extends Controller
         $trackingNumber = trim((string) $request->query('tracking', ''));
 
         if ($trackingNumber !== '') {
-            return redirect()->route('track.show', ['trackingNumber' => $trackingNumber]);
+            return to_route('track.show', ['trackingNumber' => $trackingNumber]);
         }
 
         return view('citizen.track');

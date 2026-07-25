@@ -26,19 +26,18 @@ class AttachmentController extends Controller
         );
 
         $request->validate([
-            'attachments' => 'required|array|min:1|max:10',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
+            'attachments' => ['required', 'array', 'min:1', 'max:10'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
         ]);
 
         $created = $this->storeAttachmentsForDocument(
             $document,
             $request->file('attachments', []),
-            null,
         );
 
         return response()->json([
             'message' => count($created).' photo(s) added to the document.',
-            'attachments' => collect($created)->map(fn ($a) => [
+            'attachments' => collect($created)->map(fn ($a): array => [
                 'id' => $a->id,
                 'url' => route('attachments.show', $a),
             ])->values(),

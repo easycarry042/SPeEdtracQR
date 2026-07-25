@@ -33,7 +33,7 @@ class DocumentStatusController extends Controller
         StatusGate::assertExpectedStatus($document, $validated['expected_status']);
 
         $next = $document->statusEnum()->next();
-        if (! $next) {
+        if (! $next instanceof DocumentStatus) {
             return $this->fail('This document is already at the final stage.');
         }
 
@@ -55,7 +55,7 @@ class DocumentStatusController extends Controller
                 'body' => $note,
                 'visibility' => 'internal',
             ]);
-            DocumentCommentPosted::dispatch($comment);
+            event(new DocumentCommentPosted($comment));
         }
 
         return $this->transition($document, $next, 'Advanced');
@@ -74,7 +74,7 @@ class DocumentStatusController extends Controller
         StatusGate::assertExpectedStatus($document, $validated['expected_status']);
 
         $previous = $document->statusEnum()->previous();
-        if (! $previous) {
+        if (! $previous instanceof DocumentStatus) {
             return $this->fail('This document is already at the first stage.');
         }
 
@@ -154,10 +154,10 @@ class DocumentStatusController extends Controller
             ->withProperties(['blocked_by' => $validated['blocked_by'], 'hold_until' => $validated['hold_until'] ?? null])
             ->log("On hold (waiting on {$validated['blocked_by']}): {$validated['hold_reason']}");
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         $systemComment = $document->logSystemComment("Put on hold by {$actor} — waiting on {$validated['blocked_by']}: {$validated['hold_reason']}");
-        DocumentCommentPosted::dispatch($systemComment);
+        event(new DocumentCommentPosted($systemComment));
 
         if ($validated['blocked_by'] === 'citizen') {
             $this->notifyCitizenActionNeeded($document);
@@ -206,10 +206,10 @@ class DocumentStatusController extends Controller
             ->causedBy(auth()->user())
             ->log("Resumed from hold → {$restored->label()}");
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         $systemComment = $document->logSystemComment("Resumed from hold → {$restored->label()} (by {$actor})");
-        DocumentCommentPosted::dispatch($systemComment);
+        event(new DocumentCommentPosted($systemComment));
 
         return $this->respond($document, $restored, "Hold lifted — back to {$restored->label()}.");
     }
@@ -266,7 +266,7 @@ class DocumentStatusController extends Controller
             ]))
             ->log("{$verb}: {$from->label()} → {$to->label()}");
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         // Mirror into the unified per-document feed (staff timeline).
         $actor = auth()->user()?->name ?? 'Staff';
@@ -275,7 +275,7 @@ class DocumentStatusController extends Controller
             $line .= " — {$note}";
         }
         $systemComment = $document->logSystemComment($line);
-        DocumentCommentPosted::dispatch($systemComment);
+        event(new DocumentCommentPosted($systemComment));
 
         $this->notifyCitizen($document, $to);
 

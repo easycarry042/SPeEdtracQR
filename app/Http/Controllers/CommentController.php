@@ -46,7 +46,7 @@ class CommentController extends Controller
             activity()->performedOn($document)->causedBy(auth()->user())->log('Emailed StaffMessage to citizen');
         }
 
-        DocumentCommentPosted::dispatch($comment);
+        event(new DocumentCommentPosted($comment));
 
         return back()->with('status', $comment->isPublic()
             ? 'Public message posted — the citizen has been notified.'

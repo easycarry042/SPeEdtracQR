@@ -176,7 +176,7 @@ class Document extends Model
 
         $step = $this->currentRequestStep();
 
-        return $step !== null
+        return $step instanceof RequestStep
             && $user->can('act on internal requests')
             && $user->department_id !== null
             && (int) $user->department_id === (int) $step->department_id;
@@ -193,7 +193,7 @@ class Document extends Model
     {
         $step = $this->currentRequestStep();
 
-        if ($step === null || $step->started_at === null) {
+        if (! $step instanceof RequestStep || $step->started_at === null) {
             return false;
         }
 
@@ -253,7 +253,7 @@ class Document extends Model
     }
 
     // Backward-compatible helper. Primary generation lives in QrCodeService.
-    public static function generateTrackingNumber()
+    public static function generateTrackingNumber(): string
     {
         return 'SPD-'.date('Ymd').'-'.strtoupper(uniqid());
     }
@@ -291,7 +291,7 @@ class Document extends Model
      */
     public function canBeAdvancedBy(?User $user): bool
     {
-        if (! $user) {
+        if (! $user instanceof User) {
             return false;
         }
 

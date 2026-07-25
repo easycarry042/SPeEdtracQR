@@ -7,8 +7,9 @@ use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Support\AssignmentScope;
 use Carbon\CarbonPeriod;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +22,7 @@ class AnalyticsController extends Controller
         // Super admins get the full analytics command center on their dashboard;
         // the standalone page would just duplicate it.
         if (auth()->user()?->can('manage system')) {
-            return redirect()->route('admin.dashboard');
+            return to_route('admin.dashboard');
         }
 
         $user = auth()->user();
@@ -79,12 +80,12 @@ class AnalyticsController extends Controller
             'overdue' => $summary['overdue'],
         ];
 
-        $byType = $byType->map(fn ($row) => [
+        $byType = $byType->map(fn ($row): array => [
             'label' => $row->document_type,
             'count' => (int) $row->total,
         ])->all();
 
-        $topStaff = $topStaff->map(fn ($row) => [
+        $topStaff = $topStaff->map(fn ($row): array => [
             'name' => $row->name,
             'assigned' => (int) $row->total,
         ])->all();
@@ -92,31 +93,20 @@ class AnalyticsController extends Controller
         $categories = $documentTypes->all();
         $activity = $this->buildActivitySeries($request);
 
-        return view('analytics', compact(
-            'documentTypes',
-            'statuses',
-            'topStaff',
-            'statusBreakdown',
-            'byType',
-            'summary',
-            'kpis',
-            'categories',
-            'activity',
-            'isOrgWide'
-        ));
+        return view('analytics', ['documentTypes' => $documentTypes, 'statuses' => $statuses, 'topStaff' => $topStaff, 'statusBreakdown' => $statusBreakdown, 'byType' => $byType, 'summary' => $summary, 'kpis' => $kpis, 'categories' => $categories, 'activity' => $activity, 'isOrgWide' => $isOrgWide]);
     }
 
     public function chartData(Request $request)
     {
         $request->validate([
-            'document_type' => 'nullable|string',
+            'document_type' => ['nullable', 'string'],
             'status' => ['nullable', 'string', Rule::in(DocumentStatus::values())],
-            'from' => 'nullable|date',
-            'to' => 'nullable|date|after_or_equal:from',
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
-        $fromDate = Carbon::parse($request->filled('from') ? $request->from : now()->subDays(30)->toDateString())->startOfDay();
-        $toDate = Carbon::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
+        $fromDate = Date::parse($request->filled('from') ? $request->from : now()->subDays(30)->toDateString())->startOfDay();
+        $toDate = Date::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
 
         $query = $this->scopedDocuments();
 
@@ -160,7 +150,7 @@ class AnalyticsController extends Controller
         ]);
     }
 
-    private function scopedDocuments()
+    private function scopedDocuments(): Builder
     {
         return $this->scopeDocuments(Document::query());
     }
@@ -174,8 +164,8 @@ class AnalyticsController extends Controller
      */
     private function buildActivitySeries(Request $request): array
     {
-        $fromDate = Carbon::parse($request->filled('from') ? $request->from : now()->subDays(29)->toDateString())->startOfDay();
-        $toDate = Carbon::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
+        $fromDate = Date::parse($request->filled('from') ? $request->from : now()->subDays(29)->toDateString())->startOfDay();
+        $toDate = Date::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
 
         $applyFilters = function ($query) use ($request) {
             if ($request->filled('category')) {

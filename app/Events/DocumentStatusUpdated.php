@@ -48,7 +48,7 @@ class DocumentStatusUpdated implements ShouldBroadcast
             'current_department' => null,
             'event' => "Status updated to {$stage->label()} by {$actor}",
             'assignee' => $this->document->assignedTo?->name,
-            'timestamp' => optional($this->document->status_changed_at ?? now())->format('M d, Y h:i A'),
+            'timestamp' => ($this->document->status_changed_at ?? now())?->format('M d, Y h:i A'),
         ];
     }
 }

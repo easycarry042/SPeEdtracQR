@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Support;
 
 use App\Enums\DocumentStatus;
@@ -63,10 +65,10 @@ class StatusGate
     /** Throws a ValidationException listing every unmet requirement. */
     public static function validate(Document $document, DocumentStatus $to, ?string $note = null): void
     {
-        $failed = array_filter(self::checks($document, $to, $note), fn (array $c) => ! $c['passed']);
+        $failed = array_filter(self::checks($document, $to, $note), fn (array $c): bool => ! $c['passed']);
 
         $messages = array_map(
-            fn (array $c) => "Requirement not met: {$c['label']}.",
+            fn (array $c): string => "Requirement not met: {$c['label']}.",
             array_values($failed),
         );
 

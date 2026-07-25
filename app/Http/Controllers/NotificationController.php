@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Routing\Redirector;
+
 /** Header-bell actions: open (mark read + follow) and mark-all-read. */
 class NotificationController extends Controller
 {
-    public function open(string $id)
+    public function open(string $id): Redirector|RedirectResponse
     {
         $notification = auth()->user()->notifications()->findOrFail($id);
         $notification->markAsRead();

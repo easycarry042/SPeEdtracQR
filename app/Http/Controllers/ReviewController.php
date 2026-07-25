@@ -55,7 +55,7 @@ class ReviewController extends Controller
             'accepted_at' => null,
         ]);
 
-        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+        event(new DocumentStatusUpdated($document->fresh(), auth()->user()));
 
         activity()
             ->performedOn($document)
@@ -63,7 +63,7 @@ class ReviewController extends Controller
             ->log("Assigned to {$assignee->name}");
 
         $comment = $document->logSystemComment("Assigned to {$assignee->name} — awaiting staff acceptance");
-        DocumentCommentPosted::dispatch($comment);
+        event(new DocumentCommentPosted($comment));
 
         if ($assignee->email && config('tracking.notify_staff_on_assignment', true)) {
             Mail::to($assignee->email)->send(new AssignmentNotice($document->fresh(), $assignee));
@@ -105,11 +105,11 @@ class ReviewController extends Controller
             ->withProperties(['from' => $from->value, 'to' => DocumentStatus::Denied->value])
             ->log('Denied request'.($reason ? ': '.$reason : ''));
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         $actor = auth()->user()?->name ?? 'Supervisor';
         $comment = $document->logSystemComment("Denied by {$actor}".($reason ? " — {$reason}" : ''));
-        DocumentCommentPosted::dispatch($comment);
+        event(new DocumentCommentPosted($comment));
 
         return $this->done($document, "{$document->tracking_number} denied.");
     }
@@ -148,7 +148,7 @@ class ReviewController extends Controller
                 return response()->json(['message' => $message], 422);
             }
 
-            return redirect()->back()->withErrors(['status' => $message]);
+            return back()->withErrors(['status' => $message]);
         }
 
         $this->applyAndLog($document, DocumentStatus::Completed, 'Completed');
@@ -176,13 +176,13 @@ class ReviewController extends Controller
 
             $actor = auth()->user()?->name ?? 'Staff';
             $comment = $document->logSystemComment("Accepted assignment by {$actor}");
-            DocumentCommentPosted::dispatch($comment);
+            event(new DocumentCommentPosted($comment));
         }
 
         $document->accepted_at = now();
         $document->save();
 
-        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+        event(new DocumentStatusUpdated($document->fresh(), auth()->user()));
 
         return $this->done($document, "Accepted {$document->tracking_number}.");
     }
@@ -220,8 +220,8 @@ class ReviewController extends Controller
             ->log('Declined assignment'.($reason ? ': '.$reason : ''));
 
         $comment = $document->logSystemComment("Assignment declined by {$actor}".($reason ? " — {$reason}" : ''));
-        DocumentCommentPosted::dispatch($comment);
-        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+        event(new DocumentCommentPosted($comment));
+        event(new DocumentStatusUpdated($document->fresh(), auth()->user()));
 
         // Header-bell ping for supervisors: the request is back in the queue.
         Notification::send(
@@ -256,11 +256,11 @@ class ReviewController extends Controller
             ->withProperties(['from' => $from->value, 'to' => DocumentStatus::Returned->value])
             ->log('Returned for revision: '.$validated['reason']);
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         $actor = auth()->user()?->name ?? 'Staff';
         $comment = $document->logSystemComment("Returned for revision by {$actor} — {$validated['reason']}");
-        DocumentCommentPosted::dispatch($comment);
+        event(new DocumentCommentPosted($comment));
 
         return $this->done($document, "{$document->tracking_number} returned for revision.");
     }
@@ -271,7 +271,7 @@ class ReviewController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        return redirect()->back()->withErrors(['status' => $message]);
+        return back()->withErrors(['status' => $message]);
     }
 
     private function applyAndLog(Document $document, DocumentStatus $to, string $verb): void
@@ -286,11 +286,11 @@ class ReviewController extends Controller
             ->withProperties(['from' => $from->value, 'to' => $to->value])
             ->log("{$verb}: {$from->label()} → {$to->label()}");
 
-        DocumentStatusUpdated::dispatch($document, auth()->user());
+        event(new DocumentStatusUpdated($document, auth()->user()));
 
         $actor = auth()->user()?->name ?? 'Staff';
         $comment = $document->logSystemComment("{$verb}: {$from->label()} → {$to->label()} (by {$actor})");
-        DocumentCommentPosted::dispatch($comment);
+        event(new DocumentCommentPosted($comment));
     }
 
     private function done(Document $document, string $message)
@@ -299,7 +299,7 @@ class ReviewController extends Controller
             return response()->json(['message' => $message, 'status' => $document->status]);
         }
 
-        return redirect()->route('staff.dashboard')->with('status', $message);
+        return to_route('staff.dashboard')->with('status', $message);
     }
 
     /**

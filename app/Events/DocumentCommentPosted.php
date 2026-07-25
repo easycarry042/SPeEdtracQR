@@ -49,7 +49,7 @@ class DocumentCommentPosted implements ShouldBroadcast
             'body' => $this->comment->body,
             'visibility' => $this->comment->visibility,
             'parent_id' => $this->comment->parent_id,
-            'timestamp' => optional($this->comment->created_at)->format('M d, Y h:i A'),
+            'timestamp' => $this->comment->created_at?->format('M d, Y h:i A'),
         ];
     }
 }

@@ -47,13 +47,13 @@ class AssignmentScope
         }
 
         if ($user->hasRole('receiving_staff')) {
-            return $query->where(function (Builder $q) use ($user) {
+            return $query->where(function (Builder $q) use ($user): void {
                 $q->where('created_by', $user->id)
                     ->orWhereNull('assigned_to');
             });
         }
 
-        return $query->where(function (Builder $q) use ($user) {
+        return $query->where(function (Builder $q) use ($user): void {
             $q->where('assigned_to', $user->id)
                 ->orWhere('created_by', $user->id);
         });

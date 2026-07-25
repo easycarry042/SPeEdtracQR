@@ -6,7 +6,9 @@ use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\RequestStep;
 use App\Notifications\DocumentEvent;
+use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -78,7 +80,7 @@ class RequestStepController extends Controller
             $next ? " — now with {$next->department->name}" : ' — chain complete',
         ));
 
-        return $this->respond($request, $document, $next
+        return $this->respond($document, $next
             ? "Approved — the request moves on to {$next->department->name}."
             : 'Approved — the chain is complete.');
     }
@@ -108,7 +110,7 @@ class RequestStepController extends Controller
             $request->input('remarks'),
         ));
 
-        return $this->respond($request, $document, 'Request denied. The filing office has been notified.');
+        return $this->respond($document, 'Request denied. The filing office has been notified.');
     }
 
     public function returnToRequester(Request $request, Document $document)
@@ -136,11 +138,11 @@ class RequestStepController extends Controller
             $request->input('remarks'),
         ));
 
-        return $this->respond($request, $document, 'Request returned to the filing office for revision.');
+        return $this->respond($document, 'Request returned to the filing office for revision.');
     }
 
     /** Serve a step's frozen signature to authenticated staff (audit view). */
-    public function signature(RequestStep $requestStep)
+    public function signature(RequestStep $requestStep): ResponseFactory|Response
     {
         abort_unless(auth()->check(), 403);
         abort_unless($requestStep->signature_path && Storage::disk('local')->exists($requestStep->signature_path), 404);
@@ -173,7 +175,7 @@ class RequestStepController extends Controller
     private function validateAction(Request $request, bool $remarksRequired): void
     {
         $request->validate([
-            'password' => 'required|string',
+            'password' => ['required', 'string'],
             'remarks' => [$remarksRequired ? 'required' : 'nullable', 'string', 'max:500'],
         ], [
             'remarks.required' => 'Explain the decision so the filing office knows what to fix.',
@@ -203,8 +205,8 @@ class RequestStepController extends Controller
         }
     }
 
-    private function respond(Request $request, Document $document, string $message)
+    private function respond(Document $document, string $message)
     {
-        return redirect()->route('requests.show', $document)->with('status', $message);
+        return to_route('requests.show', $document)->with('status', $message);
     }
 }

@@ -4,7 +4,7 @@ namespace App\Support\Ai;
 
 use App\Enums\DocumentStatus;
 use App\Models\Document;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Str;
 
 /**
@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
 class DocumentAssistant
 {
     public function __construct(
-        private LlmProvider $llm,
+        private readonly LlmProvider $llm,
     ) {}
 
     /**
@@ -52,7 +52,7 @@ class DocumentAssistant
         $stage = $document->statusEnum();
 
         // Progress through the linear flow (Pending → … → Completed).
-        $flow = collect(DocumentStatus::flow())->map(function (DocumentStatus $s) use ($stage) {
+        $flow = collect(DocumentStatus::flow())->map(function (DocumentStatus $s) use ($stage): array {
             $pos = $s->position();
             $cur = $stage->position();
             $state = match (true) {
@@ -72,8 +72,8 @@ class DocumentAssistant
             'applicant' => $document->citizen_name,
             'status_label' => $stage->label(),
             'handler' => $document->assignedTo?->name,
-            'submitted' => optional($document->created_at)->format('M d, Y'),
-            'last_update' => optional($document->status_changed_at ?? $document->updated_at)->format('M d, Y'),
+            'submitted' => $document->created_at?->format('M d, Y'),
+            'last_update' => ($document->status_changed_at ?? $document->updated_at)?->format('M d, Y'),
             'completed_on' => $document->completed_at ? $document->completed_at->format('M d, Y') : null,
             'flow' => $flow,
             'is_completed' => $stage === DocumentStatus::Completed,
@@ -95,7 +95,7 @@ class DocumentAssistant
         ];
 
         if ($d['flow']->isNotEmpty()) {
-            $flow = $d['flow']->map(fn ($s) => "{$s['name']} ({$s['stage']})")->implode(' > ');
+            $flow = $d['flow']->map(fn ($s): string => "{$s['name']} ({$s['stage']})")->implode(' > ');
             $lines[] = "Progress: {$flow}";
         }
 
@@ -103,7 +103,7 @@ class DocumentAssistant
             $lines[] = "Completed on: {$d['completed_on']}";
         }
 
-        $lines[] = "Today's date: ".Carbon::now()->format('M d, Y');
+        $lines[] = "Today's date: ".Date::now()->format('M d, Y');
 
         return implode("\n", $lines);
     }

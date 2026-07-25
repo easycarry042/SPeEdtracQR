@@ -8,8 +8,10 @@ use App\Models\StaffHighlight;
 use App\Models\User;
 use App\Support\AssignmentScope;
 use App\Support\StaffProfile;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +28,7 @@ class StaffProfileController extends Controller
      * Staff directory: roster of every user account with light accountability
      * stats (currently assigned + completed). Any authenticated staff may view it.
      */
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         $q = trim((string) $request->get('q'));
         $roles = Role::orderBy('name')->pluck('name');
@@ -68,7 +70,7 @@ class StaffProfileController extends Controller
         $overdue = Document::whereNotNull('assigned_to')
             ->whereIn('status', DocumentStatus::activeValues())
             ->get(['id', 'assigned_to', 'status', 'status_changed_at', 'updated_at', 'created_at'])
-            ->filter(fn (Document $d) => $d->isOverdue())
+            ->filter(fn (Document $d): bool => $d->isOverdue())
             ->countBy('assigned_to');
 
         // Presence: most recent activity-log entry per user.
@@ -79,17 +81,17 @@ class StaffProfileController extends Controller
             ->groupBy('causer_id')
             ->pluck('last', 'causer_id');
 
-        $staff = $users->map(fn (User $u) => [
+        $staff = $users->map(fn (User $u): array => [
             'id' => $u->id,
             'name' => $u->name,
             'role' => $u->getRoleNames()->first(),
-            'initials' => collect(explode(' ', $u->name))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode(''),
+            'initials' => collect(explode(' ', $u->name))->filter()->take(2)->map(fn ($p): string => mb_strtoupper(mb_substr((string) $p, 0, 1)))->implode(''),
             'assigned' => (int) ($assigned[$u->id] ?? 0),
             'completed' => (int) ($completed[$u->id] ?? 0),
             'month' => (int) ($completedThisMonth[$u->id] ?? 0),
             'overdue' => (int) ($overdue[$u->id] ?? 0),
             'last_active' => isset($lastActive[$u->id])
-                ? Carbon::parse($lastActive[$u->id])->diffForHumans(short: true)
+                ? Date::parse($lastActive[$u->id])->diffForHumans(short: true)
                 : null,
             'url' => route('staff.profile', $u->id),
         ]);
@@ -103,7 +105,7 @@ class StaffProfileController extends Controller
         // Scale for the open-load bar: the heaviest current load on the page.
         $loadMax = max(1, (int) $staff->max('assigned'));
 
-        return view('staff.directory', compact('staff', 'q', 'role', 'sort', 'roles', 'loadMax'));
+        return view('staff.directory', ['staff' => $staff, 'q' => $q, 'role' => $role, 'sort' => $sort, 'roles' => $roles, 'loadMax' => $loadMax]);
     }
 
     /** JSON quick-search for the top-bar "jump to a person" dropdown. */
@@ -119,7 +121,7 @@ class StaffProfileController extends Controller
             ->orderBy('name')
             ->limit(8)
             ->get(['id', 'name'])
-            ->map(fn (User $u) => [
+            ->map(fn (User $u): array => [
                 'name' => $u->name,
                 'role' => $u->getRoleNames()->first(),
                 'url' => route('staff.profile', $u->id),
@@ -128,7 +130,7 @@ class StaffProfileController extends Controller
         return response()->json($results);
     }
 
-    public function show(Request $request, User $user)
+    public function show(Request $request, User $user): Factory|View
     {
         $profile = new StaffProfile($user);
         $tab = in_array($request->get('tab'), ['activity', 'assigned', 'completions'], true)
@@ -185,8 +187,7 @@ class StaffProfileController extends Controller
             'body' => $validated['body'],
         ]);
 
-        return redirect()
-            ->route('staff.profile', ['user' => $user->id, 'tab' => 'activity'])
+        return to_route('staff.profile', ['user' => $user->id, 'tab' => 'activity'])
             ->with('status', 'Highlight posted.');
     }
 

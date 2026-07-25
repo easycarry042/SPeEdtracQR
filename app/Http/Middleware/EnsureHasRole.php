@@ -15,7 +15,7 @@ class EnsureHasRole
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         if (! $request->user()) {
-            return redirect()->route('login');
+            return to_route('login');
         }
 
         if (! $request->user()->hasAnyRole($roles)) {
@@ -29,7 +29,7 @@ class EnsureHasRole
     {
         $route = $user->can('manage system') ? 'admin.dashboard' : 'dashboard';
 
-        return redirect()->route($route)
+        return to_route($route)
             ->with('error', 'You do not have permission to access that area.');
     }
 }

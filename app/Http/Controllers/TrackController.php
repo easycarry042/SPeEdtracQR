@@ -19,13 +19,13 @@ class TrackController extends Controller
     public function index(Request $request)
     {
         if (auth()->user()?->can('manage system')) {
-            return redirect()->route('admin.dashboard');
+            return to_route('admin.dashboard');
         }
 
         $trackingNumber = trim((string) $request->get('tracking_number'));
 
         if ($trackingNumber !== '') {
-            return redirect()->route('track.show', $trackingNumber);
+            return to_route('track.show', $trackingNumber);
         }
 
         // Explicit finder mode (?find=1): render the Look up hub (tracking
@@ -54,7 +54,7 @@ class TrackController extends Controller
             }
 
             if ($default) {
-                return redirect()->route('track.show', ['trackingNumber' => $default->tracking_number, 'tab' => $tab]);
+                return to_route('track.show', ['trackingNumber' => $default->tracking_number, 'tab' => $tab]);
             }
 
             return view('track.index');
@@ -74,7 +74,7 @@ class TrackController extends Controller
                 ->first(['tracking_number']);
 
             if ($active) {
-                return redirect()->route('track.show', ['trackingNumber' => $active->tracking_number, 'tab' => 'inprogress']);
+                return to_route('track.show', ['trackingNumber' => $active->tracking_number, 'tab' => 'inprogress']);
             }
 
             $completed = Document::where('assigned_to', $user->id)
@@ -83,7 +83,7 @@ class TrackController extends Controller
                 ->first(['tracking_number']);
 
             if ($completed) {
-                return redirect()->route('track.show', ['trackingNumber' => $completed->tracking_number, 'tab' => 'completed']);
+                return to_route('track.show', ['trackingNumber' => $completed->tracking_number, 'tab' => 'completed']);
             }
 
             // Fall back to anything in their scope so the page isn't empty.
@@ -92,7 +92,7 @@ class TrackController extends Controller
             )->first(['tracking_number']);
 
             if ($latest) {
-                return redirect()->route('track.show', $latest->tracking_number);
+                return to_route('track.show', $latest->tracking_number);
             }
         }
 
@@ -108,13 +108,12 @@ class TrackController extends Controller
         // Soft-fail: a typo'd or unknown number lands back on the Look up hub
         // with a clear message instead of a bare 404 page.
         if (! $document) {
-            return redirect()
-                ->route('track.index', ['find' => 1])
+            return to_route('track.index', ['find' => 1])
                 ->withErrors(['lookup' => "No document found for \"{$trackingNumber}\". Check the number and try again."]);
         }
 
         if (auth()->user()?->can('manage system')) {
-            return redirect()->route('admin.dashboard');
+            return to_route('admin.dashboard');
         }
 
         $documents = collect();
@@ -192,7 +191,7 @@ class TrackController extends Controller
             ->where('subject_id', $document->id)
             ->orderBy('created_at')
             ->get()
-            ->map(function ($activity) {
+            ->map(function ($activity): ?array {
                 $to = data_get($activity->properties, 'attributes.status');
                 if (! $to) {
                     return null;
@@ -200,7 +199,7 @@ class TrackController extends Controller
 
                 return [
                     'event' => 'Updated to '.DocumentStatus::fromLoose($to)->label(),
-                    'timestamp' => optional($activity->created_at)->format('M d, Y h:i A'),
+                    'timestamp' => $activity->created_at?->format('M d, Y h:i A'),
                     'action' => 'in',
                 ];
             })
@@ -218,7 +217,7 @@ class TrackController extends Controller
             $verifyUrl = DocumentSeal::url($document);
             // SVG backend — no GD needed, embeds inline.
             $sealSvg = base64_encode(
-                QrCode::format('svg')->size(120)->margin(0)->generate($verifyUrl)
+                (string) QrCode::format('svg')->size(120)->margin(0)->generate($verifyUrl)
             );
         }
 

@@ -11,6 +11,8 @@ use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -21,7 +23,7 @@ use Illuminate\Validation\ValidationException;
  */
 class AssignmentController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         $query = Document::with(['assignedTo', 'creator'])->latest();
         $query = AssignmentScope::applyDocumentScope($query);
@@ -44,7 +46,7 @@ class AssignmentController extends Controller
 
         if ($request->filled('q')) {
             $term = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($term) {
+            $query->where(function ($q) use ($term): void {
                 $q->where('tracking_number', 'like', $term)
                     ->orWhere('citizen_name', 'like', $term)
                     ->orWhere('document_type', 'like', $term);
@@ -55,7 +57,7 @@ class AssignmentController extends Controller
         $staff = $this->assignableStaff();
         $statuses = DocumentStatus::cases();
 
-        return view('admin.assignments.index', compact('documents', 'staff', 'statuses', 'filter'));
+        return view('admin.assignments.index', ['documents' => $documents, 'staff' => $staff, 'statuses' => $statuses, 'filter' => $filter]);
     }
 
     /**
@@ -64,7 +66,7 @@ class AssignmentController extends Controller
      */
     public function unclaimed()
     {
-        return redirect()->route('admin.assignments.index', ['filter' => 'unclaimed']);
+        return to_route('admin.assignments.index', ['filter' => 'unclaimed']);
     }
 
     public function assign(Request $request, Document $document)
@@ -92,7 +94,7 @@ class AssignmentController extends Controller
             'accepted_at' => null,
         ]);
 
-        DocumentStatusUpdated::dispatch($document->fresh(), auth()->user());
+        event(new DocumentStatusUpdated($document->fresh(), auth()->user()));
 
         $assignee = $assignedTo ? User::find($assignedTo) : null;
         $name = $assignee?->name ?? ($assignedTo ? 'a staff member' : null);
@@ -104,7 +106,7 @@ class AssignmentController extends Controller
 
         // Mirror into the unified per-document feed (staff timeline).
         $systemComment = $document->logSystemComment($assignedTo ? "Assigned to {$name}" : 'Assignment cleared');
-        DocumentCommentPosted::dispatch($systemComment);
+        event(new DocumentCommentPosted($systemComment));
 
         // Notify the newly assigned staff member by email (queued, configurable).
         if ($assignee && $assignee->email && config('tracking.notify_staff_on_assignment', true)) {
@@ -143,7 +145,7 @@ class AssignmentController extends Controller
             $document->applyStatus(DocumentStatus::InProgress);
             $document->save();
         }
-        DocumentStatusUpdated::dispatch($document->fresh(), $user);
+        event(new DocumentStatusUpdated($document->fresh(), $user));
 
         activity()
             ->performedOn($document)
@@ -151,7 +153,7 @@ class AssignmentController extends Controller
             ->log("Accepted assignment by {$user->name}");
 
         $systemComment = $document->logSystemComment("Accepted assignment by {$user->name}");
-        DocumentCommentPosted::dispatch($systemComment);
+        event(new DocumentCommentPosted($systemComment));
 
         return back()->with('status', "Accepted {$document->tracking_number}.");
     }

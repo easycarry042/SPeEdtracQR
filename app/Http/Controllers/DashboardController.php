@@ -19,7 +19,7 @@ class DashboardController extends Controller
         $user = auth()->user();
         $isOrgWide = AssignmentScope::canViewAll($user);
         if (! $isOrgWide) {
-            return redirect()->route('staff.profile', ['user' => $user->id]);
+            return to_route('staff.profile', ['user' => $user->id]);
         }
         $dept = null;
 
@@ -41,7 +41,7 @@ class DashboardController extends Controller
                 ->latest('created_at')
         )->get();
 
-        $pendingPayload = $pendingRequests->map(fn ($d) => RequestReview::forModal($d))->values();
+        $pendingPayload = $pendingRequests->map(fn (Document $d): array => RequestReview::forModal($d))->values();
 
         // Staff who can be assigned a request.
         $assignableStaff = RequestReview::assignableStaff();
@@ -71,7 +71,7 @@ class DashboardController extends Controller
             $doc->sla_ratio = $elapsed / $sla;
 
             return $doc;
-        })->filter(fn ($doc) => $doc && $doc->sla_ratio >= 0.75)
+        })->filter(fn ($doc): bool => $doc && $doc->sla_ratio >= 0.75)
             ->sortBy('sla_remaining_hours')
             ->values();
 
@@ -91,22 +91,7 @@ class DashboardController extends Controller
                 ->count()
             : 0;
 
-        return view('dashboard', compact(
-            'totalRequests',
-            'pendingRequest',
-            'completed',
-            'recentActivity',
-            'pendingRequests',
-            'pendingPayload',
-            'assignableStaff',
-            'statusSummary',
-            'atRiskDocuments',
-            'atRiskCount',
-            'dept',
-            'isOrgWide',
-            'slip',
-            'internalAwaiting'
-        ));
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'assignableStaff' => $assignableStaff, 'statusSummary' => $statusSummary, 'atRiskDocuments' => $atRiskDocuments, 'atRiskCount' => $atRiskCount, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
     }
 
     /**
@@ -132,7 +117,7 @@ class DashboardController extends Controller
 
                 return $doc;
             })
-            ->filter(fn ($doc) => $doc->slipHoursOver !== null)
+            ->filter(fn ($doc): bool => $doc->slipHoursOver !== null)
             ->sortByDesc('slipHoursOver')
             ->first();
 
@@ -140,7 +125,7 @@ class DashboardController extends Controller
             return null;
         }
 
-        $stages = array_map(fn (DocumentStatus $s) => $s->label(), DocumentStatus::flow());
+        $stages = array_map(fn (DocumentStatus $s): string => $s->label(), DocumentStatus::flow());
         $current = $doc->statusEnum()->position() ?: 1;
 
         $over = (int) round($doc->slipHoursOver);

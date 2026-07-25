@@ -28,7 +28,7 @@ class DocumentCustodyController extends Controller
 
         $current = $document->currentCustody();
         if ($current && (int) $current->user_id === (int) $user->id) {
-            return $this->respond($request, $document, 'You already hold this folder.');
+            return $this->respond($request, 'You already hold this folder.');
         }
 
         $validated = $request->validate([
@@ -82,10 +82,10 @@ class DocumentCustodyController extends Controller
             ? "Physical custody: folder now with {$user->name} (scanned)"
             : "Physical custody: folder now with {$user->name} (manual: {$validated['override_reason']})");
 
-        return $this->respond($request, $document, 'Custody recorded — the folder is now with you.');
+        return $this->respond($request, 'Custody recorded — the folder is now with you.');
     }
 
-    private function respond(Request $request, Document $document, string $message)
+    private function respond(Request $request, string $message)
     {
         if ($request->expectsJson()) {
             return response()->json(['message' => $message]);

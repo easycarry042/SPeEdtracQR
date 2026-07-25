@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\User;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -13,13 +15,13 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         // withTrashed: archived accounts stay listed (with a Restore action) instead of vanishing.
         $query = User::withTrashed()->with(['roles', 'department'])->orderBy('name');
 
         if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search): void {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%");
             });
@@ -32,28 +34,28 @@ class UserController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $roles = $this->assignableRoles();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        return view('admin.users.index', ['users' => $users, 'roles' => $roles]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
 
-        return view('admin.users.create', compact('roles', 'departments'));
+        return view('admin.users.create', ['roles' => $roles, 'departments' => $departments]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255'],
             // Only ACTIVE accounts block the address. Archived (soft-deleted) users
             // keep their row + the DB unique constraint, so we ignore them here and
             // revive the account below instead of colliding.
             'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|string',
-            'department_id' => 'nullable|exists:departments,id',
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'string'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
         // Re-adding an email that belongs to an archived account restores and
@@ -82,26 +84,26 @@ class UserController extends Controller
 
         $user->syncRoles([$validated['role']]);
 
-        return redirect()->route('admin.users.index')
+        return to_route('admin.users.index')
             ->with('success', $message);
     }
 
-    public function edit(User $user)
+    public function edit(User $user): Factory|View
     {
         $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
 
-        return view('admin.users.edit', compact('user', 'roles', 'departments'));
+        return view('admin.users.edit', ['user' => $user, 'roles' => $roles, 'departments' => $departments]);
     }
 
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)->whereNull('deleted_at')],
-            'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|string',
-            'department_id' => 'nullable|exists:departments,id',
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'string'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
         $user->update([
@@ -116,7 +118,7 @@ class UserController extends Controller
 
         $user->syncRoles([$validated['role']]);
 
-        return redirect()->route('admin.users.index')
+        return to_route('admin.users.index')
             ->with('success', "User {$user->name} updated successfully.");
     }
 
@@ -157,8 +159,8 @@ class UserController extends Controller
         ]);
 
         $ids = collect($validated['ids'])
-            ->map(fn ($id) => (int) $id)
-            ->reject(fn ($id) => $id === auth()->id())
+            ->map(fn ($id): int => (int) $id)
+            ->reject(fn ($id): bool => $id === auth()->id())
             ->unique()
             ->values();
 

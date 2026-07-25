@@ -13,9 +13,9 @@ class CitizenDocumentUploadController extends Controller
     public function store(Request $request, string $trackingNumber)
     {
         $validated = $request->validate([
-            'attachments' => 'required|array|min:1|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx|max:10240',
-            'note' => 'nullable|string|max:1000',
+            'attachments' => ['required', 'array', 'min:1', 'max:5'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $document = Document::where('tracking_number', $trackingNumber)

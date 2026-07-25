@@ -6,24 +6,26 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\RouteTemplate;
 use App\Models\RouteTemplateStep;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class RouteTemplateController extends Controller
 {
-    public function index()
+    public function index(): Factory|View
     {
         $templates = RouteTemplate::withCount('steps')->orderBy('name')->get();
 
-        return view('admin.route-templates.index', compact('templates'));
+        return view('admin.route-templates.index', ['templates' => $templates]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         $departments = Department::active()->orderBy('name')->get();
 
-        return view('admin.route-templates.create', compact('departments'));
+        return view('admin.route-templates.create', ['departments' => $departments]);
     }
 
     public function store(Request $request)
@@ -42,23 +44,23 @@ class RouteTemplateController extends Controller
             return $template;
         });
 
-        return redirect()->route('admin.route-templates.index')
+        return to_route('admin.route-templates.index')
             ->with('success', "Route template {$template->name} created successfully.");
     }
 
-    public function edit(RouteTemplate $routeTemplate)
+    public function edit(RouteTemplate $routeTemplate): Factory|View
     {
         $routeTemplate->load('steps');
         $departments = Department::active()->orderBy('name')->get();
 
-        return view('admin.route-templates.edit', compact('routeTemplate', 'departments'));
+        return view('admin.route-templates.edit', ['routeTemplate' => $routeTemplate, 'departments' => $departments]);
     }
 
     public function update(Request $request, RouteTemplate $routeTemplate)
     {
         $validated = $this->validateTemplate($request, $routeTemplate);
 
-        DB::transaction(function () use ($routeTemplate, $validated) {
+        DB::transaction(function () use ($routeTemplate, $validated): void {
             $routeTemplate->update([
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -70,7 +72,7 @@ class RouteTemplateController extends Controller
             $routeTemplate->steps()->createMany($validated['steps']);
         });
 
-        return redirect()->route('admin.route-templates.index')
+        return to_route('admin.route-templates.index')
             ->with('success', "Route template {$routeTemplate->name} updated successfully.");
     }
 
@@ -87,7 +89,7 @@ class RouteTemplateController extends Controller
     {
         $routeTemplate->delete();
 
-        return redirect()->route('admin.route-templates.index')
+        return to_route('admin.route-templates.index')
             ->with('success', "Route template {$routeTemplate->name} has been deleted.");
     }
 
@@ -98,11 +100,11 @@ class RouteTemplateController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('route_templates', 'name')->ignore($ignore?->id)],
-            'description' => 'nullable|string|max:500',
-            'steps' => 'required|array|min:1',
-            'steps.*.step_order' => 'required|integer|min:1|max:50',
-            'steps.*.department_id' => 'required|exists:departments,id',
-            'steps.*.action' => 'required|string|max:100',
+            'description' => ['nullable', 'string', 'max:500'],
+            'steps' => ['required', 'array', 'min:1'],
+            'steps.*.step_order' => ['required', 'integer', 'min:1', 'max:50'],
+            'steps.*.department_id' => ['required', 'exists:departments,id'],
+            'steps.*.action' => ['required', 'string', 'max:100'],
             'steps.*.condition' => ['nullable', Rule::in(array_keys(RouteTemplateStep::CONDITIONS))],
         ]);
     }

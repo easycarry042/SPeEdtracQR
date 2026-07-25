@@ -23,7 +23,7 @@ class CheckDocumentSla extends Command
     protected $description = 'Email SLA warnings/breaches for documents sitting too long in their current status stage';
 
     /** Fraction of the stage SLA at which a warning is sent. */
-    private const WARNING_RATIO = 0.75;
+    private const float WARNING_RATIO = 0.75;
 
     public function handle(): int
     {

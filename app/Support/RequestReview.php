@@ -55,16 +55,16 @@ class RequestReview
             'has_work_evidence' => $document->attachments->isNotEmpty()
                 || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
-            'submitted_at' => optional($document->created_at)->format('M j, Y g:i A'),
+            'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
             // Cockpit context: lets the in-modal status controls render the hold
             // banner, the returned reason, and restore the stepper position on hold.
             'status_before_hold' => $document->status_before_hold,
             'blocked_by' => $document->blocked_by,
             'hold_reason' => $document->hold_reason,
-            'hold_until' => optional($document->hold_until)->format('M j, Y'),
+            'hold_until' => $document->hold_until?->format('M j, Y'),
             'remarks' => $document->remarks,
-            'attachments' => $document->attachments->map(function ($a) {
-                $ext = strtolower(pathinfo($a->file_path, PATHINFO_EXTENSION));
+            'attachments' => $document->attachments->map(function ($a): array {
+                $ext = strtolower(pathinfo((string) $a->file_path, PATHINFO_EXTENSION));
 
                 return [
                     'url' => route('attachments.show', $a),

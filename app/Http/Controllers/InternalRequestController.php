@@ -10,6 +10,8 @@ use App\Models\RequestStep;
 use App\Models\RouteTemplate;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +35,7 @@ class InternalRequestController extends Controller
      * everything. Guarded here (not by route middleware) because two different
      * permissions may enter.
      */
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         $user = auth()->user();
         abort_unless($user->can('act on internal requests') || $user->can('manage system'), 403);
@@ -41,15 +43,13 @@ class InternalRequestController extends Controller
         $department = $user->department;
         $search = trim((string) $request->get('q'));
 
-        $base = function () use ($search) {
-            return Document::where('origin', Document::ORIGIN_INTERNAL)
-                ->with(['requestingDepartment', 'creator', 'requestSteps.department'])
-                ->when($search !== '', fn ($q) => $q->where(function ($qq) use ($search) {
-                    $qq->where('tracking_number', 'like', "%{$search}%")
-                        ->orWhere('purpose', 'like', "%{$search}%");
-                }))
-                ->latest();
-        };
+        $base = (fn () => Document::where('origin', Document::ORIGIN_INTERNAL)
+            ->with(['requestingDepartment', 'creator', 'requestSteps.department'])
+            ->when($search !== '', fn ($q) => $q->where(function ($qq) use ($search): void {
+                $qq->where('tracking_number', 'like', "%{$search}%")
+                    ->orWhere('purpose', 'like', "%{$search}%");
+            }))
+            ->latest());
 
         $active = DocumentStatus::activeValues();
         $terminal = [DocumentStatus::Completed->value, DocumentStatus::Denied->value];
@@ -87,7 +87,7 @@ class InternalRequestController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         $department = $this->requireDepartment();
 
@@ -95,11 +95,11 @@ class InternalRequestController extends Controller
 
         // The wizard previews the endorsement chain client-side as the route
         // changes, so ship each template's resolved steps as JSON.
-        $templatesJson = $templates->map(fn (RouteTemplate $template) => [
+        $templatesJson = $templates->map(fn (RouteTemplate $template): array => [
             'id' => $template->id,
             'name' => $template->name,
             'description' => $template->description,
-            'steps' => $template->stepsForAmount(null)->map(fn ($step) => [
+            'steps' => $template->stepsForAmount(null)->map(fn ($step): array => [
                 'step_order' => $step->step_order,
                 'action' => $step->action,
                 'department' => ['name' => $step->department->name, 'code' => $step->department->code],
@@ -118,13 +118,13 @@ class InternalRequestController extends Controller
         $department = $this->requireDepartment();
 
         $validated = $request->validate([
-            'route_template_id' => 'required|exists:route_templates,id',
-            'purpose' => 'required|string|max:255',
-            'paper_scan' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            'route_template_id' => ['required', 'exists:route_templates,id'],
+            'purpose' => ['required', 'string', 'max:255'],
+            'paper_scan' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             // Optional supervisor-chosen QR placement on the scanned page.
-            'qr_x' => 'nullable|numeric|min:0|max:1',
-            'qr_y' => 'nullable|numeric|min:0|max:1',
-            'qr_size' => 'nullable|numeric|min:0.12|max:0.40',
+            'qr_x' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'qr_y' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'qr_size' => ['nullable', 'numeric', 'min:0.12', 'max:0.40'],
         ]);
 
         $template = RouteTemplate::active()->with('steps.department')->findOrFail($validated['route_template_id']);
@@ -156,7 +156,7 @@ class InternalRequestController extends Controller
             // Materialize the endorsement chain: the request sits at its first
             // hop immediately; later hops open as earlier ones are approved.
             $document->requestSteps()->createMany(
-                $steps->values()->map(fn ($step, $index) => [
+                $steps->values()->map(fn ($step, $index): array => [
                     'step_order' => $step->step_order,
                     'department_id' => $step->department_id,
                     'action' => $step->action,
@@ -217,14 +217,14 @@ class InternalRequestController extends Controller
             );
         }
 
-        return redirect()->route('requests.created', $document);
+        return to_route('requests.created', $document);
     }
 
     /**
      * Chain + audit view of one internal request, with the action panel for
      * the supervisor whose office currently holds it.
      */
-    public function show(Document $document)
+    public function show(Document $document): Factory|View
     {
         abort_unless(auth()->check(), 403);
         abort_unless($document->isInternal(), 404);
@@ -239,14 +239,14 @@ class InternalRequestController extends Controller
         ]);
     }
 
-    public function created(Document $document)
+    public function created(Document $document): Factory|View
     {
         abort_unless(auth()->check(), 403);
         abort_unless($document->isInternal(), 404);
 
         $document->load(['requestSteps.department', 'requestingDepartment', 'attachments']);
 
-        return view('requests.created', compact('document'));
+        return view('requests.created', ['document' => $document]);
     }
 
     /**
@@ -260,7 +260,7 @@ class InternalRequestController extends Controller
 
         if (! $department || ! $department->is_active) {
             throw new HttpResponseException(
-                redirect()->route('dashboard')->with(
+                to_route('dashboard')->with(
                     'error',
                     'Your account has no active department, so you cannot file internal requests. Ask a system administrator to assign one.',
                 ),

@@ -37,7 +37,7 @@ class Department extends Model
         return $this->hasMany(Document::class, 'requesting_department_id');
     }
 
-    public function scopeActive(Builder $query): Builder
+    protected function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
     }
