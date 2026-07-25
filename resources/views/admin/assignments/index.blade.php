@@ -58,6 +58,7 @@
                             <tr class="even:bg-gray-50/50">
                                 <td class="px-4 py-3 text-sm font-mono font-semibold text-emerald-800">
                                     <a href="{{ route('track.show', $document->tracking_number) }}" class="hover:underline">{{ $document->tracking_number }}</a>
+                                    <x-document-origin :source="$document->source" :by="$document->creator?->name" :at="$document->created_at" class="origin-row" />
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ $document->document_type }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ $document->citizen_name ?? '—' }}</td>
