@@ -1,8 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center gap-3">
-            <a href="{{ route('admin.departments.index') }}" class="text-[13px] font-medium text-green hover:underline">Departments</a>
-            <span class="text-ink-soft">/</span>
+        <div class="flex flex-col gap-1">
+            <x-breadcrumbs :items="[
+                ['label' => 'Departments', 'url' => route('admin.departments.index')],
+                ['label' => 'Edit ' . $department->name],
+            ]" />
             <h1 class="text-2xl font-bold tracking-tight text-green-deep">Edit {{ $department->name }}</h1>
         </div>
     </x-slot>

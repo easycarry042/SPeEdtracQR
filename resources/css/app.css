@@ -868,3 +868,11 @@ aside.sidebar-pinned {
 .cr-topbar { height: 2px; overflow: hidden; position: relative; border-radius: 2px; background: var(--green-wash); }
 .cr-topbar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--green); border-radius: 2px; animation: cr-indet 1s ease-in-out infinite; }
 @keyframes cr-indet { 0% { transform: translateX(-110%); } 100% { transform: translateX(320%); } }
+
+/* ─── Breadcrumbs (User Control & Freedom) ──────────────────────────────── */
+.cr-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.cr-crumbs li { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.cr-crumbs a { color: var(--green); font-weight: 600; text-decoration: none; }
+.cr-crumbs a:hover { text-decoration: underline; }
+.cr-crumbs svg { width: 14px; height: 14px; color: var(--ink-soft); opacity: .6; }
+.cr-crumbs [aria-current="page"] { color: var(--ink-soft); font-weight: 500; }

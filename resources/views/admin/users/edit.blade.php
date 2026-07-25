@@ -1,9 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center gap-3">
-            <a href="{{ route('admin.users.index') }}" class="text-sm font-medium text-emerald-600 hover:underline">Users</a>
-            <span class="text-gray-400">/</span>
-            <h1 class="text-2xl font-bold tracking-tight text-emerald-950">Edit {{ $user->name }}</h1>
+        <div class="flex flex-col gap-1">
+            <x-breadcrumbs :items="[
+                ['label' => 'Users', 'url' => route('admin.users.index')],
+                ['label' => 'Edit ' . $user->name],
+            ]" />
+            <h1 class="text-2xl font-bold tracking-tight text-green-deep">Edit {{ $user->name }}</h1>
         </div>
     </x-slot>
 

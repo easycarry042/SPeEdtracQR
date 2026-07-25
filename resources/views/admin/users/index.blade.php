@@ -251,6 +251,7 @@
                                     </option>
                                 @endforeach
                             </select>
+                            <p class="mt-1 text-xs text-gray-500">Staff create &amp; scan documents · Receiving staff intake only · Department admin manages their office · Super admin has full access.</p>
                             @error('role')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                         </div>
                         <div></div>

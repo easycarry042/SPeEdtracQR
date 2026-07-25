@@ -1,8 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center gap-3">
-            <a href="{{ route('admin.route-templates.index') }}" class="text-[13px] font-medium text-green hover:underline">Route Templates</a>
-            <span class="text-ink-soft">/</span>
+        <div class="flex flex-col gap-1">
+            <x-breadcrumbs :items="[
+                ['label' => 'Route Templates', 'url' => route('admin.route-templates.index')],
+                ['label' => 'Add template'],
+            ]" />
             <h1 class="text-2xl font-bold tracking-tight text-green-deep">Add Template</h1>
         </div>
     </x-slot>
