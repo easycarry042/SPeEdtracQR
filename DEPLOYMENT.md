@@ -335,6 +335,40 @@ Supabase-Storage disk to `config/backup.php`'s destination list. On Supabase
 
 ---
 
+## Optional — move the database to Supabase (managed Postgres)
+
+The app's schema is Postgres-compatible as-is (no migration edits needed). Moving
+the DB to Supabase gives managed daily backups + point-in-time recovery. Trade-off:
+the app then **requires internet** to reach the database. Auth (Breeze/Spatie) and
+live tracking (Reverb) stay on Laravel — only the database moves.
+
+1. **Create the project** at supabase.com → grab the connection details
+   (Project → Settings → Database). Use the **session pooler** host for a
+   long-running app.
+2. **Point Laravel at it** (`.env`):
+   ```env
+   DB_CONNECTION=pgsql
+   DB_HOST=aws-0-<region>.pooler.supabase.com
+   DB_PORT=5432
+   DB_DATABASE=postgres
+   DB_USERNAME=postgres.<project-ref>
+   DB_PASSWORD=<your-db-password>
+   DB_SSLMODE=require
+   ```
+3. **Create the schema:** `php artisan migrate --force` (fresh, against Supabase).
+4. **Move existing data** from MySQL → Postgres with a tool that handles type
+   differences (e.g. `pgloader`), or re-seed if the data is disposable test data.
+5. **Verify:** `php artisan about` shows the pgsql connection; run `composer test`
+   against a Postgres test DB; smoke-test create → track → scan.
+6. **Keep local backups anyway** — `backup:run` still dumps whatever DB is
+   configured, so it now backs up Supabase too as a second copy.
+
+> `psql`/Postgres isn't installed in the dev sandbox, so this must be run where a
+> Postgres client is available. Do it on a branch and keep the MySQL database
+> until the Postgres cutover is verified.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
