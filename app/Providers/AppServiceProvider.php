@@ -11,6 +11,7 @@ use App\Support\DocumentFormOptions;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Health\Checks\Checks\DatabaseCheck;
@@ -42,6 +43,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, LogUserLogin::class);
         Event::listen(Logout::class, LogUserLogout::class);
+
+        // Laravel Pulse dashboard (/pulse) — restrict to system admins so it is
+        // safe outside local (Pulse defaults to local-only without this gate).
+        Gate::define('viewPulse', fn ($user) => (bool) $user->can('manage system'));
 
         // Runtime health probes surfaced at /health (see routes/web.php) and
         // stored every 5 min by the scheduler. DebugMode/Environment expect a
