@@ -282,6 +282,11 @@ Run through [TESTING.md](TESTING.md) on the **staging/production URL**:
 - [ ] `APP_DEBUG=false` — errors must not show stack traces
 - [ ] Live tracking: open `/track/{number}`, scan the document elsewhere, page updates without refresh (● Live indicator on)
 - [ ] AI assistant: ask a question on `/track/{number}`; if Ollama is enabled the answer is model-generated, otherwise the rule-based fallback responds (both are fine)
+- [ ] **`/health`** (system-admin login): every check green — Database, Used Disk Space, **Schedule** (proves cron runs), **Debug Mode** (`false`), **Environment** (`production`)
+- [ ] **`/pulse`** (system-admin login) loads — live performance/error monitoring
+- [ ] `php artisan backup:run` succeeds and a zip appears under `storage/backups/`
+- [ ] Off-site backup sync is configured (see Backups below)
+- [ ] **Secrets rotated** for handover: fresh `APP_KEY` (before real data exists), DB password, `REVERB_APP_*`, and `MAIL_PASSWORD` — never reuse dev/laptop values
 
 ---
 
@@ -301,18 +306,32 @@ Or without maintenance:
 
 ---
 
-## Backups (plan these — not automated in repo)
+## Backups (automated — spatie/laravel-backup)
 
-Daily at minimum:
+Backups run **automatically every night** via the scheduler (so the cron in
+Step 7 is mandatory, not optional):
+
+- `backup:run` at 01:30 — a single zip (MySQL dump + everything under
+  `storage/app`, i.e. uploaded documents + QR codes) written to the `backups`
+  disk (`storage/backups/`).
+- `backup:clean` at 01:00 — prunes old archives per `config/backup.php`.
+- `backup:monitor` at 02:00 — fails loudly (emails `BACKUP_NOTIFICATION_EMAIL`)
+  if the newest backup is older than a day or storage is oversized.
 
 ```bash
-# Database
-mysqldump -u speedtraqr -p speedtraqr | gzip > /backups/speedtraqr-$(date +%F).sql.gz
+# Run a backup on demand / verify it works
+php artisan backup:run
+ls -lh storage/backups/*/          # newest .zip appears here
 
-# Uploaded files + QR codes (not in DB blobs)
-tar czf /backups/speedtraqr-storage-$(date +%F).tar.gz \
-  storage/app/document-attachments storage/app/public/qrcodes
+# Restore: unzip the archive, import db-dumps/*.sql into MySQL, and copy the
+# restored storage/app/* back into place.
 ```
+
+**Off-site copy (do this):** `storage/backups/` lives on the same machine, so a
+disk loss loses the backups too. Sync it off the box nightly — e.g. a cron
+`rsync -a storage/backups/ user@offsite:/backups/speedtraqr/`, or add an S3 /
+Supabase-Storage disk to `config/backup.php`'s destination list. On Supabase
+(Phase 2) the managed database backups + PITR add a second, off-machine layer.
 
 ---
 
@@ -323,6 +342,8 @@ tar czf /backups/speedtraqr-storage-$(date +%F).tar.gz \
 | 500 after deploy | `storage/logs/laravel.log`; check `storage` permissions |
 | QR images 404 | `php artisan storage:link` |
 | SLA emails never arrive | Cron + `php artisan schedule:list`; check `MAIL_*` in `.env` |
+| Backups missing / stale | Same cron as SLA; `/health` "Schedule" check flags a stopped scheduler. Test with `php artisan backup:run` |
+| `/health` or `/pulse` 403 | Log in as a system admin (both are gated to `manage system`) |
 | Jobs stuck | `sudo supervisorctl status speedtraqr-worker` |
 | Live tracking not updating | `sudo supervisorctl status speedtraqr-reverb`; check nginx `/app` proxy + `VITE_REVERB_*` were set before `npm run build` |
 | `Mix/Vite manifest not found` | Run `npm run build` on server |
@@ -342,7 +363,10 @@ git pull && ./scripts/deploy.sh
 # Clear caches if .env changed
 php artisan config:clear && php artisan config:cache
 
-# Health
+# Health & monitoring
 php artisan about
 composer test
+composer analyse                 # Larastan static analysis (level 5)
+php artisan backup:run           # verify backups work
+# In a browser (system-admin login): /health  and  /pulse
 ```

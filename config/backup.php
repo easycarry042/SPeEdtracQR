@@ -239,7 +239,10 @@ return [
         'notifiable' => Notifiable::class,
 
         'mail' => [
-            'to' => 'your@example.com',
+            // Who gets alerted when a backup fails or goes stale. Set
+            // BACKUP_NOTIFICATION_EMAIL in production; falls back to the app's
+            // from-address so alerts are never silently dropped.
+            'to' => env('BACKUP_NOTIFICATION_EMAIL', env('MAIL_FROM_ADDRESS', 'admin@speedtraqr.local')),
 
             'from' => [
                 'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
