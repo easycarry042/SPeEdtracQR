@@ -39,6 +39,21 @@ enum DocumentStatus: string
         };
     }
 
+    /** Plain-language, citizen-facing explanation of what this status means. */
+    public function description(): string
+    {
+        return match ($this) {
+            self::Pending => 'We received your request and it is waiting to be picked up by staff.',
+            self::InProgress => 'A staff member is actively working on your request.',
+            self::InReview => 'Your request is being checked and reviewed before approval.',
+            self::Approved => 'Your request has been approved and is being finalized.',
+            self::Completed => 'Your document is finished and ready. Watch for pickup or release details.',
+            self::Returned => 'Something needs to be corrected. Please check for a message from staff.',
+            self::OnHold => 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
+            self::Denied => 'Your request could not be approved. Staff should have included a reason.',
+        };
+    }
+
     /** The ordered forward line shown in the stepper. Excludes Returned. */
     public static function flow(): array
     {

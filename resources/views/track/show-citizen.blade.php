@@ -82,6 +82,24 @@
                     </div>
                 </div>
 
+                {{-- Plain-language explanation of the current status (Help / Match) --}}
+                <p class="mt-3 text-sm text-ink-soft" id="statusDescription">{{ $document->statusEnum()->description() }}</p>
+
+                <details class="mt-3 text-sm">
+                    <summary class="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-green hover:underline">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z"/></svg>
+                        What do the statuses mean?
+                    </summary>
+                    <dl class="mt-2 space-y-1.5 border-t border-hairline pt-2">
+                        @foreach(\App\Enums\DocumentStatus::cases() as $s)
+                            <div class="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
+                                <dt class="shrink-0 font-semibold text-ink sm:w-40">{{ $s->label() }}</dt>
+                                <dd class="text-ink-soft">{{ $s->description() }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                </details>
+
                 {{-- Update banner (hidden until status changes) --}}
                 <div id="updateBanner"
                      class="mt-4 hidden rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm font-medium text-green-deep">
@@ -235,6 +253,9 @@
             in_transit:  { cls: 'p-amber', label: 'In Progress' },
         };
 
+        // Plain-language status descriptions (mirrors DocumentStatus::description()).
+        const statusDesc = @json(collect(\App\Enums\DocumentStatus::cases())->mapWithKeys(fn ($s) => [$s->value => $s->description()]));
+
         function getStatusClasses(status) {
             return statusPill[status] ?? statusPill['in_transit'];
         }
@@ -248,6 +269,9 @@
 
             badge.className = `pill ${classes.cls}`;
             label.textContent = classes.label;
+
+            const desc = document.getElementById('statusDescription');
+            if (desc && statusDesc[status]) { desc.textContent = statusDesc[status]; }
 
             if (department) {
                 dept.textContent = department;

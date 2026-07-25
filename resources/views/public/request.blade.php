@@ -29,14 +29,21 @@
         <p class="mt-2 text-sm text-gray-600">Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.</p>
 
         @if($errors->any())
-            <div class="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <ul class="list-inside list-disc space-y-1">
+            <div class="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                <p class="font-semibold">Please fix the highlighted {{ $errors->count() === 1 ? 'field' : 'fields' }} below:</p>
+                <ul class="mt-1 list-inside list-disc space-y-1">
                     @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
                 </ul>
             </div>
         @endif
 
-        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        @php
+            $field = 'w-full rounded-xl border bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30';
+            $ok = 'border-gray-200';
+            $bad = 'border-red-400 bg-red-50/40';
+        @endphp
+
+        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm" novalidate>
             @csrf
 
             {{-- Honeypot: must stay empty. Hidden from real users. --}}
@@ -45,45 +52,54 @@
             </div>
 
             <div>
-                <label class="mb-1 block text-sm font-semibold text-gray-700">Request type <span class="text-red-500">*</span></label>
-                <select name="document_type" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                <label for="document_type" class="mb-1 block text-sm font-semibold text-gray-700">Request type <span class="text-red-500">*</span></label>
+                <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="{{ $field }} @error('document_type') {{ $bad }} @else {{ $ok }} @enderror">
                     <option value="">Select type…</option>
                     @foreach($categories as $category)
                         <option value="{{ $category }}" @selected(old('document_type') === $category)>{{ $category }}</option>
                     @endforeach
                 </select>
+                @error('document_type')<p id="document_type-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label class="mb-1 block text-sm font-semibold text-gray-700">Purpose</label>
-                <input name="purpose" value="{{ old('purpose') }}" maxlength="255" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                <label for="purpose" class="mb-1 block text-sm font-semibold text-gray-700">Purpose</label>
+                <input id="purpose" name="purpose" value="{{ old('purpose') }}" maxlength="255" aria-invalid="@error('purpose')true @else false @enderror" @error('purpose') aria-describedby="purpose-err" @enderror class="{{ $field }} @error('purpose') {{ $bad }} @else {{ $ok }} @enderror">
+                <p class="mt-1 text-xs text-gray-500">What the document is for — e.g. “business permit renewal.”</p>
+                @error('purpose')<p id="purpose-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label class="mb-1 block text-sm font-semibold text-gray-700">Description</label>
-                <textarea name="description" rows="3" maxlength="5000" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">{{ old('description') }}</textarea>
+                <label for="description" class="mb-1 block text-sm font-semibold text-gray-700">Description</label>
+                <textarea id="description" name="description" rows="3" maxlength="5000" aria-invalid="@error('description')true @else false @enderror" @error('description') aria-describedby="description-err" @enderror class="{{ $field }} @error('description') {{ $bad }} @else {{ $ok }} @enderror">{{ old('description') }}</textarea>
+                @error('description')<p id="description-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">Your name <span class="text-red-500">*</span></label>
-                    <input name="citizen_name" value="{{ old('citizen_name') }}" required maxlength="255" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                    <label for="citizen_name" class="mb-1 block text-sm font-semibold text-gray-700">Your name <span class="text-red-500">*</span></label>
+                    <input id="citizen_name" name="citizen_name" value="{{ old('citizen_name') }}" required autocomplete="name" maxlength="255" aria-invalid="@error('citizen_name')true @else false @enderror" @error('citizen_name') aria-describedby="citizen_name-err" @enderror class="{{ $field }} @error('citizen_name') {{ $bad }} @else {{ $ok }} @enderror">
+                    @error('citizen_name')<p id="citizen_name-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">Email <span class="text-red-500">*</span></label>
-                    <input type="email" name="citizen_email" value="{{ old('citizen_email') }}" required maxlength="255" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                    <label for="citizen_email" class="mb-1 block text-sm font-semibold text-gray-700">Email <span class="text-red-500">*</span></label>
+                    <input id="citizen_email" type="email" name="citizen_email" value="{{ old('citizen_email') }}" required autocomplete="email" inputmode="email" maxlength="255" aria-invalid="@error('citizen_email')true @else false @enderror" aria-describedby="citizen_email-hint @error('citizen_email') citizen_email-err @enderror" class="{{ $field }} @error('citizen_email') {{ $bad }} @else {{ $ok }} @enderror">
+                    <p id="citizen_email-hint" class="mt-1 text-xs text-gray-500">We'll send your tracking link here.</p>
+                    @error('citizen_email')<p id="citizen_email-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
 
             <div>
-                <label class="mb-1 block text-sm font-semibold text-gray-700">Contact number</label>
-                <input name="citizen_contact" value="{{ old('citizen_contact') }}" maxlength="255" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                <label for="citizen_contact" class="mb-1 block text-sm font-semibold text-gray-700">Contact number</label>
+                <input id="citizen_contact" type="tel" name="citizen_contact" value="{{ old('citizen_contact') }}" autocomplete="tel" inputmode="tel" maxlength="255" aria-invalid="@error('citizen_contact')true @else false @enderror" @error('citizen_contact') aria-describedby="citizen_contact-err" @enderror class="{{ $field }} @error('citizen_contact') {{ $bad }} @else {{ $ok }} @enderror">
+                @error('citizen_contact')<p id="citizen_contact-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label class="mb-1 block text-sm font-semibold text-gray-700">Supporting files (optional — images, PDF or Word, up to 5)</label>
-                <input type="file" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
-                <p class="mt-1 text-xs text-gray-500">Accepted: JPG, PNG, WEBP, PDF, or DOC/DOCX — max 10 MB each.</p>
+                <label for="attachments" class="mb-1 block text-sm font-semibold text-gray-700">Supporting files (optional — images, PDF or Word, up to 5)</label>
+                <input id="attachments" type="file" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple aria-describedby="attachments-hint @error('attachments.*') attachments-err @enderror" class="w-full text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">
+                <p id="attachments-hint" class="mt-1 text-xs text-gray-500">Accepted: JPG, PNG, WEBP, PDF, or DOC/DOCX — max 10 MB each.</p>
+                @error('attachments.*')<p id="attachments-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <label class="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm text-emerald-900">
