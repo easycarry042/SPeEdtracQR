@@ -814,3 +814,23 @@ aside.sidebar-pinned {
     .an-grid { grid-template-columns: 1fr; }
     .an-span-2, .an-span-3, .an-span-4, .an-span-6 { grid-column: span 1; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Accessibility: honor the OS "reduce motion" setting globally. WCAG 2.1 AA
+   (PRODUCT.md floor). Neutralizes sidebar width transitions, hover-scale,
+   gate-in, the assistant typing pulse, and any other animation/transition to
+   a near-instant crossfade instead of removing feedback entirely.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Calm typing indicator for the document assistant — an opacity pulse rather
+   than a bouncing dot, to match the "calm authority" brand principle. */
+@keyframes cr-typing { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.cr-typing-dot { animation: cr-typing 1.2s ease-in-out infinite; }
