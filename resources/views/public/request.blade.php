@@ -6,25 +6,12 @@
     <title>Submit a Request — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-[#f1f2f1] antialiased text-gray-900">
+<body class="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 antialiased text-gray-900">
 
-    <header class="border-b border-emerald-200/60 bg-[#f1f2f1]/90">
-        <div class="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-            <a href="{{ url('/') }}" class="flex items-center gap-3">
-                <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-xl">
-                <span class="text-lg font-extrabold tracking-tight text-emerald-950">SPeED <span class="text-emerald-700">TraQR</span></span>
-            </a>
-            <a href="{{ route('track.index') }}" class="text-sm font-semibold text-emerald-800 hover:underline">Track a request</a>
-        </div>
-    </header>
+    {{-- Same public portal header as /citizen and /track for a unified look. --}}
+    @include('layouts.partials.public-header')
 
     <main class="mx-auto max-w-3xl px-6 py-10">
-        <a href="{{ url('/') }}"
-           onclick="if (document.referrer && history.length > 1) { event.preventDefault(); history.back(); }"
-           class="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7 7-7M3 12h18"/></svg>
-            Back
-        </a>
         <h1 class="text-3xl font-extrabold tracking-tight text-emerald-950">Submit a request online</h1>
         <p class="mt-2 text-sm text-gray-600">Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.</p>
 
@@ -51,12 +38,47 @@
                 <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
             </div>
 
+            @php
+                $groupedTypes = $requestTypes->groupBy('kind');
+                $groups = [
+                    \App\Models\RequestType::KIND_DOCUMENT => 'Documents & Permits',
+                    \App\Models\RequestType::KIND_BOOKING => 'Facility reservations',
+                    \App\Models\RequestType::KIND_EQUIPMENT => 'Equipment borrowing',
+                    \App\Models\RequestType::KIND_SERVICE => 'Services',
+                ];
+                // kind => [type name, …], in display order — powers the JS cascade.
+                $typesByCategory = collect($groups)->keys()
+                    ->filter(fn ($kind) => $groupedTypes->has($kind))
+                    ->mapWithKeys(fn ($kind) => [$kind => $groupedTypes[$kind]->pluck('name')->values()])
+                    ->all();
+            @endphp
+
+            {{-- Step 1 (JS only): pick a category to narrow the type list below.
+                 Hidden without JS — the full grouped type select still works. --}}
+            <div id="categoryWrap" class="hidden">
+                <label for="request_category" class="mb-1 block text-sm font-semibold text-gray-700">Request category <span class="text-red-500">*</span></label>
+                <select id="request_category" class="{{ $field }} {{ $ok }}">
+                    <option value="">Select a category…</option>
+                    @foreach($groups as $kind => $groupLabel)
+                        @if($groupedTypes->has($kind))
+                            <option value="{{ $kind }}">{{ $groupLabel }}</option>
+                        @endif
+                    @endforeach
+                </select>
+            </div>
+
             <div>
                 <label for="document_type" class="mb-1 block text-sm font-semibold text-gray-700">Request type <span class="text-red-500">*</span></label>
                 <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="{{ $field }} @error('document_type') {{ $bad }} @else {{ $ok }} @enderror">
                     <option value="">Select type…</option>
-                    @foreach($requestTypes as $rt)
-                        <option value="{{ $rt->name }}" @selected(old('document_type') === $rt->name)>{{ $rt->name }}</option>
+                    @foreach($groups as $kind => $groupLabel)
+                        @if($groupedTypes->has($kind))
+                            <optgroup label="{{ $groupLabel }}">
+                                @foreach($groupedTypes[$kind] as $rt)
+                                    <option value="{{ $rt->name }}" @selected(old('document_type') === $rt->name)>{{ $rt->name }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endif
                     @endforeach
                 </select>
                 @error('document_type')<p id="document_type-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
@@ -70,30 +92,81 @@
                 <ul id="requirementsList" class="mt-3 space-y-3"></ul>
             </div>
 
-            {{-- Booking types: reserve a resource for a time window. --}}
+            {{-- Facility reservations: reserve a place for a specific time window
+                 on one day (e.g. covered court, 4:00 PM – 7:00 PM). --}}
             <div id="bookingSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
                 <p class="text-sm font-semibold text-emerald-900">Reservation details</p>
-                <p class="mt-0.5 text-xs text-gray-600">You're reserving <strong id="bookingResource"></strong>. Choose when you need it — staff confirm availability, and clashing times are refused.</p>
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <p class="mt-0.5 text-xs text-gray-600">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
-                        <label for="starts_at" class="mb-1 block text-xs font-semibold text-gray-700">Start</label>
-                        <input id="starts_at" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" class="{{ $field }} @error('starts_at') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('starts_at')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="booking_date" class="mb-1 block text-xs font-semibold text-gray-700">Date</label>
+                        <input id="booking_date" type="date" name="booking_date" value="{{ old('booking_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('booking_date') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('booking_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="ends_at" class="mb-1 block text-xs font-semibold text-gray-700">End</label>
-                        <input id="ends_at" type="datetime-local" name="ends_at" value="{{ old('ends_at') }}" class="{{ $field }} @error('ends_at') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('ends_at')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="start_time" class="mb-1 block text-xs font-semibold text-gray-700">Start time</label>
+                        <input id="start_time" type="time" name="start_time" value="{{ old('start_time') }}" class="{{ $field }} @error('start_time') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('start_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="end_time" class="mb-1 block text-xs font-semibold text-gray-700">End time</label>
+                        <input id="end_time" type="time" name="end_time" value="{{ old('end_time') }}" class="{{ $field }} @error('end_time') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('end_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
 
-            <script>
-                window.__types = @json($requestTypes->mapWithKeys(fn ($t) => [$t->name => [
+            {{-- Equipment borrowing: how many units, and the borrow-to-return dates. --}}
+            <div id="equipmentSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                <p class="text-sm font-semibold text-emerald-900">Borrowing details</p>
+                <p class="mt-0.5 text-xs text-gray-600">You're borrowing <strong id="equipmentResource"></strong>. Tell us how many and when — staff confirm availability.</p>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                        <label for="quantity" class="mb-1 block text-xs font-semibold text-gray-700">How many</label>
+                        <input id="quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 50" class="{{ $field }} @error('quantity') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('quantity')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="needed_date" class="mb-1 block text-xs font-semibold text-gray-700">Date needed</label>
+                        <input id="needed_date" type="date" name="needed_date" value="{{ old('needed_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('needed_date') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('needed_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="return_date" class="mb-1 block text-xs font-semibold text-gray-700">Return by</label>
+                        <input id="return_date" type="date" name="return_date" value="{{ old('return_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('return_date') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('return_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </div>
+
+            {{-- Service / production requests (e.g. lei making): how many to make,
+                 and the date they're needed. No resource is reserved. --}}
+            <div id="serviceSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                <p class="text-sm font-semibold text-emerald-900">Service details</p>
+                <p class="mt-0.5 text-xs text-gray-600">Tell us how many you need and by when.</p>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label for="service_quantity" class="mb-1 block text-xs font-semibold text-gray-700">How many</label>
+                        <input id="service_quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 10" class="{{ $field }} @error('quantity') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('quantity')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="needed_by" class="mb-1 block text-xs font-semibold text-gray-700">Date needed</label>
+                        <input id="needed_by" type="date" name="needed_by" value="{{ old('needed_by') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('needed_by') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('needed_by')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </div>
+
+            @php
+                $typeMap = $requestTypes->mapWithKeys(fn ($t) => [$t->name => [
                     'kind' => $t->kind,
                     'resource' => $t->resource?->name,
                     'requirements' => $t->requirements->map(fn ($r) => ['id' => $r->id, 'label' => $r->label, 'mandatory' => (bool) $r->is_mandatory])->values(),
-                ]]));
+                ]]);
+            @endphp
+            <script>
+                window.__types = @json($typeMap);
             </script>
 
             <div>
@@ -299,22 +372,41 @@
             const reqList = document.getElementById('requirementsList');
             const bookingSection = document.getElementById('bookingSection');
             const bookingResource = document.getElementById('bookingResource');
+            const equipmentSection = document.getElementById('equipmentSection');
+            const equipmentResource = document.getElementById('equipmentResource');
+            const serviceSection = document.getElementById('serviceSection');
             const types = window.__types || {};
             if (!sel || !reqSection || !reqList) { return; }
 
             const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
+            // Only one scheduling panel is used at a time, and several share field
+            // names (e.g. "quantity"). Disable inputs in the hidden panels so the
+            // browser never submits stale values from another kind.
+            const scheduleSections = [bookingSection, equipmentSection, serviceSection].filter(Boolean);
+            const setSection = (section, active) => {
+                section.classList.toggle('hidden', !active);
+                section.querySelectorAll('input, select, textarea').forEach((el) => { el.disabled = !active; });
+            };
+
             function render() {
                 const t = types[sel.value] || null;
                 reqSection.classList.add('hidden');
                 reqList.innerHTML = '';
-                bookingSection?.classList.add('hidden');
+                scheduleSections.forEach((s) => setSection(s, false));
                 if (!t) { return; }
 
-                if (t.kind === 'booking') {
-                    bookingSection?.classList.remove('hidden');
+                // Facility / equipment / service types reveal their scheduling
+                // panel. The requirements checklist below is shown for EVERY kind,
+                // so we no longer return early here.
+                if (t.kind === 'booking' && bookingSection) {
+                    setSection(bookingSection, true);
                     if (bookingResource) { bookingResource.textContent = t.resource || 'this resource'; }
-                    return;
+                } else if (t.kind === 'equipment' && equipmentSection) {
+                    setSection(equipmentSection, true);
+                    if (equipmentResource) { equipmentResource.textContent = t.resource || 'this item'; }
+                } else if (t.kind === 'service' && serviceSection) {
+                    setSection(serviceSection, true);
                 }
 
                 const reqs = t.requirements || [];
@@ -335,6 +427,44 @@
             }
 
             sel.addEventListener('change', render);
+
+            // Progressive enhancement: turn the single grouped select into a
+            // two-step cascade — pick a category, then only that category's types
+            // appear. Without JS the full grouped select above is used as-is.
+            const cat = document.getElementById('request_category');
+            const catWrap = document.getElementById('categoryWrap');
+            const typesByCategory = @json($typesByCategory);
+
+            if (cat && catWrap) {
+                catWrap.classList.remove('hidden');
+
+                const fillTypes = (kind, selected) => {
+                    sel.innerHTML = '';
+                    sel.add(new Option('Select a type…', ''));
+                    (typesByCategory[kind] || []).forEach((name) => {
+                        const opt = new Option(name, name);
+                        if (name === selected) { opt.selected = true; }
+                        sel.add(opt);
+                    });
+                };
+
+                cat.addEventListener('change', () => { fillTypes(cat.value, ''); render(); });
+
+                // Re-hydrate both steps after a validation error, else start clean.
+                const oldType = @json(old('document_type'));
+                const oldKind = oldType
+                    ? Object.keys(typesByCategory).find((k) => typesByCategory[k].includes(oldType))
+                    : null;
+
+                if (oldKind) {
+                    cat.value = oldKind;
+                    fillTypes(oldKind, oldType);
+                } else {
+                    sel.innerHTML = '';
+                    sel.add(new Option('Select a category first…', ''));
+                }
+            }
+
             render(); // handle old() repopulation after a validation error
         })();
     </script>

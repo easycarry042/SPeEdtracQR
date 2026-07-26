@@ -14,6 +14,14 @@ class RequestType extends Model
 
     public const KIND_BOOKING = 'booking';
 
+    public const KIND_EQUIPMENT = 'equipment';
+
+    /** Produce/deliver a quantity of something by a date (e.g. lei making). */
+    public const KIND_SERVICE = 'service';
+
+    /** Kinds that reserve a resource for a time window (facility + equipment). */
+    public const RESOURCE_KINDS = [self::KIND_BOOKING, self::KIND_EQUIPMENT];
+
     protected $fillable = [
         'name',
         'kind',
@@ -47,6 +55,12 @@ class RequestType extends Model
         return $this->belongsTo(Resource::class);
     }
 
+    /** Does this type reserve a resource (facility booking or equipment borrowing)? */
+    public function usesResource(): bool
+    {
+        return in_array($this->kind, self::RESOURCE_KINDS, true);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -60,5 +74,15 @@ class RequestType extends Model
     public function scopeBookings($query)
     {
         return $query->where('kind', self::KIND_BOOKING);
+    }
+
+    public function scopeEquipment($query)
+    {
+        return $query->where('kind', self::KIND_EQUIPMENT);
+    }
+
+    public function scopeServices($query)
+    {
+        return $query->where('kind', self::KIND_SERVICE);
     }
 }

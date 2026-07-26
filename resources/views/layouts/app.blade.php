@@ -41,6 +41,7 @@
         request()->routeIs('admin.users*') => 'Users',
         request()->routeIs('admin.assignments*') => 'Assignments',
         request()->routeIs('bookings*') => 'Bookings',
+        request()->routeIs('reports.services') => 'Services report',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',
         request()->routeIs('admin.route-templates*') => 'Route Templates',
@@ -52,7 +53,7 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="min-h-screen bg-paper antialiased text-ink">
+<body class="min-h-screen antialiased @auth bg-paper text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
     @auth
         @if($useTopNav)
             {{-- Staff / supervisor: horizontal top navbar, full-width content --}}
@@ -186,6 +187,14 @@
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Bookings</span>
                         </a>
                         @endcan
+                        @can('view reports')
+                        <a href="{{ route('reports.services') }}" class="{{ request()->routeIs('reports.services') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('reports.services') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
+                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m3 6V7m3 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            </span>
+                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Services report</span>
+                        </a>
+                        @endcan
                         @can('manage system')
                         <a href="{{ route('requests.index') }}" class="{{ request()->routeIs('requests.*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('requests.*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
@@ -274,7 +283,11 @@
         @endif
         @include('layouts.partials.keyboard-shortcuts')
     @else
-        <main class="min-h-screen">
+        {{-- Guests can reach a few app-layout pages (public /track lookup and the
+             tracking result). Use the same public portal header as /citizen. --}}
+        @include('layouts.partials.public-header')
+
+        <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
             {{ $slot }}
         </main>
     @endauth

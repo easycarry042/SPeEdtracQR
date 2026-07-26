@@ -23,14 +23,20 @@
     <label for="rt-kind" class="block text-[13px] font-semibold text-ink">Kind <span class="text-status-red">*</span></label>
     <select id="rt-kind" name="kind" x-model="kind"
             class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
-        <option value="{{ RequestType::KIND_DOCUMENT }}">Document / Permit (needs requirements)</option>
-        <option value="{{ RequestType::KIND_BOOKING }}">Booking / Resource (reserves a resource for a date)</option>
+        <option value="{{ RequestType::KIND_DOCUMENT }}">Document / Permit (produces a document)</option>
+        <option value="{{ RequestType::KIND_BOOKING }}">Facility reservation (reserves a place for a time)</option>
+        <option value="{{ RequestType::KIND_EQUIPMENT }}">Equipment borrowing (a quantity of items for a date)</option>
+        <option value="{{ RequestType::KIND_SERVICE }}">Service / Production (make a quantity by a date — e.g. lei making)</option>
     </select>
     @error('kind')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
 
-    {{-- Booking types reserve a specific resource. --}}
-    <div x-show="kind === '{{ RequestType::KIND_BOOKING }}'" x-cloak class="mt-3">
-        <label for="rt-resource" class="block text-[13px] font-semibold text-ink">Resource to book <span class="text-status-red">*</span></label>
+    {{-- Facility bookings and equipment borrowing both reserve a specific resource. --}}
+    <div x-show="kind === '{{ RequestType::KIND_BOOKING }}' || kind === '{{ RequestType::KIND_EQUIPMENT }}'" x-cloak class="mt-3">
+        <label for="rt-resource" class="block text-[13px] font-semibold text-ink">
+            <span x-show="kind === '{{ RequestType::KIND_BOOKING }}'">Facility to reserve</span>
+            <span x-show="kind === '{{ RequestType::KIND_EQUIPMENT }}'" x-cloak>Item to borrow</span>
+            <span class="text-status-red">*</span>
+        </label>
         <select id="rt-resource" name="resource_id"
                 class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
             <option value="">Select a resource…</option>
@@ -38,7 +44,7 @@
                 <option value="{{ $resource->id }}" @selected((int) old('resource_id', $requestType?->resource_id) === $resource->id)>{{ $resource->name }}</option>
             @endforeach
         </select>
-        <p class="mt-1 text-[12px] text-ink-soft">Manage resources under <a href="{{ route('admin.resources.index') }}" class="text-green underline">Resources</a>. Requirements below are ignored for booking types.</p>
+        <p class="mt-1 text-[12px] text-ink-soft">Manage resources under <a href="{{ route('admin.resources.index') }}" class="text-green underline">Resources</a>. The requirements checklist below applies to every kind.</p>
         @error('resource_id')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
     </div>
 </div>

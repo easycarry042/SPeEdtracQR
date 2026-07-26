@@ -184,6 +184,12 @@
                         <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
                         <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Submitted</dt><dd class="text-right font-medium text-ink">{{ $document->created_at?->format('M j, Y g:i A') }}</dd></div>
                         <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose ?: '—' }}</dd></div>
+                        @if($document->quantity)
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Quantity</dt><dd class="text-right font-medium text-ink">{{ number_format($document->quantity) }}</dd></div>
+                        @endif
+                        @if($document->needed_by)
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Needed by</dt><dd class="text-right font-medium text-ink">{{ $document->needed_by->format('M j, Y') }}</dd></div>
+                        @endif
                     </dl>
 
                     @if($document->description)

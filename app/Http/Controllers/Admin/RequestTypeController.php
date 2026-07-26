@@ -35,7 +35,7 @@ class RequestTypeController extends Controller
             $type = RequestType::create([
                 'name' => $validated['name'],
                 'kind' => $validated['kind'],
-                'resource_id' => $validated['kind'] === RequestType::KIND_BOOKING ? ($validated['resource_id'] ?? null) : null,
+                'resource_id' => in_array($validated['kind'], RequestType::RESOURCE_KINDS, true) ? ($validated['resource_id'] ?? null) : null,
                 'description' => $validated['description'] ?? null,
                 'is_active' => true,
                 'sort_order' => (int) (RequestType::max('sort_order') ?? 0) + 1,
@@ -68,7 +68,7 @@ class RequestTypeController extends Controller
             $requestType->update([
                 'name' => $validated['name'],
                 'kind' => $validated['kind'],
-                'resource_id' => $validated['kind'] === RequestType::KIND_BOOKING ? ($validated['resource_id'] ?? null) : null,
+                'resource_id' => in_array($validated['kind'], RequestType::RESOURCE_KINDS, true) ? ($validated['resource_id'] ?? null) : null,
                 'description' => $validated['description'] ?? null,
             ]);
 
@@ -107,8 +107,8 @@ class RequestTypeController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('request_types', 'name')->ignore($ignore?->id)],
-            'kind' => ['required', Rule::in([RequestType::KIND_DOCUMENT, RequestType::KIND_BOOKING])],
-            'resource_id' => [Rule::requiredIf(fn (): bool => $request->input('kind') === RequestType::KIND_BOOKING), 'nullable', 'exists:resources,id'],
+            'kind' => ['required', Rule::in([RequestType::KIND_DOCUMENT, RequestType::KIND_BOOKING, RequestType::KIND_EQUIPMENT, RequestType::KIND_SERVICE])],
+            'resource_id' => [Rule::requiredIf(fn (): bool => in_array($request->input('kind'), RequestType::RESOURCE_KINDS, true)), 'nullable', 'exists:resources,id'],
             'description' => ['nullable', 'string', 'max:500'],
             'requirements' => ['nullable', 'array'],
             'requirements.*.label' => ['required', 'string', 'max:255'],

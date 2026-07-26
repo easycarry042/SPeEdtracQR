@@ -57,6 +57,38 @@ class RequestTypeAdminTest extends TestCase
         $this->assertSame(['Valid Government ID'], $labels);
     }
 
+    public function test_admin_can_create_an_equipment_type_with_a_resource_and_requirement(): void
+    {
+        $admin = $this->admin();
+        $resource = \App\Models\Resource::create(['name' => 'Monoblock Chairs']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.request-types.store'), [
+                'name' => 'Chairs Borrowing',
+                'kind' => RequestType::KIND_EQUIPMENT,
+                'resource_id' => $resource->id,
+                'requirements' => [
+                    ['label' => 'Letter of Request', 'is_mandatory' => '1'],
+                ],
+            ])
+            ->assertRedirect(route('admin.request-types.index'));
+
+        $type = RequestType::where('name', 'Chairs Borrowing')->with('requirements')->firstOrFail();
+        $this->assertSame(RequestType::KIND_EQUIPMENT, $type->kind);
+        $this->assertSame($resource->id, $type->resource_id);
+        $this->assertCount(1, $type->requirements);
+    }
+
+    public function test_an_equipment_type_requires_a_resource(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('admin.request-types.store'), [
+                'name' => 'Tent Borrowing',
+                'kind' => RequestType::KIND_EQUIPMENT,
+            ])
+            ->assertSessionHasErrors('resource_id');
+    }
+
     public function test_staff_cannot_manage_request_types(): void
     {
         $this->seedRolesAndPermissions();

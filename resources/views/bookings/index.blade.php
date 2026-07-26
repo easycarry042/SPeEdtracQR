@@ -31,6 +31,7 @@
                                     </p>
                                     <div class="mt-1.5 flex flex-wrap items-center gap-2">
                                         <span class="pill {{ $b->status === 'approved' ? 'p-green' : 'p-amber' }}">{{ ucfirst($b->status) }}</span>
+                                        @if($b->document?->quantity)<span class="pill p-green">Qty: {{ number_format($b->document->quantity) }}</span>@endif
                                         @if($conflict)<span class="pill p-red">Overlaps another booking</span>@endif
                                     </div>
                                 </div>

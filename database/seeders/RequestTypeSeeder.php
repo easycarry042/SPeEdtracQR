@@ -70,5 +70,31 @@ class RequestTypeSeeder extends Seeder
                 );
             }
         }
+
+        // Service / production requests: the office asks the LGU to make a
+        // quantity of something by a date (no resource reserved). Lei making —
+        // ribbon-and-flower medallions worn by officials at inaugurations — is
+        // the canonical local example.
+        $services = [
+            ['Lei Making', 'Ribbon-and-flower leis prepared for ceremonies and building inaugurations.', 'Letter of Request addressed to the Mayor'],
+            ['Tarpaulin / Streamer Printing', 'Printed tarpaulins or streamers for events and announcements.', 'Approved layout / design'],
+        ];
+
+        foreach ($services as $order => [$name, $description, $requirement]) {
+            $type = RequestType::updateOrCreate(
+                ['name' => $name],
+                [
+                    'kind' => RequestType::KIND_SERVICE,
+                    'description' => $description,
+                    'is_active' => true,
+                    'sort_order' => 200 + $order,
+                ],
+            );
+
+            $type->requirements()->firstOrCreate(
+                ['label' => $requirement],
+                ['is_mandatory' => true, 'sort_order' => 0],
+            );
+        }
     }
 }

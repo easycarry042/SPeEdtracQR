@@ -73,31 +73,82 @@ class PublicTicketController extends Controller
             'requirements.*.mimes' => 'Each requirement file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
 
-        // Resolve the selected type up front so booking requests can be schedule-
-        // validated and conflict-checked BEFORE anything is created.
+        // Resolve the selected type up front so reservation requests can be
+        // schedule-validated (and facilities conflict-checked) BEFORE anything is
+        // created.
         $type = RequestType::where('name', $validated['document_type'])
             ->with(['requirements', 'resource'])
             ->first();
 
-        $isBooking = $type && $type->kind === RequestType::KIND_BOOKING;
-        $bookingWindow = null;
+        $isFacility = $type && $type->kind === RequestType::KIND_BOOKING;
+        $isEquipment = $type && $type->kind === RequestType::KIND_EQUIPMENT;
+        $isService = $type && $type->kind === RequestType::KIND_SERVICE;
 
-        if ($isBooking) {
-            $booking = $request->validate([
-                'starts_at' => ['required', 'date', 'after:now'],
-                'ends_at' => ['required', 'date', 'after:starts_at'],
+        // Resource reservation (facility/equipment) built by the branches below.
+        $reservation = null;
+        // Quantity + due date live on the document itself (equipment: how many
+        // units; service: how many to produce, by needed_by). Null otherwise.
+        $quantity = null;
+        $neededBy = null;
+
+        if ($isFacility) {
+            // A facility is reserved for a specific window on a single day.
+            $schedule = $request->validate([
+                'booking_date' => ['required', 'date', 'after_or_equal:today'],
+                'start_time' => ['required', 'date_format:H:i'],
+                'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             ], [
-                'ends_at.after' => 'The end time must be after the start time.',
-                'starts_at.after' => 'Please choose a start time in the future.',
+                'booking_date.after_or_equal' => 'Please choose today or a future date.',
+                'end_time.after' => 'The end time must be after the start time.',
             ]);
 
-            $bookingWindow = [Carbon::parse($booking['starts_at']), Carbon::parse($booking['ends_at'])];
+            $starts = Carbon::parse($schedule['booking_date'].' '.$schedule['start_time']);
+            $ends = Carbon::parse($schedule['booking_date'].' '.$schedule['end_time']);
 
-            if ($type->resource && $type->resource->conflicts($bookingWindow[0], $bookingWindow[1])->isNotEmpty()) {
+            if ($starts->isPast()) {
                 return back()->withInput()->withErrors([
-                    'starts_at' => "{$type->resource->name} is already booked during that time. Please choose another slot.",
+                    'start_time' => 'That start time has already passed. Please choose a later time.',
                 ]);
             }
+
+            if ($type->resource && $type->resource->conflicts($starts, $ends)->isNotEmpty()) {
+                return back()->withInput()->withErrors([
+                    'booking_date' => "{$type->resource->name} is already booked during that time. Please choose another slot.",
+                ]);
+            }
+
+            $reservation = ['starts_at' => $starts, 'ends_at' => $ends];
+        } elseif ($isEquipment) {
+            // Equipment is borrowed in a quantity from a pickup date to a return
+            // date. Items are shared stock, so there is no exclusive conflict —
+            // staff confirm availability when approving.
+            $schedule = $request->validate([
+                'quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+                'needed_date' => ['required', 'date', 'after_or_equal:today'],
+                'return_date' => ['required', 'date', 'after_or_equal:needed_date'],
+            ], [
+                'needed_date.after_or_equal' => 'Please choose today or a future date.',
+                'return_date.after_or_equal' => 'The return date cannot be before the pickup date.',
+            ]);
+
+            $quantity = (int) $schedule['quantity'];
+            $neededBy = Carbon::parse($schedule['needed_date'])->toDateString();
+            $reservation = [
+                'starts_at' => Carbon::parse($schedule['needed_date'])->setTime(8, 0),
+                'ends_at' => Carbon::parse($schedule['return_date'])->setTime(17, 0),
+            ];
+        } elseif ($isService) {
+            // Service/production request (e.g. lei making): make a quantity by a
+            // due date. No resource is reserved; it runs the normal workflow.
+            $schedule = $request->validate([
+                'quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+                'needed_by' => ['required', 'date', 'after_or_equal:today'],
+            ], [
+                'needed_by.after_or_equal' => 'Please choose today or a future date.',
+            ]);
+
+            $quantity = (int) $schedule['quantity'];
+            $neededBy = Carbon::parse($schedule['needed_by'])->toDateString();
         }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -110,6 +161,8 @@ class PublicTicketController extends Controller
             'citizen_contact' => $validated['citizen_contact'] ?? null,
             'purpose' => $validated['purpose'] ?? null,
             'description' => $validated['description'] ?? null,
+            'quantity' => $quantity,
+            'needed_by' => $neededBy,
             'status' => DocumentStatus::Pending->value,
             'status_changed_at' => now(),
             'source' => 'online',
@@ -128,18 +181,22 @@ class PublicTicketController extends Controller
             collect($request->file('attachments', []))->filter()->all(),
         );
 
-        if ($isBooking) {
-            // Booking request: create the pending reservation (staff approve/
-            // reschedule on the calendar; approval re-checks for conflicts).
+        if ($reservation) {
+            // Facility/equipment request: create the pending reservation (staff
+            // approve/reschedule on the calendar; approval re-checks conflicts).
             $document->booking()->create([
                 'resource_id' => $type->resource_id,
-                'starts_at' => $bookingWindow[0],
-                'ends_at' => $bookingWindow[1],
+                'starts_at' => $reservation['starts_at'],
+                'ends_at' => $reservation['ends_at'],
                 'status' => Booking::STATUS_PENDING,
             ]);
-        } elseif ($type) {
-            // Document request: snapshot the requirement checklist, storing any
-            // optional citizen upload per requirement (private disk).
+        }
+
+        if ($type) {
+            // Snapshot the requirement checklist for EVERY kind — a facility or
+            // equipment request can require a Letter of Request just like a
+            // document request lists its supporting papers. Stores any optional
+            // citizen upload per requirement (private disk).
             $uploads = $request->file('requirements', []);
             foreach ($type->requirements as $requirement) {
                 $file = $uploads[$requirement->id] ?? null;
