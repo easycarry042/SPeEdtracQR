@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
@@ -231,6 +232,12 @@ class Document extends Model
     public function requirements(): HasMany
     {
         return $this->hasMany(DocumentRequirement::class)->orderBy('id');
+    }
+
+    /** Resource reservation for a booking-kind request (null otherwise). */
+    public function booking(): HasOne
+    {
+        return $this->hasOne(Booking::class);
     }
 
     /** Mandatory requirements a staffer has not yet verified — blocks completion. */

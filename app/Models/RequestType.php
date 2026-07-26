@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RequestType extends Model
@@ -16,6 +17,7 @@ class RequestType extends Model
     protected $fillable = [
         'name',
         'kind',
+        'resource_id',
         'description',
         'is_active',
         'sort_order',
@@ -33,6 +35,12 @@ class RequestType extends Model
     public function requirements(): HasMany
     {
         return $this->hasMany(RequestTypeRequirement::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** The resource a booking-kind type reserves (null for document types). */
+    public function resource(): BelongsTo
+    {
+        return $this->belongsTo(Resource::class);
     }
 
     public function scopeActive($query)
