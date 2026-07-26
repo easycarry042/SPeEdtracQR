@@ -43,6 +43,7 @@
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',
         request()->routeIs('admin.route-templates*') => 'Route Templates',
+        request()->routeIs('admin.request-types*') => 'Request Types',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
         request()->routeIs('requests.*') => 'Internal Requests',
@@ -195,6 +196,12 @@
                                 <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 5a2 2 0 11-4 0 2 2 0 014 0zm14 14a2 2 0 11-4 0 2 2 0 014 0zM7 5h9a3 3 0 013 3v1m-2 10H8a3 3 0 01-3-3v-1m0-4v2m14-6v2"/></svg>
                             </span>
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Route Templates</span>
+                        </a>
+                        <a href="{{ route('admin.request-types.index') }}" class="{{ request()->routeIs('admin.request-types*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.request-types*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
+                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                            </span>
+                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Request Types</span>
                         </a>
                         <a href="{{ route('admin.audit-log.index') }}" class="{{ request()->routeIs('admin.audit-log*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.audit-log*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\RequestTypeController;
 use App\Http\Controllers\Admin\RouteTemplateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
@@ -144,6 +145,15 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
         Route::put('route-templates/{routeTemplate}', [RouteTemplateController::class, 'update'])->name('route-templates.update');
         Route::patch('route-templates/{routeTemplate}/toggle-active', [RouteTemplateController::class, 'toggleActive'])->name('route-templates.toggle-active');
         Route::delete('route-templates/{routeTemplate}', [RouteTemplateController::class, 'destroy'])->name('route-templates.destroy');
+
+        // Request types + their requirement checklists (public request catalog).
+        Route::get('request-types', [RequestTypeController::class, 'index'])->name('request-types.index');
+        Route::get('request-types/create', [RequestTypeController::class, 'create'])->name('request-types.create');
+        Route::post('request-types', [RequestTypeController::class, 'store'])->name('request-types.store');
+        Route::get('request-types/{requestType}/edit', [RequestTypeController::class, 'edit'])->name('request-types.edit');
+        Route::put('request-types/{requestType}', [RequestTypeController::class, 'update'])->name('request-types.update');
+        Route::patch('request-types/{requestType}/toggle-active', [RequestTypeController::class, 'toggleActive'])->name('request-types.toggle-active');
+        Route::delete('request-types/{requestType}', [RequestTypeController::class, 'destroy'])->name('request-types.destroy');
     });
 
 // Document assignment desk (admins assign the responsible staff member)
