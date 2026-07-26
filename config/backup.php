@@ -166,13 +166,15 @@ return [
              * The disk names on which the backups will be stored.
              */
             'disks' => [
-                'backups',
+                'backups',   // local copy (fast restore)
+                'supabase',  // off-site copy in Supabase Storage
             ],
 
             /*
              * Determines whether to allow backups to continue when some targets fail instead of failing completely.
+             * true: a transient Supabase/network hiccup won't lose the local backup.
              */
-            'continue_on_failure' => false,
+            'continue_on_failure' => true,
         ],
 
         /*
@@ -303,7 +305,7 @@ return [
     'monitor_backups' => [
         [
             'name' => env('APP_NAME', 'laravel-backup'),
-            'disks' => ['backups'],
+            'disks' => ['backups', 'supabase'],
             'health_checks' => [
                 MaximumAgeInDays::class => 1,
                 MaximumStorageInMegabytes::class => 5000,
