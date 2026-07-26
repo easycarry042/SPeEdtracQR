@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Mail\BookingUpdated;
 use App\Models\Booking;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 
 class BookingController extends Controller
 {
@@ -53,6 +55,7 @@ class BookingController extends Controller
 
         $booking->update(['status' => Booking::STATUS_APPROVED]);
         activity()->performedOn($booking->document)->log("Approved booking for {$booking->resource?->name}.");
+        $this->notifyCitizen($booking, BookingUpdated::OUTCOME_APPROVED);
 
         return back()->with('status', 'Booking approved.');
     }
@@ -76,6 +79,7 @@ class BookingController extends Controller
 
         $booking->update(['starts_at' => $starts, 'ends_at' => $ends]);
         activity()->performedOn($booking->document)->log("Rescheduled booking for {$booking->resource?->name}.");
+        $this->notifyCitizen($booking, BookingUpdated::OUTCOME_RESCHEDULED);
 
         return back()->with('status', 'Booking rescheduled.');
     }
@@ -85,7 +89,29 @@ class BookingController extends Controller
     {
         $booking->update(['status' => Booking::STATUS_CANCELLED]);
         activity()->performedOn($booking->document)->log("Cancelled booking for {$booking->resource?->name}.");
+        $this->notifyCitizen($booking, BookingUpdated::OUTCOME_CANCELLED);
 
         return back()->with('status', 'Booking cancelled.');
+    }
+
+    /**
+     * Email the citizen about a booking outcome, honouring the same gate as
+     * document status emails: the global kill switch, the bookings toggle, a
+     * present citizen_email, and the document's per-ticket notify_citizen flag.
+     */
+    private function notifyCitizen(Booking $booking, string $outcome): void
+    {
+        if (! config('tracking.notify_citizen.enabled', true) || ! config('tracking.notify_citizen.bookings', true)) {
+            return;
+        }
+
+        $document = $booking->document;
+
+        if (! $document || ! $document->citizen_email || ! ($document->notify_citizen ?? true)) {
+            return;
+        }
+
+        Mail::to($document->citizen_email)->send(new BookingUpdated($booking, $outcome));
+        activity()->performedOn($document)->log("Emailed BookingUpdated ({$outcome}) to citizen");
     }
 }

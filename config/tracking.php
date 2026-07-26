@@ -34,6 +34,14 @@ return [
             // "Action needed" email when a hold is blocked on the citizen.
             DocumentStatus::OnHold->value => true,
         ],
+
+        /*
+        | Booking lifecycle emails (approved / rescheduled / cancelled). Gated by
+        | 'enabled' above plus the document's citizen_email + notify_citizen flag,
+        | exactly like status emails. Bookings carry their own statuses, so they
+        | sit outside the DocumentStatus 'stages' map.
+        */
+        'bookings' => env('TRACKING_NOTIFY_BOOKINGS', true),
     ],
 
     /*

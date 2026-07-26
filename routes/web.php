@@ -29,6 +29,7 @@ use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\RequestStepController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\ServiceReportController;
 use App\Http\Controllers\SignatureController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
@@ -308,6 +309,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('permission:view reports')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
         Route::get('/analytics/data', [AnalyticsController::class, 'chartData'])->name('analytics.data');
+        Route::get('/reports/services', [ServiceReportController::class, 'index'])->name('reports.services');
     });
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
