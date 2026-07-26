@@ -62,6 +62,17 @@
                 @error('document_type')<p id="document_type-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
+            {{-- Requirements for the chosen request type — populated by JS from the
+                 catalog. Citizens bring the originals; uploading a copy is optional. --}}
+            <div id="requirementsSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                <p class="text-sm font-semibold text-emerald-900">Requirements for this request</p>
+                <p class="mt-0.5 text-xs text-gray-600">Please bring the <strong>original</strong> of each to the counter — staff will verify them. You may optionally upload a photo or scan now to speed things up.</p>
+                <ul id="requirementsList" class="mt-3 space-y-3"></ul>
+            </div>
+            <script>
+                window.__requirements = @json($requestTypes->mapWithKeys(fn ($t) => [$t->name => $t->requirements->map(fn ($r) => ['id' => $r->id, 'label' => $r->label, 'mandatory' => (bool) $r->is_mandatory])->values()]));
+            </script>
+
             <div>
                 <label for="purpose" class="mb-1 block text-sm font-semibold text-gray-700">Purpose</label>
                 <input id="purpose" name="purpose" value="{{ old('purpose') }}" maxlength="255" aria-invalid="@error('purpose')true @else false @enderror" @error('purpose') aria-describedby="purpose-err" @enderror class="{{ $field }} @error('purpose') {{ $bad }} @else {{ $ok }} @enderror">
@@ -254,6 +265,40 @@
                 ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove('border-emerald-500', 'bg-emerald-50')));
                 drop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) { addFiles(Array.from(e.dataTransfer.files)); } });
             }
+        })();
+
+        // Show the selected request type's requirement checklist, each with an
+        // optional file input (name="requirements[<id>]").
+        (function () {
+            const sel = document.getElementById('document_type');
+            const section = document.getElementById('requirementsSection');
+            const list = document.getElementById('requirementsList');
+            const data = window.__requirements || {};
+            if (!sel || !section || !list) { return; }
+
+            const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+            function render() {
+                const reqs = data[sel.value] || [];
+                list.innerHTML = '';
+                if (!reqs.length) { section.classList.add('hidden'); return; }
+                section.classList.remove('hidden');
+                reqs.forEach((r) => {
+                    const li = document.createElement('li');
+                    li.className = 'rounded-lg border border-gray-200 bg-white p-3';
+                    li.innerHTML =
+                        `<div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-medium text-gray-800">${esc(r.label)}</span>
+                            <span class="shrink-0 text-[11px] font-semibold ${r.mandatory ? 'text-red-600' : 'text-gray-400'}">${r.mandatory ? 'Required' : 'Optional'}</span>
+                        </div>
+                        <input type="file" name="requirements[${r.id}]" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                               class="mt-2 w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">`;
+                    list.appendChild(li);
+                });
+            }
+
+            sel.addEventListener('change', render);
+            render(); // handle old() repopulation after a validation error
         })();
     </script>
 </body>

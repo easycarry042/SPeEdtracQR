@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Mail\TicketSubmitted;
 use App\Models\Document;
+use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\DocumentFormOptions;
@@ -32,6 +33,13 @@ class PublicTicketController extends Controller
     {
         return view('public.request', [
             'categories' => DocumentFormOptions::categoryOptions(),
+            'requestTypes' => RequestType::query()
+                ->where('is_active', true)
+                ->where('kind', RequestType::KIND_DOCUMENT)
+                ->with('requirements')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
@@ -52,10 +60,14 @@ class PublicTicketController extends Controller
             'citizen_contact' => ['nullable', 'string', 'max:255'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'], // 10 MB each: images, PDF or Word
+            // Optional per-requirement uploads, keyed by request_type_requirement id.
+            'requirements' => ['nullable', 'array'],
+            'requirements.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
             'attachments.*.mimes' => 'Each file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
+            'requirements.*.mimes' => 'Each requirement file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -85,6 +97,26 @@ class PublicTicketController extends Controller
             $document,
             collect($request->file('attachments', []))->filter()->all(),
         );
+
+        // Snapshot the selected type's requirement checklist onto this request,
+        // storing any optional citizen upload per requirement (private disk).
+        $type = RequestType::where('name', $validated['document_type'])->with('requirements')->first();
+        if ($type) {
+            $uploads = $request->file('requirements', []);
+            foreach ($type->requirements as $requirement) {
+                $file = $uploads[$requirement->id] ?? null;
+                $path = ($file && $file->isValid())
+                    ? $file->store('document-requirements', 'local')
+                    : null;
+
+                $document->requirements()->create([
+                    'request_type_requirement_id' => $requirement->id,
+                    'label' => $requirement->label,
+                    'is_mandatory' => $requirement->is_mandatory,
+                    'uploaded_file_path' => $path,
+                ]);
+            }
+        }
 
         activity()
             ->performedOn($document)
