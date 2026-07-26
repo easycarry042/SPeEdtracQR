@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Mail\TicketSubmitted;
+use App\Models\Booking;
 use App\Models\Document;
 use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
@@ -13,6 +14,7 @@ use App\Support\DocumentFormOptions;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
@@ -33,10 +35,11 @@ class PublicTicketController extends Controller
     {
         return view('public.request', [
             'categories' => DocumentFormOptions::categoryOptions(),
+            // Both kinds: document types carry requirements, booking types carry
+            // a resource + date/time. The form branches on kind client-side.
             'requestTypes' => RequestType::query()
                 ->where('is_active', true)
-                ->where('kind', RequestType::KIND_DOCUMENT)
-                ->with('requirements')
+                ->with(['requirements', 'resource'])
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
@@ -70,6 +73,33 @@ class PublicTicketController extends Controller
             'requirements.*.mimes' => 'Each requirement file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
 
+        // Resolve the selected type up front so booking requests can be schedule-
+        // validated and conflict-checked BEFORE anything is created.
+        $type = RequestType::where('name', $validated['document_type'])
+            ->with(['requirements', 'resource'])
+            ->first();
+
+        $isBooking = $type && $type->kind === RequestType::KIND_BOOKING;
+        $bookingWindow = null;
+
+        if ($isBooking) {
+            $booking = $request->validate([
+                'starts_at' => ['required', 'date', 'after:now'],
+                'ends_at' => ['required', 'date', 'after:starts_at'],
+            ], [
+                'ends_at.after' => 'The end time must be after the start time.',
+                'starts_at.after' => 'Please choose a start time in the future.',
+            ]);
+
+            $bookingWindow = [Carbon::parse($booking['starts_at']), Carbon::parse($booking['ends_at'])];
+
+            if ($type->resource && $type->resource->conflicts($bookingWindow[0], $bookingWindow[1])->isNotEmpty()) {
+                return back()->withInput()->withErrors([
+                    'starts_at' => "{$type->resource->name} is already booked during that time. Please choose another slot.",
+                ]);
+            }
+        }
+
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
         $document = Document::create([
@@ -98,10 +128,18 @@ class PublicTicketController extends Controller
             collect($request->file('attachments', []))->filter()->all(),
         );
 
-        // Snapshot the selected type's requirement checklist onto this request,
-        // storing any optional citizen upload per requirement (private disk).
-        $type = RequestType::where('name', $validated['document_type'])->with('requirements')->first();
-        if ($type) {
+        if ($isBooking) {
+            // Booking request: create the pending reservation (staff approve/
+            // reschedule on the calendar; approval re-checks for conflicts).
+            $document->booking()->create([
+                'resource_id' => $type->resource_id,
+                'starts_at' => $bookingWindow[0],
+                'ends_at' => $bookingWindow[1],
+                'status' => Booking::STATUS_PENDING,
+            ]);
+        } elseif ($type) {
+            // Document request: snapshot the requirement checklist, storing any
+            // optional citizen upload per requirement (private disk).
             $uploads = $request->file('requirements', []);
             foreach ($type->requirements as $requirement) {
                 $file = $uploads[$requirement->id] ?? null;

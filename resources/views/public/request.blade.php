@@ -55,8 +55,8 @@
                 <label for="document_type" class="mb-1 block text-sm font-semibold text-gray-700">Request type <span class="text-red-500">*</span></label>
                 <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="{{ $field }} @error('document_type') {{ $bad }} @else {{ $ok }} @enderror">
                     <option value="">Select type…</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category }}" @selected(old('document_type') === $category)>{{ $category }}</option>
+                    @foreach($requestTypes as $rt)
+                        <option value="{{ $rt->name }}" @selected(old('document_type') === $rt->name)>{{ $rt->name }}</option>
                     @endforeach
                 </select>
                 @error('document_type')<p id="document_type-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
@@ -69,8 +69,31 @@
                 <p class="mt-0.5 text-xs text-gray-600">Please bring the <strong>original</strong> of each to the counter — staff will verify them. You may optionally upload a photo or scan now to speed things up.</p>
                 <ul id="requirementsList" class="mt-3 space-y-3"></ul>
             </div>
+
+            {{-- Booking types: reserve a resource for a time window. --}}
+            <div id="bookingSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                <p class="text-sm font-semibold text-emerald-900">Reservation details</p>
+                <p class="mt-0.5 text-xs text-gray-600">You're reserving <strong id="bookingResource"></strong>. Choose when you need it — staff confirm availability, and clashing times are refused.</p>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label for="starts_at" class="mb-1 block text-xs font-semibold text-gray-700">Start</label>
+                        <input id="starts_at" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" class="{{ $field }} @error('starts_at') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('starts_at')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="ends_at" class="mb-1 block text-xs font-semibold text-gray-700">End</label>
+                        <input id="ends_at" type="datetime-local" name="ends_at" value="{{ old('ends_at') }}" class="{{ $field }} @error('ends_at') {{ $bad }} @else {{ $ok }} @enderror">
+                        @error('ends_at')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </div>
+
             <script>
-                window.__requirements = @json($requestTypes->mapWithKeys(fn ($t) => [$t->name => $t->requirements->map(fn ($r) => ['id' => $r->id, 'label' => $r->label, 'mandatory' => (bool) $r->is_mandatory])->values()]));
+                window.__types = @json($requestTypes->mapWithKeys(fn ($t) => [$t->name => [
+                    'kind' => $t->kind,
+                    'resource' => $t->resource?->name,
+                    'requirements' => $t->requirements->map(fn ($r) => ['id' => $r->id, 'label' => $r->label, 'mandatory' => (bool) $r->is_mandatory])->values(),
+                ]]));
             </script>
 
             <div>
@@ -267,22 +290,36 @@
             }
         })();
 
-        // Show the selected request type's requirement checklist, each with an
-        // optional file input (name="requirements[<id>]").
+        // Branch the form on the selected type's kind: document types show a
+        // requirement checklist (optional uploads); booking types show a
+        // resource + date/time reservation block.
         (function () {
             const sel = document.getElementById('document_type');
-            const section = document.getElementById('requirementsSection');
-            const list = document.getElementById('requirementsList');
-            const data = window.__requirements || {};
-            if (!sel || !section || !list) { return; }
+            const reqSection = document.getElementById('requirementsSection');
+            const reqList = document.getElementById('requirementsList');
+            const bookingSection = document.getElementById('bookingSection');
+            const bookingResource = document.getElementById('bookingResource');
+            const types = window.__types || {};
+            if (!sel || !reqSection || !reqList) { return; }
 
             const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
             function render() {
-                const reqs = data[sel.value] || [];
-                list.innerHTML = '';
-                if (!reqs.length) { section.classList.add('hidden'); return; }
-                section.classList.remove('hidden');
+                const t = types[sel.value] || null;
+                reqSection.classList.add('hidden');
+                reqList.innerHTML = '';
+                bookingSection?.classList.add('hidden');
+                if (!t) { return; }
+
+                if (t.kind === 'booking') {
+                    bookingSection?.classList.remove('hidden');
+                    if (bookingResource) { bookingResource.textContent = t.resource || 'this resource'; }
+                    return;
+                }
+
+                const reqs = t.requirements || [];
+                if (!reqs.length) { return; }
+                reqSection.classList.remove('hidden');
                 reqs.forEach((r) => {
                     const li = document.createElement('li');
                     li.className = 'rounded-lg border border-gray-200 bg-white p-3';
@@ -293,7 +330,7 @@
                         </div>
                         <input type="file" name="requirements[${r.id}]" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
                                class="mt-2 w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">`;
-                    list.appendChild(li);
+                    reqList.appendChild(li);
                 });
             }
 

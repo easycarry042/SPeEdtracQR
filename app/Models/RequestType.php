@@ -37,7 +37,11 @@ class RequestType extends Model
         return $this->hasMany(RequestTypeRequirement::class)->orderBy('sort_order')->orderBy('id');
     }
 
-    /** The resource a booking-kind type reserves (null for document types). */
+    /**
+     * The resource a booking-kind type reserves (null for document types).
+     *
+     * @return BelongsTo<Resource, $this>
+     */
     public function resource(): BelongsTo
     {
         return $this->belongsTo(Resource::class);
