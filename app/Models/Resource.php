@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class Resource extends Model
@@ -41,10 +41,26 @@ class Resource extends Model
      *
      * @return Collection<int, Booking>
      */
-    public function conflicts(Carbon $starts, Carbon $ends, ?int $ignoreBookingId = null): Collection
+    public function conflicts(CarbonInterface $starts, CarbonInterface $ends, ?int $ignoreBookingId = null): Collection
     {
         return $this->bookings()
             ->where('status', '!=', Booking::STATUS_CANCELLED)
+            ->where('starts_at', '<', $ends)
+            ->where('ends_at', '>', $starts)
+            ->when($ignoreBookingId, fn ($q) => $q->whereKeyNot($ignoreBookingId))
+            ->get();
+    }
+
+    /**
+     * Approved bookings overlapping the window — the set that blocks approving
+     * or rescheduling another booking (two approved bookings can't overlap).
+     *
+     * @return Collection<int, Booking>
+     */
+    public function approvedConflicts(CarbonInterface $starts, CarbonInterface $ends, ?int $ignoreBookingId = null): Collection
+    {
+        return $this->bookings()
+            ->where('status', Booking::STATUS_APPROVED)
             ->where('starts_at', '<', $ends)
             ->where('ends_at', '>', $starts)
             ->when($ignoreBookingId, fn ($q) => $q->whereKeyNot($ignoreBookingId))

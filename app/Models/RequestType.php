@@ -40,7 +40,7 @@ class RequestType extends Model
     /**
      * The resource a booking-kind type reserves (null for document types).
      *
-     * @return BelongsTo<Resource, $this>
+     * @return BelongsTo<\App\Models\Resource, $this>
      */
     public function resource(): BelongsTo
     {

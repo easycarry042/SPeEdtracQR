@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
 use App\Http\Controllers\CommentController;
@@ -164,6 +165,15 @@ Route::middleware(['auth', 'verified', 'permission:assign documents'])
         Route::get('assignments', [AssignmentController::class, 'index'])->name('assignments.index');
         Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
         Route::get('assignments/unclaimed', [AssignmentController::class, 'unclaimed'])->name('assignments.unclaimed');
+    });
+
+// Resource booking calendar (covered court, plaza, sound system, …).
+Route::middleware(['auth', 'verified', 'permission:assign documents'])
+    ->group(function () {
+        Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
+        Route::patch('bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
+        Route::patch('bookings/{booking}/reschedule', [BookingController::class, 'reschedule'])->name('bookings.reschedule');
+        Route::patch('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
     });
 
 // System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted

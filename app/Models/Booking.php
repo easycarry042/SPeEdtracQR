@@ -29,11 +29,17 @@ class Booking extends Model
         'ends_at' => 'datetime',
     ];
 
+    /**
+     * @return BelongsTo<Document, $this>
+     */
     public function document(): BelongsTo
     {
         return $this->belongsTo(Document::class);
     }
 
+    /**
+     * @return BelongsTo<\App\Models\Resource, $this>
+     */
     public function resource(): BelongsTo
     {
         return $this->belongsTo(Resource::class);

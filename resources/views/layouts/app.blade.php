@@ -40,6 +40,7 @@
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
         request()->routeIs('admin.assignments*') => 'Assignments',
+        request()->routeIs('bookings*') => 'Bookings',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',
         request()->routeIs('admin.route-templates*') => 'Route Templates',
@@ -176,6 +177,12 @@
                                 <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                             </span>
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Assignments</span>
+                        </a>
+                        <a href="{{ route('bookings.index') }}" class="{{ request()->routeIs('bookings*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('bookings*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
+                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </span>
+                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Bookings</span>
                         </a>
                         @endcan
                         @can('manage system')
