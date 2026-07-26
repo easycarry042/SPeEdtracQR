@@ -47,6 +47,29 @@ return [
             'report' => false,
         ],
 
+        // Dedicated store for spatie/laravel-backup archives, kept OUTSIDE
+        // storage/app so a backup never tries to include earlier backups.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('backups'),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Supabase Storage (S3-compatible) — off-site destination for backups.
+        // path-style endpoint is required by Supabase's S3 gateway.
+        'supabase' => [
+            'driver' => 's3',
+            'key' => env('SUPABASE_S3_KEY'),
+            'secret' => env('SUPABASE_S3_SECRET'),
+            'region' => env('SUPABASE_S3_REGION', 'ap-southeast-1'),
+            'bucket' => env('SUPABASE_S3_BUCKET', 'backups'),
+            'endpoint' => env('SUPABASE_S3_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

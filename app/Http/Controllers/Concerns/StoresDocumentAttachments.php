@@ -9,13 +9,14 @@ use Illuminate\Http\UploadedFile;
 trait StoresDocumentAttachments
 {
     /**
-     * @param  iterable<UploadedFile>  $files
+     * @param  iterable<UploadedFile|null>  $files  Entries may be null (e.g. an
+     *                                              optional file input that was
+     *                                              left empty); guarded below.
      * @return array<int, DocumentAttachment>
      */
     protected function storeAttachmentsForDocument(
         Document $document,
         iterable $files,
-        ?int $departmentId = null,
         ?int $uploadedBy = null,
     ): array {
         $uploadedBy ??= auth()->id();
@@ -31,7 +32,6 @@ trait StoresDocumentAttachments
             $attachment = $document->attachments()->create([
                 'file_path' => $path,
                 'uploaded_by' => $uploadedBy,
-                'department_id' => $departmentId,
                 'sort_order' => ++$sort,
             ]);
             $created[] = $attachment;

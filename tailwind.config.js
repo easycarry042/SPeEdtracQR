@@ -27,6 +27,25 @@ const municipalGreen = {
     950: '#0a3a1e',
 };
 
+// Civic neutral ramp — replaces Tailwind's cool stock gray with green-tinted
+// neutrals derived from the Civic Record tokens (paper / hairline / ink), so
+// the ~400 legacy `gray-*` classes scattered through the views converge on the
+// design system without a mass find-and-replace. Text steps are contrast-checked
+// against white (400 ≈ 4.95:1) so muted copy still passes WCAG AA.
+const civicNeutral = {
+    50: '#f6f9f7',
+    100: '#eef4f0',
+    200: '#e6ece8', // --hairline
+    300: '#cdd9d2', // --hairline-strong
+    400: '#657468', // muted text (AA on white)
+    500: '#5b6b62', // --ink-soft
+    600: '#4a594f',
+    700: '#374139',
+    800: '#232e28',
+    900: '#16211b', // --ink
+    950: '#0d1410',
+};
+
 export default {
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
@@ -48,6 +67,10 @@ export default {
                 },
                 // Municipal green — authority
                 green: {
+                    // Numeric ramp so legacy `green-100/500/700` classes render
+                    // municipal green instead of Tailwind's stock mint, plus the
+                    // semantic aliases for new work.
+                    ...municipalGreen,
                     deep: 'var(--green-deep)',
                     DEFAULT: 'var(--green)',
                     bright: 'var(--green-bright)',
@@ -71,6 +94,8 @@ export default {
                 // Legacy ramps remapped onto the municipal green.
                 emerald: municipalGreen,
                 teal: municipalGreen,
+                // Stock cool gray → green-tinted civic neutrals (single source of truth).
+                gray: civicNeutral,
             },
         },
     },

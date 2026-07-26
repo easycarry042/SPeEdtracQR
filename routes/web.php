@@ -1,23 +1,37 @@
 <?php
 
+use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
-use App\Http\Controllers\Admin\DepartmentController as AdminDepartmentController;
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\RouteTemplateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
+use App\Http\Controllers\DocumentCustodyController;
+use App\Http\Controllers\DocumentReleaseController;
+use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
-use App\Http\Controllers\MovementController;
+use App\Http\Controllers\InternalRequestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicTicketController;
+use App\Http\Controllers\RequestStepController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\SignatureController;
+use App\Http\Controllers\StaffDashboardController;
+use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
+use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,9 +44,23 @@ Route::get('/', function () {
         return view('welcome');
     }
 
-    return auth()->user()->can('manage system')
-        ? redirect()->route('admin.dashboard')
-        : redirect()->route('dashboard');
+    $user = auth()->user();
+
+    // Landing mirrors the post-login redirect: super_admin → command center,
+    // supervisors → Dashboard, intake-only → Look up hub, staff → Requests.
+    if ($user->can('manage system')) {
+        return redirect()->route('admin.dashboard');
+    }
+
+    if ($user->hasRole('Supervisor')) {
+        return redirect()->route('dashboard');
+    }
+
+    if ($user->can('scan documents') && ! $user->can('create documents')) {
+        return redirect()->route('track.index', ['find' => 1]);
+    }
+
+    return redirect()->route('staff.dashboard');
 });
 
 /*
@@ -40,6 +68,13 @@ Route::get('/', function () {
 | Public Tracking Routes (no auth required)
 |--------------------------------------------------------------------------
 */
+
+// Citizen self-service ticket creation (no account). Throttled + honeypot as
+// anti-abuse; uploads validated and stored on the private disk.
+Route::get('/request', [PublicTicketController::class, 'create'])->name('public.request.create');
+Route::post('/request', [PublicTicketController::class, 'store'])
+    ->middleware('throttle:8,1')
+    ->name('public.request.store');
 
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
@@ -59,6 +94,11 @@ Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
     ->name('track.ask');
+
+// Public authenticity check — the signed QR on an issued document lands here.
+Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('verify.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -84,17 +124,42 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-        // Department management
-        Route::get('departments', [AdminDepartmentController::class, 'index'])->name('departments.index');
-        Route::get('departments/create', [AdminDepartmentController::class, 'create'])->name('departments.create');
-        Route::post('departments', [AdminDepartmentController::class, 'store'])->name('departments.store');
-        Route::get('departments/{department}/edit', [AdminDepartmentController::class, 'edit'])->name('departments.edit');
-        Route::put('departments/{department}', [AdminDepartmentController::class, 'update'])->name('departments.update');
-        Route::delete('departments/{department}', [AdminDepartmentController::class, 'destroy'])->name('departments.destroy');
-
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+
+        // Departments (office directory for internal request routing)
+        Route::get('departments', [DepartmentController::class, 'index'])->name('departments.index');
+        Route::get('departments/create', [DepartmentController::class, 'create'])->name('departments.create');
+        Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store');
+        Route::get('departments/{department}/edit', [DepartmentController::class, 'edit'])->name('departments.edit');
+        Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
+        Route::patch('departments/{department}/toggle-active', [DepartmentController::class, 'toggleActive'])->name('departments.toggle-active');
+
+        // Route templates (endorsement chains prefilled onto internal requests)
+        Route::get('route-templates', [RouteTemplateController::class, 'index'])->name('route-templates.index');
+        Route::get('route-templates/create', [RouteTemplateController::class, 'create'])->name('route-templates.create');
+        Route::post('route-templates', [RouteTemplateController::class, 'store'])->name('route-templates.store');
+        Route::get('route-templates/{routeTemplate}/edit', [RouteTemplateController::class, 'edit'])->name('route-templates.edit');
+        Route::put('route-templates/{routeTemplate}', [RouteTemplateController::class, 'update'])->name('route-templates.update');
+        Route::patch('route-templates/{routeTemplate}/toggle-active', [RouteTemplateController::class, 'toggleActive'])->name('route-templates.toggle-active');
+        Route::delete('route-templates/{routeTemplate}', [RouteTemplateController::class, 'destroy'])->name('route-templates.destroy');
     });
+
+// Document assignment desk (admins assign the responsible staff member)
+Route::middleware(['auth', 'verified', 'permission:assign documents'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('assignments', [AssignmentController::class, 'index'])->name('assignments.index');
+        Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
+        Route::get('assignments/unclaimed', [AssignmentController::class, 'unclaimed'])->name('assignments.unclaimed');
+    });
+
+// System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted
+// to system admins — it exposes operational state, not for public/uptime pings.
+Route::get('health', HealthCheckResultsController::class)
+    ->middleware(['auth', 'verified', 'permission:manage system'])
+    ->name('health');
 
 // User management (controller enforces department scoping for dept admins)
 Route::middleware(['auth', 'verified', 'permission:manage users'])
@@ -106,6 +171,7 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
         Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
         Route::get('users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
         Route::put('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+        Route::post('users/bulk', [AdminUserController::class, 'bulk'])->name('users.bulk');
         Route::patch('users/{user}/toggle-active', [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::patch('users/{user}/archive', [AdminUserController::class, 'archive'])->name('users.archive');
         Route::patch('users/{user}/restore', [AdminUserController::class, 'restore'])->name('users.restore')->withTrashed();
@@ -121,12 +187,64 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Staff directory + quick search (any staff can view any profile).
+    Route::get('/staff', [StaffProfileController::class, 'index'])->name('staff.index');
+    Route::get('/staff/search', [StaffProfileController::class, 'search'])->name('staff.search');
+
+    // Staff operational dashboard — requests assigned to the authenticated staff member.
+    Route::get('/my-dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
+
+    // Internal dept-to-dept requests (supervisor wizard: OCR upload → route → QR).
+    // The inbox authorizes in-controller: dept supervisors AND org-wide admins enter.
+    Route::get('/requests', [InternalRequestController::class, 'index'])->name('requests.index');
+    Route::middleware('permission:create internal requests')->group(function () {
+        Route::get('/requests/create', [InternalRequestController::class, 'create'])->name('requests.create');
+        Route::post('/requests', [InternalRequestController::class, 'store'])->name('requests.store');
+    });
+    Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
+    Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
+
+    // Hop actions on the endorsement chain (current-department supervisors only;
+    // each action re-confirms the password, approval affixes the e-signature).
+    Route::middleware('permission:act on internal requests')->group(function () {
+        Route::post('/requests/{document}/steps/approve', [RequestStepController::class, 'approve'])->name('requests.steps.approve');
+        Route::post('/requests/{document}/steps/deny', [RequestStepController::class, 'deny'])->name('requests.steps.deny');
+        Route::post('/requests/{document}/steps/return', [RequestStepController::class, 'returnToRequester'])->name('requests.steps.return');
+    });
+    Route::get('/request-steps/{requestStep}/signature', [RequestStepController::class, 'signature'])->name('requests.steps.signature');
+
+    // Registered e-signature (drawn once on the profile page).
+    Route::post('/profile/signature', [SignatureController::class, 'store'])->name('profile.signature.store');
+    Route::get('/profile/signature', [SignatureController::class, 'show'])->name('profile.signature.show');
+    Route::delete('/profile/signature', [SignatureController::class, 'destroy'])->name('profile.signature.destroy');
+
+    // Supervisor approve = assign to staff (staff must accept on Requests page).
+    Route::post('/documents/{document}/assign-approve', [ReviewController::class, 'assignApprove'])->name('documents.assign-approve');
+    // Supervisor deny = reject the request (terminal).
+    Route::post('/documents/{document}/deny', [ReviewController::class, 'deny'])->name('documents.deny');
+
+    // Staff assignment triage on the Requests page.
+    Route::post('/documents/{document}/assignment/accept', [ReviewController::class, 'acceptAssignment'])->name('documents.assignment.accept');
+    Route::post('/documents/{document}/assignment/decline', [ReviewController::class, 'declineAssignment'])->name('documents.assignment.decline');
+    Route::post('/documents/{document}/assignment/revision', [ReviewController::class, 'requestRevision'])->name('documents.assignment.revision');
+
+    // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
+    Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
+    Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
+
+    // Staff profile (identity rail + activity feed). Viewable by any staff user.
+    Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');
+    Route::post('/staff/highlights', [StaffProfileController::class, 'store'])->name('staff.highlights.store');
+
+    // Header bell: open a notification (mark read + follow) / clear all.
+    Route::get('/notifications/{id}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
-    Route::get('/scanner', fn () => redirect()->route('scan.index'))->name('scanner');
 
     Route::get('/documents/create', [DocumentWebController::class, 'create'])->name('documents.create');
     Route::post('/documents', [DocumentWebController::class, 'store'])->name('documents.store');
@@ -135,7 +253,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/documents/{document}', [DocumentWebController::class, 'update'])->name('documents.update');
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
-    Route::post('/documents/{document}/undo-scan', [ScanController::class, 'undoLast'])->name('documents.undo-scan');
+
+    // Per-document staff collaboration feed (assignee or admin).
+    Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+
+    // Physical custody trail — "the folder is now with me" (scan or click).
+    Route::post('/documents/{document}/custody', [DocumentCustodyController::class, 'store'])->name('documents.custody.store');
+
+    // QR-gated release: citizen presents their QR, staff mark the hand-over.
+    Route::patch('/documents/{document}/release', [DocumentReleaseController::class, 'store'])->name('documents.release');
+
+    // Manual status progression by the assigned staff member (or an admin).
+    Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');
+    Route::patch('/documents/{document}/status/revert', [DocumentStatusController::class, 'revert'])->name('documents.status.revert');
+    Route::patch('/documents/{document}/hold', [DocumentStatusController::class, 'hold'])->name('documents.status.hold');
+    Route::patch('/documents/{document}/unhold', [DocumentStatusController::class, 'unhold'])->name('documents.status.unhold');
+    Route::patch('/documents/{document}/status', [DocumentStatusController::class, 'set'])->name('documents.status.set');
 
     Route::middleware('permission:view reports')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
@@ -145,13 +278,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');
 
-    Route::get('/movements', [MovementController::class, 'index'])->name('movements.index');
+    Route::patch('/documents/{document}/accept', [AssignmentController::class, 'accept'])
+        ->middleware('permission:accept documents|assign documents')
+        ->name('documents.accept');
 
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');
     Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
-
-    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 });
 
 require __DIR__.'/auth.php';

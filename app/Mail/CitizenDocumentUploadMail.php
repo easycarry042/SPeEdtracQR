@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail;
 
-use App\Models\Department;
 use App\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -16,7 +17,6 @@ class CitizenDocumentUploadMail extends Mailable
 
     public function __construct(
         public Document $document,
-        public Department $department,
         public int $fileCount,
         public ?string $citizenNote = null,
     ) {}

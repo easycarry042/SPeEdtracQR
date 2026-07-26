@@ -16,7 +16,12 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $permissions = [
             'create documents',
+            'create internal requests', // supervisor-only dept-to-dept requests
+            'act on internal requests', // approve/deny/return hops of internal requests
             'scan documents',
+            'advance documents', // move an assigned document through its status stages
+            'assign documents',  // assign the staff member responsible for a document
+            'accept documents',  // staff self-accept from the unclaimed queue
             'view reports',
             'manage users',
             'view all documents',
@@ -29,16 +34,23 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
-        $staffRole->syncPermissions(['create documents', 'scan documents']);
+        $staffRole->syncPermissions(['create documents', 'scan documents', 'advance documents', 'accept documents']);
 
         $receivingRole = Role::firstOrCreate(['name' => 'receiving_staff']);
-        $receivingRole->syncPermissions(['scan documents']);
+        $receivingRole->syncPermissions(['scan documents', 'accept documents']);
 
-        $deptAdminRole = Role::firstOrCreate(['name' => 'department_admin']);
-        $deptAdminRole->syncPermissions([
-            'create documents', 'scan documents', 'view reports',
-            'manage users', 'view all documents',
+        $legacyDeptAdminRole = Role::where('name', 'department_admin')->first();
+        $supervisorRole = Role::firstOrCreate(['name' => 'Supervisor']);
+        $supervisorRole->syncPermissions([
+            'assign documents', 'view reports', 'view all documents',
+            'create internal requests', 'act on internal requests',
         ]);
+        if ($legacyDeptAdminRole) {
+            foreach ($legacyDeptAdminRole->users as $user) {
+                $user->syncRoles(['Supervisor']);
+            }
+            $legacyDeptAdminRole->delete();
+        }
 
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
         $superAdminRole->syncPermissions(Permission::pluck('name')->all());

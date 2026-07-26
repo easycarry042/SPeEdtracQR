@@ -30,8 +30,8 @@
     <div class="body">
         <div class="alert-box">
             <p>
-                The document below has <strong>exceeded its allowed SLA window</strong> in
-                <strong>{{ $department->name }}</strong> and is now overdue. This breach has been logged.
+                The document below has <strong>exceeded its allowed SLA window</strong> at the
+                <strong>{{ $document->statusEnum()->label() }}</strong> stage and is now overdue. This breach has been logged.
                 Immediate processing is required.
             </p>
         </div>
@@ -50,12 +50,16 @@
                 <td>{{ $document->citizen_name ?? 'N/A' }}</td>
             </tr>
             <tr>
-                <td>Current Department</td>
-                <td>{{ $department->name }}</td>
+                <td>Current Stage</td>
+                <td>{{ $document->statusEnum()->label() }}</td>
+            </tr>
+            <tr>
+                <td>Assignee</td>
+                <td>{{ $document->assignedTo->name ?? 'Unassigned' }}</td>
             </tr>
             <tr>
                 <td>SLA Limit</td>
-                <td>{{ $department->sla_hours }} hours</td>
+                <td>{{ $document->statusEnum()->slaHours() }} hours</td>
             </tr>
             <tr>
                 <td>Document Status</td>

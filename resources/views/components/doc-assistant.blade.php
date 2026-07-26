@@ -24,10 +24,10 @@
                           x-text="m.text"></span>
                 </div>
             </template>
-            <div x-show="loading" class="flex items-center gap-1.5 text-sm text-gray-400">
-                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400" style="animation-delay:0ms"></span>
-                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400" style="animation-delay:150ms"></span>
-                <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400" style="animation-delay:300ms"></span>
+            <div x-show="loading" class="flex items-center gap-1.5 text-sm text-gray-400" role="status" aria-label="Assistant is typing">
+                <span class="cr-typing-dot h-1.5 w-1.5 rounded-full bg-emerald-400" style="animation-delay:0ms"></span>
+                <span class="cr-typing-dot h-1.5 w-1.5 rounded-full bg-emerald-400" style="animation-delay:200ms"></span>
+                <span class="cr-typing-dot h-1.5 w-1.5 rounded-full bg-emerald-400" style="animation-delay:400ms"></span>
             </div>
         </div>
 

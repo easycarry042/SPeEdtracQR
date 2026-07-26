@@ -1,0 +1,21 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        DB::table('roles')
+            ->where('name', 'department_admin')
+            ->update(['name' => 'Supervisor']);
+    }
+
+    public function down(): void
+    {
+        DB::table('roles')
+            ->where('name', 'Supervisor')
+            ->update(['name' => 'department_admin']);
+    }
+};

@@ -25,8 +25,11 @@
                 </span>
             </div>
             <nav class="flex items-center gap-3">
+                <a href="{{ route('public.request.create') }}" class="rounded-xl bg-emerald-700 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
+                    Submit a Request
+                </a>
                 @auth
-                    <a href="{{ url('/dashboard') }}" class="rounded-xl bg-emerald-700 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
+                    <a href="{{ url('/dashboard') }}" class="rounded-xl border border-emerald-300 bg-white px-5 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
                         Go to Dashboard
                     </a>
                 @else

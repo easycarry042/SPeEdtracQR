@@ -14,10 +14,10 @@ use Throwable;
 class OllamaProvider implements LlmProvider
 {
     public function __construct(
-        private string $url,
-        private string $model,
-        private int $timeout = 30,
-        private string $keepAlive = '30m',
+        private readonly string $url,
+        private readonly string $model,
+        private readonly int $timeout = 30,
+        private readonly string $keepAlive = '30m',
     ) {}
 
     public function chat(string $system, string $userMessage): ?string

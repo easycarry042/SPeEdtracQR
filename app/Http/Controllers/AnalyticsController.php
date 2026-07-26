@@ -2,39 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Enums\DocumentStatus;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
-use App\Models\DocumentScan;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 use Carbon\CarbonPeriod;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AnalyticsController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $isOrgWide = DepartmentScope::isOrgWide($user);
-        $dept = $user->department;
+        // Super admins get the full analytics command center on their dashboard;
+        // the standalone page would just duplicate it.
+        if (auth()->user()?->can('manage system')) {
+            return to_route('admin.dashboard');
+        }
 
+        $user = auth()->user();
+        $isOrgWide = AssignmentScope::canViewAll($user);
         $documentTypes = $this->scopedDocuments()->distinct()->orderBy('document_type')->pluck('document_type');
-        $statuses = ['pending', 'in_transit', 'completed'];
+        $statuses = DocumentStatus::values();
 
         $summary = $this->buildSummary();
 
-        $topDepartments = collect();
+        $topStaff = collect();
         $statusBreakdown = collect();
         $byType = collect();
 
         if ($isOrgWide) {
-            $topDepartments = DocumentScan::query()
-                ->join('departments', 'document_scans.department_id', '=', 'departments.id')
-                ->select('departments.name', DB::raw('COUNT(document_scans.id) as total'))
-                ->groupBy('departments.id', 'departments.name')
+            $topStaff = Document::query()
+                ->leftJoin('users', 'documents.assigned_to', '=', 'users.id')
+                ->select(DB::raw("COALESCE(users.name, 'Unassigned') as name"), DB::raw('COUNT(documents.id) as total'))
+                ->groupBy('users.name')
                 ->orderByDesc('total')
                 ->take(8)
                 ->get();
@@ -68,51 +74,39 @@ class AnalyticsController extends Controller
 
         // ---- Reshape into the plain arrays the Civic Record analytics view expects ----
         $kpis = [
-            'in_transit' => $summary['at_department'],
+            'in_progress' => $summary['in_progress'],
             'completed' => $summary['completed'],
             'submitted_month' => $summary['submitted_month'],
             'overdue' => $summary['overdue'],
         ];
 
-        $byType = $byType->map(fn ($row) => [
+        $byType = $byType->map(fn ($row): array => [
             'label' => $row->document_type,
             'count' => (int) $row->total,
         ])->all();
 
-        $topDepartments = $topDepartments->map(fn ($row) => [
+        $topStaff = $topStaff->map(fn ($row): array => [
             'name' => $row->name,
-            'scans' => (int) $row->total,
+            'assigned' => (int) $row->total,
         ])->all();
 
         $categories = $documentTypes->all();
         $activity = $this->buildActivitySeries($request);
 
-        return view('analytics', compact(
-            'documentTypes',
-            'statuses',
-            'topDepartments',
-            'statusBreakdown',
-            'byType',
-            'summary',
-            'kpis',
-            'categories',
-            'activity',
-            'isOrgWide',
-            'dept'
-        ));
+        return view('analytics', ['documentTypes' => $documentTypes, 'statuses' => $statuses, 'topStaff' => $topStaff, 'statusBreakdown' => $statusBreakdown, 'byType' => $byType, 'summary' => $summary, 'kpis' => $kpis, 'categories' => $categories, 'activity' => $activity, 'isOrgWide' => $isOrgWide]);
     }
 
     public function chartData(Request $request)
     {
         $request->validate([
-            'document_type' => 'nullable|string',
-            'status' => 'nullable|string|in:pending,in_transit,completed',
-            'from' => 'nullable|date',
-            'to' => 'nullable|date|after_or_equal:from',
+            'document_type' => ['nullable', 'string'],
+            'status' => ['nullable', 'string', Rule::in(DocumentStatus::values())],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
-        $fromDate = Carbon::parse($request->filled('from') ? $request->from : now()->subDays(30)->toDateString())->startOfDay();
-        $toDate = Carbon::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
+        $fromDate = Date::parse($request->filled('from') ? $request->from : now()->subDays(30)->toDateString())->startOfDay();
+        $toDate = Date::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
 
         $query = $this->scopedDocuments();
 
@@ -152,11 +146,11 @@ class AnalyticsController extends Controller
             'labels' => $labels,
             'submitted' => $submitted,
             'completed' => $completedSeries,
-            'scoped' => ! DepartmentScope::isOrgWide(),
+            'scoped' => ! AssignmentScope::canViewAll(),
         ]);
     }
 
-    private function scopedDocuments()
+    private function scopedDocuments(): Builder
     {
         return $this->scopeDocuments(Document::query());
     }
@@ -170,14 +164,14 @@ class AnalyticsController extends Controller
      */
     private function buildActivitySeries(Request $request): array
     {
-        $fromDate = Carbon::parse($request->filled('from') ? $request->from : now()->subDays(29)->toDateString())->startOfDay();
-        $toDate = Carbon::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
+        $fromDate = Date::parse($request->filled('from') ? $request->from : now()->subDays(29)->toDateString())->startOfDay();
+        $toDate = Date::parse($request->filled('to') ? $request->to : now()->toDateString())->endOfDay();
 
         $applyFilters = function ($query) use ($request) {
             if ($request->filled('category')) {
                 $query->where('document_type', $request->category);
             }
-            if ($request->filled('status') && in_array($request->status, ['pending', 'in_transit', 'completed'], true)) {
+            if ($request->filled('status') && in_array($request->status, DocumentStatus::values(), true)) {
                 $query->where('status', $request->status);
             }
 
@@ -212,27 +206,26 @@ class AnalyticsController extends Controller
 
     private function buildSummary(): array
     {
-        $atDeptNow = $this->scopeCurrentDocuments(
-            Document::query()->whereIn('status', ['pending', 'in_transit'])
+        $inProgressNow = $this->scopeDocuments(
+            Document::query()->whereIn('status', DocumentStatus::activeValues())
         )->count();
 
-        $completed = $this->scopedDocuments(
-            Document::query()->where('status', 'completed')
+        $completed = $this->scopeDocuments(
+            Document::query()->where('status', DocumentStatus::Completed->value)
         )->count();
 
-        $submittedThisMonth = $this->scopedDocuments(
+        $submittedThisMonth = $this->scopeDocuments(
             Document::query()->where('created_at', '>=', now()->startOfMonth())
         )->count();
 
-        $overdue = $this->scopeCurrentDocuments(Document::query())
-            ->whereIn('status', ['pending', 'in_transit'])
-            ->whereNotNull('current_department_id')
+        $overdue = $this->scopeDocuments(Document::query())
+            ->whereIn('status', DocumentStatus::activeValues())
             ->get()
             ->filter(fn ($doc) => $doc->isOverdue())
             ->count();
 
         return [
-            'at_department' => $atDeptNow,
+            'in_progress' => $inProgressNow,
             'completed' => $completed,
             'submitted_month' => $submittedThisMonth,
             'overdue' => $overdue,

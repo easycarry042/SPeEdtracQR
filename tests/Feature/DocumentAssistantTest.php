@@ -2,14 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use App\Support\Ai\DocumentAssistant;
 use App\Support\Ai\LlmProvider;
 use App\Support\Ai\NullProvider;
 use App\Support\Ai\OllamaProvider;
-use App\Support\PredictiveAnalytics;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -20,38 +18,29 @@ class DocumentAssistantTest extends TestCase
 
     private function makeDocument(): Document
     {
-        $dept = Department::create(['name' => 'Accounting', 'sla_hours' => 48, 'email' => 'acct@example.com']);
-        $user = User::factory()->create(['department_id' => $dept->id]);
+        $handler = User::factory()->create(['name' => 'Ana Cruz']);
 
-        $doc = Document::create([
+        return Document::create([
             'tracking_number' => 'SPD-ASK-'.uniqid(),
             'document_type' => 'Business Permit',
             'citizen_name' => 'Maria Santos',
-            'status' => 'in_transit',
-            'current_department_id' => $dept->id,
-            'created_by' => $user->id,
-        ]);
-        $doc->syncRouteSteps([$dept->id]);
-        $doc->scans()->create([
-            'scanned_by' => $user->id,
-            'department_id' => $dept->id,
-            'action' => 'in',
-            'scanned_at' => now()->subHours(3),
-        ]);
-
-        return $doc->fresh(['scans.department', 'scans.user', 'currentDepartment', 'routeSteps.department']);
+            'status' => 'in_progress',
+            'created_by' => $handler->id,
+            'assigned_to' => $handler->id,
+            'status_changed_at' => now()->subHours(3),
+        ])->fresh('assignedTo');
     }
 
     public function test_rule_based_fallback_answers_from_facts(): void
     {
         $doc = $this->makeDocument();
-        $assistant = new DocumentAssistant(new NullProvider, new PredictiveAnalytics);
+        $assistant = new DocumentAssistant(new NullProvider);
 
-        $result = $assistant->answer($doc, 'Where is my document right now?');
+        $result = $assistant->answer($doc, 'Who is handling my document right now?');
 
         $this->assertSame('fallback', $result['source']);
         $this->assertStringContainsString($doc->tracking_number, $result['answer']);
-        $this->assertStringContainsString('Accounting', $result['answer']);
+        $this->assertStringContainsString('Ana Cruz', $result['answer']);
     }
 
     public function test_uses_llm_answer_when_provider_available(): void
@@ -61,7 +50,7 @@ class DocumentAssistantTest extends TestCase
         {
             public function chat(string $system, string $userMessage): ?string
             {
-                return 'Your permit is being processed at the Accounting office.';
+                return 'Your permit is being processed by Ana Cruz.';
             }
 
             public function isAvailable(): bool
@@ -70,10 +59,10 @@ class DocumentAssistantTest extends TestCase
             }
         };
 
-        $result = (new DocumentAssistant($fake, new PredictiveAnalytics))->answer($doc, 'where is it?');
+        $result = (new DocumentAssistant($fake))->answer($doc, 'where is it?');
 
         $this->assertSame('ai', $result['source']);
-        $this->assertSame('Your permit is being processed at the Accounting office.', $result['answer']);
+        $this->assertSame('Your permit is being processed by Ana Cruz.', $result['answer']);
     }
 
     public function test_ollama_provider_parses_chat_response(): void

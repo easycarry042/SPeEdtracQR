@@ -2,44 +2,47 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\ScopesByDepartment;
+use App\Enums\DocumentStatus;
+use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class HistoryController extends Controller
 {
-    use ScopesByDepartment;
+    use ScopesToAssignedWork;
 
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
-        $query = $this->scopeDocuments(Document::query()->with('currentDepartment'));
+        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
 
         $this->applyFilters($query, $request);
 
         $documents = $query->latest('created_at')->paginate(15);
         $documentTypes = $this->scopeDocuments(Document::query())->distinct()->pluck('document_type');
-        $statuses = ['pending', 'in_transit', 'completed', 'returned'];
+        $statuses = DocumentStatus::values();
 
-        return view('history.index', compact('documents', 'documentTypes', 'statuses'));
+        return view('history.index', ['documents' => $documents, 'documentTypes' => $documentTypes, 'statuses' => $statuses]);
     }
 
     public function export(Request $request)
     {
-        $query = $this->scopeDocuments(Document::query()->with('currentDepartment'));
+        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
 
         $this->applyFilters($query, $request);
 
         $documents = $query->orderBy('created_at', 'desc')->get();
 
         $handle = fopen('php://temp', 'w+');
-        fputcsv($handle, ['Tracking Number', 'Document Type', 'Citizen Name', 'Status', 'Current Department', 'Created At']);
+        fputcsv($handle, ['Tracking Number', 'Document Type', 'Citizen Name', 'Status', 'Assignee', 'Created At']);
         foreach ($documents as $doc) {
             fputcsv($handle, [
                 $doc->tracking_number,
                 $doc->document_type,
                 $doc->citizen_name ?? 'N/A',
                 $doc->status,
-                $doc->currentDepartment->name ?? 'None',
+                $doc->assignedTo->name ?? 'Unassigned',
                 $doc->created_at,
             ]);
         }
@@ -55,7 +58,7 @@ class HistoryController extends Controller
     private function applyFilters($query, Request $request): void
     {
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
+            $query->where(function ($q) use ($request): void {
                 $q->where('tracking_number', 'like', '%'.$request->search.'%')
                     ->orWhere('citizen_name', 'like', '%'.$request->search.'%')
                     ->orWhere('document_type', 'like', '%'.$request->search.'%');

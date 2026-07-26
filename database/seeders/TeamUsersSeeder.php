@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Department;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
@@ -14,43 +13,36 @@ class TeamUsersSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // ── Departments (looked up by name) ───────────────────────────────────
-        $depts = Department::all()->keyBy('name');
-
         // ── Users ─────────────────────────────────────────────────────────────
-        // Format: [ name, email, password, role, department name ]
+        // Format: [ name, email, password, role ]
         $users = [
             // Admin
-            ['Super Admin',     'admin@speedtraqr.com',              env('ADMIN_PASSWORD', 'password123'), 'super_admin',     null],
+            ['Super Admin',     'admin@speedtraqr.com',              env('ADMIN_PASSWORD', 'password123'), 'super_admin'],
 
             // Front Desk
-            ['Maria Santos',    'maria.santos@speedtraqr.com',       'staff1234',   'staff',           'Front Desk/Reception'],
+            ['Maria Santos',    'maria.santos@speedtraqr.com',       'staff1234',   'staff'],
 
             // Accounting
-            ['Jose Reyes',      'jose.reyes@speedtraqr.com',         'staff1234',   'staff',           'Accounting'],
+            ['Jose Reyes',      'jose.reyes@speedtraqr.com',         'staff1234',   'staff'],
 
-            
-            
             // Engineering
-            ['Ana Cruz',        'ana.cruz@speedtraqr.com',           'staff1234',   'staff',           'Engineering'],
+            ['Ana Cruz',        'ana.cruz@speedtraqr.com',           'staff1234',   'staff'],
 
             // Mayor's Office
-            ['Carlos Dela Cruz', 'carlos.delacruz@speedtraqr.com',    'staff1234',   'staff',           'Mayors Office'],
+            ['Carlos Dela Cruz', 'carlos.delacruz@speedtraqr.com',    'staff1234',   'staff'],
 
             // Records
-            ['Liza Reyes',      'liza.reyes@speedtraqr.com',         'staff1234',   'staff',           'Records/Archiving'],
+            ['Liza Reyes',      'liza.reyes@speedtraqr.com',         'staff1234',   'staff'],
         ];
 
-        foreach ($users as [$name, $email, $password, $roleName, $deptName]) {
+        foreach ($users as [$name, $email, $password, $roleName]) {
             $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
-            $dept = $deptName ? $depts->get($deptName) : null;
 
             $user = User::updateOrCreate(
                 ['email' => $email],
                 [
                     'name' => $name,
                     'password' => bcrypt($password),
-                    'department_id' => $dept?->id,
                     'is_active' => true,
                 ]
             );

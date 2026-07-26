@@ -1,4 +1,9 @@
-# Laravel scheduler — required for hourly SLA checks (documents:check-sla)
+# Laravel scheduler — REQUIRED. Drives:
+#   • hourly SLA checks (documents:check-sla)
+#   • nightly backups (backup:run / backup:clean / backup:monitor)
+#   • health probes + scheduler heartbeat (health:check)
+# If this cron stops, all of the above silently stop — the /health dashboard's
+# "Schedule" check is what surfaces that.
 # Install with: sudo crontab -u www-data -e
 # Or add to /etc/cron.d/speedtraqr (adjust user/path)
 

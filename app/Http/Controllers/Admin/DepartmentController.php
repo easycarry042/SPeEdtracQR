@@ -4,59 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
-use App\Models\Document;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
-    public function index()
+    public function index(): Factory|View
     {
-        $departments = Department::orderBy('name')->paginate(20);
+        $departments = Department::withCount('users')->orderBy('name')->get();
 
-        $allDepartments = Department::orderBy('sla_hours')->get();
-        $tightestSlaDept = $allDepartments->first();
-
-        $queuedDocuments = Document::with(['scans' => fn ($q) => $q->where('action', 'in')->orderBy('scanned_at', 'desc')])
-            ->whereIn('status', ['pending', 'in_transit'])
-            ->whereNotNull('current_department_id')
-            ->get()
-            ->map(function ($doc) use ($allDepartments) {
-                $slaHours = $allDepartments->firstWhere('id', $doc->current_department_id)?->sla_hours ?? 0;
-                $elapsedHours = optional($doc->scans->first())->scanned_at?->diffInMinutes(now()) / 60 ?? 0;
-                $doc->slaPct = $slaHours > 0 ? min(round(($elapsedHours / $slaHours) * 100), 100) : 0;
-                $doc->slaOverdue = $slaHours > 0 && $elapsedHours > $slaHours;
-
-                return $doc;
-            });
-
-        $departmentStats = $allDepartments->mapWithKeys(function ($dept) use ($queuedDocuments) {
-            $docs = $queuedDocuments->where('current_department_id', $dept->id);
-            $overdueCount = $docs->where('slaOverdue', true)->count();
-            $avgPct = $docs->isNotEmpty() ? round($docs->avg('slaPct')) : 0;
-
-            return [$dept->id => [
-                'in_queue' => $docs->count(),
-                'overdue' => $overdueCount,
-                'avg_pct' => $avgPct,
-                'health' => $overdueCount > 0 ? 'overdue' : ($avgPct >= 75 ? 'watch' : 'healthy'),
-            ]];
-        });
-
-        $departmentsTotal = $allDepartments->count();
-        $queueTotal = $queuedDocuments->count();
-        $queueOverdueTotal = $queuedDocuments->where('slaOverdue', true)->count();
-
-        return view('admin.departments.index', compact(
-            'departments',
-            'departmentStats',
-            'tightestSlaDept',
-            'departmentsTotal',
-            'queueTotal',
-            'queueOverdueTotal'
-        ));
+        return view('admin.departments.index', ['departments' => $departments]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         return view('admin.departments.create');
     }
@@ -64,42 +26,51 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'      => 'required|string|max:255|unique:departments,name',
-            'code'      => 'nullable|string|max:20|unique:departments,code',
-            'email'     => 'nullable|email|max:255',
-            'sla_hours' => 'required|integer|min:1|max:8760',
+            'name' => ['required', 'string', 'max:255', 'unique:departments,name'],
+            'code' => ['required', 'string', 'max:10', 'alpha_num', 'unique:departments,code'],
         ]);
 
-        Department::create($validated);
+        $department = Department::create([
+            'name' => $validated['name'],
+            'code' => strtoupper($validated['code']),
+            'is_active' => true,
+        ]);
 
-        return redirect()->route('admin.departments.index')
-            ->with('success', "Department \"{$validated['name']}\" created successfully.");
+        return to_route('admin.departments.index')
+            ->with('success', "Department {$department->name} created successfully.");
     }
 
-    public function edit(Department $department)
+    public function edit(Department $department): Factory|View
     {
-        return view('admin.departments.edit', compact('department'));
+        return view('admin.departments.edit', ['department' => $department]);
     }
 
     public function update(Request $request, Department $department)
     {
         $validated = $request->validate([
-            'name'      => 'required|string|max:255|unique:departments,name,' . $department->id,
-            'code'      => 'nullable|string|max:20|unique:departments,code,' . $department->id,
-            'email'     => 'nullable|email|max:255',
-            'sla_hours' => 'required|integer|min:1|max:8760',
+            'name' => ['required', 'string', 'max:255', Rule::unique('departments', 'name')->ignore($department->id)],
+            'code' => ['required', 'string', 'max:10', 'alpha_num', Rule::unique('departments', 'code')->ignore($department->id)],
         ]);
 
-        $department->update($validated);
+        $department->update([
+            'name' => $validated['name'],
+            'code' => strtoupper($validated['code']),
+        ]);
 
-        return redirect()->route('admin.departments.index')
-            ->with('success', "Department \"{$department->name}\" updated successfully.");
+        return to_route('admin.departments.index')
+            ->with('success', "Department {$department->name} updated successfully.");
     }
 
-    public function destroy(Department $department)
+    /**
+     * Deactivate instead of delete: departments are referenced by users, route
+     * templates and request chains, so they are never removed outright.
+     */
+    public function toggleActive(Department $department)
     {
-        $department->delete();
+        $department->update(['is_active' => ! $department->is_active]);
 
-        return back()->with('success', "Department \"{$department->name}\" removed.");
+        $action = $department->is_active ? 'activated' : 'deactivated';
+
+        return back()->with('success', "Department {$department->name} has been {$action}.");
     }
 }

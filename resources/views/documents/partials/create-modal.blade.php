@@ -25,7 +25,7 @@
                  only the form column scrolls. On smaller screens the whole body scrolls. --}}
             <div id="createModalBody" class="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-y-auto p-6 lg:grid-cols-2 lg:overflow-hidden">
                 <div class="min-h-0 rounded-2xl bg-gray-100/80 p-4">
-                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="image/*" multiple class="sr-only">
+                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="image/*,.pdf,.doc,.docx" multiple class="sr-only">
 
                     <div
                         id="dropZone"
@@ -39,26 +39,20 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
                             </svg>
                             <p class="text-lg font-semibold text-gray-600 sm:text-xl">Drop your file here</p>
-                            <p class="mt-2 text-sm text-gray-500">or <span class="font-semibold text-emerald-800 underline">click to browse</span> — images only (multiple allowed)</p>
+                            <p class="mt-2 text-sm text-gray-500">or <span class="font-semibold text-emerald-800 underline">click to browse</span> — images, PDF or Word (multiple allowed)</p>
                         </div>
                         <div id="dropZonePreview" class="hidden w-full flex-col gap-3 p-4">
                             <p id="previewCount" class="text-sm font-semibold text-gray-800"></p>
                             <div id="previewGrid" class="grid max-h-[320px] w-full grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3"></div>
-                            <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove all photos</button>
+                            <button type="button" id="clearFileBtn" class="text-sm font-semibold text-red-600 underline hover:text-red-800">Remove all files</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="routeBuilder"
-                     class="min-h-0 lg:overflow-y-auto lg:pr-2"
-                     data-departments='@json($createModalDepartments->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values())'
-                     data-default-routes='@json($createModalDefaultRoutes)'
-                     data-old-route='@json(collect(old('route_departments', []))->map(fn ($id) => (int) $id)->values())'
-                     data-old-type='@json(old('document_type', ''))'>
+                <div id="routeBuilder" class="min-h-0 lg:overflow-y-auto lg:pr-2">
                     <form id="submissionForm" method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data" class="space-y-4">
                         @csrf
                         <input type="hidden" name="from_modal" value="1">
-                        <div id="routeHiddenInputs"></div>
                         <div id="createModalErrors" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"></div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-600">File Name</label>
@@ -86,54 +80,18 @@
                             </select>
                         </div>
 
-                        <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-                            <div class="mb-3 flex items-center justify-between gap-2">
-                                <div>
-                                    <label class="block text-sm font-semibold text-emerald-950">Routing Path</label>
-                                    <p class="text-xs text-emerald-800/80">Set the departments this document will visit, in order.</p>
-                                </div>
-                                <span id="routeStepCount" class="shrink-0 rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200">0 steps</span>
-                            </div>
-
-                            @error('route_departments')
-                                <p id="routeClientError" class="mb-2 text-sm font-medium text-red-600">{{ $message }}</p>
-                            @else
-                                <p id="routeClientError" class="mb-2 hidden text-sm font-medium text-red-600"></p>
-                            @enderror
-
-                            <p class="mb-2 text-xs text-emerald-900/70">
-                                1. Choose a department &nbsp;→&nbsp; 2. Click <strong>Add to path</strong>
-                            </p>
-                            <div class="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                                <select id="routeDeptPicker"
-                                        class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                    <option value="">Select department…</option>
-                                    @foreach($createModalDepartments as $dept)
-                                        <option value="{{ $dept->id }}">{{ $dept->name }}</option>
-                                    @endforeach
-                                </select>
-                                <button type="button" id="routeAddBtn"
-                                        class="inline-flex w-full min-h-[42px] items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm ring-2 ring-emerald-600/30 transition hover:bg-emerald-800 active:scale-[0.98] sm:w-auto sm:min-w-[9.5rem]">
-                                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
-                                    </svg>
-                                    Add to path
-                                </button>
-                            </div>
-
-                            <p id="routeEmptyHint" class="rounded-lg border border-dashed border-emerald-300/80 bg-white/60 px-3 py-4 text-center text-sm text-gray-500">
-                                No steps yet. Pick a category to load a suggested path, or use the dropdown and <strong>Add to path</strong> button above.
-                            </p>
-
-                            <ul id="routeStepsList" class="hidden space-y-2"></ul>
-
-                            <p id="routeSuggestedHint" class="mt-2 hidden text-xs text-gray-500">
-                                Suggested path loaded for this category — you can reorder or change it.
+                        <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/40 px-4 py-3">
+                            <p class="text-xs text-emerald-900/80">
+                                After submission, an admin assigns the staff member responsible for advancing this document through its status stages.
                             </p>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Name</label>
                             <input name="citizen_name" value="{{ old('citizen_name') }}" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Email</label>
+                            <input name="citizen_email" type="email" value="{{ old('citizen_email') }}" placeholder="name@gmail.com" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Contact</label>
@@ -199,151 +157,9 @@
         const root = document.getElementById('routeBuilder');
         if (!root) return;
 
-        const departments = JSON.parse(root.dataset.departments || '[]');
-        const defaultRoutes = JSON.parse(root.dataset.defaultRoutes || '{}');
-        const oldRoute = JSON.parse(root.dataset.oldRoute || '[]');
-        const oldType = root.dataset.oldType || '';
-
         const form = document.getElementById('submissionForm');
-        const typeSelect = document.getElementById('documentTypeSelect');
-        const picker = document.getElementById('routeDeptPicker');
-        const addBtn = document.getElementById('routeAddBtn');
-        const listEl = document.getElementById('routeStepsList');
-        const emptyHint = document.getElementById('routeEmptyHint');
-        const suggestedHint = document.getElementById('routeSuggestedHint');
-        const stepCount = document.getElementById('routeStepCount');
-        const hiddenContainer = document.getElementById('routeHiddenInputs');
-        const clientError = document.getElementById('routeClientError');
-
-        let steps = [];
-
-        function findDept(id) {
-            return departments.find(d => d.id === id);
-        }
-
-        function setStepsFromIds(ids) {
-            steps = ids.map(id => findDept(id)).filter(Boolean);
-            render();
-        }
-
-        function syncHiddenInputs() {
-            if (!hiddenContainer) return;
-            hiddenContainer.innerHTML = '';
-            steps.forEach(step => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'route_departments[]';
-                input.value = String(step.id);
-                hiddenContainer.appendChild(input);
-            });
-        }
-
-        function updateCount() {
-            const n = steps.length;
-            stepCount.textContent = n + ' step' + (n === 1 ? '' : 's');
-            emptyHint.classList.toggle('hidden', n > 0);
-            listEl.classList.toggle('hidden', n === 0);
-            const type = typeSelect?.value || '';
-            const hasDefault = type && Array.isArray(defaultRoutes[type]) && defaultRoutes[type].length > 0;
-            suggestedHint.classList.toggle('hidden', !hasDefault || n === 0);
-        }
-
-        function render() {
-            listEl.innerHTML = '';
-            steps.forEach((step, index) => {
-                const li = document.createElement('li');
-                li.className = 'flex items-center gap-2 rounded-xl border border-white bg-white px-3 py-2 shadow-sm';
-                li.innerHTML = `
-                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">${index + 1}</span>
-                    <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800"></span>
-                    <div class="flex shrink-0 gap-1">
-                        <button type="button" data-action="up" data-index="${index}" class="route-move rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40" ${index === 0 ? 'disabled' : ''}>↑</button>
-                        <button type="button" data-action="down" data-index="${index}" class="route-move rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40" ${index === steps.length - 1 ? 'disabled' : ''}>↓</button>
-                        <button type="button" data-action="remove" data-index="${index}" class="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">Remove</button>
-                    </div>
-                `;
-                li.querySelector('span:nth-child(2)').textContent = step.name;
-                listEl.appendChild(li);
-            });
-            syncHiddenInputs();
-            updateCount();
-        }
-
-        function addStep() {
-            const id = parseInt(picker.value, 10);
-            if (!id) return;
-            if (steps.some(s => s.id === id)) {
-                alert('That department is already in the route.');
-                return;
-            }
-            const dept = findDept(id);
-            if (dept) {
-                steps.push(dept);
-                render();
-            }
-            picker.value = '';
-        }
-
-        function applyDefaultRoute() {
-            const type = typeSelect?.value || '';
-            const ids = defaultRoutes[type] || [];
-            if (ids.length) {
-                setStepsFromIds(ids);
-            }
-        }
-
-        addBtn?.addEventListener('click', addStep);
-
-        picker?.addEventListener('change', function () {
-            addBtn?.classList.toggle('ring-amber-400', !!picker.value);
-            addBtn?.classList.toggle('bg-emerald-800', !!picker.value);
-        });
-
-        picker?.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addStep();
-            }
-        });
-
-        listEl?.addEventListener('click', function (e) {
-            const btn = e.target.closest('button[data-action]');
-            if (!btn) return;
-            const index = parseInt(btn.dataset.index, 10);
-            const action = btn.dataset.action;
-            if (action === 'remove') {
-                steps.splice(index, 1);
-                render();
-            } else if (action === 'up' && index > 0) {
-                const item = steps.splice(index, 1)[0];
-                steps.splice(index - 1, 0, item);
-                render();
-            } else if (action === 'down' && index < steps.length - 1) {
-                const item = steps.splice(index, 1)[0];
-                steps.splice(index + 1, 0, item);
-                render();
-            }
-        });
-
-        typeSelect?.addEventListener('change', function () {
-            if (steps.length === 0) {
-                applyDefaultRoute();
-            } else if (confirm('Replace the current routing path with the suggested path for this category?')) {
-                applyDefaultRoute();
-            }
-        });
 
         form?.addEventListener('submit', function (e) {
-            syncHiddenInputs();
-            if (steps.length < 1) {
-                e.preventDefault();
-                if (clientError) {
-                    clientError.textContent = 'Add at least one department to the routing path.';
-                    clientError.classList.remove('hidden');
-                }
-                document.getElementById('routeBuilder')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
             e.preventDefault();
             submitViaFetch();
         });
@@ -416,14 +232,6 @@
                 .catch(() => showSubmitErrors(['Something went wrong while submitting. Please check your connection and try again.']))
                 .finally(() => setSubmitting(false));
         }
-
-        if (oldRoute.length) {
-            setStepsFromIds(oldRoute);
-        } else if (oldType) {
-            applyDefaultRoute();
-        } else {
-            render();
-        }
     })();
 
     (function () {
@@ -445,6 +253,14 @@
             return file && file.type.startsWith('image/');
         }
 
+        const ALLOWED_EXT = ['pdf', 'doc', 'docx'];
+        function isAllowed(file) {
+            if (!file) return false;
+            if (isImage(file)) return true;
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            return ALLOWED_EXT.includes(ext);
+        }
+
         function syncInputFiles() {
             const dt = new DataTransfer();
             selectedFiles.forEach(f => dt.items.add(f));
@@ -452,9 +268,9 @@
         }
 
         function addFiles(fileList) {
-            const incoming = Array.from(fileList || []).filter(isImage);
+            const incoming = Array.from(fileList || []).filter(isAllowed);
             if (!incoming.length) {
-                alert('Please choose image files only (PNG, JPG, etc.).');
+                alert('Please choose images, PDF or Word files only.');
                 return;
             }
             incoming.forEach(file => {
@@ -463,7 +279,7 @@
                 selectedFiles.push(file);
             });
             if (selectedFiles.length >= MAX_FILES) {
-                alert('You can attach up to ' + MAX_FILES + ' images per submission.');
+                alert('You can attach up to ' + MAX_FILES + ' files per submission.');
             }
             syncInputFiles();
             renderPreview();
@@ -484,15 +300,25 @@
             placeholder.classList.add('hidden');
             previewWrap.classList.remove('hidden');
             previewWrap.classList.add('flex');
-            previewCount.textContent = selectedFiles.length + ' photo' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
+            previewCount.textContent = selectedFiles.length + ' file' + (selectedFiles.length === 1 ? '' : 's') + ' selected';
 
             selectedFiles.forEach((file, index) => {
-                const url = URL.createObjectURL(file);
-                objectUrls.set(index, url);
                 const wrap = document.createElement('div');
                 wrap.className = 'relative overflow-hidden rounded-lg ring-1 ring-gray-200';
+                let media;
+                if (isImage(file)) {
+                    const url = URL.createObjectURL(file);
+                    objectUrls.set(index, url);
+                    media = `<img src="${url}" alt="" class="h-24 w-full object-cover bg-gray-100">`;
+                } else {
+                    const ext = (file.name.split('.').pop() || 'file').toUpperCase();
+                    media = `<div class="flex h-24 w-full flex-col items-center justify-center gap-1 bg-gray-100 text-gray-500">
+                        <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/></svg>
+                        <span class="text-[10px] font-bold">${ext}</span>
+                    </div>`;
+                }
                 wrap.innerHTML = `
-                    <img src="${url}" alt="" class="h-24 w-full object-cover bg-gray-100">
+                    ${media}
                     <button type="button" data-index="${index}" class="remove-preview absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-black/80">×</button>
                     <p class="truncate px-1 py-0.5 text-[10px] text-gray-600">${file.name}</p>
                 `;

@@ -18,7 +18,6 @@ class MoveToMysql extends Command
 
     /** @var list<string> */
     private array $tableOrder = [
-        'departments',
         'users',
         'permissions',
         'roles',
@@ -26,11 +25,7 @@ class MoveToMysql extends Command
         'model_has_permissions',
         'model_has_roles',
         'documents',
-        'routing_rules',
-        'document_route_steps',
-        'document_scans',
         'document_attachments',
-        'department_notifications',
         'activity_log',
         'password_reset_tokens',
         'sessions',
@@ -118,7 +113,7 @@ class MoveToMysql extends Command
             DB::connection('mysql')->table($table)->truncate();
             foreach ($rows->chunk(100) as $chunk) {
                 DB::connection('mysql')->table($table)->insert(
-                    $chunk->map(fn ($row) => (array) $row)->all()
+                    $chunk->map(fn ($row): array => (array) $row)->all()
                 );
             }
 
@@ -129,7 +124,7 @@ class MoveToMysql extends Command
 
         DB::connection('mysql')->statement('SET FOREIGN_KEY_CHECKS=1');
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        resolve(PermissionRegistrar::class)->forgetCachedPermissions();
 
         if ($this->option('seed') && DB::connection('mysql')->table('roles')->count() === 0) {
             Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder', '--force' => true]);

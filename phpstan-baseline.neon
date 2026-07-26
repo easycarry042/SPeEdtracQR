@@ -1,0 +1,499 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/CheckDocumentSla.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Events/DocumentCommentPosted.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Events/DocumentStatusUpdated.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Carbon\\Carbon\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Events/DocumentStatusUpdated.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Admin/AssignmentController.php
+
+		-
+			message: '#^Relation ''department'' is not found in App\\Models\\User model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Document\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/AnalyticsController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isOverdue\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/AnalyticsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$attachment_path\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/AttachmentController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:attachments\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/AttachmentController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\AttachmentController\:\:storeAttachmentsForDocument\(\) should return array\<int, App\\Models\\DocumentAttachment\> but returns list\<Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/AttachmentController.php
+
+		-
+			message: '#^Parameter \#1 \$document of static method App\\Support\\AssignmentScope\:\:userCanAccessDocument\(\) expects App\\Models\\Document, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/AttachmentController.php
+
+		-
+			message: '#^Parameter \#1 \$user of class Illuminate\\Auth\\Events\\Verified constructor expects Illuminate\\Contracts\\Auth\\MustVerifyEmail, App\\Models\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Auth/VerifyEmailController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CitizenDocumentUploadController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CitizenDocumentUploadController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/CitizenDocumentUploadController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isPublic\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: app/Http/Controllers/CommentController.php
+
+		-
+			message: '#^Parameter \#1 \$comment of class App\\Events\\DocumentCommentPosted constructor expects App\\Models\\DocumentComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/CommentController.php
+
+		-
+			message: '#^Parameter \#1 \$comment of class App\\Mail\\StaffMessage constructor expects App\\Models\\DocumentComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/CommentController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sla_elapsed_hours\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sla_overdue\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sla_ratio\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sla_remaining_hours\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$slipHoursOver\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:statusEnum\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\<string, mixed\>, Closure\(App\\Models\\Document\)\: array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Parameter \#1 \$comment of class App\\Events\\DocumentCommentPosted constructor expects App\\Models\\DocumentComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/DocumentStatusController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/DocumentStatusController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\DocumentWebController\:\:storeAttachmentsForDocument\(\) should return array\<int, App\\Models\\DocumentAttachment\> but returns list\<Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/DocumentWebController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type App\\Models\\User\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/DocumentWebController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HistoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$document_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HistoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HistoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HistoryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RouteTemplateStep\:\:\$department\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$department\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$department_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\InternalRequestController\:\:storeAttachmentsForDocument\(\) should return array\<int, App\\Models\\DocumentAttachment\> but returns list\<Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Relation ''steps'' is not found in App\\Models\\RouteTemplate model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/InternalRequestController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\PublicTicketController\:\:storeAttachmentsForDocument\(\) should return array\<int, App\\Models\\DocumentAttachment\> but returns list\<Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/PublicTicketController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RequestStep\:\:\$department\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/RequestStepController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RequestStepController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$department\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/RequestStepController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$department_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RequestStepController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:notify\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/RequestStepController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 5
+			path: app/Http/Controllers/ReviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/StaffProfileController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/TrackController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/LogUserLogin.php
+
+		-
+			message: '#^Parameter \#1 \$modelOrId of method Spatie\\Activitylog\\ActivityLogger\:\:causedBy\(\) expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, Illuminate\\Contracts\\Auth\\Authenticatable given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Listeners/LogUserLogin.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/LogUserLogout.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: app/Listeners/LogUserLogout.php
+
+		-
+			message: '#^Parameter \#1 \$modelOrId of method Spatie\\Activitylog\\ActivityLogger\:\:causedBy\(\) expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, Illuminate\\Contracts\\Auth\\Authenticatable given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Listeners/LogUserLogout.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Mail/StaffMessage.php
+
+		-
+			message: '#^Method App\\Models\\Document\:\:currentCustody\(\) should return App\\Models\\DocumentCustodyEvent\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Document.php
+
+		-
+			message: '#^Method App\\Models\\Document\:\:currentRequestStep\(\) should return App\\Models\\RequestStep\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Document.php
+
+		-
+			message: '#^Method App\\Models\\Document\:\:logSystemComment\(\) should return App\\Models\\DocumentComment but returns Illuminate\\Database\\Eloquent\\Model\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Document.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$citizen_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DocumentComment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DocumentComment.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>citizen_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DocumentComment.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DocumentComment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RouteTemplate\:\:\$steps\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RouteTemplate.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$document_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Anonymous function never returns array so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Anonymous function never returns float so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:avg\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: float\)\|int\|string\|null, Closure\(App\\Models\\Document\)\: \(float\|int\<0, max\>\) given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Document\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:sortByDesc\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,mixed\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Parameter \#1 \$groupBy of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:groupBy\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: string\)\|list\<Closure\|string\>\|string, Closure\(App\\Models\\Document\)\: string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/AdminAnalytics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Ai/DocumentAssistant.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/RequestReview.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int\<0, max\> and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/RequestReview.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/StaffProfile.php
+
+		-
+			message: '#^Parameter \#1 \$doc of method App\\Support\\StaffProfile\:\:documentChip\(\) expects App\\Models\\Document\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/StaffProfile.php

@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail;
 
-use App\Models\Department;
 use App\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -15,10 +16,8 @@ class SlaBreachMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public Document $document,
-        public Department $department
-    ) {
-    }
+        public Document $document
+    ) {}
 
     public function envelope(): Envelope
     {

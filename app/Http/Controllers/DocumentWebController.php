@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
-use App\Models\DocumentScan;
+use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
-use App\Support\DepartmentScope;
+use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class DocumentWebController extends Controller
 {
@@ -23,7 +27,7 @@ class DocumentWebController extends Controller
         // The submission form now lives in a modal rendered by the layout
         // (resources/views/documents/partials/create-modal.blade.php). Keep
         // this route so old links still work and permission checks still apply.
-        return redirect()->route('dashboard')->with('openCreateModal', true);
+        return to_route('dashboard')->with('openCreateModal', true);
     }
 
     public function store(Request $request)
@@ -31,41 +35,34 @@ class DocumentWebController extends Controller
         $this->ensureCanCreate();
 
         $request->validate([
-            'document_type' => 'required|string|max:255',
-            'citizen_name' => 'nullable|string',
-            'citizen_contact' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'purpose' => 'nullable|string|max:255',
-            'remarks' => 'nullable|string',
-            'attachment' => 'nullable|image|max:10240',
-            'attachments' => 'nullable|array|max:10',
-            'attachments.*' => 'image|max:10240',
-            'route_departments' => 'required|array|min:1',
-            'route_departments.*' => 'required|integer|exists:departments,id',
+            'document_type' => ['required', 'string', 'max:255'],
+            'citizen_name' => ['nullable', 'string'],
+            'citizen_email' => ['nullable', 'email', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'remarks' => ['nullable', 'string'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
         ]);
-
-        $routeDepartments = collect($request->input('route_departments', []))
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        if (count($routeDepartments) < 1) {
-            return back()
-                ->withInput()
-                ->withErrors(['route_departments' => 'Add at least one department to the routing path.']);
-        }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
+        // New documents start Pending and unassigned; an admin assigns the
+        // responsible staff member (see Admin\AssignmentController), who then
+        // advances it through the DocumentStatus stages manually.
         $document = Document::create([
             'tracking_number' => $trackingNumber,
             'document_type' => $request->document_type,
             'citizen_name' => $request->citizen_name,
+            'citizen_email' => $request->citizen_email,
             'citizen_contact' => $request->citizen_contact,
             'description' => $request->description,
             'purpose' => $request->purpose,
-            'status' => 'pending',
+            'status' => DocumentStatus::Pending->value,
+            'status_changed_at' => now(),
+            'source' => 'walk_in', // staff-encoded intake; public form sets 'online'
             'created_by' => auth()->id(),
             'remarks' => $request->remarks,
         ]);
@@ -79,75 +76,61 @@ class DocumentWebController extends Controller
 
         $this->storeDocumentAttachments($document, $request);
 
-        $document->syncRouteSteps($routeDepartments);
+        // Header-bell ping: supervisors have a new request to triage
+        // (skip the creator if they can triage it themselves).
+        Notification::send(
+            DocumentEvent::supervisors(auth()->id()),
+            DocumentEvent::newTicket($document),
+        );
 
-        // Auto-check-in at the first department so it appears in the inbox immediately
-        $firstDeptId = $routeDepartments[0];
-        $document->update([
-            'current_department_id' => $firstDeptId,
-            'status' => 'in_transit',
-        ]);
-
-        DocumentScan::create([
-            'document_id' => $document->id,
-            'scanned_by' => auth()->id(),
-            'department_id' => $firstDeptId,
-            'action' => 'in',
-            'scanned_at' => now(),
-            'location_ip' => request()->ip(),
-            'remarks' => 'Document received',
-            'synced' => true,
-        ]);
-
-        return redirect()->route('documents.created', $document);
+        return to_route('documents.created', $document);
     }
 
-    public function created(Document $document)
+    public function created(Document $document): Factory|View
     {
-        $this->authorizeDocumentView($document);
-        $document->load(['routeSteps.department', 'attachments']);
+        $this->authorizeDocumentView();
+        $document->load(['attachments']);
 
-        return view('documents.created', compact('document'));
+        return view('documents.created', ['document' => $document]);
     }
 
-    public function edit(Document $document)
+    public function edit(Document $document): Factory|View
     {
         $this->ensureCanCreate();
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         $categoryOptions = $this->categoryOptions();
 
-        return view('documents.edit', compact('document', 'categoryOptions'));
+        return view('documents.edit', ['document' => $document, 'categoryOptions' => $categoryOptions]);
     }
 
     public function update(Request $request, Document $document)
     {
         $this->ensureCanCreate();
-        abort_unless(DepartmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
 
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([
-            'document_type' => 'required|string|max:255',
-            'citizen_name' => 'nullable|string|max:255',
-            'citizen_contact' => 'nullable|string|max:255',
-            'purpose' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'remarks' => 'nullable|string',
+            'document_type' => ['required', 'string', 'max:255'],
+            'citizen_name' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'remarks' => ['nullable', 'string'],
         ]);
 
         $document->update($validated);
 
-        return redirect()
-            ->route('track.show', $document->tracking_number)
+        return to_route('track.show', $document->tracking_number)
             ->with('status', 'Document details updated.');
     }
 
-    public function printSticker(Document $document)
+    public function printSticker(Document $document): Factory|View
     {
-        $this->authorizeDocumentView($document);
+        $this->authorizeDocumentView();
         $trackingUrl = url('/track/'.$document->tracking_number);
 
-        return view('documents.qr-sticker', compact('document', 'trackingUrl'));
+        return view('documents.qr-sticker', ['document' => $document, 'trackingUrl' => $trackingUrl]);
     }
 
     public function complete(string $trackingNumber)
@@ -156,19 +139,17 @@ class DocumentWebController extends Controller
 
         $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
 
-        if ($document->status === 'completed') {
+        if ($document->status === DocumentStatus::Completed->value) {
             return response()->json(['message' => 'Document is already completed.'], 422);
         }
 
-        $document->update([
-            'status' => 'completed',
-            'completed_at' => now(),
-        ]);
+        $document->applyStatus(DocumentStatus::Completed);
+        $document->save();
 
         return response()->json(['message' => "Document {$trackingNumber} marked as completed."]);
     }
 
-    private function authorizeDocumentView(Document $document): void
+    private function authorizeDocumentView(): void
     {
         if (! auth()->check()) {
             abort(403);

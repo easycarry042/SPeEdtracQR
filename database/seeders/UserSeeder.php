@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Department;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
@@ -31,46 +30,35 @@ class UserSeeder extends Seeder
         $admin->syncRoles([$adminRole]);
 
         // ── Staff ──────────────────────────────────────────────────────────────
-        // Keyed by department name so each staff member is placed correctly.
-        $departments = Department::all()->keyBy('name');
-
         $staffUsers = [
             [
                 'name' => 'Maria Santos',
                 'email' => 'maria.santos@speedtraqr.com',
-                'department' => 'Front Desk/Reception',
             ],
             [
                 'name' => 'Jose Reyes',
                 'email' => 'jose.reyes@speedtraqr.com',
-                'department' => 'Accounting',
             ],
             [
                 'name' => 'Ana Cruz',
                 'email' => 'ana.cruz@speedtraqr.com',
-                'department' => 'Engineering',
             ],
             [
                 'name' => 'Carlos Dela Cruz',
                 'email' => 'carlos.delacruz@speedtraqr.com',
-                'department' => 'Mayors Office',
             ],
             [
                 'name' => 'Liza Reyes',
                 'email' => 'liza.reyes@speedtraqr.com',
-                'department' => 'Records/Archiving',
             ],
         ];
 
         foreach ($staffUsers as $data) {
-            $dept = $departments->get($data['department']);
-
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 [
                     'name' => $data['name'],
                     'password' => bcrypt('staff1234'),
-                    'department_id' => $dept?->id,
                 ]
             );
 

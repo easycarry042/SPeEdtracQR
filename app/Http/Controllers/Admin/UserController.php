@@ -5,29 +5,23 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\User;
-use App\Support\DepartmentScope;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    // Roles a Department Admin is allowed to assign
-    private const DEPT_ADMIN_ASSIGNABLE_ROLES = ['staff', 'receiving_staff'];
-
-    public function index(Request $request)
+    public function index(Request $request): Factory|View
     {
         // withTrashed: archived accounts stay listed (with a Restore action) instead of vanishing.
         $query = User::withTrashed()->with(['roles', 'department'])->orderBy('name');
 
-        if ($this->isDeptAdmin()) {
-            $query->where('department_id', $this->authDeptId())
-                ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', ['super_admin', 'department_admin']));
-        }
-
         if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search): void {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%");
             });
@@ -40,85 +34,82 @@ class UserController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $roles = $this->assignableRoles();
 
-        // For the Add User modal rendered on this page
-        $departments = $this->assignableDepartments();
-        $deptLocked = $this->isDeptAdmin();
-
-        return view('admin.users.index', compact('users', 'roles', 'departments', 'deptLocked'));
+        return view('admin.users.index', ['users' => $users, 'roles' => $roles]);
     }
 
-    public function create()
+    public function create(): Factory|View
     {
         $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
-        $deptLocked = $this->isDeptAdmin();
 
-        return view('admin.users.create', compact('roles', 'departments', 'deptLocked'));
+        return view('admin.users.create', ['roles' => $roles, 'departments' => $departments]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|string',
-            'department_id' => 'nullable|exists:departments,id',
+            'name' => ['required', 'string', 'max:255'],
+            // Only ACTIVE accounts block the address. Archived (soft-deleted) users
+            // keep their row + the DB unique constraint, so we ignore them here and
+            // revive the account below instead of colliding.
+            'email' => ['required', 'email', Rule::unique('users', 'email')->whereNull('deleted_at')],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'string'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
-        $this->authorizeRole($validated['role']);
+        // Re-adding an email that belongs to an archived account restores and
+        // updates that account (a fresh insert would hit the unique constraint).
+        $user = User::onlyTrashed()->where('email', $validated['email'])->first();
 
-        $deptId = $this->isDeptAdmin()
-            ? $this->authDeptId()
-            : ($validated['department_id'] ?? null);
+        if ($user) {
+            $user->restore();
+            $user->update([
+                'name' => $validated['name'],
+                'password' => Hash::make($validated['password']),
+                'is_active' => true,
+                'department_id' => $validated['department_id'] ?? null,
+            ]);
+            $message = "Archived account for {$user->name} was restored and updated.";
+        } else {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'is_active' => true,
+                'department_id' => $validated['department_id'] ?? null,
+            ]);
+            $message = "User {$user->name} created successfully.";
+        }
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'department_id' => $deptId,
-            'is_active' => true,
-        ]);
+        $user->syncRoles([$validated['role']]);
 
-        $user->assignRole($validated['role']);
-
-        return redirect()->route('admin.users.index')
-            ->with('success', "User {$user->name} created successfully.");
+        return to_route('admin.users.index')
+            ->with('success', $message);
     }
 
-    public function edit(User $user)
+    public function edit(User $user): Factory|View
     {
-        $this->authorizeDeptAccess($user);
-
         $roles = $this->assignableRoles();
         $departments = $this->assignableDepartments();
-        $deptLocked = $this->isDeptAdmin();
 
-        return view('admin.users.edit', compact('user', 'roles', 'departments', 'deptLocked'));
+        return view('admin.users.edit', ['user' => $user, 'roles' => $roles, 'departments' => $departments]);
     }
 
     public function update(Request $request, User $user)
     {
-        $this->authorizeDeptAccess($user);
-
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,'.$user->id,
-            'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|string',
-            'department_id' => 'nullable|exists:departments,id',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)->whereNull('deleted_at')],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'string'],
+            'department_id' => ['nullable', 'exists:departments,id'],
         ]);
-
-        $this->authorizeRole($validated['role']);
-
-        $deptId = $this->isDeptAdmin()
-            ? $this->authDeptId()
-            : ($validated['department_id'] ?? null);
 
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'department_id' => $deptId,
+            'department_id' => $validated['department_id'] ?? null,
         ]);
 
         if (! empty($validated['password'])) {
@@ -127,14 +118,12 @@ class UserController extends Controller
 
         $user->syncRoles([$validated['role']]);
 
-        return redirect()->route('admin.users.index')
+        return to_route('admin.users.index')
             ->with('success', "User {$user->name} updated successfully.");
     }
 
     public function toggleActive(User $user)
     {
-        $this->authorizeDeptAccess($user);
-
         if ($user->id === auth()->id()) {
             return back()->with('error', 'You cannot deactivate your own account.');
         }
@@ -148,8 +137,6 @@ class UserController extends Controller
 
     public function archive(User $user)
     {
-        $this->authorizeDeptAccess($user);
-
         if ($user->id === auth()->id()) {
             return back()->with('error', 'You cannot archive your own account.');
         }
@@ -159,10 +146,48 @@ class UserController extends Controller
         return back()->with('success', "Account for {$user->name} has been archived.");
     }
 
+    /**
+     * Apply one action to several accounts at once. The current user is always
+     * excluded from the selection so an admin can't lock themselves out.
+     */
+    public function bulk(Request $request)
+    {
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['activate', 'deactivate', 'archive'])],
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', Rule::exists('users', 'id')],
+        ]);
+
+        $ids = collect($validated['ids'])
+            ->map(fn ($id): int => (int) $id)
+            ->reject(fn ($id): bool => $id === auth()->id())
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'No eligible accounts were selected (your own account is always excluded).');
+        }
+
+        $users = User::whereIn('id', $ids)->get();
+
+        $affected = match ($validated['action']) {
+            'activate' => tap($users->where('is_active', false), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => true]))->count(),
+            'deactivate' => tap($users->where('is_active', true), fn ($set) => User::whereIn('id', $set->pluck('id'))->update(['is_active' => false]))->count(),
+            'archive' => $users->each->delete()->count(),
+            default => 0,
+        };
+
+        if ($affected === 0) {
+            return back()->with('error', 'Nothing changed — the selected accounts were already in that state.');
+        }
+
+        $verb = ['activate' => 'activated', 'deactivate' => 'deactivated', 'archive' => 'archived'][$validated['action']];
+
+        return back()->with('success', "{$affected} ".($affected === 1 ? 'account' : 'accounts')." {$verb}.");
+    }
+
     public function restore(User $user)
     {
-        $this->authorizeDeptAccess($user);
-
         $user->restore();
 
         return back()->with('success', "Account for {$user->name} has been restored.");
@@ -170,8 +195,6 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        $this->authorizeDeptAccess($user);
-
         if ($user->id === auth()->id()) {
             return back()->with('error', 'You cannot delete your own account.');
         }
@@ -186,50 +209,13 @@ class UserController extends Controller
         return back()->with('success', "Account for {$user->name} has been permanently deleted.");
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /** Department-scoped user manager (not org-wide super admin). */
-    private function isDeptAdmin(): bool
-    {
-        $user = auth()->user();
-
-        return $user->can('manage users') && ! DepartmentScope::isOrgWide($user);
-    }
-
-    private function authDeptId(): ?int
-    {
-        return auth()->user()->department_id;
-    }
-
     private function assignableRoles()
     {
-        if ($this->isDeptAdmin()) {
-            return Role::whereIn('name', self::DEPT_ADMIN_ASSIGNABLE_ROLES)->orderBy('name')->get();
-        }
-
         return Role::orderBy('name')->get();
     }
 
     private function assignableDepartments()
     {
-        if ($this->isDeptAdmin()) {
-            return Department::where('id', $this->authDeptId())->get();
-        }
-
-        return Department::orderBy('name')->get();
-    }
-
-    private function authorizeRole(string $role): void
-    {
-        if ($this->isDeptAdmin() && ! in_array($role, self::DEPT_ADMIN_ASSIGNABLE_ROLES)) {
-            abort(403, 'You cannot assign this role.');
-        }
-    }
-
-    private function authorizeDeptAccess(User $user): void
-    {
-        if ($this->isDeptAdmin() && $user->department_id !== $this->authDeptId()) {
-            abort(403, 'You can only manage users in your own department.');
-        }
+        return Department::active()->orderBy('name')->get();
     }
 }

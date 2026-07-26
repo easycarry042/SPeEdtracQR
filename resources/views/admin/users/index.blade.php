@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="page-shell page-shell-loose">
 
         @if(session('success'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
@@ -35,17 +35,33 @@
             @endif
         </form>
 
+        <div id="usersBar" class="cr-topbar mt-3 hidden" aria-hidden="true"></div>
+        <div id="usersLive" class="sr-only" role="status" aria-live="polite"></div>
+
+        {{-- Bulk action bar — appears when one or more accounts are selected --}}
+        <div id="bulkBar" class="hidden items-center justify-between gap-3 rounded-xl border border-green bg-green-wash px-4 py-2.5">
+            <p class="text-sm font-semibold text-green-deep"><span id="bulkCount">0</span> selected</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="usersBulk('activate')" class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50">Activate</button>
+                <button type="button" onclick="usersBulk('deactivate')" class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50">Deactivate</button>
+                <button type="button" onclick="usersBulk('archive')" class="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50">Archive</button>
+                <button type="button" onclick="usersBulkClear()" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-ink-soft transition hover:text-ink">Clear</button>
+            </div>
+        </div>
+
         {{-- Table --}}
-        <div id="usersResults" class="space-y-6 transition-opacity duration-150">
-        <div class="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md">
+        <div id="usersResults" class="space-y-6 transition-opacity duration-150" aria-busy="false">
+        <div class="panel">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="w-10 px-4 py-3.5 text-left">
+                                <input type="checkbox" id="selectAllUsers" aria-label="Select all accounts on this page" class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            </th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Name</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Email</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Role</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Department</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Actions</th>
                         </tr>
@@ -54,11 +70,16 @@
                         @forelse($users as $user)
                             <tr class="hover:bg-gray-50/60 transition {{ $user->trashed() || ! $user->is_active ? 'opacity-60' : '' }}">
                                 <td class="px-4 py-3">
+                                    @if(! $user->trashed() && $user->id !== auth()->id())
+                                        <input type="checkbox" class="userRowCheck h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" data-id="{{ $user->id }}" aria-label="Select {{ $user->name }}">
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
                                             {{ strtoupper(mb_substr($user->name, 0, 1)) }}
                                         </span>
-                                        <span class="text-sm font-semibold text-gray-800">{{ $user->name }}</span>
+                                        <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ $user->email }}</td>
@@ -69,7 +90,6 @@
                                         </span>
                                     @endforeach
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $user->department->name ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     @if($user->trashed())
                                         <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
@@ -142,7 +162,23 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-400">No users found.</td>
+                                <td colspan="6">
+                                    @if(request()->hasAny(['search','role']))
+                                        <x-empty-state icon="search" title="No users match your filters">
+                                            Try a different name, email, or role — or clear the filters to see everyone.
+                                            <x-slot:action>
+                                                <a href="{{ route('admin.users.index') }}" class="cr-btn cr-btn-sm">Clear filters</a>
+                                            </x-slot:action>
+                                        </x-empty-state>
+                                    @else
+                                        <x-empty-state icon="users" title="No staff accounts yet">
+                                            Add your office's staff so they can be assigned documents and tracked.
+                                            <x-slot:action>
+                                                <a href="{{ route('admin.users.create') }}" onclick="if (window.openAddUserModal) { event.preventDefault(); openAddUserModal(); }" class="cr-btn cr-btn-sm cr-btn-primary">Add a user</a>
+                                            </x-slot:action>
+                                        </x-empty-state>
+                                    @endif
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -215,27 +251,10 @@
                                     </option>
                                 @endforeach
                             </select>
+                            <p class="mt-1 text-xs text-gray-500">Staff create &amp; scan documents · Receiving staff intake only · Department admin manages their office · Super admin has full access.</p>
                             @error('role')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700">Department</label>
-                            @if($deptLocked)
-                                <input type="text" value="{{ $departments->first()?->name ?? '—' }}" disabled
-                                       class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 shadow-sm cursor-not-allowed">
-                                <input type="hidden" name="department_id" value="{{ $departments->first()?->id }}">
-                                <p class="mt-1 text-xs text-gray-400">Assigned to your department automatically.</p>
-                            @else
-                                <select name="department_id"
-                                        class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none">
-                                    <option value="">None</option>
-                                    @foreach($departments as $dept)
-                                        <option value="{{ $dept->id }}" @selected(old('department_id') == $dept->id)>
-                                            {{ $dept->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            @endif
-                        </div>
+                        <div></div>
                     </div>
 
                     <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
@@ -302,24 +321,110 @@
 
                 controller?.abort();
                 controller = new AbortController();
+
+                const bar = document.getElementById('usersBar');
+                const live = document.getElementById('usersLive');
                 results.classList.add('opacity-50');
+                results.setAttribute('aria-busy', 'true');
+                bar?.classList.remove('hidden');
+                if (live) { live.textContent = 'Loading users…'; }
 
                 fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
                     .then(response => response.text())
                     .then(html => {
                         const doc = new DOMParser().parseFromString(html, 'text/html');
                         const fresh = doc.getElementById('usersResults');
-                        if (fresh) results.innerHTML = fresh.innerHTML;
+                        if (fresh) { results.innerHTML = fresh.innerHTML; }
+                        document.dispatchEvent(new CustomEvent('users:refreshed'));
                         window.history.replaceState({}, '', url);
                         results.classList.remove('opacity-50');
+                        results.setAttribute('aria-busy', 'false');
+                        bar?.classList.add('hidden');
+                        if (live) {
+                            const rows = results.querySelectorAll('tbody tr').length;
+                            const hasEmpty = results.querySelector('.cr-empty');
+                            live.textContent = hasEmpty ? 'No users match your filters.' : `${rows} ${rows === 1 ? 'user' : 'users'} found.`;
+                        }
                     })
                     .catch(error => {
                         if (error.name !== 'AbortError') {
                             results.classList.remove('opacity-50');
+                            results.setAttribute('aria-busy', 'false');
+                            bar?.classList.add('hidden');
+                            if (live) { live.textContent = 'Could not load users. Please try again.'; }
                             console.error(error);
                         }
                     });
             }
+        })();
+    </script>
+
+    {{-- Bulk actions: select-all + per-row checkboxes → one action on many accounts.
+         Uses event delegation so it survives the live-search innerHTML swaps, and
+         builds a CSRF-signed form on submit (the row action cells already contain
+         their own <form>s, so the table itself can't be wrapped in one). --}}
+    <script>
+        (function () {
+            const bar   = document.getElementById('bulkBar');
+            const count = document.getElementById('bulkCount');
+            const token = document.querySelector('meta[name="csrf-token"]')?.content;
+            const bulkUrl = '{{ route('admin.users.bulk') }}';
+
+            function checked() { return Array.from(document.querySelectorAll('.userRowCheck:checked')); }
+
+            function updateBar() {
+                const n = checked().length;
+                count.textContent = n;
+                bar.classList.toggle('hidden', n === 0);
+                bar.classList.toggle('flex', n > 0);
+
+                const all = Array.from(document.querySelectorAll('.userRowCheck'));
+                const master = document.getElementById('selectAllUsers');
+                if (master) {
+                    master.checked = all.length > 0 && n === all.length;
+                    master.indeterminate = n > 0 && n < all.length;
+                }
+            }
+
+            document.addEventListener('change', function (e) {
+                if (e.target.id === 'selectAllUsers') {
+                    document.querySelectorAll('.userRowCheck').forEach(c => { c.checked = e.target.checked; });
+                    updateBar();
+                } else if (e.target.classList.contains('userRowCheck')) {
+                    updateBar();
+                }
+            });
+
+            // Recompute after a live-search swap replaces the rows.
+            document.addEventListener('users:refreshed', updateBar);
+
+            window.usersBulkClear = function () {
+                document.querySelectorAll('.userRowCheck').forEach(c => { c.checked = false; });
+                updateBar();
+            };
+
+            window.usersBulk = function (action) {
+                const ids = checked().map(c => c.dataset.id);
+                if (!ids.length) { return; }
+
+                const nouns = ids.length === 1 ? 'account' : 'accounts';
+                const prompts = {
+                    activate: null,
+                    deactivate: `Deactivate ${ids.length} ${nouns}? They won't be able to log in until reactivated.`,
+                    archive: `Archive ${ids.length} ${nouns}? They'll be hidden and unable to log in until restored.`,
+                };
+                if (prompts[action] && !confirm(prompts[action])) { return; }
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = bulkUrl;
+                form.innerHTML =
+                    `<input type="hidden" name="_token" value="${token}">` +
+                    `<input type="hidden" name="action" value="${action}">` +
+                    ids.map(id => `<input type="hidden" name="ids[]" value="${id}">`).join('');
+                document.body.appendChild(form);
+                form.submit();
+            };
         })();
     </script>
 </x-app-layout>

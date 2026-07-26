@@ -15,7 +15,7 @@ class EnsureHasPermission
     public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
         if (! $request->user()) {
-            return redirect()->route('login');
+            return to_route('login');
         }
 
         if (! $request->user()->hasAnyPermission($permissions)) {
@@ -29,7 +29,7 @@ class EnsureHasPermission
     {
         $route = $user->can('manage system') ? 'admin.dashboard' : 'dashboard';
 
-        return redirect()->route($route)
+        return to_route($route)
             ->with('error', 'You do not have permission to access that area.');
     }
 }

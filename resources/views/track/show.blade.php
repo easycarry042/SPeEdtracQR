@@ -1,117 +1,310 @@
-@php
-    $statusClass = match($document->status) {
-        'completed' => 'bg-green-200 text-green-800',
-        'pending' => 'bg-emerald-200 text-emerald-800',
-        'returned' => 'bg-rose-200 text-rose-800',
-        default => 'bg-yellow-200 text-yellow-800',
-    };
-@endphp
 <x-app-layout>
-    @guest
-        {{-- Guests don't get the app navbar (and its page title), so keep a heading for the public tracking page --}}
-        <x-slot name="header">
-            <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Track Document</h1>
-        </x-slot>
-    @endguest
+    @php
+        $supervisorView = $supervisorView ?? false;
+    @endphp
+    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2"
+         x-data="{ tab: @js($activeTab ?? 'inprogress') }">
+        {{-- Fixed-height panel; the list scrolls inside it --}}
+        <div class="panel flex flex-col p-3 lg:h-[calc(100vh-9rem)]">
+            @php
+                // (left tab key, label, count) — supervisor: Pending/In Progress,
+                // staff: In Progress/Completed.
+                $leftTab = $supervisorView
+                    ? ['key' => 'pending', 'label' => 'Pending', 'count' => $pending->count()]
+                    : ['key' => 'inprogress', 'label' => 'In Progress', 'count' => $myActive->count()];
+                $rightTab = $supervisorView
+                    ? ['key' => 'inprogress', 'label' => 'In Progress', 'count' => $inProgress->count()]
+                    : ['key' => 'completed', 'label' => 'Completed', 'count' => $myCompleted->count()];
+                $leftList = $supervisorView ? $pending : $myActive;
+                $rightList = $supervisorView ? $inProgress : $myCompleted;
+            @endphp
 
-    <div class="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
-        @unless($isPublicView)
-            {{-- Fixed-height panel; the list scrolls inside it --}}
-            <div class="flex flex-col rounded-xl border border-[#e6ece8] bg-white p-3 lg:h-[calc(100vh-9rem)]">
-                <div class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
-                    @foreach($documents as $item)
-                        <a href="{{ route('track.show', $item->tracking_number) }}" class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-[#0f4d28] bg-[#eaf4ee]' : 'border-[#e6ece8] bg-white hover:bg-[#f3f8f5]' }}">
-                            <div class="flex items-center gap-3">
-                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
+            {{-- Tabs --}}
+            <div class="segchips mb-3 w-full">
+                @foreach([$leftTab, $rightTab] as $t)
+                    <button type="button" @click="tab = '{{ $t['key'] }}'"
+                            :class="tab === '{{ $t['key'] }}' ? 'on' : ''"
+                            class="flex-1 justify-center">
+                        {{ $t['label'] }}
+                        <span class="sp-group-count ml-1.5">{{ $t['count'] }}</span>
+                    </button>
+                @endforeach
+            </div>
+
+            {{-- Two lists; clicking an item opens it in the detail box on the right --}}
+            @foreach([['key' => $leftTab['key'], 'list' => $leftList, 'empty' => $supervisorView ? 'No pending requests.' : 'Nothing in progress.'], ['key' => $rightTab['key'], 'list' => $rightList, 'empty' => $supervisorView ? 'No requests in progress.' : 'No completed requests yet.']] as $section)
+                <div x-show="tab === '{{ $section['key'] }}'" @if(! $loop->first) x-cloak @endif class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+                    @forelse($section['list'] as $item)
+                        <a href="{{ route('track.show', ['trackingNumber' => $item->tracking_number, 'tab' => $section['key']]) }}"
+                           class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-green-deep bg-green-wash' : 'border-hairline bg-paper hover:bg-green-wash/60' }}">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
                                 </span>
-                                <div>
-                                    <p class="text-[14px] font-semibold text-[#16211b]">{{ $item->document_type }}</p>
-                                    <p class="text-[13px] text-[#51625a]">{{ $item->status }}</p>
+                                <div class="min-w-0">
+                                    <p class="truncate text-[14px] font-semibold text-ink">{{ $item->document_type }}</p>
+                                    <p class="truncate text-[13px] text-ink-soft">{{ $item->citizen_name ?: $item->tracking_number }}</p>
                                 </div>
                             </div>
-                            <div class="text-right">
-                                <p class="text-[13px] text-[#51625a]">{{ $item->created_at->format('m/d/y') }}</p>
-                                <span class="text-xl text-[#51625a]">›</span>
+                            <div class="ml-2 shrink-0 text-right">
+                                <p class="text-[13px] text-ink-soft">{{ $item->created_at->format('m/d/y') }}</p>
+                                <span class="text-xl text-ink-soft">›</span>
                             </div>
                         </a>
-                    @endforeach
+                    @empty
+                        <p class="px-2 py-8 text-center text-sm text-ink-soft">{{ $section['empty'] }}</p>
+                    @endforelse
                 </div>
-            </div>
-        @endunless
+            @endforeach
+        </div>
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="rounded-xl border border-[#e6ece8] bg-white p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto {{ $isPublicView ? 'lg:col-span-2' : '' }}">
+        <div class="panel p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#cfe6d8] text-[#0f4d28]">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-green-wash text-green-deep">
                         <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
                     </span>
                     <div>
-                        <p class="text-lg font-bold text-[#16211b]">{{ $document->document_type }}</p>
-                        <p class="text-[13px] text-[#51625a]">{{ $document->citizen_name ?? 'N/A' }}</p>
+                        <p class="text-lg font-bold text-ink">{{ $document->document_type }}</p>
+                        <p class="text-[13px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }}</p>
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="text-sm font-semibold text-[#51625a]">Tracking ID:</p>
-                    <p class="text-xl font-extrabold text-[#0f4d28] font-mono">{{ $document->tracking_number }}</p>
+                    <p class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Tracking ID</p>
+                    <span class="id-chip mt-1 text-[15px] font-bold text-green-deep">{{ $document->tracking_number }}</span>
                 </div>
             </div>
+
+            @php
+                $isPendingReview = $supervisorView && $document->statusEnum() === \App\Enums\DocumentStatus::Pending;
+                $isStaffAssigned = $staffView && (int) $document->assigned_to === (int) auth()->id();
+                $isStaffApprovable = $isStaffAssigned && $document->status === 'approved';
+            @endphp
 
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <x-status-badge :status="$document->status" />
-                @unless($isPublicView)
-                    <a href="{{ route('documents.edit', $document) }}"
-                       class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-                        Edit details
-                    </a>
-                    @if($document->scans->isNotEmpty())
-                        <form method="POST" action="{{ route('documents.undo-scan', $document) }}"
-                              onsubmit="return confirm('Undo the most recent scan for this document? It will revert to its previous location.')">
-                            @csrf
-                            <button type="submit"
-                                    class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                                Undo last scan
-                            </button>
-                        </form>
-                    @endif
-                @endunless
+                <a href="{{ route('documents.edit', $document) }}" class="cr-btn">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                    Edit details
+                </a>
             </div>
 
-            @unless($isPublicView)
-                @if(session('status'))
-                    <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">{{ session('status') }}</div>
-                @endif
-            @endunless
+            {{-- Physical custody trail (shared with the internal-request panel). --}}
+            @if(! $document->statusEnum()->isTerminal())
+                @include('partials.custody-scan', ['document' => $document, 'custody' => $custody])
+            @endif
 
-            @if($document->attachments->isNotEmpty())
-                <div class="mt-5">
-                    <p class="text-[14px] font-bold text-[#16211b]">Attached Images</p>
-                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" />
+            {{-- ── QR-gated release: Completed docs are claimed at the counter ── --}}
+            @if($document->status === 'completed')
+                @php
+                    $canRelease = auth()->user()->can('scan documents') || auth()->user()->can('assign documents') || auth()->user()->can('manage system');
+                @endphp
+                @if($errors->has('release'))
+                    <div class="gate-errors" role="alert"><p>{{ $errors->first('release') }}</p></div>
+                @endif
+                @if($document->claimed_at)
+                    <div class="release-stamp">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                        <span>Released to citizen on <b class="mono">{{ $document->claimed_at->format('M d, Y h:i A') }}</b>{{ $document->releasedBy ? ' by '.$document->releasedBy->name : '' }}</span>
+                    </div>
+                @elseif($canRelease)
+                    <div class="release-panel" x-data="{ open: false }">
+                        <div class="rp-head">
+                            <p><b>Ready for release.</b> The citizen claims this by presenting their QR code at the counter.</p>
+                            <button type="button" class="cr-btn cr-btn-primary cr-btn-sm" @click="open = !open">Release to citizen</button>
+                        </div>
+                        <div x-show="open" x-cloak class="rp-confirm">
+                            <p>Confirm the person at the counter matches the record:</p>
+                            <p class="rp-name">{{ $document->citizen_name ?? 'No citizen name on record' }}</p>
+                            <form method="POST" action="{{ route('documents.release', $document) }}" class="mt-2 flex flex-wrap gap-2">
+                                @csrf @method('PATCH')
+                                <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Confirm — mark as released</button>
+                                <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
+                            </form>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Authenticity seal: signed QR anyone can scan to verify. --}}
+                @if($sealSvg)
+                    <div class="seal-panel">
+                        <img src="data:image/svg+xml;base64,{{ $sealSvg }}" alt="Authenticity verification QR code" width="84" height="84">
+                        <div>
+                            <p class="seal-title">Authenticity seal</p>
+                            <p class="seal-sub">Anyone scanning this QR gets an official yes/no that this document is genuine — the link is cryptographically signed.</p>
+                            <a href="{{ $verifyUrl }}" target="_blank" class="cr-link">Open verification page →</a>
+                        </div>
+                    </div>
+                @endif
+            @endif
+
+            {{-- ── Pending review + assign (supervisor) — inline, no modal ───────── --}}
+            @if($isPendingReview)
+                <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
+                     x-data="{
+                        staffId: '',
+                        submitting: false,
+                        islandError: '',
+                        denyOpen: false,
+                        denyReason: '',
+                        approve() {
+                            if (!this.staffId || this.submitting) return;
+                            this.submitting = true;
+                            const fd = new FormData();
+                            fd.append('assigned_to', this.staffId);
+                            fetch('{{ route('documents.assign-approve', $document) }}', {
+                                method: 'POST',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                body: fd,
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; this.islandError = 'Could not approve. Please try again.'; }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
+                        },
+                        confirmDeny() {
+                            if (this.submitting) return;
+                            this.submitting = true;
+                            const fd = new FormData();
+                            if (this.denyReason.trim()) fd.append('reason', this.denyReason.trim());
+                            fetch('{{ route('documents.deny', $document) }}', {
+                                method: 'POST',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                body: fd,
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; this.islandError = 'Could not deny. Please try again.'; }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
+                        }
+                     }">
+                    <p class="text-sm font-bold text-green-deep">Review &amp; assign</p>
+
+                    <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Email</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_email ?: '—' }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Submitted</dt><dd class="text-right font-medium text-ink">{{ $document->created_at?->format('M j, Y g:i A') }}</dd></div>
+                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose ?: '—' }}</dd></div>
+                    </dl>
+
+                    @if($document->description)
+                        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-soft">Description</p>
+                        <p class="mt-1 whitespace-pre-line text-sm text-ink">{{ $document->description }}</p>
+                    @endif
+
+                    <p x-show="islandError" x-cloak x-text="islandError" class="mt-3 rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red" role="alert"></p>
+
+                    <label class="mt-4 block text-sm font-semibold text-green-deep">Assign to Staff <span class="text-status-red">*</span></label>
+                    <select x-model="staffId" class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
+                        <option value="">Select a staff member…</option>
+                        @foreach($assignableStaff as $member)
+                            <option value="{{ $member->id }}">{{ $member->name }}</option>
+                        @endforeach
+                    </select>
+
+                    <div class="mt-4 flex items-center justify-between gap-3">
+                        <button type="button" @click="denyOpen = true" :disabled="submitting"
+                                class="cr-btn cr-btn-danger !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                            Deny
+                        </button>
+                        <button type="button" @click="approve()" :disabled="!staffId || submitting"
+                                class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                            <span x-show="!submitting">Approve</span>
+                            <span x-show="submitting">Approving…</span>
+                        </button>
+                    </div>
+
+                    {{-- Deny reason modal --}}
+                    <div x-show="denyOpen" x-cloak
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                         @keydown.escape.window="denyOpen = false" @click.self="denyOpen = false">
+                        <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="denyOpen" x-transition>
+                            <div class="border-b border-hairline px-6 py-4">
+                                <h3 class="text-base font-bold text-ink">Deny request</h3>
+                                <p class="mt-0.5 text-sm text-ink-soft">This rejects the request. You can add an optional reason for the record.</p>
+                            </div>
+                            <div class="px-6 py-5">
+                                <label class="block text-sm font-semibold text-ink">Reason <span class="font-normal text-ink-soft">(optional)</span></label>
+                                <textarea x-model="denyReason" rows="4" maxlength="1000" placeholder="e.g. Incomplete requirements, duplicate request…"
+                                          class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-status-red focus:outline-none focus:ring-2 focus:ring-status-red/20"></textarea>
+                            </div>
+                            <div class="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                                <button type="button" @click="denyOpen = false" :disabled="submitting"
+                                        class="cr-btn !px-5 !py-2.5 !text-sm disabled:opacity-50">
+                                    Cancel
+                                </button>
+                                <button type="button" @click="confirmDeny()" :disabled="submitting"
+                                        class="cr-btn cr-btn-danger !border-status-red !bg-status-red !text-white hover:!bg-[#6e1f1f] !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-show="!submitting">Deny request</span>
+                                    <span x-show="submitting">Denying…</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             @endif
 
-            @unless($isPublicView)
-                <div class="mt-6 flex flex-wrap gap-2">
-                    <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
-                        Print QR sticker
-                    </a>
-                    <a href="{{ route('scan.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100">
-                        Open scanner
-                    </a>
+            {{-- ── Final approve (assigned staff) — only at Approved stage ─────── --}}
+            @if($isStaffApprovable)
+                <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
+                     x-data="{
+                        submitting: false,
+                        islandError: '',
+                        complete() {
+                            if (this.submitting) return;
+                            this.submitting = true;
+                            fetch('{{ route('documents.review.complete', $document) }}', {
+                                method: 'PATCH',
+                                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                            }).then(r => {
+                                if (r.ok) { window.location.href = '{{ route('track.show', $document->tracking_number) }}'; }
+                                else { this.submitting = false; r.json().then(d => { this.islandError = d.message || 'Could not complete. Advance to Approved first.'; }); }
+                            }).catch(() => { this.submitting = false; this.islandError = 'Network error. Please try again.'; });
+                        }
+                     }">
+                    <p class="text-sm font-bold text-green-deep">Ready to complete</p>
+                    <p class="mt-1 text-sm text-ink-soft">This request is at <strong>Approved</strong>. Approving marks it <strong>Completed</strong> and moves it to your History.</p>
+                    <p x-show="islandError" x-cloak x-text="islandError" class="mt-3 rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red" role="alert"></p>
+                    <div class="mt-4 flex justify-end">
+                        <button type="button" @click="complete()" :disabled="submitting"
+                                class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                            <span x-show="!submitting">Approve</span>
+                            <span x-show="submitting">Approving…</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-left text-sm text-amber-950">
-                    <p class="font-semibold">Recording a handoff between departments</p>
-                    <p class="mt-1 text-amber-900/90">Use <strong>Scan</strong> (sidebar): pick the <strong>department</strong> that has the paper, then tap <strong>IN</strong> when it arrives there, or <strong>OUT</strong> when it is sent to the next office. Routing uses your <strong>Routing rules</strong> for that document type.</p>
+            @endif
+
+            @if(session('status'))
+                <div class="mt-4 rounded-lg border border-hairline bg-green-wash px-4 py-2 text-sm font-semibold text-green-deep">{{ session('status') }}</div>
+            @endif
+
+            @if($document->attachments->isNotEmpty())
+                <div class="mt-5">
+                    <p class="text-[14px] font-bold text-ink">Attached Files</p>
+                    <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" :manage="true" />
+                    <p class="mt-1 text-[12px] text-ink-soft">Hover a file and tap × to remove one placed by mistake.</p>
                 </div>
-            @endunless
+            @endif
+
+            <div class="mt-6 flex flex-wrap gap-2">
+                @if($document->isInternal() && auth()->check())
+                    <a href="{{ route('requests.show', $document) }}" class="cr-btn cr-btn-primary">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg>
+                        Open internal request chain
+                    </a>
+                @endif
+                <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn {{ $document->isInternal() ? '' : 'cr-btn-primary' }}">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
+                    Print QR sticker
+                </a>
+                <a href="{{ route('track.index', ['find' => 1]) }}" class="cr-btn">
+                    Open scanner
+                </a>
+            </div>
 
             {{-- Predictive insights (self-hosted analytics) --}}
             @if(!empty($anomaly))
-                <div class="mt-6 rounded-xl border {{ $anomaly['severity'] === 'high' ? 'border-rose-300 bg-rose-50 text-rose-900' : 'border-amber-300 bg-amber-50 text-amber-900' }} p-4">
+                <div class="mt-6 rounded-[10px] border {{ $anomaly['severity'] === 'high' ? 'border-status-red-wash bg-status-red-wash text-status-red' : 'border-status-amber-wash bg-status-amber-wash text-status-amber' }} p-4">
                     <div class="flex items-start gap-3">
                         <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -132,49 +325,157 @@
             </div>
 
             <div class="mt-8">
-                <div class="mb-3 text-[14px] font-bold text-[#16211b]">Department Progress</div>
-                @if($routingChain->isNotEmpty())
-                    <x-routing-stepper :document="$document" :chain="$routingChain" />
-                @else
-                    <span class="text-gray-500 text-sm">No routing path configured.</span>
+                <div class="mb-3 text-[14px] font-bold text-ink">Status Progress</div>
+                @if($document->assigned_to)
+                    <p class="mb-2 text-[13px] text-ink-soft">
+                        Assigned to <span class="font-semibold text-green-deep">{{ $document->assignedTo->name ?? '—' }}</span>
+                    </p>
                 @endif
+                <x-routing-stepper :document="$document" :controls="true" />
             </div>
 
-            @if($canAct && $document->status !== 'completed')
-                <div class="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-                    @if($isLastStop)
-                        <button type="button"
-                                class="js-track-complete inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600"
-                                data-tracking="{{ $document->tracking_number }}">
-                            Mark as Done
-                        </button>
-                    @elseif($nextDepartment)
-                        <a href="{{ route('movements.index', ['tab' => 'inbox']) }}"
-                           class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
-                            Review &amp; send onward
-                        </a>
+            {{-- Origin / Creation — how this document entered the office --}}
+            <div class="panel mt-8">
+                <div class="ph"><h2>Origin</h2></div>
+                <div class="pb text-[14px] text-ink">
+                    <div class="mb-3">
+                        <x-document-origin :source="$document->source" :by="$document->creator?->name" :at="$document->created_at" />
+                    </div>
+
+                    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-ink-soft">Submitted by</dt>
+                            <dd class="font-medium">{{ $document->citizen_name ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-ink-soft">Email</dt>
+                            <dd class="font-medium break-all">{{ $document->citizen_email ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-ink-soft">Contact</dt>
+                            <dd class="font-medium">{{ $document->citizen_contact ?: '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-ink-soft">Created</dt>
+                            <dd class="font-medium">{{ $document->created_at?->format('M d, Y \a\t h:i A') ?? '—' }}</dd>
+                        </div>
+                        <div class="flex gap-2">
+                            <dt class="w-28 shrink-0 text-ink-soft">{{ $document->source === 'online' ? 'Entered' : 'Encoded by' }}</dt>
+                            <dd class="font-medium">{{ $document->source === 'online' ? 'Online submission (citizen self-service)' : ($document->creator?->name ?? 'Staff') }}</dd>
+                        </div>
+                        @if($document->purpose)
+                            <div class="flex gap-2">
+                                <dt class="w-28 shrink-0 text-ink-soft">Purpose</dt>
+                                <dd class="font-medium">{{ $document->purpose }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+
+                    @if($document->description)
+                        <p class="mt-3 border-t border-hairline pt-3"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>
                     @endif
                 </div>
-            @endif
+            </div>
 
-            <div class="mt-8">
-                <h3 class="text-2xl font-extrabold text-[#16211b]">Logs</h3>
-                <div class="mt-3 space-y-2">
+            <div class="panel mt-8">
+                <div class="ph"><h2>Logs</h2></div>
+                <div class="pb space-y-2">
                     @foreach($timeline as $log)
-                        <div class="flex items-center justify-between border-b border-[#eaf4ee] py-2">
+                        <div class="flex items-center justify-between border-b border-hairline py-2 last:border-b-0">
                             <div class="flex items-center gap-3">
-                                <span class="h-3 w-3 rounded-full bg-green-600"></span>
-                                <span class="text-[14px] text-[#51625a]">{{ $log['event'] }}</span>
+                                <span class="h-3 w-3 rounded-full bg-green-bright"></span>
+                                <span class="text-[14px] text-ink-soft">{{ $log['event'] }}</span>
                             </div>
-                            <span class="text-[13px] font-bold text-[#0f4d28]">{{ $log['timestamp'] }}</span>
+                            <span class="text-[13px] font-bold text-green-deep">{{ $log['timestamp'] }}</span>
                         </div>
                     @endforeach
                 </div>
             </div>
+
+            {{-- ── Collaboration feed (staff) ─────────────────────────────────── --}}
+            @php
+                $u = auth()->user();
+                $canPost = $u && ($u->can('manage system') || $u->can('assign documents') || (
+                    $u->can('advance documents') && $document->assigned_to !== null
+                    && (int) $document->assigned_to === (int) $u->id
+                ));
+            @endphp
+            <div class="panel mt-8" id="collab" data-document-id="{{ $document->id }}">
+                <div class="ph">
+                    <div>
+                        <h2>Collaboration</h2>
+                        <p class="sub mt-0.5">Post updates and notes. <strong>Internal</strong> notes are staff-only; <strong>Visible to citizen</strong> posts appear on the public tracking page and email the citizen.</p>
+                    </div>
+                </div>
+
+                <div class="pb">
+                    @if($canPost)
+                        <form method="POST" action="{{ route('documents.comments.store', $document) }}" class="rounded-lg border border-hairline bg-paper p-4">
+                            @csrf
+                            <textarea name="body" rows="3" required maxlength="5000" placeholder="Write an update…"
+                                      class="w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-4 text-sm text-ink">
+                                    <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="internal" checked class="accent-green"> Internal note</label>
+                                    <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="public" class="accent-green"> Visible to citizen</label>
+                                </div>
+                                <button type="submit" class="cr-btn cr-btn-primary">Post</button>
+                            </div>
+                        </form>
+                    @endif
+
+                    <div id="collabFeed" class="mt-4 space-y-3">
+                        @forelse($document->comments as $comment)
+                            @include('track.partials.comment', ['comment' => $comment, 'canPost' => $canPost, 'document' => $document])
+                        @empty
+                            <p id="collabEmpty" class="text-sm italic text-ink-soft">No posts yet.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
         </div>
+
     </div>
 
-    @unless($isPublicView)
+    {{-- Opening an assigned, in-progress request (clicking it) moves it to
+         "In Review", mirroring the old Review action. Reloads once so the badge
+         and stepper reflect the new stage. --}}
+    @if(($isStaffAssigned ?? false) && $document->status === 'in_progress')
+        <script>
+            fetch('{{ route('documents.review.open', $document) }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+            }).then(r => r.ok ? r.json() : null).then(d => {
+                if (d && d.status === 'in_review') { window.location.reload(); }
+            }).catch(() => {});
+        </script>
+    @endif
+
+    <script>
+        (function () {
+            const root = document.getElementById('collab');
+            if (!root || !window.Echo) return;
+            const id = root.dataset.documentId;
+            const feed = document.getElementById('collabFeed');
+            const badge = { internal: 'background:#eef2ef;color:#5b6b62;', public: 'background:#eef5f0;color:#0f5c2e;', system: 'background:#fbf3e0;color:#8a6d1f;' };
+
+            window.Echo.private('documents.' + id + '.staff').listen('.comment', (e) => {
+                document.getElementById('collabEmpty')?.remove();
+                if (document.getElementById('comment-' + e.id) || document.getElementById('reply-' + e.id)) return;
+                const label = e.author_type === 'public' ? 'public' : (e.author_type === 'system' ? 'system' : (e.visibility || 'internal'));
+                const tag = e.author_type === 'system' ? 'system' : (e.visibility || 'internal');
+                const html = '<div class="rounded-xl border border-[#e6ece8] bg-white p-3" id="comment-' + e.id + '">' +
+                    '<div class="flex items-center justify-between"><span class="text-[13px] font-bold text-[#16211b]">' + e.author +
+                    ' <span class="ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style="' + (badge[tag] || badge.internal) + '">' + tag + '</span></span>' +
+                    '<span class="text-[12px] text-[#51625a]">' + (e.timestamp || '') + '</span></div>' +
+                    '<p class="mt-1 whitespace-pre-wrap text-[14px] text-[#33433b]"></p></div>';
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                wrap.querySelector('p').textContent = e.body;
+                feed.prepend(wrap.firstChild);
+            });
+        })();
+    </script>
     <script>
         (function () {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -193,5 +494,4 @@
             });
         })();
     </script>
-    @endunless
 </x-app-layout>

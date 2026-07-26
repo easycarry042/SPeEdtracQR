@@ -2,25 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DepartmentNotification;
-use App\Support\DepartmentScope;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Routing\Redirector;
 
+/** Header-bell actions: open (mark read + follow) and mark-all-read. */
 class NotificationController extends Controller
 {
-    public function markRead(DepartmentNotification $notification)
+    public function open(string $id): Redirector|RedirectResponse
     {
-        $user = auth()->user();
+        $notification = auth()->user()->notifications()->findOrFail($id);
+        $notification->markAsRead();
 
-        if (DepartmentScope::isOrgWide($user)) {
-            abort(403);
-        }
+        // The URL is written by our own DocumentEvent notification — not user input.
+        return redirect(data_get($notification->data, 'url') ?: route('dashboard'));
+    }
 
-        if ((int) $notification->department_id !== (int) $user->department_id) {
-            abort(403);
-        }
+    public function readAll()
+    {
+        auth()->user()->unreadNotifications->markAsRead();
 
-        $notification->markRead();
-
-        return redirect()->route('movements.index', ['tab' => 'inbox']);
+        return back()->with('status', 'All notifications marked as read.');
     }
 }

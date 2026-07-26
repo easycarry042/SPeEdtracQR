@@ -9,7 +9,7 @@
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-2xl">
+    <div class="page-shell page-shell-narrow">
         <form method="POST" action="{{ route('documents.update', $document) }}"
               class="space-y-5 rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm">
             @csrf

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -12,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'department_id', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'is_active', 'department_id', 'signature_path'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,6 +27,7 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    #[\Override]
     protected function casts(): array
     {
         return [
@@ -36,6 +39,9 @@ class User extends Authenticatable
 
     // ========== RELATIONSHIPS ==========
 
+    /**
+     * The municipal office this user belongs to (null for org-wide accounts).
+     */
     public function department()
     {
         return $this->belongsTo(Department::class);
@@ -50,10 +56,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Scans performed by this user
+     * Documents this user is responsible for advancing through its status stages.
      */
-    public function scans()
+    public function assignedDocuments()
     {
-        return $this->hasMany(DocumentScan::class, 'scanned_by');
+        return $this->hasMany(Document::class, 'assigned_to');
+    }
+
+    /**
+     * Manual highlight posts authored by this user for their staff profile feed.
+     */
+    public function highlights()
+    {
+        return $this->hasMany(StaffHighlight::class)->latest();
     }
 }

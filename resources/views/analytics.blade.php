@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="page-shell page-shell-loose">
         @php
             /* ---------- donut geometry (document type = shares of a whole) ---------- */
             $palette   = ['#167a3a', '#5cb87f', '#c79a3e', '#0f4d28', '#8fce9f'];
@@ -41,17 +41,17 @@
             $gridV     = [0, $maxY / 3, ($maxY * 2) / 3, $maxY];
             $labelIdx  = $n > 1 ? [0, intdiv($n, 3), intdiv($n * 2, 3), $n - 1] : [0];
 
-            $maxScans  = max(1, (int) (collect($topDepartments ?? [])->max('scans')));
+            $maxAssigned = max(1, (int) (collect($topStaff ?? [])->max('assigned')));
         @endphp
 
         <div class="mb-4 flex items-center gap-3">
             <h1 class="text-lg font-semibold text-green-deep">Analytics</h1>
-            <span class="chip">{{ $isOrgWide ? 'All offices' : ($dept?->name ?? 'Your department') }}</span>
+            <span class="chip">{{ $isOrgWide ? 'All offices' : 'Your work' }}</span>
         </div>
 
         {{-- KPI tiles --}}
         <div class="tiles" style="margin-bottom:14px;">
-            <div class="tile"><div class="k">{{ $isOrgWide ? 'In transit' : 'At your department' }}</div><div class="v mono">{{ $kpis['in_transit'] ?? 0 }}</div><div class="bar amber"></div></div>
+            <div class="tile"><div class="k">In progress</div><div class="v mono">{{ $kpis['in_progress'] ?? 0 }}</div><div class="bar amber"></div></div>
             <div class="tile"><div class="k">Completed</div><div class="v mono">{{ $kpis['completed'] ?? 0 }}</div><div class="bar"></div></div>
             <div class="tile"><div class="k">Submitted this month</div><div class="v mono">{{ $kpis['submitted_month'] ?? 0 }}</div><div class="bar bright"></div></div>
             <div class="tile"><div class="k">Overdue now</div><div class="v mono">{{ $kpis['overdue'] ?? 0 }}</div><div class="bar red"></div></div>
@@ -84,7 +84,7 @@
                             <select name="status">
                                 <option value="">All</option>
                                 <option value="pending" @selected(request('status') === 'pending')>Pending</option>
-                                <option value="in_transit" @selected(request('status') === 'in_transit')>In transit</option>
+                                <option value="in_progress" @selected(request('status') === 'in_progress')>In progress</option>
                                 <option value="completed" @selected(request('status') === 'completed')>Completed</option>
                             </select>
                         </div>
@@ -165,24 +165,24 @@
                     </div>
                 </div>
 
-                {{-- Top submitting departments = ranked bars --}}
+                {{-- Top assignees = ranked bars --}}
                 <div class="panel">
                     <div class="ph">
                         <h2>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="8" y="11" width="3" height="5"/><rect x="13" y="7" width="3" height="9"/></svg>
-                            {{ $isOrgWide ? 'Top departments by scans' : 'Department activity' }}
+                            {{ $isOrgWide ? 'Top staff by assigned volume' : 'Assigned activity' }}
                         </h2>
-                        <span class="sub">scans</span>
+                        <span class="sub">assigned</span>
                     </div>
                     <div class="pb" style="padding-top:6px;">
-                        @forelse ($topDepartments ?? [] as $d)
+                        @forelse ($topStaff ?? [] as $d)
                             <div class="barrow">
                                 <div class="nm">{{ $d['name'] }}</div>
-                                <div class="track"><div class="fill" style="width:{{ round(($d['scans'] / $maxScans) * 100) }}%"></div></div>
-                                <div class="val">{{ $d['scans'] }}</div>
+                                <div class="track"><div class="fill" style="width:{{ round(($d['assigned'] / $maxAssigned) * 100) }}%"></div></div>
+                                <div class="val">{{ $d['assigned'] }}</div>
                             </div>
                         @empty
-                            <div class="barrow"><div class="nm" style="color:var(--ink-soft)">No scans recorded yet.</div></div>
+                            <div class="barrow"><div class="nm" style="color:var(--ink-soft)">No assigned work yet.</div></div>
                         @endforelse
                     </div>
                 </div>

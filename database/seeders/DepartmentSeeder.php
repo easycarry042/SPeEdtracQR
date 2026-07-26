@@ -5,20 +5,32 @@ namespace Database\Seeders;
 use App\Models\Department;
 use Illuminate\Database\Seeder;
 
+/**
+ * Typical municipal offices involved in internal request routing. Idempotent:
+ * safe to re-run; matches on code and refreshes the name.
+ */
 class DepartmentSeeder extends Seeder
 {
     public function run(): void
     {
         $departments = [
-            ['name' => 'Front Desk/Reception', 'email' => 'frontdesk@sanpedro.gov', 'sla_hours' => 2],
-            ['name' => 'Accounting', 'email' => 'accounting@sanpedro.gov', 'sla_hours' => 48],
-            ['name' => 'Engineering', 'email' => 'engineering@sanpedro.gov', 'sla_hours' => 72],
-            ['name' => 'Mayors Office', 'email' => 'mayor@sanpedro.gov', 'sla_hours' => 24],
-            ['name' => 'Records/Archiving', 'email' => 'records@sanpedro.gov', 'sla_hours' => 12],
+            ['code' => 'OM', 'name' => 'Office of the Mayor'],
+            ['code' => 'BO', 'name' => 'Municipal Budget Office'],
+            ['code' => 'ACC', 'name' => 'Municipal Accounting Office'],
+            ['code' => 'BAC', 'name' => 'Bids and Awards Committee'],
+            ['code' => 'GSO', 'name' => 'General Services Office'],
+            ['code' => 'TRSY', 'name' => "Municipal Treasurer's Office"],
+            ['code' => 'HRMO', 'name' => 'Human Resource Management Office'],
+            ['code' => 'TRSM', 'name' => 'Tourism Office'],
+            ['code' => 'ENG', 'name' => 'Municipal Engineering Office'],
+            ['code' => 'MHO', 'name' => 'Municipal Health Office'],
         ];
 
         foreach ($departments as $department) {
-            Department::firstOrCreate(['name' => $department['name']], $department);
+            Department::updateOrCreate(
+                ['code' => $department['code']],
+                ['name' => $department['name'], 'is_active' => true],
+            );
         }
     }
 }

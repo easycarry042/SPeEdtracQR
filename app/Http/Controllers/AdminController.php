@@ -2,66 +2,64 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Department;
 use App\Models\Document;
-use App\Models\DocumentScan;
 use App\Models\User;
-use App\Support\PredictiveAnalytics;
+use App\Support\AdminAnalytics;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
-    public function dashboard()
+    /** Selectable look-back windows (days) for the command center. */
+    private const array RANGES = [7, 30, 90];
+
+    public function dashboard(Request $request): Factory|View
     {
-        $totalDocuments = Document::count();
-        $totalStaff = User::role(['staff', 'receiving_staff', 'department_admin'])->count();
-        $totalDepartments = Department::count();
-        $pendingDocuments = Document::whereIn('status', ['pending', 'in_transit', 'returned'])->count();
+        $documentTypes = Document::query()
+            ->select('document_type')
+            ->whereNotNull('document_type')
+            ->distinct()
+            ->orderBy('document_type')
+            ->pluck('document_type');
 
-        $recentActivity = Document::with(['creator', 'currentDepartment'])
-            ->latest()
-            ->take(10)
-            ->get();
+        $validated = $request->validate([
+            'range' => ['nullable', Rule::in(self::RANGES)],
+            'document_type' => ['nullable', Rule::in($documentTypes->all())],
+        ]);
 
-        $recentScans = DocumentScan::with(['document', 'department', 'user'])
-            ->latest('scanned_at')
-            ->take(5)
-            ->get();
+        $range = (int) ($validated['range'] ?? 30);
+        $documentType = $validated['document_type'] ?? null;
 
-        // ── Predictive insights (org-wide: admin sees every department) ───────
-        $analytics = new PredictiveAnalytics;
+        $from = Date::now()->subDays($range - 1)->startOfDay();
+        $to = Date::now()->endOfDay();
 
-        $bottlenecks = $analytics->bottlenecks()
-            ->reject(fn ($row) => $row['level'] === 'ok' && ($row['current_load'] ?? 0) === 0)
-            ->take(5)
-            ->values();
+        $analytics = new AdminAnalytics($from, $to, $documentType);
 
-        $anomalies = Document::with('currentDepartment')
-            ->where('status', 'in_transit')
-            ->whereNotNull('current_department_id')
-            ->get()
-            ->map(function ($doc) use ($analytics) {
-                $anomaly = $analytics->detectAnomaly($doc);
-                if (! $anomaly) {
-                    return null;
-                }
-                $doc->setAttribute('anomaly', $anomaly);
+        $filters = [
+            'range' => $range,
+            'document_type' => $documentType,
+            'active' => $documentType || $range !== 30,
+        ];
 
-                return $doc;
-            })
-            ->filter()
-            ->sortByDesc(fn ($doc) => $doc->anomaly['over_by_hours'])
-            ->take(6)
-            ->values();
-
-        return view('admin.dashboard', compact(
-            'totalDocuments',
-            'totalStaff',
-            'totalDepartments',
-            'pendingDocuments',
-            'recentActivity',
-            'recentScans',
-            'bottlenecks',
-            'anomalies'
-        ));
+        return view('admin.dashboard', [
+            'filters' => $filters,
+            'documentTypes' => $documentTypes,
+            'updatedAt' => Date::now(),
+            'kpis' => $analytics->kpis(),
+            'throughput' => $analytics->throughput(),
+            'statusDistribution' => $analytics->statusDistribution(),
+            'staffWorkload' => $analytics->staffWorkload(),
+            'bottlenecks' => $analytics->bottlenecks(),
+            'timeByStage' => $analytics->timeByStage(),
+            'typeBreakdown' => $analytics->typeBreakdown(),
+            'atRisk' => $analytics->atRisk(),
+            'fastestStaff' => $analytics->fastestStaff(),
+            'heatmap' => $analytics->throughputHeatmap(),
+            // Staff the admin can (re)assign an at-risk document to, from the panel.
+            'assignableStaff' => User::permission('advance documents')->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 }

@@ -11,7 +11,6 @@ class DocumentAttachment extends Model
         'document_id',
         'file_path',
         'uploaded_by',
-        'department_id',
         'sort_order',
     ];
 
@@ -23,11 +22,6 @@ class DocumentAttachment extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
-    }
-
-    public function department(): BelongsTo
-    {
-        return $this->belongsTo(Department::class);
     }
 
     /**

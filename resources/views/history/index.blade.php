@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="page-shell page-shell-loose">
         <form method="GET" id="historyFilterForm"
               x-data="{ filtersOpen: {{ (request()->filled('document_type') || request()->filled('status') || request()->filled('from') || request()->filled('to')) ? 'true' : 'false' }} }"
               class="space-y-3">
@@ -79,7 +79,11 @@
                             />
                         @empty
                             <tr>
-                                <td colspan="7" style="text-align:center;padding:40px 14px;color:var(--ink-soft)">No records found.</td>
+                                <td colspan="7">
+                                    <x-empty-state icon="search" title="No records match">
+                                        Nothing lines up with the current search or filters. Try broadening your terms or clearing the filters.
+                                    </x-empty-state>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
