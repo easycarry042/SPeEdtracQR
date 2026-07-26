@@ -45,6 +45,7 @@
         request()->routeIs('admin.departments*') => 'Departments',
         request()->routeIs('admin.route-templates*') => 'Route Templates',
         request()->routeIs('admin.request-types*') => 'Request Types',
+        request()->routeIs('admin.resources*') => 'Resources',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
         request()->routeIs('requests.*') => 'Internal Requests',
@@ -209,6 +210,12 @@
                                 <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                             </span>
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Request Types</span>
+                        </a>
+                        <a href="{{ route('admin.resources.index') }}" class="{{ request()->routeIs('admin.resources*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.resources*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
+                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                            </span>
+                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Resources</span>
                         </a>
                         <a href="{{ route('admin.audit-log.index') }}" class="{{ request()->routeIs('admin.audit-log*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.audit-log*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">

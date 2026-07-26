@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\RequestTypeController;
+use App\Http\Controllers\Admin\ResourceController;
 use App\Http\Controllers\Admin\RouteTemplateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
@@ -155,6 +156,15 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
         Route::put('request-types/{requestType}', [RequestTypeController::class, 'update'])->name('request-types.update');
         Route::patch('request-types/{requestType}/toggle-active', [RequestTypeController::class, 'toggleActive'])->name('request-types.toggle-active');
         Route::delete('request-types/{requestType}', [RequestTypeController::class, 'destroy'])->name('request-types.destroy');
+
+        // Bookable resources catalog (covered court, plaza, sound system, …).
+        Route::get('resources', [ResourceController::class, 'index'])->name('resources.index');
+        Route::get('resources/create', [ResourceController::class, 'create'])->name('resources.create');
+        Route::post('resources', [ResourceController::class, 'store'])->name('resources.store');
+        Route::get('resources/{resource}/edit', [ResourceController::class, 'edit'])->name('resources.edit');
+        Route::put('resources/{resource}', [ResourceController::class, 'update'])->name('resources.update');
+        Route::patch('resources/{resource}/toggle-active', [ResourceController::class, 'toggleActive'])->name('resources.toggle-active');
+        Route::delete('resources/{resource}', [ResourceController::class, 'destroy'])->name('resources.destroy');
     });
 
 // Document assignment desk (admins assign the responsible staff member)
