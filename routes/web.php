@@ -15,6 +15,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentCustodyController;
 use App\Http\Controllers\DocumentReleaseController;
+use App\Http\Controllers\DocumentRequirementController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
@@ -231,6 +232,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
     Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
     Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
+
+    // Supporting-requirement verification (staff confirm they've seen originals).
+    Route::post('/documents/{document}/requirements/{requirement}/verify', [DocumentRequirementController::class, 'toggle'])->name('documents.requirements.toggle');
+    Route::get('/documents/{document}/requirements/{requirement}/file', [DocumentRequirementController::class, 'file'])->name('documents.requirements.file');
 
     // Staff profile (identity rail + activity feed). Viewable by any staff user.
     Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');

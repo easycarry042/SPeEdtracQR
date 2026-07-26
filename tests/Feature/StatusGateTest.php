@@ -101,6 +101,39 @@ class StatusGateTest extends TestCase
         $this->assertSame('approved', $doc->fresh()->status);
     }
 
+    public function test_approval_is_blocked_until_mandatory_requirements_are_verified(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['status' => 'in_review']);
+        $req = $doc->requirements()->create(['label' => 'Barangay Clearance', 'is_mandatory' => true]);
+
+        // A note is provided, but the mandatory requirement isn't verified → blocked.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'note' => 'Reviewed.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+        $this->assertSame('in_review', $doc->fresh()->status);
+
+        // Staff verifies the requirement (records who/when).
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.toggle', [$doc, $req]))
+            ->assertRedirect();
+        $this->assertNotNull($req->fresh()->verified_at);
+        $this->assertSame($staff->id, $req->fresh()->verified_by);
+
+        // Now approval goes through.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'note' => 'All requirements verified.',
+            ])
+            ->assertOk();
+        $this->assertSame('approved', $doc->fresh()->status);
+    }
+
     public function test_stale_expected_status_is_refused(): void
     {
         $staff = $this->staff();

@@ -286,6 +286,42 @@
                 </div>
             @endif
 
+            @if($document->requirements->isNotEmpty())
+                @php $canVerify = auth()->check() && $document->canBeAdvancedBy(auth()->user()); @endphp
+                <div class="mt-6">
+                    <p class="text-[14px] font-bold text-ink">Requirements</p>
+                    <p class="mt-0.5 text-[12px] text-ink-soft">Verify each mandatory item against the citizen's original before approving.</p>
+                    <ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-[10px] border border-hairline">
+                        @foreach($document->requirements as $req)
+                            <li class="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 {{ $req->isVerified() ? 'bg-green-wash/40' : '' }}">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-[13px] font-medium text-ink">{{ $req->label }}</span>
+                                        <span class="text-[10.5px] font-semibold {{ $req->is_mandatory ? 'text-status-red' : 'text-ink-soft' }}">{{ $req->is_mandatory ? 'Required' : 'Optional' }}</span>
+                                        @if($req->uploaded_file_path)
+                                            <a href="{{ route('documents.requirements.file', [$document, $req]) }}" target="_blank" class="text-[12px] font-semibold text-green underline">View upload</a>
+                                        @else
+                                            <span class="text-[12px] text-ink-soft">— bring/verify original</span>
+                                        @endif
+                                    </div>
+                                    @if($req->isVerified())
+                                        <p class="mt-0.5 text-[11px] text-green-deep">✓ Verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
+                                    @endif
+                                </div>
+                                @if($canVerify)
+                                    <form method="POST" action="{{ route('documents.requirements.toggle', [$document, $req]) }}" class="shrink-0">
+                                        @csrf
+                                        <button type="submit" class="cr-btn cr-btn-sm {{ $req->isVerified() ? '' : 'cr-btn-primary' }}">
+                                            {{ $req->isVerified() ? 'Unverify' : 'Verify' }}
+                                        </button>
+                                    </form>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="mt-6 flex flex-wrap gap-2">
                 @if($document->isInternal() && auth()->check())
                     <a href="{{ route('requests.show', $document) }}" class="cr-btn cr-btn-primary">

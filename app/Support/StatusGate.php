@@ -50,8 +50,16 @@ class StatusGate
                         || $document->comments()->where('author_type', 'staff')->exists(),
                 ],
             ],
-            // The review note itself is the gate for Approved — enforced via
-            // noteRequired(), not a checklist row.
+            // Before a request is approved, staff must have verified every
+            // mandatory supporting requirement (Cedula, clearances, …) against
+            // the originals. Requests without requirements pass automatically.
+            DocumentStatus::Approved => [
+                [
+                    'key' => 'requirements_verified',
+                    'label' => 'All required documents verified',
+                    'passed' => $document->unverifiedMandatoryRequirements()->isEmpty(),
+                ],
+            ],
             default => [],
         };
     }

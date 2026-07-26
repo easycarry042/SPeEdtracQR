@@ -25,7 +25,11 @@ class RequestType extends Model
         'is_active' => 'boolean',
     ];
 
-    /** Requirement checklist for this type, in display order. */
+    /**
+     * Requirement checklist for this type, in display order.
+     *
+     * @return HasMany<RequestTypeRequirement, $this>
+     */
     public function requirements(): HasMany
     {
         return $this->hasMany(RequestTypeRequirement::class)->orderBy('sort_order')->orderBy('id');
