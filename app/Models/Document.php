@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -224,6 +225,18 @@ class Document extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(DocumentAttachment::class)->orderBy('sort_order');
+    }
+
+    /** Supporting-requirement checklist for this request (Cedula, clearances, …). */
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(DocumentRequirement::class)->orderBy('id');
+    }
+
+    /** Mandatory requirements a staffer has not yet verified — blocks completion. */
+    public function unverifiedMandatoryRequirements(): Collection
+    {
+        return $this->requirements()->where('is_mandatory', true)->whereNull('verified_at')->get();
     }
 
     /** Top-level collaboration posts (replies are loaded via the `replies` relation). */
