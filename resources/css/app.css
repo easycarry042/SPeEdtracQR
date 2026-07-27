@@ -43,6 +43,23 @@
     --app-medium: 48rem;
     --app-wide: 56rem;
     --app-narrow: 32rem;
+
+    /* ── Interaction layer — motion, focus, elevation ─────────────────────────
+       Single source for the "feel" of every interactive civic control. Kept
+       restrained on purpose: motion conveys state (hover/press/focus), never
+       decoration, and honors prefers-reduced-motion (see the reset near EOF). */
+    --ease-out: cubic-bezier(.22, 1, .36, 1); /* soft exponential settle, no bounce */
+    --dur-fast: 120ms;   /* micro hover / row tint */
+    --dur-base: 170ms;   /* button + control state change */
+
+    /* Keyboard focus halo — green-bright at low alpha; reads on white AND on the
+       deep-green buttons. Paired with the control's own resting shadow below. */
+    --focus-ring: 0 0 0 3px rgba(42, 157, 79, .38);
+
+    /* Flat by default; these lift only interactive surfaces on hover/press. */
+    --shadow-1: 0 1px 1px rgba(15, 77, 40, .05);              /* resting button */
+    --shadow-2: 0 4px 14px -6px rgba(15, 77, 40, .22);        /* hover lift */
+    --shadow-pop: 0 10px 30px -10px rgba(15, 77, 40, .28);    /* menus / popovers */
 }
 
 @layer base {
@@ -622,6 +639,7 @@ aside.sidebar-pinned {
 .sidebar-backdrop {
     position: fixed; inset: 0; z-index: 55;
     background: rgba(22, 33, 27, .45);
+    -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
 }
 @media (min-width: 1024px) { .sidebar-backdrop { display: none !important; } }
@@ -644,7 +662,7 @@ aside.sidebar-pinned {
 
 .topnav-pagebar {
     border-bottom: 1px solid var(--hairline);
-    background: rgba(251,252,251,.92); backdrop-filter: blur(8px);
+    background: rgba(251,252,251,.92); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     padding-block: .75rem;
 }
 @media (min-width: 640px) { .topnav-pagebar { padding-block: .85rem; } }
@@ -838,7 +856,7 @@ aside.sidebar-pinned {
 /* ─── Keyboard shortcuts overlay (Flexibility + Help) ───────────────────── */
 .kbd-help { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .kbd-help.hidden { display: none; }
-.kbd-help-backdrop { position: absolute; inset: 0; background: rgba(22,33,27,.45); backdrop-filter: blur(2px); }
+.kbd-help-backdrop { position: absolute; inset: 0; background: rgba(22,33,27,.45); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .kbd-help-card { position: relative; width: 100%; max-width: 34rem; max-height: 85vh; overflow-y: auto; background: var(--paper); border: 1px solid var(--hairline-strong); border-radius: 14px; box-shadow: 0 24px 60px -12px rgba(15,77,40,.4); }
 .kbd-help-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
 .kbd-help-head h2 { font-size: 15px; font-weight: 600; color: var(--green-deep); margin: 0; }
@@ -876,3 +894,120 @@ aside.sidebar-pinned {
 .cr-crumbs a:hover { text-decoration: underline; }
 .cr-crumbs svg { width: 14px; height: 14px; color: var(--ink-soft); opacity: .6; }
 .cr-crumbs [aria-current="page"] { color: var(--ink-soft); font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INTERACTION & ELEVATION LAYER  ·  2026 elevation pass
+   ───────────────────────────────────────────────────────────────────────────
+   Additive rules only — colors, borders, radii and layout of the Civic Record
+   system are untouched. What changes is the *feel*: interactive controls now
+   settle on an ease-out curve, press down a hair, lift a soft shadow on hover,
+   and show a real keyboard-only focus ring. Every screen is assembled from
+   these classes, so tuning them here elevates all 112 views at once.
+
+   Discipline (product register): motion conveys state — hover, press, focus —
+   never decoration. Static containers (.panel / .tile / .deptcard) stay flat,
+   the way a printed form sits flat on a desk. prefers-reduced-motion already
+   neutralizes every transition below via the global reset further down.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Buttons: smooth state change + tactile press ───────────────────────────*/
+.cr-btn {
+    cursor: pointer;
+    transition:
+        background var(--dur-base) var(--ease-out),
+        border-color var(--dur-base) var(--ease-out),
+        color var(--dur-base) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out);
+}
+.cr-btn:active { transform: translateY(1px); }
+.cr-btn-primary { box-shadow: var(--shadow-1); }
+.cr-btn-primary:hover { box-shadow: var(--shadow-2); }
+.cr-btn:disabled,
+.cr-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── Stage-gate step buttons: add press + resting lift on the solid one ─────*/
+.btn-step {
+    transition:
+        background var(--dur-base) var(--ease-out),
+        border-color var(--dur-base) var(--ease-out),
+        color var(--dur-base) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out);
+}
+.btn-step:not(:disabled):active { transform: translateY(1px); }
+.btn-step-fwd { box-shadow: var(--shadow-1); }
+.btn-step-fwd:hover { box-shadow: var(--shadow-2); }
+
+/* ── Pager: was hover-less; give it the same tint affordance as rows ────────*/
+.pager a, .pager button {
+    cursor: pointer;
+    transition:
+        background var(--dur-fast) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out),
+        color var(--dur-fast) var(--ease-out);
+}
+.pager a:not(.on):not([aria-current]):hover,
+.pager button:not(.on):hover { background: var(--green-wash); border-color: var(--hairline-strong); }
+
+/* ── Segmented tabs: was hover-less; nudge the resting label toward ink ─────*/
+.segchips a, .segchips button {
+    cursor: pointer;
+    transition:
+        background var(--dur-fast) var(--ease-out),
+        color var(--dur-fast) var(--ease-out);
+}
+.segchips a:not(.on):hover, .segchips button:not(.on):hover { color: var(--ink); }
+
+/* ── Rows / chips / directory: smooth the existing hover recolor + soft lift ─*/
+.reg tbody tr { transition: background var(--dur-fast) var(--ease-out); }
+.sp-row, .sp-docchip, .people-result, .dir-chip, .sp-typepill, .segchips, .tile.add, .deptcard.add {
+    transition:
+        background var(--dur-fast) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out),
+        color var(--dur-fast) var(--ease-out),
+        box-shadow var(--dur-fast) var(--ease-out);
+}
+.sp-row:hover { box-shadow: var(--shadow-1); }
+
+/* ── Inline text links: gentle color settle ────────────────────────────────*/
+.cr-link, .dir-action, .mvfoot .link, .cr-crumbs a, .cs-manual-link, .sp-composer-prompt {
+    transition: color var(--dur-fast) var(--ease-out);
+}
+
+/* ── Keyboard focus, standardized ──────────────────────────────────────────
+   :focus-visible so a mouse press never lights the ring; block controls get a
+   soft halo, inline links get a hugging outline. Applied where the class-level
+   styles previously left focus to the browser default (or nothing). */
+.cr-btn:focus-visible,
+.btn-step:focus-visible,
+.pager a:focus-visible, .pager button:focus-visible,
+.segchips a:focus-visible, .segchips button:focus-visible,
+.dir-chip:focus-visible,
+.sp-typepill:focus-visible,
+.people-result:focus-visible,
+.sp-docchip:focus-visible,
+.sp-row:focus-visible,
+.chip:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+.cr-link:focus-visible,
+.dir-action:focus-visible,
+.mvfoot .link:focus-visible,
+.cr-crumbs a:focus-visible,
+.cs-manual-link:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+    border-radius: 3px;
+    text-decoration: none;
+}
+
+/* ── Navigation (deep-green surfaces): brass halo reads where green can't ───*/
+.nav-link:focus-visible,
+.topnav-link:focus-visible,
+.topnav-burger:focus-visible,
+.nav-brand:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(199, 154, 62, .55);
+}

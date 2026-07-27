@@ -60,7 +60,12 @@ class AttachmentController extends Controller
         $disk = Storage::disk('local');
         abort_unless($disk->exists($attachment->file_path), 404);
 
-        // Inline so images render in <img>; not forced as a download.
+        // ?download=1 forces a "Save as" download; otherwise stream inline so
+        // images render in <img> and PDFs preview in the browser.
+        if (request()->boolean('download')) {
+            return $disk->download($attachment->file_path, basename($attachment->file_path));
+        }
+
         return $disk->response($attachment->file_path);
     }
 

@@ -8,11 +8,19 @@
         <img id="lightboxImage" src="" alt="Document attachment" class="max-h-[88vh] max-w-[92vw] rounded-lg shadow-2xl" draggable="false">
     </div>
 
-    <button type="button" id="lightboxClose"
-            class="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            aria-label="Close image viewer">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
-    </button>
+    <div class="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <a id="lightboxDownload" href="#" download
+           class="flex h-10 items-center gap-2 rounded-full bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+           aria-label="Download image">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            Download
+        </a>
+        <button type="button" id="lightboxClose"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Close image viewer">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+        </button>
+    </div>
 
     <div class="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/10 px-2 py-1.5 backdrop-blur">
         <button type="button" data-lightbox-zoom="out"
@@ -39,6 +47,7 @@
         const stage = document.getElementById('lightboxStage');
         const img = document.getElementById('lightboxImage');
         const zoomLabel = document.getElementById('lightboxZoomLabel');
+        const downloadLink = document.getElementById('lightboxDownload');
         if (!lightbox || !stage || !img) return;
 
         const MIN_SCALE = 1;
@@ -60,8 +69,9 @@
             apply();
         }
 
-        function openLightbox(src) {
+        function openLightbox(src, downloadUrl) {
             img.src = src;
+            if (downloadLink) { downloadLink.href = downloadUrl || src; }
             scale = 1; tx = 0; ty = 0;
             apply();
             bodyWasLocked = document.body.classList.contains('overflow-hidden');
@@ -80,7 +90,7 @@
             const trigger = e.target.closest('[data-lightbox-src]');
             if (!trigger) return;
             e.preventDefault();
-            openLightbox(trigger.dataset.lightboxSrc);
+            openLightbox(trigger.dataset.lightboxSrc, trigger.dataset.lightboxDownload);
         });
 
         lightbox.addEventListener('click', function (e) {

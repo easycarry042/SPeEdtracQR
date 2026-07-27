@@ -17,6 +17,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentCustodyController;
+use App\Http\Controllers\DocumentNudgeController;
 use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentRequirementController;
 use App\Http\Controllers\DocumentStatusController;
@@ -40,19 +41,19 @@ use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
-| Root — redirect authenticated users to their role-specific dashboard
+| Root — the public landing page is the homepage for everyone.
+| Signed-in users reach their workspace via the "Go to Dashboard" button
+| (route: home), which dispatches to the role-specific dashboard.
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    if (! auth()->check()) {
-        return view('welcome');
-    }
+Route::get('/', fn () => view('welcome'))->name('welcome');
 
+Route::get('/home', function () {
     $user = auth()->user();
 
-    // Landing mirrors the post-login redirect: super_admin → command center,
-    // supervisors → Dashboard, intake-only → Look up hub, staff → Requests.
+    // Mirrors the post-login redirect: super_admin → command center,
+    // supervisors → Dashboard, staff → Requests.
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -61,12 +62,8 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    if ($user->can('scan documents') && ! $user->can('create documents')) {
-        return redirect()->route('track.index', ['find' => 1]);
-    }
-
     return redirect()->route('staff.dashboard');
-});
+})->middleware('auth')->name('home');
 
 /*
 |--------------------------------------------------------------------------
@@ -95,6 +92,10 @@ Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])
 Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.citizen-upload');
+// Citizen re-uploads a single requirement that staff returned for revision.
+Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [CitizenDocumentUploadController::class, 'reupload'])
+    ->middleware('throttle:12,1')
+    ->name('track.requirement-reupload');
 // Self-hosted AI assistant — answers questions grounded in this document only.
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
@@ -128,6 +129,11 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard/export', [AdminController::class, 'export'])->name('dashboard.export');
+
+        // Nudge the responsible staff/supervisor about an overdue document
+        // (the super admin notifies rather than assigns from the command center).
+        Route::post('nudge/{document}', [DocumentNudgeController::class, 'store'])->name('nudge');
 
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
@@ -179,7 +185,8 @@ Route::middleware(['auth', 'verified', 'permission:assign documents'])
     });
 
 // Resource booking calendar (covered court, plaza, sound system, …).
-Route::middleware(['auth', 'verified', 'permission:assign documents'])
+// Owned by staff — they manage day-to-day reservations.
+Route::middleware(['auth', 'verified', 'permission:manage bookings'])
     ->group(function () {
         Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
         Route::patch('bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
@@ -266,6 +273,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Supporting-requirement verification (staff confirm they've seen originals).
     Route::post('/documents/{document}/requirements/{requirement}/verify', [DocumentRequirementController::class, 'toggle'])->name('documents.requirements.toggle');
+    // Per-requirement review: Approved / Needs revision / Rejected + comment.
+    Route::post('/documents/{document}/requirements/{requirement}/review', [DocumentRequirementController::class, 'review'])->name('documents.requirements.review');
     Route::get('/documents/{document}/requirements/{requirement}/file', [DocumentRequirementController::class, 'file'])->name('documents.requirements.file');
 
     // Staff profile (identity rail + activity feed). Viewable by any staff user.

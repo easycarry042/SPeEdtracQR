@@ -46,6 +46,35 @@ class DocumentEvent extends Notification
         );
     }
 
+    /**
+     * A super admin flagged an overdue document for the responsible party's
+     * attention — a nudge, not a reassignment.
+     */
+    public static function nudge(Document $document, string $byName, ?string $note = null): self
+    {
+        $label = $document->document_type ?? 'A document';
+
+        return new self(
+            event: 'nudge',
+            title: 'Flagged for your attention',
+            body: "{$label} ({$document->tracking_number}) is overdue. {$byName} asked you to follow up.".($note ? " Note: {$note}" : ''),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A citizen re-uploaded a document that was returned for revision. */
+    public static function revisionResubmitted(Document $document, string $requirementLabel): self
+    {
+        return new self(
+            event: 'revision_resubmitted',
+            title: 'Revised document uploaded',
+            body: 'The citizen re-uploaded "'.$requirementLabel.'" for '.$document->tracking_number.' — ready for re-review.',
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /** Staff declined an assignment — the request is back in the queue. */
     public static function declined(Document $document, string $byName, ?string $reason): self
     {
@@ -97,6 +126,29 @@ class DocumentEvent extends Notification
         return User::permission('assign documents')
             ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
             ->get();
+    }
+
+    /**
+     * Who triages a citizen ticket routed to a department: that department's
+     * assigning Supervisors plus all super admins (who see every department). No
+     * department → every triager. Excludes the actor when given.
+     */
+    public static function departmentTriagers(?int $departmentId, ?int $excludeUserId = null): Collection
+    {
+        if (! $departmentId) {
+            return self::supervisors($excludeUserId);
+        }
+
+        $deptSupervisors = User::permission('assign documents')
+            ->where('department_id', $departmentId)
+            ->get();
+
+        $superAdmins = User::permission('manage system')->get();
+
+        return $deptSupervisors->merge($superAdmins)
+            ->unique('id')
+            ->when($excludeUserId !== null, fn (Collection $c) => $c->reject(fn (User $u) => $u->id === $excludeUserId))
+            ->values();
     }
 
     public function via(object $notifiable): array

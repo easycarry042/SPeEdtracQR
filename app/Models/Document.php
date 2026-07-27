@@ -25,6 +25,7 @@ class Document extends Model
         'source',
         'origin',
         'requesting_department_id',
+        'department_id',
         'amount',
         'notify_citizen',
         'description',
@@ -155,6 +156,17 @@ class Document extends Model
     public function requestingDepartment(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'requesting_department_id');
+    }
+
+    /**
+     * Department currently handling this ticket (from the request type). Its
+     * Supervisor assigns the responsible staff member.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
     }
 
     /** Endorsement chain of an internal request, in hop order. */

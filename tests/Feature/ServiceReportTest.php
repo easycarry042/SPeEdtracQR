@@ -25,7 +25,7 @@ class ServiceReportTest extends TestCase
     public function test_staff_without_view_reports_cannot_open_the_report(): void
     {
         $this->seedRolesAndPermissions();
-        $staff = User::factory()->create()->assignRole('receiving_staff');
+        $staff = User::factory()->create()->assignRole('staff');
 
         $this->actingAs($staff)->get(route('reports.services'))->assertRedirect();
     }

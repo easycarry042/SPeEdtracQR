@@ -81,11 +81,21 @@ class BookingManagementTest extends TestCase
         $this->assertCount(0, $resource->conflicts(Carbon::parse('2026-09-01 10:30'), Carbon::parse('2026-09-01 11:30')));
     }
 
-    public function test_staff_without_permission_cannot_open_the_calendar(): void
+    public function test_staff_can_open_the_calendar(): void
     {
+        // Bookings are owned by staff via the 'manage bookings' permission.
         $this->seedRolesAndPermissions();
         $staff = User::factory()->create()->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('bookings.index'))->assertRedirect();
+        $this->actingAs($staff)->get(route('bookings.index'))->assertOk();
+    }
+
+    public function test_a_user_without_the_booking_permission_cannot_open_the_calendar(): void
+    {
+        $this->seedRolesAndPermissions();
+        // Supervisors manage documents, not resource bookings — no 'manage bookings'.
+        $withoutBooking = User::factory()->create()->assignRole('Supervisor');
+
+        $this->actingAs($withoutBooking)->get(route('bookings.index'))->assertRedirect();
     }
 }

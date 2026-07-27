@@ -54,7 +54,7 @@ class QrLifecycleTest extends TestCase
         $this->assertSame($staff->id, $custody->user_id);
 
         // A second staff member scanning the folder becomes the new custodian.
-        $other = User::factory()->create()->assignRole('receiving_staff');
+        $other = User::factory()->create()->assignRole('staff');
         $this->actingAs($other)->post(route('documents.custody.store', $doc), $scan);
 
         $this->assertSame($other->id, $doc->fresh()->currentCustody()->user_id);

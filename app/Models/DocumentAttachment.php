@@ -33,4 +33,13 @@ class DocumentAttachment extends Model
     {
         return route('attachments.show', $this);
     }
+
+    /**
+     * Same access gate as authorizedUrl(), but forces a "Save as" download
+     * instead of streaming the file inline.
+     */
+    public function downloadUrl(): string
+    {
+        return route('attachments.show', [$this, 'download' => 1]);
+    }
 }

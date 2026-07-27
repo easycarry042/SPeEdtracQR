@@ -21,23 +21,28 @@ class RequestReview
      *
      * @return Collection<int, User>
      */
-    public static function assignableStaff(): Collection
+    public static function assignableStaff(?int $departmentId = null): Collection
     {
         return User::query()
             ->whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'department_id']);
     }
 
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments');
+        $document->loadMissing('attachments', 'department', 'assignedTo');
 
         return [
             'id' => $document->id,
             'tracking_number' => $document->tracking_number,
             'document_type' => $document->document_type,
+            // Tracking columns: who/where is responsible for this ticket.
+            'thed_id' => $document->department?->code,
+            'department' => $document->department?->name,
+            'assigned_staff' => $document->assignedTo?->name,
             'citizen_name' => $document->citizen_name,
             'citizen_email' => $document->citizen_email,
             'citizen_contact' => $document->citizen_contact,

@@ -2,10 +2,12 @@
     @php
         $supervisorView = $supervisorView ?? false;
     @endphp
-    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-2"
+    {{-- The Pending / In Progress list is kept compact (1/3) so the ticket
+         handling panel gets the room (2/3). --}}
+    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-3"
          x-data="{ tab: @js($activeTab ?? 'inprogress') }">
         {{-- Fixed-height panel; the list scrolls inside it --}}
-        <div class="panel flex flex-col p-3 lg:h-[calc(100vh-9rem)]">
+        <div class="panel flex flex-col p-3 lg:col-span-1 lg:h-[calc(100vh-9rem)]">
             @php
                 // (left tab key, label, count) — supervisor: Pending/In Progress,
                 // staff: In Progress/Completed.
@@ -59,7 +61,7 @@
         </div>
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="panel p-6 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto">
+        <div class="panel p-6 lg:col-span-2 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
                     <span class="flex h-14 w-14 items-center justify-center rounded-full bg-green-wash text-green-deep">
@@ -80,15 +82,30 @@
                 $isPendingReview = $supervisorView && $document->statusEnum() === \App\Enums\DocumentStatus::Pending;
                 $isStaffAssigned = $staffView && (int) $document->assigned_to === (int) auth()->id();
                 $isStaffApprovable = $isStaffAssigned && $document->status === 'approved';
+                $canEditDetails = \App\Support\AssignmentScope::userCanEditDocument($document);
             @endphp
 
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <x-status-badge :status="$document->status" />
-                <a href="{{ route('documents.edit', $document) }}" class="cr-btn">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-                    Edit details
-                </a>
+                @if($canEditDetails)
+                    <a href="{{ route('documents.edit', $document) }}" class="cr-btn">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                        Edit details
+                    </a>
+                @endif
             </div>
+
+            {{-- Responsible & contact — always visible: who/where handles this
+                 ticket, plus how to reach the requester. --}}
+            @unless($document->isInternal())
+            <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">THED ID</dt><dd class="text-right font-medium text-ink">{{ $document->department?->code ?: '—' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Department</dt><dd class="text-right font-medium text-ink">{{ $document->department?->name ?: 'Not yet routed' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Staff assigned</dt><dd class="text-right font-medium text-ink">{{ $document->assignedTo?->name ?: 'Not yet assigned' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Email</dt><dd class="text-right font-medium text-ink break-all">{{ $document->citizen_email ?: '—' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
+            </dl>
+            @endunless
 
             {{-- Physical custody trail (shared with the internal-request panel). --}}
             @if(! $document->statusEnum()->isTerminal())
@@ -180,8 +197,6 @@
                     <p class="text-sm font-bold text-green-deep">Review &amp; assign</p>
 
                     <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Email</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_email ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
                         <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Submitted</dt><dd class="text-right font-medium text-ink">{{ $document->created_at?->format('M j, Y g:i A') }}</dd></div>
                         <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose ?: '—' }}</dd></div>
                         @if($document->quantity)
@@ -296,30 +311,56 @@
                 @php $canVerify = auth()->check() && $document->canBeAdvancedBy(auth()->user()); @endphp
                 <div class="mt-6">
                     <p class="text-[14px] font-bold text-ink">Requirements</p>
-                    <p class="mt-0.5 text-[12px] text-ink-soft">Verify each mandatory item against the citizen's original before approving.</p>
+                    <p class="mt-0.5 text-[12px] text-ink-soft">Review each supporting document. Returning or rejecting one emails the citizen your comment; returned items can be re-uploaded from their tracking page.</p>
                     <ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-[10px] border border-hairline">
                         @foreach($document->requirements as $req)
-                            <li class="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 {{ $req->isVerified() ? 'bg-green-wash/40' : '' }}">
-                                <div class="min-w-0">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span class="text-[13px] font-medium text-ink">{{ $req->label }}</span>
-                                        <span class="text-[10.5px] font-semibold {{ $req->is_mandatory ? 'text-status-red' : 'text-ink-soft' }}">{{ $req->is_mandatory ? 'Required' : 'Optional' }}</span>
-                                        @if($req->uploaded_file_path)
-                                            <a href="{{ route('documents.requirements.file', [$document, $req]) }}" target="_blank" class="text-[12px] font-semibold text-green underline">View upload</a>
-                                        @else
-                                            <span class="text-[12px] text-ink-soft">— bring/verify original</span>
+                            @php
+                                $badge = match($req->review_status) {
+                                    'approved' => 'bg-green-wash text-green-deep',
+                                    'needs_revision' => 'bg-status-amber-wash text-status-amber',
+                                    'rejected' => 'bg-status-red-wash text-status-red',
+                                    default => 'bg-hairline/40 text-ink-soft',
+                                };
+                            @endphp
+                            <li class="px-3 py-2.5 {{ $req->isApproved() ? 'bg-green-wash/40' : '' }}">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-[13px] font-medium text-ink">{{ $req->label }}</span>
+                                            <span class="text-[10.5px] font-semibold {{ $req->is_mandatory ? 'text-status-red' : 'text-ink-soft' }}">{{ $req->is_mandatory ? 'Required' : 'Optional' }}</span>
+                                            <span class="rounded-full px-2 py-0.5 text-[10.5px] font-semibold {{ $badge }}">{{ $req->reviewStatusLabel() }}</span>
+                                            @if($req->uploaded_file_path)
+                                                <a href="{{ route('documents.requirements.file', [$document, $req]) }}" target="_blank" class="text-[12px] font-semibold text-green underline">View upload</a>
+                                            @else
+                                                <span class="text-[12px] text-ink-soft">— bring/verify original</span>
+                                            @endif
+                                        </div>
+                                        @if($req->review_comment)
+                                            <p class="mt-1 text-[12px] text-ink-soft"><span class="font-semibold">Comment:</span> {{ $req->review_comment }}</p>
+                                        @endif
+                                        @if($req->isVerified())
+                                            <p class="mt-0.5 text-[11px] text-green-deep">✓ Original verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
                                         @endif
                                     </div>
-                                    @if($req->isVerified())
-                                        <p class="mt-0.5 text-[11px] text-green-deep">✓ Verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
+                                    @if($canVerify)
+                                        <form method="POST" action="{{ route('documents.requirements.toggle', [$document, $req]) }}" class="shrink-0">
+                                            @csrf
+                                            <button type="submit" class="cr-btn cr-btn-sm {{ $req->isVerified() ? '' : 'cr-btn-primary' }}">
+                                                {{ $req->isVerified() ? 'Unverify' : 'Verify original' }}
+                                            </button>
+                                        </form>
                                     @endif
                                 </div>
                                 @if($canVerify)
-                                    <form method="POST" action="{{ route('documents.requirements.toggle', [$document, $req]) }}" class="shrink-0">
+                                    <form method="POST" action="{{ route('documents.requirements.review', [$document, $req]) }}" class="mt-2">
                                         @csrf
-                                        <button type="submit" class="cr-btn cr-btn-sm {{ $req->isVerified() ? '' : 'cr-btn-primary' }}">
-                                            {{ $req->isVerified() ? 'Unverify' : 'Verify' }}
-                                        </button>
+                                        <label for="review-comment-{{ $req->id }}" class="sr-only">Review comment for {{ $req->label }}</label>
+                                        <textarea id="review-comment-{{ $req->id }}" name="review_comment" rows="2" placeholder="Comment (required when returning or rejecting)" class="w-full rounded-[8px] border border-hairline-strong bg-white px-2 py-1.5 text-[12.5px] text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ $req->review_comment }}</textarea>
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            <button type="submit" name="review_status" value="approved" class="cr-btn cr-btn-sm cr-btn-primary">Approve</button>
+                                            <button type="submit" name="review_status" value="needs_revision" class="cr-btn cr-btn-sm">Needs revision</button>
+                                            <button type="submit" name="review_status" value="rejected" class="cr-btn cr-btn-sm">Reject</button>
+                                        </div>
                                     </form>
                                 @endif
                             </li>

@@ -42,11 +42,6 @@ class AuthenticatedSessionController extends Controller
             return redirect()->intended(route('dashboard', absolute: false));
         }
 
-        // Intake-only operators land on the Look up hub, not the staff dashboard.
-        if ($user->can('scan documents') && ! $user->can('create documents')) {
-            return redirect()->intended(route('track.index', ['find' => 1], absolute: false));
-        }
-
         return redirect()->intended(route('staff.dashboard', absolute: false));
     }
 

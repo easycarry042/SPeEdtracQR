@@ -50,6 +50,19 @@
 </div>
 
 <div>
+    <label for="rt-department" class="block text-[13px] font-semibold text-ink">Handling Department</label>
+    <select id="rt-department" name="department_id"
+            class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('department_id') border-status-red @enderror">
+        <option value="">Unassigned — a Super Admin/Supervisor routes it manually</option>
+        @foreach($departments as $department)
+            <option value="{{ $department->id }}" @selected((int) old('department_id', $requestType?->department_id) === $department->id)>{{ $department->name }} ({{ $department->code }})</option>
+        @endforeach
+    </select>
+    <p class="mt-1 text-[12px] text-ink-soft">Tickets of this type route to this department's queue on submission; the department's Supervisor assigns a staff member.</p>
+    @error('department_id')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
+</div>
+
+<div>
     <label for="rt-description" class="block text-[13px] font-semibold text-ink">Description</label>
     <textarea id="rt-description" name="description" rows="2" maxlength="500"
               placeholder="Shown to help staff/citizens understand this request."

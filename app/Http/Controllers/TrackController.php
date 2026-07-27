@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Support\AssignmentScope;
+use App\Support\CompletionPredictor;
 use App\Support\DocumentSeal;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
@@ -206,7 +207,8 @@ class TrackController extends Controller
             ->filter()
             ->values();
 
-        $prediction = null;
+        // Self-hosted completion-time estimate, derived from real timestamps.
+        $prediction = app(CompletionPredictor::class)->predict($document);
         $anomaly = null;
 
         // QR lifecycle: physical custody (staff) + authenticity seal (issued docs).
@@ -251,11 +253,13 @@ class TrackController extends Controller
 
     public function status($trackingNumber)
     {
-        $document = Document::where('tracking_number', $trackingNumber)->firstOrFail();
+        $document = Document::with('assignedTo')->where('tracking_number', $trackingNumber)->firstOrFail();
 
         return response()->json([
             'status' => $document->status,
-            'current_department' => null,
+            // "Handled by" value for the citizen page. In the manual model this
+            // is the assigned staff member (null → "Not yet assigned").
+            'current_department' => $document->assignedTo?->name,
             'updated_at' => $document->updated_at?->toISOString(),
         ]);
     }

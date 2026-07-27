@@ -87,6 +87,14 @@ class AssignmentController extends Controller
             ]);
         }
 
+        // Department heads assign only within their own department (org-wide admins
+        // may assign across departments).
+        if ($assignedTo && ! AssignmentScope::canAssignWithinDepartment(auth()->user(), User::find($assignedTo))) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'You can only assign staff in your own department.',
+            ]);
+        }
+
         $document->update([
             'assigned_to' => $assignedTo,
             'assigned_by' => $assignedTo ? auth()->id() : null,
@@ -164,8 +172,14 @@ class AssignmentController extends Controller
      */
     private function assignableStaff()
     {
+        $user = auth()->user();
+
         return User::query()
             ->permission('advance documents')
+            ->when(
+                $user && ! $user->can('manage system') && $user->department_id,
+                fn ($q) => $q->where('department_id', $user->department_id),
+            )
             ->orderBy('name')
             ->get(['id', 'name']);
     }

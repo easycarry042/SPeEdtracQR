@@ -45,12 +45,14 @@ class NavigationTest extends TestCase
             ->assertRedirect(route('staff.dashboard', absolute: false));
     }
 
-    public function test_intake_login_lands_on_look_up_hub(): void
+    public function test_scan_capable_staff_still_land_on_requests(): void
     {
+        // The former intake-only landing (Look up hub) was removed together with
+        // the receiving_staff role; scan-capable staff now land on Requests.
         $this->seedRolesAndPermissions();
 
-        $this->login($this->userWithRole('receiving_staff'))
-            ->assertRedirect(route('track.index', ['find' => 1], absolute: false));
+        $this->login($this->userWithRole('staff'))
+            ->assertRedirect(route('staff.dashboard', absolute: false));
     }
 
     public function test_supervisor_login_lands_on_dashboard(): void

@@ -5,11 +5,60 @@ namespace App\Http\Controllers;
 use App\Mail\CitizenDocumentUploadMail;
 use App\Models\Document;
 use App\Models\DocumentAttachment;
+use App\Models\DocumentRequirement;
+use App\Notifications\DocumentEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
 class CitizenDocumentUploadController extends Controller
 {
+    /**
+     * Citizen re-uploads a single supporting document that staff returned for
+     * revision — nothing else needs to be resubmitted. Resets the item to
+     * pending review and notifies the assigned staff member.
+     */
+    public function reupload(Request $request, string $trackingNumber, DocumentRequirement $requirement)
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+        ]);
+
+        $document = Document::where('tracking_number', $trackingNumber)->with('assignedTo')->firstOrFail();
+        abort_unless($requirement->document_id === $document->id, 404);
+
+        if ($document->status === 'completed') {
+            return back()->withErrors(['file' => 'This ticket is already completed. Uploads are no longer accepted.']);
+        }
+
+        if (! $requirement->needsRevision()) {
+            return back()->withErrors(['file' => 'This document is not awaiting revision.']);
+        }
+
+        $path = $validated['file']->store('document-requirements', 'local');
+
+        $requirement->update([
+            'uploaded_file_path' => $path,
+            'review_status' => DocumentRequirement::REVIEW_PENDING,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+        ]);
+
+        activity()->performedOn($document)->log("Citizen re-uploaded \"{$requirement->label}\" for re-review");
+
+        // Ping the responsible staff member: bell + email.
+        $assignee = $document->assignedTo;
+        if ($assignee) {
+            $assignee->notify(DocumentEvent::revisionResubmitted($document, $requirement->label));
+            if ($assignee->email) {
+                Mail::to($assignee->email)->send(
+                    new CitizenDocumentUploadMail($document, 1, "Revised document: {$requirement->label}")
+                );
+            }
+        }
+
+        return back()->with('upload_success', "Your revised \"{$requirement->label}\" was sent for re-review.");
+    }
+
     public function store(Request $request, string $trackingNumber)
     {
         $validated = $request->validate([

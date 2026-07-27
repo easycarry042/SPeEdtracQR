@@ -48,6 +48,14 @@ class ReviewController extends Controller
             ]);
         }
 
+        // Guest → Supervisor → Staff: a department head assigns only within their
+        // own department (super admins may assign across departments).
+        if (! AssignmentScope::canAssignWithinDepartment(auth()->user(), $assignee)) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'You can only assign staff in your own department.',
+            ]);
+        }
+
         $document->update([
             'assigned_to' => $assignee->id,
             'assigned_by' => auth()->id(),

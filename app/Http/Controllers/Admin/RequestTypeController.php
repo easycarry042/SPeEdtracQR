@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\RequestType;
 use App\Models\Resource;
 use Illuminate\Contracts\View\Factory;
@@ -24,7 +25,10 @@ class RequestTypeController extends Controller
 
     public function create(): Factory|View
     {
-        return view('admin.request-types.create', ['resources' => Resource::active()->orderBy('name')->get()]);
+        return view('admin.request-types.create', [
+            'resources' => Resource::active()->orderBy('name')->get(),
+            'departments' => Department::active()->orderBy('name')->get(),
+        ]);
     }
 
     public function store(Request $request)
@@ -35,6 +39,7 @@ class RequestTypeController extends Controller
             $type = RequestType::create([
                 'name' => $validated['name'],
                 'kind' => $validated['kind'],
+                'department_id' => $validated['department_id'] ?? null,
                 'resource_id' => in_array($validated['kind'], RequestType::RESOURCE_KINDS, true) ? ($validated['resource_id'] ?? null) : null,
                 'description' => $validated['description'] ?? null,
                 'is_active' => true,
@@ -57,6 +62,7 @@ class RequestTypeController extends Controller
         return view('admin.request-types.edit', [
             'requestType' => $requestType,
             'resources' => Resource::active()->orderBy('name')->get(),
+            'departments' => Department::active()->orderBy('name')->get(),
         ]);
     }
 
@@ -68,6 +74,7 @@ class RequestTypeController extends Controller
             $requestType->update([
                 'name' => $validated['name'],
                 'kind' => $validated['kind'],
+                'department_id' => $validated['department_id'] ?? null,
                 'resource_id' => in_array($validated['kind'], RequestType::RESOURCE_KINDS, true) ? ($validated['resource_id'] ?? null) : null,
                 'description' => $validated['description'] ?? null,
             ]);
@@ -101,13 +108,14 @@ class RequestTypeController extends Controller
     }
 
     /**
-     * @return array{name: string, kind: string, resource_id?: int|string|null, description: ?string, requirements: array<int, array{label: string, is_mandatory?: string|bool}>}
+     * @return array{name: string, kind: string, department_id?: int|string|null, resource_id?: int|string|null, description: ?string, requirements: array<int, array{label: string, is_mandatory?: string|bool}>}
      */
     private function validateType(Request $request, ?RequestType $ignore = null): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('request_types', 'name')->ignore($ignore?->id)],
             'kind' => ['required', Rule::in([RequestType::KIND_DOCUMENT, RequestType::KIND_BOOKING, RequestType::KIND_EQUIPMENT, RequestType::KIND_SERVICE])],
+            'department_id' => ['nullable', 'exists:departments,id'],
             'resource_id' => [Rule::requiredIf(fn (): bool => in_array($request->input('kind'), RequestType::RESOURCE_KINDS, true)), 'nullable', 'exists:resources,id'],
             'description' => ['nullable', 'string', 'max:500'],
             'requirements' => ['nullable', 'array'],

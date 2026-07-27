@@ -121,22 +121,12 @@
             {{-- Super admin: collapsible sidebar --}}
             <div class="admin-shell flex min-h-screen"
                  :class="mobileNav ? 'mobile-nav-open' : ''"
-                 x-data="{
-                     pinned: (localStorage.getItem('sidebarPinned') ?? '1') === '1',
-                     mobileNav: false,
-                     toggleSidebar() {
-                         if (window.matchMedia('(min-width: 1024px)').matches) {
-                             this.pinned = !this.pinned;
-                         } else {
-                             this.mobileNav = !this.mobileNav;
-                         }
-                     }
-                 }"
-                 x-init="$watch('pinned', v => localStorage.setItem('sidebarPinned', v ? '1' : '0'))">
+                 x-data="{ mobileNav: false }">
                 <div x-show="mobileNav" x-cloak @click="mobileNav = false" class="sidebar-backdrop lg:hidden"></div>
-                <aside :class="pinned ? 'sidebar-pinned' : ''"
-                       @click="if ($event.target.closest('a')) mobileNav = false"
-                       class="group sticky top-0 z-40 flex h-screen w-[4.5rem] shrink-0 flex-col overflow-hidden border-r border-green-deep nav-bar transition-[width] duration-300 ease-out hover:w-64 hover:shadow-[4px_0_24px_-4px_rgba(15,77,40,0.25)]">
+                {{-- Fixed, always-expanded sidebar (no hover-collapse animation on navigate).
+                     The mobile drawer still slides in via .mobile-nav-open. --}}
+                <aside @click="if ($event.target.closest('a')) mobileNav = false"
+                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-green-deep nav-bar">
                     <div class="nav-brand flex h-[4.25rem] shrink-0 items-center justify-center gap-0 border-b border-white/10 px-1 transition-all duration-300 ease-out group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-brass/60">
                             <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-7 w-7">
@@ -173,20 +163,9 @@
                             <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Users</span>
                         </a>
                         @endcan
-                        @can('assign documents')
-                        <a href="{{ route('admin.assignments.index') }}" class="{{ request()->routeIs('admin.assignments*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.assignments*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Assignments</span>
-                        </a>
-                        <a href="{{ route('bookings.index') }}" class="{{ request()->routeIs('bookings*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('bookings*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Bookings</span>
-                        </a>
-                        @endcan
+                        {{-- Assignments + Bookings intentionally omitted from the super_admin
+                             sidebar: assignment is handled inline on the command-center
+                             dashboard, and Bookings is now owned by staff. --}}
                         @can('view reports')
                         <a href="{{ route('reports.services') }}" class="{{ request()->routeIs('reports.services') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('reports.services') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
@@ -249,9 +228,9 @@
                     <header class="sticky top-0 z-30 border-b border-hairline bg-paper/90 py-3 backdrop-blur-md">
                         <div class="app-frame flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-3">
-                            <button type="button" @click="toggleSidebar()"
-                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
-                                    :aria-pressed="pinned ? 'true' : 'false'" aria-label="Toggle navigation">
+                            <button type="button" @click="mobileNav = !mobileNav"
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green lg:hidden"
+                                    aria-label="Open navigation">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                             </button>
                             <p class="layout-title">{{ $pageTitle }}</p>

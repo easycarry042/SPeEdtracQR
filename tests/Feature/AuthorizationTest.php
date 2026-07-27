@@ -19,11 +19,9 @@ class AuthorizationTest extends TestCase
     {
         $this->seedRolesAndPermissions();
 
-        // The form is now a modal on the dashboard; the old create URL redirects there.
-        $this->actingAs($this->userWithRole('staff'))->get(route('documents.create'))->assertRedirect(route('dashboard'));
-
-        // Intake-only and system admins cannot create submissions.
-        $this->actingAs($this->userWithRole('receiving_staff'))->get(route('documents.create'))->assertForbidden();
+        // Only guests (the public request form) create submissions. Staff process
+        // and manage assigned requests — they cannot create. System admins can't either.
+        $this->actingAs($this->userWithRole('staff'))->get(route('documents.create'))->assertForbidden();
         $this->actingAs($this->userWithRole('super_admin'))->get(route('documents.create'))->assertForbidden();
     }
 

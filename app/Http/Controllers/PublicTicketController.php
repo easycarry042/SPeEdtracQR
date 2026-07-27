@@ -156,6 +156,9 @@ class PublicTicketController extends Controller
         $document = Document::create([
             'tracking_number' => $trackingNumber,
             'document_type' => $validated['document_type'],
+            // Auto-route to the request type's handling department (its Supervisor
+            // triages and assigns a staff member). Null if the type has no dept.
+            'department_id' => $type?->department_id,
             'citizen_name' => $validated['citizen_name'],
             'citizen_email' => $validated['citizen_email'],
             'citizen_contact' => $validated['citizen_contact'] ?? null,
@@ -217,9 +220,11 @@ class PublicTicketController extends Controller
             ->performedOn($document)
             ->log('Citizen submitted online request');
 
-        // Header-bell ping: supervisors have a new request to triage.
+        // Header-bell ping: the handling department's Supervisors (+ super admins)
+        // have a new request to triage and assign. Falls back to all triagers
+        // when the request type has no department.
         Notification::send(
-            DocumentEvent::supervisors(),
+            DocumentEvent::departmentTriagers($document->department_id),
             DocumentEvent::newTicket($document),
         );
 

@@ -96,8 +96,9 @@ class DocumentWebController extends Controller
 
     public function edit(Document $document): Factory|View
     {
-        $this->ensureCanCreate();
-        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+        // Editing is decoupled from creation: staff may edit only the ticket
+        // assigned to them; supervisors/admins may correct any record.
+        abort_unless(AssignmentScope::userCanEditDocument($document), 403);
 
         $categoryOptions = $this->categoryOptions();
 
@@ -106,8 +107,7 @@ class DocumentWebController extends Controller
 
     public function update(Request $request, Document $document)
     {
-        $this->ensureCanCreate();
-        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanEditDocument($document), 403);
 
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([
@@ -169,7 +169,9 @@ class DocumentWebController extends Controller
             abort(403, 'System administrators manage the organization but do not create document submissions.');
         }
 
-        // receiving_staff is intake/scan-only and lacks this permission.
+        // Only guests (the public) create requests via the public request form.
+        // No staff role holds 'create documents', so staff are blocked here too;
+        // they process and manage assigned requests instead.
         if (! $user?->can('create documents')) {
             abort(403, 'You do not have permission to create document submissions.');
         }

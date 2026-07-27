@@ -27,33 +27,18 @@
 
     <div class="mx-auto max-w-2xl space-y-6">
 
-        {{-- ── Document Header Card ─────────────────────────────────────────── --}}
-        {{-- Internal document images are intentionally NOT shown on the public
-             tracking page; they are only visible to authorized staff. --}}
-        <div class="panel">
-            <div class="ph">
-                <div class="flex items-center gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-wash text-green-deep">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
-                    </span>
-                    <div>
-                        <p class="text-[15px] font-bold text-ink">{{ $document->document_type }}</p>
-                        <p class="text-[12.5px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }} &middot; submitted {{ $document->created_at->format('M d, Y') }}</p>
-                    </div>
-                </div>
-                <div class="shrink-0 text-right">
-                    <p class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Tracking ID</p>
-                    <span class="id-chip mt-1 text-[13px] font-bold text-green-deep">{{ $document->tracking_number }}</span>
-                </div>
-            </div>
-        </div>
-
         @if(session('ticket_submitted'))
             <div class="rounded-xl border border-hairline bg-green-wash px-6 py-4 text-sm text-green-deep">
                 <p class="font-semibold">Your request has been submitted.</p>
                 <p class="mt-1">Save your tracking number <span class="id-chip font-bold">{{ session('ticket_submitted') }}</span>. A confirmation with your QR code has been emailed to you.</p>
             </div>
         @endif
+
+        {{-- ── Status Progress (the first thing the citizen sees) ───────────── --}}
+        <div class="panel">
+            <div class="ph"><h2>Status Progress</h2></div>
+            <div class="pb"><x-routing-stepper :document="$document" /></div>
+        </div>
 
         {{-- ── Live Status Card ─────────────────────────────────────────────── --}}
         <div class="panel" id="statusCard">
@@ -77,7 +62,7 @@
                     <div>
                         <p class="text-xs text-ink-soft">Handled by</p>
                         <p class="text-sm font-semibold text-ink" id="currentDept">
-                            {{ $document->assignedTo->name ?? 'Not yet assigned' }}
+                            {{ $document->assignedTo?->name ?? 'Not yet assigned' }}
                         </p>
                     </div>
                 </div>
@@ -133,13 +118,55 @@
         {{-- ── Predicted completion (self-hosted analytics) ─────────────────── --}}
         <x-eta-estimate :prediction="$prediction ?? null" :document="$document" />
 
-        {{-- ── Self-hosted AI assistant (Pillar 3) ──────────────────────────── --}}
-        <x-doc-assistant :document="$document" />
-
+        {{-- ── Document details ─────────────────────────────────────────────── --}}
+        {{-- Internal document images are intentionally NOT shown on the public
+             tracking page; they are only visible to authorized staff. --}}
         <div class="panel">
-            <div class="ph"><h2>Status Progress</h2></div>
-            <div class="pb"><x-routing-stepper :document="$document" /></div>
+            <div class="ph">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-wash text-green-deep">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
+                    </span>
+                    <div>
+                        <p class="text-[15px] font-bold text-ink">{{ $document->document_type }}</p>
+                        <p class="text-[12.5px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }} &middot; submitted {{ $document->created_at->format('M d, Y') }}</p>
+                    </div>
+                </div>
+                <div class="shrink-0 text-right">
+                    <p class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Tracking ID</p>
+                    <span class="id-chip mt-1 text-[13px] font-bold text-green-deep">{{ $document->tracking_number }}</span>
+                </div>
+            </div>
+
+            {{-- Who / where is responsible, plus the requester's contact details. --}}
+            <div class="pb">
+                <dl class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                    <div>
+                        <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">THED ID</dt>
+                        <dd class="mt-0.5 text-sm text-ink">{{ $document->department?->code ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Department</dt>
+                        <dd class="mt-0.5 text-sm text-ink">{{ $document->department?->name ?? 'Not yet routed' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Staff assigned</dt>
+                        <dd class="mt-0.5 text-sm text-ink">{{ $document->assignedTo?->name ?? 'Not yet assigned' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Email</dt>
+                        <dd class="mt-0.5 break-words text-sm text-ink">{{ $document->citizen_email ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Contact number</dt>
+                        <dd class="mt-0.5 text-sm text-ink">{{ $document->citizen_contact ?? '—' }}</dd>
+                    </div>
+                </dl>
+            </div>
         </div>
+
+        {{-- ── Self-hosted AI assistant (Pillar 3) — floats bottom-right ─────── --}}
+        <x-doc-assistant :document="$document" />
 
         {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
         @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
@@ -159,6 +186,61 @@
                 @endforelse
             </div>
         </div>
+
+        {{-- ── Documents needing revision / rejected (per-requirement) ────────── --}}
+        @php
+            $needsRevision = $document->requirements->where('review_status', 'needs_revision');
+            $rejectedReqs = $document->requirements->where('review_status', 'rejected');
+        @endphp
+        @if($needsRevision->isNotEmpty() || $rejectedReqs->isNotEmpty())
+        <div class="panel">
+            <div class="ph">
+                <div>
+                    <h2>Documents to fix</h2>
+                    <p class="sub mt-0.5">Staff reviewed your uploads. Re-upload <span class="font-semibold text-green-deep">only</span> the items marked below.</p>
+                </div>
+            </div>
+            <div class="pb space-y-4">
+                @if(session('upload_success'))
+                    <div class="rounded-lg border border-hairline bg-green-wash px-4 py-3 text-sm text-green-deep">{{ session('upload_success') }}</div>
+                @endif
+                @if($errors->any())
+                    <div class="rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red">{{ $errors->first() }}</div>
+                @endif
+                @foreach($needsRevision as $req)
+                    <div class="rounded-xl border border-status-amber-wash bg-status-amber-wash p-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-bold text-status-amber">{{ $req->label }}</span>
+                            <span class="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-amber">Needs revision</span>
+                        </div>
+                        @if($req->review_comment)
+                            <p class="mt-1 text-sm text-status-amber"><span class="font-semibold">What to fix:</span> {{ $req->review_comment }}</p>
+                        @endif
+                        @if($document->status !== 'completed')
+                            <form method="POST" action="{{ route('track.requirement-reupload', [$document->tracking_number, $req]) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-center gap-2">
+                                @csrf
+                                <label for="reupload-{{ $req->id }}" class="sr-only">Re-upload {{ $req->label }}</label>
+                                <input id="reupload-{{ $req->id }}" type="file" name="file" accept="image/*,.pdf,.doc,.docx" required
+                                       class="block text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
+                                <button type="submit" class="cr-btn cr-btn-primary min-h-[44px]">Re-upload</button>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+                @foreach($rejectedReqs as $req)
+                    <div class="rounded-xl border border-status-red-wash bg-status-red-wash p-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-bold text-status-red">{{ $req->label }}</span>
+                            <span class="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-red">Rejected</span>
+                        </div>
+                        @if($req->review_comment)
+                            <p class="mt-1 text-sm text-status-red"><span class="font-semibold">Reason:</span> {{ $req->review_comment }}</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- ── Citizen upload (notifies current department only) ──────────────── --}}
         @if($document->status !== 'completed')

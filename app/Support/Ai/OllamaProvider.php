@@ -18,6 +18,10 @@ class OllamaProvider implements LlmProvider
         private readonly string $model,
         private readonly int $timeout = 30,
         private readonly string $keepAlive = '30m',
+        // Cap the reply length. Answers are 1-3 sentences, and generation time
+        // grows roughly linearly with tokens produced, so capping this is the
+        // single biggest latency win on CPU inference.
+        private readonly int $numPredict = 160,
     ) {}
 
     public function chat(string $system, string $userMessage): ?string
@@ -33,6 +37,11 @@ class OllamaProvider implements LlmProvider
                     'options' => [
                         // Low temperature: this is factual lookup, not creative writing.
                         'temperature' => 0.2,
+                        // Stop early once the short answer is done.
+                        'num_predict' => $this->numPredict,
+                        // The grounding prompt + answer are tiny; a small context
+                        // window shrinks the KV cache and speeds up each call.
+                        'num_ctx' => 1024,
                     ],
                     'messages' => [
                         ['role' => 'system', 'content' => $system],

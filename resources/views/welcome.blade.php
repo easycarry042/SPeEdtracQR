@@ -29,7 +29,7 @@
                     Submit a Request
                 </a>
                 @auth
-                    <a href="{{ url('/dashboard') }}" class="rounded-xl border border-emerald-300 bg-white px-5 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
+                    <a href="{{ route('home') }}" class="rounded-xl border border-emerald-300 bg-white px-5 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
                         Go to Dashboard
                     </a>
                 @else

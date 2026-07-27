@@ -23,14 +23,20 @@
         <section class="mt-6">
             <div class="panel">
                 <div class="overflow-x-auto">
-                    <table class="reg min-w-full">
+                    {{-- w-full fills the panel on desktop; min-width forces the
+                         overflow-x-auto wrapper to scroll instead of cramping the
+                         10 columns on a narrow phone. --}}
+                    <table class="reg w-full min-w-[900px]">
                         <thead>
                             <tr>
                                 <th>#</th>
                                 <th>File name</th>
                                 <th>Tracking ID</th>
+                                <th>THED ID</th>
+                                <th>Department</th>
                                 <th>Date</th>
                                 <th>Category</th>
+                                <th>Contact</th>
                                 <th>Status</th>
                                 <th style="text-align:right">Actions</th>
                             </tr>
@@ -41,8 +47,11 @@
                                     <td class="idx mono" x-text="i + 1"></td>
                                     <td class="nm" x-text="req.citizen_name || ('File ' + req.tracking_number.slice(-5))"></td>
                                     <td><span class="code" x-text="req.tracking_number"></span></td>
+                                    <td class="mono muted" x-text="req.thed_id || '—'"></td>
+                                    <td class="muted" x-text="req.department || 'Not yet routed'"></td>
                                     <td class="mono muted" x-text="req.submitted_at"></td>
                                     <td class="muted" x-text="req.document_type"></td>
+                                    <td class="muted" x-text="req.citizen_contact || '—'"></td>
                                     <td>
                                         <span class="pill" :class="pillClass(req)"
                                               x-text="req.needs_triage ? 'New assignment' : req.status_label"></span>
@@ -56,7 +65,7 @@
                                 </tr>
                             </template>
                             <tr x-show="requests.length === 0">
-                                <td colspan="7" style="text-align:center;padding:40px 14px;">
+                                <td colspan="10" style="text-align:center;padding:40px 14px;">
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
                                         <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>

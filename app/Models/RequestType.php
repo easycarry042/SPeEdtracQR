@@ -25,6 +25,7 @@ class RequestType extends Model
     protected $fillable = [
         'name',
         'kind',
+        'department_id',
         'resource_id',
         'description',
         'is_active',
@@ -43,6 +44,17 @@ class RequestType extends Model
     public function requirements(): HasMany
     {
         return $this->hasMany(RequestTypeRequirement::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * The department that handles this type of request. Tickets of this type are
+     * routed to this department's queue on submission.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /**

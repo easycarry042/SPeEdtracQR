@@ -104,13 +104,11 @@
                         @error('booking_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="start_time" class="mb-1 block text-xs font-semibold text-gray-700">Start time</label>
-                        <input id="start_time" type="time" name="start_time" value="{{ old('start_time') }}" class="{{ $field }} @error('start_time') {{ $bad }} @else {{ $ok }} @enderror">
+                        <x-time-clock name="start_time" label="Start time" :value="old('start_time', '')" default="09:00" />
                         @error('start_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="end_time" class="mb-1 block text-xs font-semibold text-gray-700">End time</label>
-                        <input id="end_time" type="time" name="end_time" value="{{ old('end_time') }}" class="{{ $field }} @error('end_time') {{ $bad }} @else {{ $ok }} @enderror">
+                        <x-time-clock name="end_time" label="End time" :value="old('end_time', '')" default="10:00" />
                         @error('end_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>

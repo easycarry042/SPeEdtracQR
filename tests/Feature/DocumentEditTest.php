@@ -43,6 +43,46 @@ class DocumentEditTest extends TestCase
         $this->assertSame('09171234567', $document->citizen_contact);
     }
 
+    public function test_staff_cannot_edit_unclaimed_document(): void
+    {
+        $this->seedRolesAndPermissions();
+        $staff = User::factory()->create()->assignRole('staff');
+
+        // Unassigned ticket — staff may only edit the ticket assigned to them.
+        $document = Document::create([
+            'tracking_number' => 'SPD-EDIT-'.uniqid(),
+            'document_type' => 'Business Permit',
+            'citizen_name' => 'Old Name',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($staff)
+            ->put(route('documents.update', $document), [
+                'document_type' => 'Business Permit',
+                'citizen_name' => 'Hacked',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame('Old Name', $document->fresh()->citizen_name);
+    }
+
+    public function test_supervisor_can_correct_any_document(): void
+    {
+        $this->seedRolesAndPermissions();
+        $creator = User::factory()->create()->assignRole('staff');
+        $document = $this->document($creator, $creator);
+        $supervisor = User::factory()->create()->assignRole('Supervisor');
+
+        $this->actingAs($supervisor)
+            ->put(route('documents.update', $document), [
+                'document_type' => 'Business Permit',
+                'citizen_name' => 'Corrected',
+            ])
+            ->assertRedirect(route('track.show', $document->tracking_number));
+
+        $this->assertSame('Corrected', $document->fresh()->citizen_name);
+    }
+
     public function test_unrelated_staff_cannot_edit(): void
     {
         $this->seedRolesAndPermissions();
