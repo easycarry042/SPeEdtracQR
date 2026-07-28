@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Mail\TicketSubmitted;
 use App\Models\Booking;
 use App\Models\Document;
@@ -27,8 +26,6 @@ use Illuminate\Support\Facades\Notification;
  */
 class PublicTicketController extends Controller
 {
-    use StoresDocumentAttachments;
-
     public function __construct(private QrCodeService $qrCodeService) {}
 
     public function create(): Factory|View
@@ -61,15 +58,12 @@ class PublicTicketController extends Controller
             'citizen_name' => ['required', 'string', 'max:255'],
             'citizen_email' => ['required', 'email', 'max:255'],
             'citizen_contact' => ['nullable', 'string', 'max:255'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'], // 10 MB each: images, PDF or Word
             // Optional per-requirement uploads, keyed by request_type_requirement id.
             'requirements' => ['nullable', 'array'],
             'requirements.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
-            'attachments.*.mimes' => 'Each file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
             'requirements.*.mimes' => 'Each requirement file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
 
@@ -177,12 +171,6 @@ class PublicTicketController extends Controller
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
-
-        // Uploads land on the private disk; uploaded_by is null (no staff user).
-        $this->storeAttachmentsForDocument(
-            $document,
-            collect($request->file('attachments', []))->filter()->all(),
-        );
 
         if ($reservation) {
             // Facility/equipment request: create the pending reservation (staff

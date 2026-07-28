@@ -173,6 +173,7 @@
 .p-amber { background: var(--amber-wash); color: var(--amber); } .p-amber::before { background: #d8920f; }
 .p-red { background: var(--red-wash); color: var(--red); } .p-red::before { background: #c14040; }
 .p-muted { background: #eef2ef; color: var(--ink-soft); } .p-muted::before { background: #9fb0a6; }
+.p-orange { background: #fbeadb; color: #b5580f; } .p-orange::before { background: #e07b26; }
 
 /* Tracking-ID / reference code chip */
 .code { font-family: var(--mono); font-size: 12px; background: #f6f8f7; border: 1px solid var(--hairline); padding: 2px 7px; border-radius: 6px; color: var(--ink); font-variant-numeric: tabular-nums; }

@@ -96,6 +96,6 @@ class BookingManagementTest extends TestCase
         // Supervisors manage documents, not resource bookings — no 'manage bookings'.
         $withoutBooking = User::factory()->create()->assignRole('Supervisor');
 
-        $this->actingAs($withoutBooking)->get(route('bookings.index'))->assertRedirect();
+        $this->actingAs($withoutBooking)->get(route('bookings.index'))->assertForbidden();
     }
 }

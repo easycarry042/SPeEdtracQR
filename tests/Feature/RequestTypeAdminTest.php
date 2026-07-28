@@ -96,6 +96,6 @@ class RequestTypeAdminTest extends TestCase
 
         $this->actingAs($staff)
             ->get(route('admin.request-types.index'))
-            ->assertRedirect();
+            ->assertForbidden();
     }
 }

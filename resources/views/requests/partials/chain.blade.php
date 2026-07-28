@@ -10,7 +10,14 @@
         </div>
         <div class="pb-5">
             <p class="text-[13px] font-semibold text-ink">{{ $document->requestingDepartment?->name }}</p>
-            <p class="text-[12px] text-ink-soft">Filed the request · {{ $document->created_at->format('M j, Y g:i A') }}</p>
+            <p class="text-[12px] text-ink-soft">
+                @if($document->creator)
+                    Filed by <span class="font-medium text-ink">{{ $document->creator->name }}</span>
+                @else
+                    Filed the request
+                @endif
+                · {{ $document->created_at->format('M j, Y g:i A') }}
+            </p>
         </div>
     </li>
     @foreach($document->requestSteps as $step)
@@ -35,9 +42,17 @@
                 @endunless
             </div>
             <div class="pb-5">
-                <p class="text-[13px] font-semibold {{ $isCurrent ? 'text-status-amber' : ($isHalted ? 'text-status-red' : 'text-ink') }}">
+                @php $badge = $step->statusBadge(); @endphp
+                <p class="flex flex-wrap items-center gap-1.5 text-[13px] font-semibold {{ $isCurrent ? 'text-status-amber' : ($isHalted ? 'text-status-red' : 'text-ink') }}">
                     {{ $step->department?->name }}
-                    <span class="ml-1 rounded bg-[#eef2ef] px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">{{ $step->department?->code }}</span>
+                    <span class="rounded bg-[#eef2ef] px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">{{ $step->department?->code }}</span>
+                    <span class="pill {{ match($badge['band']) {
+                        'green' => 'p-green',
+                        'red' => 'p-red',
+                        'returned' => 'p-orange',
+                        'muted' => 'p-muted',
+                        default => 'p-amber',
+                    } }}" style="font-size:10px;padding:1px 7px;">{{ $badge['label'] }}</span>
                 </p>
                 <p class="text-[12px] text-ink-soft">{{ $step->action }}</p>
 

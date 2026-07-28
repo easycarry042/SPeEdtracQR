@@ -48,11 +48,11 @@ class AdminDashboardTest extends TestCase
     {
         $this->seedRolesAndPermissions();
 
-        // EnsureHasPermission redirects users lacking "manage system" to their
-        // own dashboard rather than throwing a 403.
+        // EnsureHasPermission returns a 403 Access Denied page for authenticated
+        // users lacking "manage system".
         $this->actingAs($this->userWithRole('staff'))
             ->get(route('admin.dashboard'))
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
     }
 
     public function test_super_admin_analytics_redirects_to_the_dashboard(): void

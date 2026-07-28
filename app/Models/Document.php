@@ -182,6 +182,48 @@ class Document extends Model
     }
 
     /**
+     * A human, chain-aware headline for an internal request — "Awaiting
+     * endorsement", "Under review", "Returned for revision", "Denied",
+     * "Completed" — derived from the endorsement chain rather than the
+     * citizen-oriented DocumentStatus enum. The office currently holding the
+     * request is shown alongside (see {@see currentRequestStep()}).
+     */
+    public function internalStatusLabel(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'Completed',
+            DocumentStatus::Denied => 'Denied',
+            DocumentStatus::Returned => 'Returned for revision',
+            default => (function (): string {
+                $step = $this->currentRequestStep();
+
+                if (! $step instanceof RequestStep) {
+                    return $this->statusEnum()->label();
+                }
+
+                // step_order 0 is the requesting department's own endorsement hop.
+                return $step->step_order === 0 && (int) $step->department_id === (int) $this->requesting_department_id
+                    ? 'Awaiting endorsement'
+                    : 'Under review';
+            })(),
+        };
+    }
+
+    /**
+     * Colour band for {@see internalStatusLabel()} — maps to a pill/dot tone.
+     * One of: green | amber | red | returned.
+     */
+    public function internalStatusBand(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'green',
+            DocumentStatus::Denied => 'red',
+            DocumentStatus::Returned => 'returned',
+            default => 'amber',
+        };
+    }
+
+    /**
      * Whether this user is the one who must act on the request's current hop:
      * a supervisor of the department the request is sitting at. Single source
      * of truth for RequestStepController's gate and the action panel in views.

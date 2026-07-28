@@ -10,26 +10,19 @@ class EnsureHasRole
 {
     /**
      * Verify the authenticated user has one of the required roles.
-     * On failure, redirects to the user's own dashboard rather than throwing a 403.
+     * Unauthenticated visitors are sent to the login page; authenticated users
+     * without the role get a 403 Access Denied page.
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         if (! $request->user()) {
-            return to_route('login');
+            return redirect()->guest(route('login'));
         }
 
         if (! $request->user()->hasAnyRole($roles)) {
-            return $this->redirectToOwnDashboard($request->user());
+            abort(403, 'You do not have permission to access that area.');
         }
 
         return $next($request);
-    }
-
-    private function redirectToOwnDashboard($user): Response
-    {
-        $route = $user->can('manage system') ? 'admin.dashboard' : 'dashboard';
-
-        return to_route($route)
-            ->with('error', 'You do not have permission to access that area.');
     }
 }

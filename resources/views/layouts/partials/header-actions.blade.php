@@ -16,6 +16,17 @@
 </button>
 @endif
 
+@php
+    // The people-search jumps to a staff member's profile — only surface it on
+    // the tabs where looking someone up is actually part of the task (dashboards,
+    // the staff directory/profiles, and the assignment/user-management desks).
+    $showPeopleSearch = request()->routeIs(
+        'dashboard', 'admin.dashboard', 'staff.dashboard',
+        'staff.index', 'staff.profile',
+        'admin.assignments*', 'admin.users*',
+    );
+@endphp
+@if($showPeopleSearch)
 <div class="relative hidden sm:block"
      x-data="{ open: false, q: '', results: [],
         run() {
@@ -39,6 +50,7 @@
         </div>
     </div>
 </div>
+@endif
 
 @php
     // Real unread feed for the bell (database notifications, see DocumentEvent).

@@ -85,10 +85,10 @@
             </div>
 
             {{-- Requirements for the chosen request type — populated by JS from the
-                 catalog. Citizens bring the originals; uploading a copy is optional. --}}
+                 catalog. Citizens bring the originals to the counter. --}}
             <div id="requirementsSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
                 <p class="text-sm font-semibold text-emerald-900">Requirements for this request</p>
-                <p class="mt-0.5 text-xs text-gray-600">Please bring the <strong>original</strong> of each to the counter — staff will verify them. You may optionally upload a photo or scan now to speed things up.</p>
+                <p class="mt-0.5 text-xs text-gray-600">Please bring the <strong>original</strong> of each to the counter — staff will verify them. Attaching a copy below is optional.</p>
                 <ul id="requirementsList" class="mt-3 space-y-3"></ul>
             </div>
 
@@ -200,26 +200,6 @@
                 @error('citizen_contact')<p id="citizen_contact-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
-            <div>
-                <div class="mb-1 flex items-center justify-between gap-3">
-                    <label for="attachments" class="block text-sm font-semibold text-gray-700">Supporting files <span class="font-normal text-gray-500">(optional)</span></label>
-                    <span id="fileCount" class="text-xs font-semibold text-emerald-800" aria-live="polite">0 of 5 files</span>
-                </div>
-
-                {{-- Clickable drop area; the native input is visually hidden but still submits. --}}
-                <label for="attachments" id="fileDrop" class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 px-4 py-6 text-center transition hover:border-emerald-400 hover:bg-emerald-50">
-                    <svg class="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-                    <span class="text-sm font-semibold text-emerald-800">Tap to add files</span>
-                    <span class="text-xs text-gray-500">JPG, PNG, WEBP, PDF, or DOC/DOCX — max 10 MB each, up to 5 files</span>
-                </label>
-                <input id="attachments" type="file" name="attachments[]" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" multiple class="sr-only" aria-describedby="attachments-err fileError">
-
-                {{-- Selected-file list (thumbnails + name + size + remove); populated by JS. --}}
-                <ul id="fileList" class="mt-3 space-y-2"></ul>
-                <p id="fileError" class="mt-2 hidden text-xs font-medium text-red-600" role="alert"></p>
-                @error('attachments.*')<p id="attachments-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
-            </div>
-
             <label class="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm text-emerald-900">
                 <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="mt-0.5">
                 <span>I agree that the information I provide will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
@@ -265,100 +245,6 @@
                     if (i === 0) { el.focus(); anchor.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
                 });
             });
-        })();
-
-        // Attachment picker: visible file list, count, per-file removal, image
-        // thumbnails. Mirrors the server rules (≤5 files, ≤10 MB, jpg/png/webp/
-        // pdf/doc/docx). Degrades to a read-only list where DataTransfer is
-        // unavailable (older devices) — the form still submits natively.
-        (function () {
-            const input = document.getElementById('attachments');
-            const list = document.getElementById('fileList');
-            const countEl = document.getElementById('fileCount');
-            const errEl = document.getElementById('fileError');
-            const drop = document.getElementById('fileDrop');
-            if (!input) { return; }
-
-            const MAX = 5;
-            const MAX_BYTES = 10 * 1024 * 1024;
-            const ALLOWED = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx'];
-            const canEdit = typeof DataTransfer !== 'undefined';
-            let files = [];
-
-            const ext = (n) => (n.split('.').pop() || '').toLowerCase();
-            const isImg = (n) => ['jpg', 'jpeg', 'png', 'webp'].includes(ext(n));
-            const human = (b) => b < 1024 ? b + ' B' : (b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB');
-            const showErr = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
-            const clearErr = () => { errEl.textContent = ''; errEl.classList.add('hidden'); };
-            const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-
-            function syncInput() {
-                if (!canEdit) { return; }
-                const dt = new DataTransfer();
-                files.forEach(f => dt.items.add(f));
-                input.files = dt.files;
-            }
-
-            const fileSvg = '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM14 3v4h4"/></svg></span>';
-
-            function render() {
-                list.innerHTML = '';
-                files.forEach((f, idx) => {
-                    const li = document.createElement('li');
-                    li.className = 'flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2';
-                    let thumb;
-                    if (isImg(f.name)) {
-                        const url = URL.createObjectURL(f);
-                        thumb = `<img src="${url}" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" onload="URL.revokeObjectURL(this.src)">`;
-                    } else {
-                        thumb = fileSvg;
-                    }
-                    li.innerHTML = thumb +
-                        `<div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-gray-800">${esc(f.name)}</p><p class="text-xs text-gray-500">${human(f.size)}</p></div>`;
-                    if (canEdit) {
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400';
-                        btn.setAttribute('aria-label', 'Remove ' + f.name);
-                        btn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';
-                        btn.addEventListener('click', () => { files.splice(idx, 1); syncInput(); render(); });
-                        li.appendChild(btn);
-                    }
-                    list.appendChild(li);
-                });
-                countEl.textContent = `${files.length} of ${MAX} files`;
-            }
-
-            function addFiles(incoming) {
-                clearErr();
-                let firstErr = '';
-                for (const f of incoming) {
-                    if (files.length >= MAX) { firstErr = firstErr || `You can attach up to ${MAX} files.`; break; }
-                    if (!ALLOWED.includes(ext(f.name))) { firstErr = firstErr || `“${f.name}” isn't an accepted file type.`; continue; }
-                    if (f.size > MAX_BYTES) { firstErr = firstErr || `“${f.name}” is larger than 10 MB.`; continue; }
-                    if (files.some(x => x.name === f.name && x.size === f.size)) { continue; }
-                    files.push(f);
-                }
-                if (firstErr) { showErr(firstErr); }
-                syncInput();
-                render();
-            }
-
-            input.addEventListener('change', () => {
-                if (canEdit) {
-                    addFiles(Array.from(input.files));
-                } else {
-                    // No DataTransfer: reflect the native selection read-only.
-                    files = Array.from(input.files);
-                    render();
-                }
-            });
-
-            if (drop && canEdit) {
-                ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('border-emerald-500', 'bg-emerald-50'); }));
-                ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove('border-emerald-500', 'bg-emerald-50')));
-                drop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) { addFiles(Array.from(e.dataTransfer.files)); } });
-            }
         })();
 
         // Branch the form on the selected type's kind: document types show a

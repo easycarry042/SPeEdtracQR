@@ -59,11 +59,11 @@ class DepartmentManagementTest extends TestCase
         $this->seedRolesAndPermissions();
         $supervisor = User::factory()->create()->assignRole('Supervisor');
 
-        // Unauthorized admin-area hits bounce Supervisors back to their dashboard.
-        $this->actingAs($supervisor)->get(route('admin.departments.index'))->assertRedirect(route('dashboard'));
+        // Unauthorized admin-area hits return a 403 Access Denied page.
+        $this->actingAs($supervisor)->get(route('admin.departments.index'))->assertForbidden();
         $this->actingAs($supervisor)
             ->post(route('admin.departments.store'), ['name' => 'Rogue Office', 'code' => 'NOPE'])
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
         $this->assertDatabaseMissing('departments', ['code' => 'NOPE']);
     }
 

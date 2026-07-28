@@ -20,8 +20,14 @@ class QrCodeService
 
     private const int TRACKING_SUFFIX_LENGTH = 6;
 
-    public function generateTrackingNumber(): string
+    /**
+     * Generate a unique tracking number. External citizen tickets use the
+     * default 'SPD' prefix; internal dept-to-dept requests pass 'INT' so the two
+     * are distinguishable at a glance (SPD-YYYYMMDD-XXXXXX vs INT-YYYYMMDD-XXXXXX).
+     */
+    public function generateTrackingNumber(string $prefix = 'SPD'): string
     {
+        $prefix = strtoupper($prefix);
         $alphabetMax = strlen(self::TRACKING_ALPHABET) - 1;
 
         do {
@@ -29,7 +35,7 @@ class QrCodeService
             for ($i = 0; $i < self::TRACKING_SUFFIX_LENGTH; $i++) {
                 $suffix .= self::TRACKING_ALPHABET[random_int(0, $alphabetMax)];
             }
-            $trackingNumber = 'SPD-'.now()->format('Ymd').'-'.$suffix;
+            $trackingNumber = $prefix.'-'.now()->format('Ymd').'-'.$suffix;
         } while (Document::where('tracking_number', $trackingNumber)->exists());
 
         return $trackingNumber;

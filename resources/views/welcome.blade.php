@@ -42,53 +42,122 @@
     </header>
 
     {{-- Hero --}}
-    <section class="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center">
-        <div class="mx-auto max-w-2xl">
-            <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold tracking-wider text-emerald-700">
-                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                Government Document Tracking
-            </span>
+    @php
+        // Drop a real municipality photo at public/images/municipality-hero.jpg
+        // (or .png) and it replaces the placeholder automatically — no code change.
+        $heroImage = collect(['municipality-hero.jpg', 'municipality-hero.png', 'municipality-hero.webp'])
+            ->map(fn ($f) => file_exists(public_path("images/{$f}")) ? asset("images/{$f}") : null)
+            ->first(fn ($url) => $url !== null);
+    @endphp
+    <section class="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-20">
+        <div class="grid items-center gap-12 lg:grid-cols-2">
+            {{-- Left: message + primary actions --}}
+            <div>
+                <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold tracking-wider text-emerald-700">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    Government Document Tracking
+                </span>
 
-            <h1 class="mt-6 text-5xl font-extrabold leading-tight tracking-tight text-emerald-950 sm:text-6xl">
-                Track your document<br>
-                <span class="text-emerald-600">in real time.</span>
-            </h1>
-            <p class="mt-5 text-lg text-gray-600">
-                Enter your tracking number to see exactly where your document is,
-                which department it's at, and when it was last moved.
-            </p>
-        </div>
+                <h1 class="mt-6 text-4xl font-extrabold leading-tight tracking-tight text-emerald-950 sm:text-5xl">
+                    Your documents,<br>
+                    <span class="text-emerald-600">tracked in real time.</span>
+                </h1>
+                <p class="mt-5 max-w-xl text-lg text-gray-600">
+                    Submit a request, get a QR-coded tracking number, and follow it through
+                    every department of the municipality — anytime, from any device.
+                </p>
 
-        {{-- Track search box --}}
-        <div class="mx-auto mt-10 max-w-xl">
-            <form action="{{ route('track.search') }}" method="GET">
-                <div class="flex overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-lg shadow-emerald-900/10 focus-within:ring-2 focus-within:ring-emerald-500/40">
-                    <div class="flex items-center pl-5 text-emerald-500">
+                {{-- Two primary buttons --}}
+                <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                    <a href="{{ route('citizen.dashboard') }}"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800 active:scale-95">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                         </svg>
-                    </div>
-                    <input
-                        type="text"
-                        name="tracking_number"
-                        placeholder="e.g. SPD-20260521-00001"
-                        class="flex-1 bg-transparent py-4 pl-3 pr-2 font-mono text-sm tracking-widest text-gray-800 placeholder:font-sans placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none"
-                        autofocus
-                    >
-                    <button type="submit" class="m-1.5 rounded-xl bg-emerald-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-800 active:scale-95">
-                        Track
-                    </button>
+                        Citizen Portal
+                    </a>
+                    <a href="{{ route('login') }}"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-6 py-3.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50 active:scale-95">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M9 4H7a2 2 0 00-2 2v12a2 2 0 002 2h2"/>
+                        </svg>
+                        Staff Login
+                    </a>
                 </div>
-            </form>
-            <p class="mt-3 text-xs text-gray-500">Your tracking number was printed on the receipt given at submission.</p>
-        </div>
 
-        {{-- Floating QR illustration --}}
-        <div class="mt-14 flex justify-center">
-            <div class="float inline-flex h-28 w-28 items-center justify-center rounded-3xl bg-white shadow-xl shadow-emerald-900/15 ring-1 ring-emerald-200">
-                <svg class="h-16 w-16 text-emerald-700" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm7-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm8 0h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-4h2v2h-2v-2z"/>
-                </svg>
+                {{-- Track search — resolves inline (result/error card below the bar).
+                     Without JS the form falls back to a normal GET that lands on
+                     the public tracking page. --}}
+                <div x-data="trackLookup" class="mt-8 max-w-md">
+                    <form action="{{ route('track.search') }}" method="GET" @submit.prevent="run()">
+                        <div class="flex overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/40">
+                            <div class="flex items-center pl-5 text-emerald-500">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                name="tracking_number"
+                                x-model="q"
+                                @input="error = null"
+                                placeholder="e.g. SPD-20260728-K7M9Q2"
+                                autocomplete="off"
+                                class="flex-1 bg-transparent py-3.5 pl-3 pr-2 font-mono text-sm uppercase tracking-widest text-gray-800 placeholder:font-sans placeholder:tracking-normal placeholder:normal-case placeholder:text-gray-400 focus:outline-none"
+                            >
+                            <button type="submit" x-bind:disabled="loading"
+                                    class="m-1.5 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60">
+                                <span x-show="!loading">Track</span>
+                                <span x-show="loading" x-cloak>…</span>
+                            </button>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500" x-show="!result && !error">Enter your tracking number to see its status here.</p>
+                    </form>
+
+                    {{-- Error (invalid format / not found) --}}
+                    <div x-show="error" x-cloak x-transition class="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-left">
+                        <div class="flex items-start gap-3">
+                            <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                            <div>
+                                <p class="text-sm font-bold text-red-800" x-text="error?.title"></p>
+                                <p class="mt-0.5 text-sm text-red-700" x-text="error?.message"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Result card --}}
+                    <div x-show="result" x-cloak x-transition class="mt-4 rounded-2xl border border-emerald-200 bg-white p-5 text-left shadow-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="font-mono text-sm font-bold text-emerald-900" x-text="result?.tracking_number"></p>
+                            <span class="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-semibold text-emerald-800" x-text="result?.status_label"></span>
+                        </div>
+                        <dl class="mt-3 space-y-1.5 text-sm">
+                            <div class="flex justify-between gap-3"><dt class="text-gray-500">Request</dt><dd class="text-right font-medium text-gray-800" x-text="result?.document_type"></dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-gray-500">Department</dt><dd class="text-right font-medium text-gray-800" x-text="result?.department || 'Not yet routed'"></dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-gray-500">Submitted</dt><dd class="text-right font-medium text-gray-800" x-text="result?.submitted_at"></dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-gray-500">Last update</dt><dd class="text-right font-medium text-gray-800" x-text="result?.updated_at"></dd></div>
+                        </dl>
+                        <a :href="result?.url" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800">
+                            View full details
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Right: municipality image (or labeled placeholder) --}}
+            <div class="relative">
+                @if($heroImage)
+                    <img src="{{ $heroImage }}" alt="Municipality"
+                         class="float aspect-[4/3] w-full rounded-3xl object-cover shadow-xl shadow-emerald-900/15 ring-1 ring-emerald-200">
+                @else
+                    <div class="float flex aspect-[4/3] w-full flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-100 via-emerald-50 to-teal-100 text-center shadow-xl shadow-emerald-900/10 ring-1 ring-emerald-200">
+                        <svg class="h-20 w-20 text-emerald-600/70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/>
+                        </svg>
+                        <p class="mt-4 text-sm font-semibold text-emerald-800">Municipality photo</p>
+                        <p class="mt-1 px-8 text-xs text-emerald-700/70">Add <code class="font-mono">public/images/municipality-hero.jpg</code> to replace this.</p>
+                    </div>
+                @endif
             </div>
         </div>
     </section>
@@ -139,6 +208,52 @@
             &copy; {{ date('Y') }} SPeED TraQR — Document Tracking System. All rights reserved.
         </div>
     </footer>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('trackLookup', () => ({
+                q: '',
+                loading: false,
+                result: null,
+                error: null,
+                lookupUrl: '{{ route('track.lookup') }}',
+
+                run() {
+                    const value = this.q.trim().toUpperCase();
+                    this.result = null;
+                    this.error = null;
+
+                    // Client-side format check for instant feedback (server re-validates).
+                    if (! /^(SPD|INT)-\d{8}-[0-9A-Z]{6}$/.test(value)) {
+                        this.error = {
+                            title: 'Invalid tracking number.',
+                            message: 'Please enter a valid tracking number using the correct format (e.g. SPD-20260728-K7M9Q2).',
+                        };
+                        return;
+                    }
+
+                    this.loading = true;
+                    fetch(this.lookupUrl + '?tracking_number=' + encodeURIComponent(value), {
+                        headers: { 'Accept': 'application/json' },
+                    })
+                        .then(async (r) => {
+                            const data = await r.json();
+                            if (data.status === 'found') {
+                                this.result = data.data;
+                            } else {
+                                this.error = { title: data.title, message: data.message };
+                            }
+                        })
+                        .catch(() => {
+                            this.error = { title: 'Something went wrong.', message: 'Please try again in a moment.' };
+                        })
+                        .finally(() => { this.loading = false; });
+                },
+            }));
+        });
+    </script>
+
+    @include('layouts.partials.bfcache-guard')
 
 </body>
 </html>

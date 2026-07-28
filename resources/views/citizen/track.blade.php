@@ -1,15 +1,8 @@
 <x-citizen-layout>
     <x-slot name="title">Track a Document</x-slot>
 
-    {{-- Page header --}}
+    {{-- Page header (Back lives in the shared public header — no duplicate here). --}}
     <div class="mb-8 text-center">
-        <a href="{{ route('citizen.dashboard') }}"
-           class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:underline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Back to Citizen Portal
-        </a>
         <h1 class="text-3xl font-extrabold tracking-tight text-emerald-950 sm:text-4xl">
             Track a Document
         </h1>

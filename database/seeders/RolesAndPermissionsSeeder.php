@@ -16,7 +16,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $permissions = [
             'create documents',
-            'create internal requests', // supervisor-only dept-to-dept requests
+            'create internal requests', // draft/file dept-to-dept requests (staff + supervisor)
             'act on internal requests', // approve/deny/return hops of internal requests
             'scan documents',
             'advance documents', // move an assigned document through its status stages
@@ -37,7 +37,9 @@ class RolesAndPermissionsSeeder extends Seeder
         // Staff process and manage assigned requests; they no longer CREATE
         // requests — only guests (the public) submit, via the public request form.
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
-        $staffRole->syncPermissions(['scan documents', 'advance documents', 'accept documents', 'manage bookings']);
+        // Staff may draft internal requests for their office; only a Supervisor
+        // (department head) can endorse/forward them ('act on internal requests').
+        $staffRole->syncPermissions(['scan documents', 'advance documents', 'accept documents', 'manage bookings', 'create internal requests']);
 
         // receiving_staff has been folded into staff. Migrate any remaining users,
         // then drop the role so only Guest (public), Staff, Supervisor, and Super

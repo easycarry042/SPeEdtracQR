@@ -29,6 +29,13 @@ class TrackController extends Controller
             return to_route('track.show', $trackingNumber);
         }
 
+        // Guests search inline on the landing page — there is no standalone
+        // public "Look up" page. Send them home (they still reach a result via a
+        // tracking number or a scanned QR, which resolve on track.show).
+        if (! auth()->check()) {
+            return to_route('welcome');
+        }
+
         // Explicit finder mode (?find=1): render the Look up hub (tracking
         // search + QR image upload + live camera) instead of auto-opening a
         // work item. This is where /scan and "Open scanner" land.
@@ -43,7 +50,8 @@ class TrackController extends Controller
         $user = auth()->user();
         if ($user && AssignmentScope::canViewAll($user)) {
             $default = $this->scopeDocuments(
-                Document::where('status', DocumentStatus::Pending->value)->whereNull('assigned_to')->latest('created_at')
+                Document::where('origin', '!=', Document::ORIGIN_INTERNAL)
+                    ->where('status', DocumentStatus::Pending->value)->whereNull('assigned_to')->latest('created_at')
             )->first(['tracking_number']);
 
             $tab = 'pending';
@@ -89,7 +97,8 @@ class TrackController extends Controller
 
             // Fall back to anything in their scope so the page isn't empty.
             $latest = $this->scopeDocuments(
-                Document::query()->whereIn('status', DocumentStatus::activeValues())->latest('created_at')
+                Document::query()->where('origin', '!=', Document::ORIGIN_INTERNAL)
+                    ->whereIn('status', DocumentStatus::activeValues())->latest('created_at')
             )->first(['tracking_number']);
 
             if ($latest) {
@@ -98,6 +107,63 @@ class TrackController extends Controller
         }
 
         return view('track.index');
+    }
+
+    /**
+     * JSON lookup for the inline landing-page search. Validates the format
+     * server-side, then reports one of three outcomes: invalid format,
+     * no record found, or the found request's public status summary. Internal
+     * dept-to-dept requests are never resolved here (public must not see them).
+     */
+    public function lookup(Request $request)
+    {
+        $tracking = strtoupper(trim((string) $request->get('tracking_number')));
+
+        if ($tracking === '') {
+            return response()->json([
+                'status' => 'invalid',
+                'title' => 'Invalid tracking number.',
+                'message' => 'Please enter a tracking number.',
+            ], 422);
+        }
+
+        // Real numbers are PREFIX-YYYYMMDD-XXXXXX (SPD = citizen, INT = internal).
+        // Anything else — random characters, symbols, wrong shape — is invalid.
+        if (! preg_match('/^(SPD|INT)-\d{8}-[0-9A-Z]{6}$/', $tracking)) {
+            return response()->json([
+                'status' => 'invalid',
+                'title' => 'Invalid tracking number.',
+                'message' => 'Please enter a valid tracking number using the correct format (e.g. SPD-20260728-K7M9Q2).',
+            ], 422);
+        }
+
+        $document = Document::query()
+            ->where('tracking_number', $tracking)
+            ->where('origin', '!=', Document::ORIGIN_INTERNAL)
+            ->with('department')
+            ->first();
+
+        if (! $document) {
+            return response()->json([
+                'status' => 'not_found',
+                'title' => 'No record found.',
+                'message' => "We couldn't find a request with that tracking number. Please check your tracking number and try again.",
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'found',
+            'data' => [
+                'tracking_number' => $document->tracking_number,
+                'document_type' => $document->document_type,
+                'status' => $document->statusEnum()->value,
+                'status_label' => $document->statusEnum()->label(),
+                'department' => $document->department?->name,
+                'submitted_at' => $document->created_at?->format('M j, Y'),
+                'updated_at' => $document->updated_at?->diffForHumans(),
+                'url' => route('track.show', $document->tracking_number),
+            ],
+        ]);
     }
 
     public function show($trackingNumber)
@@ -111,6 +177,18 @@ class TrackController extends Controller
         if (! $document) {
             return to_route('track.index', ['find' => 1])
                 ->withErrors(['lookup' => "No document found for \"{$trackingNumber}\". Check the number and try again."]);
+        }
+
+        // Internal dept-to-dept requests are handled in their own module, with a
+        // different (endorsement-chain) workflow — never the citizen assign/advance
+        // panel. Authenticated staff go to the Internal request view; the public
+        // must never see internal requests, so guests get a 404 (no info leak).
+        if ($document->isInternal()) {
+            if (auth()->check()) {
+                return to_route('requests.show', $document);
+            }
+
+            abort(404);
         }
 
         if (auth()->user()?->can('manage system')) {
@@ -143,11 +221,13 @@ class TrackController extends Controller
                 $supervisorView = true;
 
                 $pending = $this->scopeDocuments(
-                    Document::where('status', DocumentStatus::Pending->value)->whereNull('assigned_to')->latest('created_at')
+                    Document::where('origin', '!=', Document::ORIGIN_INTERNAL)
+                        ->where('status', DocumentStatus::Pending->value)->whereNull('assigned_to')->latest('created_at')
                 )->get(['id', 'tracking_number', 'document_type', 'status', 'created_at', 'citizen_name']);
 
                 $inProgress = $this->scopeDocuments(
                     Document::with('assignedTo')
+                        ->where('origin', '!=', Document::ORIGIN_INTERNAL)
                         ->whereNotNull('assigned_to')
                         ->where('status', '!=', DocumentStatus::Pending->value)
                         ->latest('updated_at')

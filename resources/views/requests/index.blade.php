@@ -96,12 +96,12 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <span class="pill {{ match($stage->band()) {
+                                            <span class="pill {{ match($doc->internalStatusBand()) {
                                                 'green' => 'p-green',
-                                                'brass', 'hold' => 'p-amber',
-                                                'warn' => 'p-red',
-                                                default => 'p-muted',
-                                            } }}">{{ $stage->label() }}</span>
+                                                'red' => 'p-red',
+                                                'returned' => 'p-orange',
+                                                default => 'p-amber',
+                                            } }}">{{ $doc->internalStatusLabel() }}</span>
                                         </td>
                                         <td class="text-right">
                                             <a href="{{ route('requests.show', $doc) }}" class="cr-btn cr-btn-sm">Open</a>

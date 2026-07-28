@@ -10,15 +10,23 @@ class HomepageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authenticated_users_still_see_the_landing_page_at_root(): void
+    public function test_guests_see_the_public_landing_page_at_root(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Citizen Portal');
+    }
+
+    public function test_authenticated_users_are_redirected_off_the_public_landing(): void
     {
         $this->seedRolesAndPermissions();
         $admin = User::factory()->create()->assignRole('super_admin');
 
+        // Signed-in users never see the guest landing page — they go to their
+        // workspace, so the Back button can't strand them on the public site.
         $this->actingAs($admin)
             ->get('/')
-            ->assertOk()
-            ->assertSee('Go to Dashboard');
+            ->assertRedirect(route('home'));
     }
 
     public function test_home_dispatches_a_super_admin_to_the_command_center(): void

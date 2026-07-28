@@ -38,7 +38,12 @@ class InternalRequestController extends Controller
     public function index(Request $request): Factory|View
     {
         $user = auth()->user();
-        abort_unless($user->can('act on internal requests') || $user->can('manage system'), 403);
+        abort_unless(
+            $user->can('act on internal requests')
+                || $user->can('create internal requests')
+                || $user->can('manage system'),
+            403,
+        );
 
         $department = $user->department;
         $search = trim((string) $request->get('q'));
@@ -138,7 +143,9 @@ class InternalRequestController extends Controller
             ]);
         }
 
-        $trackingNumber = $this->qrCodeService->generateTrackingNumber();
+        // Internal dept-to-dept requests carry an INT- prefix so they read
+        // distinctly from citizen tickets (SPD-).
+        $trackingNumber = $this->qrCodeService->generateTrackingNumber('INT');
 
         $document = DB::transaction(function () use ($validated, $steps, $template, $department, $trackingNumber) {
             $document = Document::create([
@@ -153,17 +160,37 @@ class InternalRequestController extends Controller
                 'created_by' => auth()->id(),
             ]);
 
-            // Materialize the endorsement chain: the request sits at its first
-            // hop immediately; later hops open as earlier ones are approved.
-            $document->requestSteps()->createMany(
-                $steps->values()->map(fn ($step, $index): array => [
-                    'step_order' => $step->step_order,
-                    'department_id' => $step->department_id,
-                    'action' => $step->action,
-                    'status' => $index === 0 ? RequestStep::STATUS_CURRENT : RequestStep::STATUS_PENDING,
-                    'started_at' => $index === 0 ? now() : null,
-                ])->all(),
-            );
+            // The endorsement chain always opens with the requesting department's
+            // own head: a drafted request must be reviewed and endorsed by the
+            // department supervisor before it is forwarded to the first downstream
+            // office. This first hop sits current immediately; the route template's
+            // offices open, in order, as each earlier hop is approved.
+            $ownEndorsement = [
+                'step_order' => 0,
+                'department_id' => $department->id,
+                'action' => 'Department endorsement',
+                'status' => RequestStep::STATUS_CURRENT,
+                'started_at' => now(),
+            ];
+
+            $forwardSteps = $steps->values()->map(fn ($step): array => [
+                'step_order' => $step->step_order,
+                'department_id' => $step->department_id,
+                'action' => $step->action,
+                'status' => RequestStep::STATUS_PENDING,
+                'started_at' => null,
+            ])->all();
+
+            $document->requestSteps()->createMany([$ownEndorsement, ...$forwardSteps]);
+
+            // The filing office physically holds the paper it just created, so
+            // record custody for this first hop automatically — the supervisor
+            // endorses without a redundant scan (later hops still require one).
+            $document->custodyEvents()->create([
+                'user_id' => auth()->id(),
+                'capture_method' => 'manual',
+                'override_reason' => 'Filing office holds the paper at submission.',
+            ]);
 
             return $document;
         });

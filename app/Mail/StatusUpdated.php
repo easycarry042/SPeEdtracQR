@@ -8,9 +8,11 @@ use App\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Sent to the citizen when their document moves to a new status stage
@@ -40,5 +42,26 @@ class StatusUpdated extends Mailable implements ShouldQueue
                 'trackingUrl' => url('/track/'.$this->document->tracking_number),
             ],
         );
+    }
+
+    /**
+     * Attach the tracking QR so the citizen always has a scannable copy on hand,
+     * mirroring the submission confirmation email.
+     *
+     * @return array<int, Attachment>
+     */
+    public function attachments(): array
+    {
+        $path = $this->document->qr_code_path;
+
+        if ($path && Storage::disk('public')->exists($path)) {
+            return [
+                Attachment::fromStorageDisk('public', $path)
+                    ->as('tracking-qr.png')
+                    ->withMime('image/png'),
+            ];
+        }
+
+        return [];
     }
 }

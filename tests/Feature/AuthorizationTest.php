@@ -31,7 +31,7 @@ class AuthorizationTest extends TestCase
 
         $this->actingAs($this->userWithRole('staff'))
             ->get(route('analytics'))
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
 
         $this->actingAs($this->userWithRole('Supervisor'))
             ->get(route('analytics'))
@@ -45,7 +45,7 @@ class AuthorizationTest extends TestCase
         // Supervisor manages documents, not users — only super_admin manages users.
         $this->actingAs($this->userWithRole('Supervisor'))
             ->get(route('admin.users.index'))
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
 
         $this->actingAs($this->userWithRole('super_admin'))
             ->get(route('admin.users.index'))
@@ -58,10 +58,43 @@ class AuthorizationTest extends TestCase
 
         $this->actingAs($this->userWithRole('Supervisor'))
             ->get(route('admin.audit-log.index'))
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
 
         $this->actingAs($this->userWithRole('super_admin'))
             ->get(route('admin.audit-log.index'))
             ->assertOk();
+    }
+
+    public function test_unauthorized_access_renders_the_access_denied_page(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $this->actingAs($this->userWithRole('staff'))
+            ->get(route('admin.dashboard'))
+            ->assertForbidden()
+            ->assertSee('Access denied');
+    }
+
+    public function test_guest_is_redirected_to_login_from_a_protected_page(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $this->get(route('admin.dashboard'))->assertRedirect(route('login'));
+        $this->get(route('dashboard'))->assertRedirect(route('login'));
+    }
+
+    public function test_direct_url_access_to_another_roles_area_is_blocked(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        // A staff member typing an admin URL straight into the bar is refused,
+        // regardless of navigation path (history, bookmark, etc.).
+        $this->actingAs($this->userWithRole('staff'))
+            ->get(route('admin.users.index'))
+            ->assertForbidden();
+
+        $this->actingAs($this->userWithRole('staff'))
+            ->get(route('bookings.index'))
+            ->assertOk(); // staff DO manage bookings — sanity check the gate is scoped
     }
 }

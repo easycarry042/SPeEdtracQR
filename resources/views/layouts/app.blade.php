@@ -277,5 +277,7 @@
     @endif
 
     <x-image-view-modal />
+
+    @include('layouts.partials.bfcache-guard')
 </body>
 </html>

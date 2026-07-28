@@ -92,15 +92,16 @@ class NavigationTest extends TestCase
             ->assertSee('Look up a document');
     }
 
-    public function test_unknown_tracking_number_soft_fails_back_to_the_hub(): void
+    public function test_unknown_tracking_number_soft_fails_without_a_404(): void
     {
-        // A guest scanning a bogus/forged code gets the hub + message, not a 404.
+        // A guest scanning a bogus/forged code is soft-redirected, never 404'd.
         $this->get(route('track.show', 'SPD-20260101-ZZZZZZ'))
             ->assertRedirect(route('track.index', ['find' => 1]));
 
+        // The public no longer has a standalone Look up hub — guests are sent to
+        // the homepage, where the inline search lives.
         $this->get(route('track.index', ['find' => 1]))
-            ->assertOk()
-            ->assertSee('Upload QR image');
+            ->assertRedirect(route('welcome'));
     }
 
     public function test_look_up_hub_leads_with_the_qr_upload_button(): void

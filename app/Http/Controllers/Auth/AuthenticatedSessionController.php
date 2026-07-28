@@ -56,6 +56,13 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return to_route('login');
+        // Tell the browser to purge everything it cached for this site — HTTP
+        // cache AND the back/forward cache — plus cookies and storage. This is
+        // what makes the Back button unable to resurrect a signed-in page after
+        // logout, even on browsers that keep no-store pages in the bfcache.
+        // (Clear-Site-Data is honoured on secure contexts, which includes
+        // localhost and any HTTPS deployment.)
+        return to_route('login')
+            ->header('Clear-Site-Data', '"cache", "cookies", "storage"');
     }
 }

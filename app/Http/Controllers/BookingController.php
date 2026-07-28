@@ -40,9 +40,26 @@ class BookingController extends Controller
             }
         }
 
+        // Group by calendar day (of the start) for the day panel, and build a
+        // lightweight per-day map the JS calendar uses to mark days that have
+        // reservations (and whether any of them conflict).
+        $byDate = $bookings->groupBy(fn (Booking $b) => $b->starts_at->format('Y-m-d'));
+
+        $dateMeta = $byDate->map(fn ($dayBookings, $date) => [
+            'count' => $dayBookings->count(),
+            'conflict' => $dayBookings->contains(fn (Booking $b) => in_array($b->id, array_keys($conflictIds), true)),
+        ]);
+
+        // Default the calendar to today, or the first day that has a booking.
+        $defaultDate = $byDate->has(now()->format('Y-m-d'))
+            ? now()->format('Y-m-d')
+            : ($byDate->keys()->first() ?? now()->format('Y-m-d'));
+
         return view('bookings.index', [
-            'grouped' => $bookings->groupBy(fn (Booking $b) => $b->resource->name),
+            'byDate' => $byDate,
             'conflictIds' => array_keys($conflictIds),
+            'dateMeta' => $dateMeta,
+            'defaultDate' => $defaultDate,
         ]);
     }
 

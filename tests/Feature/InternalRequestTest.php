@@ -41,12 +41,28 @@ class InternalRequestTest extends TestCase
             ->assertSee('Procurement Request');
     }
 
-    public function test_staff_cannot_open_the_wizard(): void
+    public function test_staff_with_a_department_can_open_the_draft_wizard(): void
+    {
+        $this->seedRolesAndPermissions();
+        $this->seed(DepartmentSeeder::class);
+        $this->seed(RouteTemplateSeeder::class);
+        $staff = User::factory()
+            ->create(['department_id' => Department::where('code', 'TRSM')->firstOrFail()->id])
+            ->assignRole('staff');
+
+        $this->actingAs($staff)->get(route('requests.create'))
+            ->assertOk()
+            ->assertSee('File Internal Request');
+    }
+
+    public function test_staff_without_a_department_cannot_draft(): void
     {
         $this->seedRolesAndPermissions();
         $staff = User::factory()->create()->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('requests.create'))->assertRedirect(route('dashboard'));
+        $this->actingAs($staff)->get(route('requests.create'))
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error');
     }
 
     public function test_supervisor_without_a_department_is_bounced_with_an_explanation(): void
@@ -80,12 +96,14 @@ class InternalRequestTest extends TestCase
         $this->assertSame($supervisor->department_id, $document->requesting_department_id);
         $this->assertNotNull($document->qr_code_path);
 
-        // The route drives the chain directly — no amount branching.
+        // The chain opens with the requesting department's own endorsement, then
+        // the route template's offices in order — no amount branching.
         $actions = $document->requestSteps->pluck('action')->all();
-        $this->assertSame(['Approve request', 'Certify fund availability', 'Procurement', 'Delivery & inspection'], $actions);
+        $this->assertSame(['Department endorsement', 'Approve request', 'Certify fund availability', 'Procurement', 'Delivery & inspection'], $actions);
 
-        // The chain opens at the Mayor's Office hop; everything else waits.
+        // The chain opens at the requesting department's endorsement; everything else waits.
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
+        $this->assertSame($supervisor->department_id, $document->requestSteps->first()->department_id);
         $this->assertSame(
             [RequestStep::STATUS_PENDING],
             $document->requestSteps->slice(1)->pluck('status')->unique()->values()->all(),
@@ -107,7 +125,7 @@ class InternalRequestTest extends TestCase
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
         $this->assertNull($document->amount);
         $this->assertSame(
-            ['Approve vehicle use', 'Dispatch vehicle & issue trip ticket'],
+            ['Department endorsement', 'Approve vehicle use', 'Dispatch vehicle & issue trip ticket'],
             $document->requestSteps->pluck('action')->all(),
         );
     }
@@ -252,5 +270,96 @@ class InternalRequestTest extends TestCase
         ]);
 
         $this->actingAs($supervisor)->get(route('requests.created', $external))->assertNotFound();
+    }
+
+    public function test_a_freshly_filed_request_awaits_its_own_department_endorsement(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Two office tables',
+        ]);
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+        $first = $document->requestSteps->first();
+
+        $this->assertSame(0, $first->step_order);
+        $this->assertSame($supervisor->department_id, $first->department_id);
+        $this->assertSame('Awaiting endorsement', $document->internalStatusLabel());
+        $this->assertSame('amber', $document->internalStatusBand());
+        // The filing office physically holds the paper, so custody is auto-recorded.
+        $this->assertTrue($document->currentStepHasCustody());
+    }
+
+    public function test_staff_draft_is_endorsed_by_the_department_head_then_forwards(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $this->seedRolesAndPermissions();
+        $this->seed(DepartmentSeeder::class);
+        $this->seed(RouteTemplateSeeder::class);
+
+        $tourism = Department::where('code', 'TRSM')->firstOrFail();
+        $staff = User::factory()->create(['department_id' => $tourism->id])->assignRole('staff');
+        $head = User::factory()->create(['department_id' => $tourism->id])->assignRole('Supervisor');
+        $signature = "signatures/head-{$head->id}.png";
+        Storage::disk('local')->put($signature, $this->tinyPng());
+        $head->update(['signature_path' => $signature]);
+
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        // A staff member drafts/files the request for the office.
+        $this->actingAs($staff)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Two office tables',
+        ])->assertRedirect();
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+        $this->assertSame($staff->id, $document->created_by);
+        $this->assertSame('Awaiting endorsement', $document->internalStatusLabel());
+
+        // Only the department head can endorse; doing so forwards it to the next office.
+        $this->actingAs($head)->post(route('requests.steps.approve', $document), [
+            'password' => 'password',
+        ])->assertRedirect(route('requests.show', $document));
+
+        $document->refresh();
+        $steps = $document->requestSteps;
+        $this->assertSame(RequestStep::STATUS_APPROVED, $steps[0]->status);
+        $this->assertSame(RequestStep::STATUS_CURRENT, $steps[1]->status);
+        $this->assertSame('Under review', $document->internalStatusLabel());
+    }
+
+    public function test_internal_requests_do_not_appear_on_the_assignment_desk(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'route_template_id' => $template->id,
+            'purpose' => 'Projector for the AVR',
+        ]);
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        // An org-wide admin's assignment desk must not list the internal request.
+        $admin = User::factory()->create()->assignRole('super_admin');
+        $this->actingAs($admin)->get(route('admin.assignments.index'))
+            ->assertOk()
+            ->assertDontSee($document->tracking_number);
+    }
+
+    private function tinyPng(): string
+    {
+        $image = imagecreatetruecolor(10, 10);
+        ob_start();
+        imagepng($image);
+
+        return ob_get_clean();
     }
 }

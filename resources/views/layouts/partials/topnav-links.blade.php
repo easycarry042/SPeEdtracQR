@@ -28,12 +28,12 @@
     Look up
 </a>
 
-@can('act on internal requests')
+@canany(['act on internal requests', 'create internal requests'])
 <a href="{{ route('requests.index') }}" class="{{ $link(request()->routeIs('requests.*')) }}">
     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4"/></svg>
     Internal
 </a>
-@endcan
+@endcanany
 
 {{-- No Users link here: only super_admin can manage users, and they get the
      sidebar shell (never this topnav) — the link was dead weight. --}}

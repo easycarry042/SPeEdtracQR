@@ -62,4 +62,20 @@ class RequestStep extends Model
     {
         return $this->belongsTo(User::class, 'acted_by');
     }
+
+    /**
+     * Labelled status badge for this hop on the timeline.
+     *
+     * @return array{label: string, band: string} band ∈ green|amber|red|returned|muted
+     */
+    public function statusBadge(): array
+    {
+        return match ($this->status) {
+            self::STATUS_CURRENT => ['label' => 'Under review', 'band' => 'amber'],
+            self::STATUS_APPROVED => ['label' => 'Approved', 'band' => 'green'],
+            self::STATUS_DENIED => ['label' => 'Denied', 'band' => 'red'],
+            self::STATUS_RETURNED => ['label' => 'Returned', 'band' => 'returned'],
+            default => ['label' => 'Waiting', 'band' => 'muted'],
+        };
+    }
 }

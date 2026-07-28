@@ -4,12 +4,12 @@
             <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Request</h1>
             <span class="id-chip">{{ $document->tracking_number }}</span>
             @php $stage = $document->statusEnum(); @endphp
-            <span class="pill {{ match($stage->band()) {
+            <span class="pill {{ match($document->internalStatusBand()) {
                     'green' => 'p-green',
-                    'brass', 'hold' => 'p-amber',
-                    'warn' => 'p-red',
-                    default => 'p-muted',
-                } }}">{{ $stage->label() }}</span>
+                    'red' => 'p-red',
+                    'returned' => 'p-orange',
+                    default => 'p-amber',
+                } }}">{{ $document->internalStatusLabel() }}</span>
         </div>
     </x-slot>
 

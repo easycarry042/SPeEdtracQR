@@ -27,7 +27,7 @@ class ServiceReportTest extends TestCase
         $this->seedRolesAndPermissions();
         $staff = User::factory()->create()->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('reports.services'))->assertRedirect();
+        $this->actingAs($staff)->get(route('reports.services'))->assertForbidden();
     }
 
     public function test_report_renders_request_volume_and_booking_utilisation(): void

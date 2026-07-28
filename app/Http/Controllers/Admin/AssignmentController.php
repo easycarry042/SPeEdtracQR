@@ -25,7 +25,12 @@ class AssignmentController extends Controller
 {
     public function index(Request $request): Factory|View
     {
-        $query = Document::with(['assignedTo', 'creator'])->latest();
+        // Internal dept-to-dept requests travel their own endorsement chain and
+        // are never assigned to a staff member — they live only in the Internal
+        // module, so keep them off the citizen assignment desk.
+        $query = Document::with(['assignedTo', 'creator'])
+            ->where('origin', '!=', Document::ORIGIN_INTERNAL)
+            ->latest();
         $query = AssignmentScope::applyDocumentScope($query);
 
         // Unclaimed tab: same desk, filtered to documents nobody owns yet.

@@ -74,10 +74,10 @@ class DocumentNudgeTest extends TestCase
             'status' => 'pending',
         ]);
 
-        // Bounced to their own dashboard by the manage-system permission gate.
+        // Blocked with a 403 by the manage-system permission gate.
         $this->actingAs($staff)
             ->post(route('admin.nudge', $document))
-            ->assertRedirect();
+            ->assertForbidden();
 
         Notification::assertNothingSent();
     }

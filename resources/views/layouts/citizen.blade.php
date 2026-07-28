@@ -23,5 +23,6 @@
         &copy; {{ date('Y') }} {{ config('app.name', 'SPeED TraQR') }} &mdash; Citizen Portal
     </footer>
 
+    @include('layouts.partials.bfcache-guard')
 </body>
 </html>

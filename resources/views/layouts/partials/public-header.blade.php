@@ -23,13 +23,15 @@
                     Back
                 </a>
             @endunless
-            <a href="{{ route('citizen.track') }}"
-               class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition {{ request()->routeIs('citizen.track') ? 'bg-emerald-50 text-emerald-900' : '' }}">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 4l13 8-13 8V4z"/>
-                </svg>
-                <span class="hidden sm:inline">Track Document</span>
-            </a>
+            @unless(request()->routeIs('citizen.track'))
+                <a href="{{ route('citizen.track') }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 4l13 8-13 8V4z"/>
+                    </svg>
+                    <span class="hidden sm:inline">Track Document</span>
+                </a>
+            @endunless
             <a href="{{ route('login') }}"
                class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 transition">
                 Staff Login

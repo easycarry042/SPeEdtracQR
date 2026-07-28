@@ -61,6 +61,6 @@ class ResourceAdminTest extends TestCase
         $this->seedRolesAndPermissions();
         $staff = User::factory()->create()->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('admin.resources.index'))->assertRedirect();
+        $this->actingAs($staff)->get(route('admin.resources.index'))->assertForbidden();
     }
 }

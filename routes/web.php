@@ -20,6 +20,7 @@ use App\Http\Controllers\DocumentCustodyController;
 use App\Http\Controllers\DocumentNudgeController;
 use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentRequirementController;
+use App\Http\Controllers\DocumentSlipController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
@@ -41,13 +42,20 @@ use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
-| Root — the public landing page is the homepage for everyone.
-| Signed-in users reach their workspace via the "Go to Dashboard" button
-| (route: home), which dispatches to the role-specific dashboard.
+| Root — the public landing page is the homepage for GUESTS only.
+| Authenticated users are sent to their role workspace via 'home', so they
+| never land back on the public site (e.g. via the browser Back button) while
+| signed in. To reach the public landing they must log out first.
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', fn () => view('welcome'))->name('welcome');
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('home');
+    }
+
+    return view('welcome');
+})->name('welcome');
 
 Route::get('/home', function () {
     $user = auth()->user();
@@ -80,6 +88,11 @@ Route::post('/request', [PublicTicketController::class, 'store'])
 
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
+// JSON lookup that powers the inline search on the landing page (result shown
+// in a card below the search bar — no separate results page for the public).
+Route::get('/track-lookup', [TrackController::class, 'lookup'])
+    ->middleware('throttle:30,1')
+    ->name('track.lookup');
 // Rate-limited as defense-in-depth against tracking-number guessing
 // (primary defense is the high-entropy tracking number). 60/min/IP is
 // generous for legit use — the citizen page only polls status every 30s.
@@ -89,6 +102,10 @@ Route::get('/track/{trackingNumber}/status', [TrackController::class, 'status'])
 Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('track.show');
+// Print-ready claim slip (QR + tracking number), Save-as-PDF from the browser.
+Route::get('/track/{trackingNumber}/slip', [DocumentSlipController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('track.slip');
 Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.citizen-upload');

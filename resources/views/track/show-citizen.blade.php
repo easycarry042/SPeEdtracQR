@@ -14,16 +14,8 @@
 <x-citizen-layout>
     <x-slot name="title">Tracking {{ $document->tracking_number }}</x-slot>
 
-    {{-- Back link --}}
-    <div class="mb-6">
-        <a href="{{ route('citizen.track') }}"
-           class="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:underline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Track Another Document
-        </a>
-    </div>
+    {{-- Back / "Track Document" live in the shared public header — no in-body
+         duplicate here. --}}
 
     <div class="mx-auto max-w-2xl space-y-6">
 
@@ -162,6 +154,12 @@
                         <dd class="mt-0.5 text-sm text-ink">{{ $document->citizen_contact ?? '—' }}</dd>
                     </div>
                 </dl>
+                <div class="mt-4 border-t border-hairline pt-4">
+                    <a href="{{ route('track.slip', $document->tracking_number) }}" target="_blank" rel="noopener" class="cr-btn cr-btn-sm">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>
+                        Print claim slip
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -302,16 +300,6 @@
             </div>
         </div>
 
-        {{-- ── Scan Another QR ──────────────────────────────────────────────── --}}
-        <div class="text-center">
-            <a href="{{ route('citizen.track') }}" class="cr-btn">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
-                    <rect x="9" y="9" width="6" height="6" rx="1"/>
-                </svg>
-                Scan or Search Another Document
-            </a>
-        </div>
     </div>
 
     {{-- ── Live status: real-time via Laravel Echo / Reverb, 30 s poll fallback ─ --}}

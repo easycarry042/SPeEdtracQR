@@ -255,5 +255,6 @@
         <main class="auth-main">
             {{ $slot }}
         </main>
+        @include('layouts.partials.bfcache-guard')
     </body>
 </html>
