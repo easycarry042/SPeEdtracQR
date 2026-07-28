@@ -11,7 +11,8 @@
    ───────────────────────────────────────────────────────────────────────── */
 :root {
     /* Base — white = purity */
-    --paper: #ffffff;            /* page background AND card background */
+    --paper: #ffffff;            /* card / panel surface — stays pure white */
+    --canvas: #dde8e0;           /* page background — green-grey so white cards clearly lift */
     --hairline: #e6ece8;         /* default borders / rules */
     --hairline-strong: #cdd9d2;  /* emphasized dividers */
 
@@ -144,7 +145,7 @@
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /* Panels */
-.panel { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; }
+.panel { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(15,77,40,.05); }
 .panel .ph { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--hairline); background: #fbfdfc; }
 .panel .ph h2 { font-size: 13.5px; margin: 0; font-weight: 600; color: var(--green-deep); display: flex; align-items: center; gap: 7px; }
 .panel .ph h2 svg { width: 15px; height: 15px; color: var(--green); }
@@ -155,7 +156,7 @@
 .eyebrow svg { width: 13px; height: 13px; }
 
 /* KPI tiles */
-.tile { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+.tile { background: var(--paper); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(15,77,40,.05); }
 .tile .k { font-size: 11.5px; color: var(--ink-soft); letter-spacing: .2px; }
 .tile .v { font-size: 25px; font-weight: 600; margin-top: 2px; letter-spacing: -.5px; color: var(--ink); }
 .tile .sub { font-size: 11px; margin-top: 1px; color: var(--ink-soft); }
@@ -730,7 +731,8 @@ aside.sidebar-pinned {
 .dir-name { font-size: 14px; font-weight: 700; color: var(--ink); }
 .dir-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .dir-active { font-size: 11px; color: var(--ink-soft); }
-.dir-ovd { flex: none; }
+.dir-ovd { position: absolute; top: 14px; right: 16px; z-index: 2; pointer-events: none; }
+.dir-card.has-ovd .dir-name { padding-right: 70px; }
 .dir-stats2 { display: flex; gap: 16px; border-top: 1px solid var(--hairline); padding-top: 9px; }
 .dir-stat { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .dir-stat .lbl { font-size: 10px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .4px; }

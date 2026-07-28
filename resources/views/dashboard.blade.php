@@ -19,19 +19,7 @@
             <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
             <x-stat-card label="Pending Request" :value="$pendingRequest" icon="hourglass" />
             <x-stat-card label="Completed" :value="$completed" icon="check" />
-            <div class="group relative overflow-hidden rounded-2xl border {{ $atRiskCount > 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200/90 bg-white' }} p-6 shadow-md transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold leading-tight {{ $atRiskCount > 0 ? 'text-amber-800' : 'text-emerald-900' }}">At Risk</p>
-                        <p class="mt-3 text-4xl font-bold tracking-tight {{ $atRiskCount > 0 ? 'text-amber-700' : 'text-gray-900' }}">{{ $atRiskCount }}</p>
-                    </div>
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {{ $atRiskCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-emerald-800' }}">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                        </svg>
-                    </div>
-                </div>
-            </div>
+            <x-stat-card label="At Risk" :value="$atRiskCount" :accent="$atRiskCount > 0 ? 'amber' : 'green'" />
         </div>
 
         @if(($internalAwaiting ?? 0) > 0)

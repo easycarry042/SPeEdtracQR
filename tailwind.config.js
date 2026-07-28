@@ -59,8 +59,9 @@ export default {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
             colors: {
-                // Base — white = purity
+                // Base — white cards on a subtly tinted canvas
                 paper: 'var(--paper)',
+                canvas: 'var(--canvas)',
                 hairline: {
                     DEFAULT: 'var(--hairline)',
                     strong: 'var(--hairline-strong)',

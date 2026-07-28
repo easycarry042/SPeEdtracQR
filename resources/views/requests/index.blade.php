@@ -109,13 +109,19 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="py-10 text-center text-[13px] text-ink-soft">
+                                        <td colspan="5" class="p-0">
                                             @if($tab['key'] === 'awaiting' && $department)
-                                                Nothing is awaiting {{ $department->name }} right now.
+                                                <x-empty-state title="Nothing awaiting {{ $department->name }}" icon="inbox">
+                                                    Requests routed to your office for action will appear here.
+                                                </x-empty-state>
                                             @elseif($tab['key'] === 'filed')
-                                                Your office has no active requests in transit.
+                                                <x-empty-state title="No active requests in transit" icon="document">
+                                                    Requests your office has filed will show here until they're closed.
+                                                </x-empty-state>
                                             @else
-                                                Nothing here yet.
+                                                <x-empty-state title="Nothing here yet" icon="inbox">
+                                                    Requests your office has closed will be archived here.
+                                                </x-empty-state>
                                             @endif
                                         </td>
                                     </tr>

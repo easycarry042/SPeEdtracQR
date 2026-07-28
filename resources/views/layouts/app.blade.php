@@ -33,6 +33,7 @@
     $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.dashboard');
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',
+        request()->routeIs('staff.index') => 'Staff directory',
         request()->routeIs('staff.dashboard') => 'Requests',
         request()->routeIs('dashboard'), request()->routeIs('admin.dashboard') => 'Dashboard',
         request()->routeIs('analytics*') => 'Analytics',
@@ -53,7 +54,7 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="min-h-screen antialiased @auth bg-paper text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
+<body class="min-h-screen antialiased @auth bg-canvas text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
     @auth
         @if($useTopNav)
             {{-- Staff / supervisor: horizontal top navbar, full-width content --}}

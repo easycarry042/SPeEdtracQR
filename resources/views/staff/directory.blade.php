@@ -43,7 +43,7 @@
 
         <div class="dir-grid">
             @forelse($staff as $person)
-                <div class="panel dir-card">
+                <div class="panel dir-card {{ $person['overdue'] > 0 ? 'has-ovd' : '' }}">
                     {{-- Whole card opens the profile; quick actions sit above the cover link. --}}
                     <a href="{{ $person['url'] }}" class="dir-cover" aria-label="View {{ $person['name'] }}'s profile"></a>
 
