@@ -70,6 +70,49 @@
                         </div>
                     </div>
 
+                    {{-- Requirement uploads: the citizen's evidence for each listed
+                         requirement, each row linking to the authorized file stream. --}}
+                    <div x-show="active.requirements && active.requirements.length">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Requirements for this request</p>
+                        <ul class="mt-2 space-y-2">
+                            <template x-for="(req, i) in active.requirements" :key="i">
+                                <li class="flex items-center gap-3 rounded-[10px] border border-hairline bg-paper px-3 py-2">
+                                    <template x-if="req.has_file">
+                                        <a :href="req.url" target="_blank" rel="noopener"
+                                           class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-green-wash ring-1 ring-hairline transition hover:ring-green-bright">
+                                            <template x-if="req.is_image">
+                                                <img :src="req.url" alt="" class="h-full w-full object-cover">
+                                            </template>
+                                            <template x-if="!req.is_image">
+                                                <span class="flex flex-col items-center gap-0.5 text-ink-soft">
+                                                    <svg class="h-4 w-4" :class="req.ext === 'pdf' ? 'text-status-red' : 'text-green'" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5"/></svg>
+                                                    <span class="text-[8px] font-bold uppercase" x-text="req.ext"></span>
+                                                </span>
+                                            </template>
+                                        </a>
+                                    </template>
+                                    <template x-if="!req.has_file">
+                                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-hairline/40 text-ink-soft">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                                        </span>
+                                    </template>
+
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-semibold text-ink" x-text="req.label"></p>
+                                        <p class="text-xs text-ink-soft">
+                                            <span x-show="req.is_mandatory" class="font-semibold text-status-red">Required</span>
+                                            <span x-show="!req.is_mandatory">Optional</span>
+                                            <span x-show="!req.has_file"> · not uploaded</span>
+                                        </p>
+                                    </div>
+
+                                    <a x-show="req.has_file" :href="req.url" target="_blank" rel="noopener"
+                                       class="shrink-0 text-xs font-semibold text-green hover:underline">View</a>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
                     @if($mode === 'supervisor')
                         <div class="rounded-[10px] border border-hairline-strong bg-green-wash/40 p-4">
                             <label class="block text-sm font-semibold text-green-deep">Assign to Staff <span class="text-status-red">*</span></label>

@@ -56,7 +56,7 @@ class DashboardController extends Controller
         // Internal dept-to-dept requests are excluded — they travel their own
         // endorsement chain (see the Internal Requests inbox), never this desk.
         $pendingRequests = $this->deptScope($this->scopeDocuments(
-            Document::with('attachments', 'department')
+            Document::with('attachments', 'department', 'requirements')
                 ->where('origin', '!=', Document::ORIGIN_INTERNAL)
                 ->where('status', DocumentStatus::Pending->value)
                 ->whereNull('assigned_to')

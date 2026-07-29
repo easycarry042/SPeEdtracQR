@@ -101,6 +101,9 @@ class RequestStepController extends Controller
         ]);
 
         $document->applyStatus(DocumentStatus::Denied);
+        // Attribute the decision so the tracking page can name who denied it.
+        $document->decided_by = $user->id;
+        $document->decided_at = now();
         $document->save();
 
         $this->recordOutcome($document, $step, sprintf(

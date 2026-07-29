@@ -24,7 +24,11 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(composer audit *)",
-      "Bash(vendor/bin/pint --dirty --format agent)"
+      "Bash(vendor/bin/pint --dirty --format agent)",
+      "PowerShell(php artisan test --compact tests/Feature/HomepageTest.php 2>&1)",
+      "PowerShell(vendor/bin/pint --dirty --format agent)",
+      "PowerShell(php artisan view:clear)",
+      "PowerShell(npm run build 2>&1)"
     ]
   },
   "disabledMcpjsonServers": [

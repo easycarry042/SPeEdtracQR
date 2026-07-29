@@ -105,6 +105,9 @@ class ReviewController extends Controller
         if ($reason) {
             $document->remarks = $reason;
         }
+        // Attribute the decision so the citizen page can name who denied it.
+        $document->decided_by = auth()->id();
+        $document->decided_at = now();
         $document->save();
 
         activity()

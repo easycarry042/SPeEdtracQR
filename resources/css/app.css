@@ -662,16 +662,17 @@ aside.sidebar-pinned {
     }
 }
 
+/* Title sits directly on the canvas — no white band or hairline, so the page
+   reads as one surface rather than a stack of bars under the navbar. */
 .topnav-pagebar {
-    border-bottom: 1px solid var(--hairline);
-    background: rgba(251,252,251,.92); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    background: transparent;
     padding-block: .75rem;
 }
 @media (min-width: 640px) { .topnav-pagebar { padding-block: .85rem; } }
 .topnav-pagebar .app-frame {
     display: flex; align-items: center; justify-content: space-between; gap: .75rem;
 }
-.topnav-pagebar h1 { font-size: 1.25rem; font-weight: 600; color: var(--green-deep); letter-spacing: -.02em; }
+.topnav-pagebar h1 { font-size: 1.25rem; font-weight: 800; color: var(--green-deep); letter-spacing: -.02em; }
 @media (min-width: 640px) { .topnav-pagebar h1 { font-size: 1.75rem; } }
 
 .topnav-main { flex: 1; width: 100%; padding-block: 1rem 2.5rem; }

@@ -1,7 +1,8 @@
 <x-app-layout>
     <div class="mx-auto max-w-5xl">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h1 style="font-size:18px;font-weight:700;color:var(--green-deep);margin:0;">Staff directory</h1>
+        {{-- No page heading here: the layout's title bar already says
+             "Staff directory". Search sits alone, right-aligned. --}}
+        <div class="mb-3 flex flex-wrap items-center justify-end gap-3">
             <form method="GET" action="{{ route('staff.index') }}" class="toolbar">
                 @if($role !== '')
                     <input type="hidden" name="role" value="{{ $role }}">

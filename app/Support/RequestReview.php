@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\DocumentStatus;
 use App\Models\Document;
+use App\Models\DocumentRequirement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -33,7 +34,7 @@ class RequestReview
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments', 'department', 'assignedTo');
+        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements');
 
         return [
             'id' => $document->id,
@@ -74,10 +75,31 @@ class RequestReview
                 return [
                     'url' => route('attachments.show', $a),
                     'ext' => $ext,
-                    'is_image' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true),
+                    'is_image' => self::isImageExtension($ext),
+                ];
+            })->values()->all(),
+            // Requirement uploads live on their own table, not document_attachments,
+            // so they need listing separately or the reviewer sees no evidence at all.
+            'requirements' => $document->requirements->map(function (DocumentRequirement $r) use ($document): array {
+                $ext = strtolower(pathinfo((string) $r->uploaded_file_path, PATHINFO_EXTENSION));
+                $hasFile = $r->uploaded_file_path !== null;
+
+                return [
+                    'label' => $r->label,
+                    'is_mandatory' => $r->is_mandatory,
+                    'review_status' => $r->review_status,
+                    'has_file' => $hasFile,
+                    'url' => $hasFile ? route('documents.requirements.file', [$document, $r]) : null,
+                    'ext' => $ext,
+                    'is_image' => $hasFile && self::isImageExtension($ext),
                 ];
             })->values()->all(),
         ];
+    }
+
+    private static function isImageExtension(string $extension): bool
+    {
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
     }
 
     /** Assigned ticket awaiting staff Accept / Decline / Revision on the Requests page. */

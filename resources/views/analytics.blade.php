@@ -44,11 +44,6 @@
             $maxAssigned = max(1, (int) (collect($topStaff ?? [])->max('assigned')));
         @endphp
 
-        <div class="mb-4 flex items-center gap-3">
-            <h1 class="text-lg font-semibold text-green-deep">Analytics</h1>
-            <span class="chip">{{ $isOrgWide ? 'All offices' : 'Your work' }}</span>
-        </div>
-
         {{-- KPI tiles --}}
         <div class="tiles" style="margin-bottom:14px;">
             <div class="tile"><div class="k">In progress</div><div class="v mono">{{ $kpis['in_progress'] ?? 0 }}</div><div class="bar amber"></div></div>

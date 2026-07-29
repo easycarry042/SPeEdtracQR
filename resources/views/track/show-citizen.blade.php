@@ -14,8 +14,7 @@
 <x-citizen-layout>
     <x-slot name="title">Tracking {{ $document->tracking_number }}</x-slot>
 
-    {{-- Back / "Track Document" live in the shared public header — no in-body
-         duplicate here. --}}
+    {{-- Back / Home live in the shared public header — no in-body duplicate here. --}}
 
     <div class="mx-auto max-w-2xl space-y-6">
 
@@ -61,6 +60,44 @@
 
                 {{-- Plain-language explanation of the current status (Help / Match) --}}
                 <p class="mt-3 text-sm text-ink-soft" id="statusDescription">{{ $document->statusEnum()->description() }}</p>
+
+                {{-- The decision itself: who closed the request and why. Without
+                     this the citizen only sees "Denied" and a generic sentence
+                     telling them a reason should exist. --}}
+                @php
+                    $decisionStatuses = [
+                        \App\Enums\DocumentStatus::Denied->value,
+                        \App\Enums\DocumentStatus::Returned->value,
+                        \App\Enums\DocumentStatus::OnHold->value,
+                    ];
+                    $showsDecision = in_array($document->status, $decisionStatuses, true);
+                    $decisionActor = $showsDecision ? $document->decisionActor() : null;
+                    $isDenied = $document->status === \App\Enums\DocumentStatus::Denied->value;
+                @endphp
+
+                @if($showsDecision && ($decisionActor || filled($document->remarks)))
+                    <div class="mt-4 rounded-[10px] border {{ $isDenied ? 'border-status-red/30 bg-red-50/60' : 'border-hairline bg-green-wash/40' }} p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide {{ $isDenied ? 'text-status-red' : 'text-ink-soft' }}">
+                            {{ $isDenied ? 'Reason for denial' : 'Message from staff' }}
+                        </p>
+
+                        @if($decisionActor)
+                            <p class="mt-1 text-sm text-ink">
+                                <span class="font-semibold">{{ $decisionActor['name'] }}</span>
+                                <span class="text-ink-soft">· {{ $decisionActor['role'] }}</span>
+                                @if($document->decided_at)
+                                    <span class="text-ink-soft">· {{ $document->decided_at->format('M j, Y g:i A') }}</span>
+                                @endif
+                            </p>
+                        @endif
+
+                        @if(filled($document->remarks))
+                            <p class="mt-2 whitespace-pre-line text-sm text-ink">{{ $document->remarks }}</p>
+                        @else
+                            <p class="mt-2 text-sm italic text-ink-soft">No reason was recorded. Please contact the office for details.</p>
+                        @endif
+                    </div>
+                @endif
 
                 <details class="mt-3 text-sm">
                     <summary class="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-green hover:underline">

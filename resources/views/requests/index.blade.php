@@ -1,15 +1,14 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Requests</h1>
-            @if($canFile)
-                <a href="{{ route('requests.create') }}" class="cr-btn cr-btn-primary">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                    File Request
-                </a>
-            @endif
-        </div>
-    </x-slot>
+    {{-- The layout's title bar already says "Internal Requests", so only the
+         action moves up here rather than repeating the heading beneath it. --}}
+    @if($canFile)
+        <x-slot name="pageActions">
+            <a href="{{ route('requests.create') }}" class="cr-btn cr-btn-primary">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                File Request
+            </a>
+        </x-slot>
+    @endif
 
     @php
         $tabs = $department

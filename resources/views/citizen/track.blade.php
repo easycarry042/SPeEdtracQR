@@ -25,10 +25,11 @@
                            type="text"
                            name="tracking"
                            value="{{ request('tracking') }}"
-                           placeholder="e.g. SPD-20260521-00001"
+                           placeholder="e.g. SPD-20260728-K7M9Q2"
                            autocomplete="off"
                            required
-                           class="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 font-mono text-sm tracking-wider text-gray-800 placeholder:font-sans placeholder:normal-case placeholder:text-gray-400 shadow-sm transition focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+                           @if(! empty($trackingError)) aria-invalid="true" aria-describedby="tracking-error" @endif
+                           class="flex-1 rounded-xl border {{ ! empty($trackingError) ? 'border-rose-300 bg-rose-50/50 focus:border-rose-400 focus:ring-rose-400/30' : 'border-gray-300 bg-gray-50 focus:border-emerald-400 focus:ring-emerald-400/30' }} px-4 py-3 font-mono text-sm uppercase tracking-wider text-gray-800 placeholder:font-sans placeholder:normal-case placeholder:text-gray-400 shadow-sm transition focus:bg-white focus:outline-none focus:ring-2">
                     <button type="submit"
                             class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -37,6 +38,19 @@
                         Track
                     </button>
                 </div>
+
+                @if(! empty($trackingError))
+                    <div id="tracking-error" role="alert"
+                         class="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4">
+                        <svg class="mt-0.5 h-5 w-5 shrink-0 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                        </svg>
+                        <div>
+                            <p class="text-sm font-bold text-rose-800">We couldn't track that number.</p>
+                            <p class="mt-0.5 text-sm text-rose-700">{{ $trackingError }}</p>
+                        </div>
+                    </div>
+                @endif
 
                 <p class="text-xs text-gray-400">
                     Your tracking ID is printed on the document receipt issued when the document was submitted.

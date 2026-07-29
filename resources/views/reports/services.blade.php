@@ -1,11 +1,6 @@
 <x-app-layout>
     <div class="page-shell page-shell-loose">
 
-        <div class="mb-4 flex items-center gap-3">
-            <h1 class="text-lg font-semibold text-green-deep">Services report</h1>
-            <span class="chip">Requests &amp; bookings</span>
-        </div>
-
         {{-- KPI tiles --}}
         <div class="tiles" style="margin-bottom:14px;">
             <div class="tile"><div class="k">Active request types</div><div class="v mono">{{ $kpis['request_types'] }}</div><div class="bar bright"></div></div>

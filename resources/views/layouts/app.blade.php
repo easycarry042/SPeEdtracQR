@@ -100,6 +100,12 @@
                                 <span class="hidden sm:inline-flex shrink-0 items-center rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep">{{ str_replace('_', ' ', ucwords($roleLabel, '_')) }}</span>
                             @endif
                         </div>
+                        {{-- Page-specific context, right-aligned on the title row. --}}
+                        @isset($pageActions)
+                            <div class="flex min-w-0 shrink items-center gap-3">
+                                {{ $pageActions }}
+                            </div>
+                        @endisset
                     </div>
                 </header>
                 @endunless
@@ -240,6 +246,13 @@
                             @endif
                         </div>
                         <div class="flex items-center gap-3">
+                            {{-- Same slot as the topnav shell, so a page's title-row
+                                 action is not lost for sidebar users (super admins). --}}
+                            @isset($pageActions)
+                                <div class="flex min-w-0 shrink items-center gap-3">
+                                    {{ $pageActions }}
+                                </div>
+                            @endisset
                             @include('layouts.partials.header-actions')
                         </div>
                         </div>

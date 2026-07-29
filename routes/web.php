@@ -131,7 +131,11 @@ Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
 
 Route::prefix('citizen')->name('citizen.')->group(function () {
     Route::get('/', [CitizenController::class, 'index'])->name('dashboard');
-    Route::get('/track', [CitizenController::class, 'track'])->name('track');
+    // Throttled like track.show: this resolves a tracking number, so it must not
+    // become a cheaper oracle for guessing them.
+    Route::get('/track', [CitizenController::class, 'track'])
+        ->middleware('throttle:60,1')
+        ->name('track');
 });
 
 /*

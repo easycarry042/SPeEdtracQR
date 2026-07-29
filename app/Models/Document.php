@@ -38,6 +38,8 @@ class Document extends Model
         'assigned_by',
         'assigned_at',
         'accepted_at',
+        'decided_by',
+        'decided_at',
         'status_changed_at',
         'remarks',
         'qr_code_path',
@@ -71,6 +73,7 @@ class Document extends Model
         'completed_at' => 'datetime',
         'assigned_at' => 'datetime',
         'accepted_at' => 'datetime',
+        'decided_at' => 'datetime',
         'status_changed_at' => 'datetime',
         'sla_warning_notified_at' => 'datetime',
         'sla_breach_notified_at' => 'datetime',
@@ -267,6 +270,56 @@ class Document extends Model
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /** Whoever denied or otherwise closed the request. */
+    public function decidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by');
+    }
+
+    /**
+     * Name + role of the person who closed this request, for the citizen page.
+     *
+     * Falls back to the activity log so requests denied before `decided_by`
+     * existed still name their decider instead of showing nothing.
+     *
+     * @return array{name: string, role: string}|null
+     */
+    public function decisionActor(): ?array
+    {
+        if ($this->decidedBy) {
+            return [
+                'name' => $this->decidedBy->name,
+                'role' => self::roleLabelFor($this->decidedBy),
+            ];
+        }
+
+        $causer = $this->activities()
+            ->whereNotNull('causer_id')
+            ->where('description', 'like', 'Denied%')
+            ->latest('id')
+            ->first()?->causer;
+
+        if (! $causer instanceof User) {
+            return null;
+        }
+
+        return [
+            'name' => $causer->name,
+            'role' => self::roleLabelFor($causer),
+        ];
+    }
+
+    /** Citizen-facing role wording — never the raw Spatie role name. */
+    private static function roleLabelFor(User $user): string
+    {
+        return match (true) {
+            $user->hasRole('super_admin') => 'Administrator',
+            $user->hasRole('Supervisor') => 'Supervisor',
+            $user->hasRole('department_admin') => 'Department Head',
+            default => 'Staff',
+        };
     }
 
     /** Admin who made the current assignment. */

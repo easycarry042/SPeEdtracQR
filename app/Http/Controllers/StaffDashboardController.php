@@ -31,7 +31,7 @@ class StaffDashboardController extends Controller
             DocumentStatus::OnHold->value,
         ];
 
-        $requests = Document::with('attachments')
+        $requests = Document::with('attachments', 'requirements')
             ->where('assigned_to', $user->id)
             ->whereIn('status', $activeStatuses)
             ->latest('assigned_at')

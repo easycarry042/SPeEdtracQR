@@ -1,19 +1,23 @@
 <x-app-layout>
+    @if($dept)
+        {{-- Department context rides the title row rather than a full-width band:
+             it is orientation, not content. --}}
+        <x-slot name="pageActions">
+            <span class="hidden min-w-0 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 sm:inline-flex">
+                <span class="truncate text-sm font-bold text-emerald-950">
+                    {{ $dept->name }} <span class="font-medium text-emerald-700">({{ $dept->code }})</span>
+                </span>
+            </span>
+            @if($completionRate !== null)
+                <span class="hidden shrink-0 items-center gap-1.5 text-sm md:inline-flex">
+                    <span class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Completion</span>
+                    <span class="font-bold text-emerald-950">{{ $completionRate }}%</span>
+                </span>
+            @endif
+        </x-slot>
+    @endif
+
     <div class="page-shell page-shell-loose">
-        @if($dept)
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-4">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Department you manage</p>
-                    <p class="text-lg font-bold text-emerald-950">{{ $dept->name }} <span class="text-sm font-medium text-emerald-700">({{ $dept->code }})</span></p>
-                </div>
-                @if($completionRate !== null)
-                    <div class="text-right">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Completion rate</p>
-                        <p class="text-lg font-bold text-emerald-950">{{ $completionRate }}%</p>
-                    </div>
-                @endif
-            </div>
-        @endif
 
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
@@ -123,7 +127,6 @@
         @php $maxActive = max(1, (int) $staffWorkload->max('active_count')); @endphp
         <section class="space-y-4">
             <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>
                 <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Staff workload</h2>
                 <span class="rounded-full bg-emerald-100 px-3 py-0.5 text-sm font-semibold text-emerald-800">Assignment distribution</span>
             </div>

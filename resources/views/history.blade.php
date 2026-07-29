@@ -1,10 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Document History') }}
-        </h2>
-    </x-slot>
-
+    {{-- No header slot: the layout's title bar already titles this page. --}}
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
