@@ -459,31 +459,41 @@
                 <div class="ph">
                     <div>
                         <h2>Collaboration</h2>
-                        <p class="sub mt-0.5">Post updates and notes. <strong>Internal</strong> notes are staff-only; <strong>Visible to citizen</strong> posts appear on the public tracking page and email the citizen.</p>
+                        <p class="sub mt-0.5">Two threads, one place. <strong>Internal</strong> notes are staff-only — ask a question here and the assignee is notified. <strong>Visible to citizen</strong> messages go to the tracking page and the citizen can reply, right in this feed.</p>
                     </div>
                 </div>
 
                 <div class="pb">
                     @if($canPost)
-                        <form method="POST" action="{{ route('documents.comments.store', $document) }}" class="rounded-lg border border-hairline bg-paper p-4">
+                        <form method="POST" action="{{ route('documents.comments.store', $document) }}" enctype="multipart/form-data" class="rounded-lg border border-hairline bg-paper p-4">
                             @csrf
-                            <textarea name="body" rows="3" required maxlength="5000" placeholder="Write an update…"
+                            <textarea name="body" rows="3" required maxlength="5000" placeholder="Write an update, or ask the assignee a question…"
                                       class="w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
                             <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                                 <div class="flex items-center gap-4 text-sm text-ink">
                                     <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="internal" checked class="accent-green"> Internal note</label>
                                     <label class="flex items-center gap-1.5"><input type="radio" name="visibility" value="public" class="accent-green"> Visible to citizen</label>
                                 </div>
-                                <button type="submit" class="cr-btn cr-btn-primary">Post</button>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <label class="text-xs text-ink-soft">
+                                        <span class="sr-only">Attach a file</span>
+                                        <input type="file" name="attachment" accept="{{ \App\Support\UploadRules::accept() }}"
+                                               class="block text-xs text-ink-soft file:mr-2 file:rounded-lg file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-green-deep">
+                                    </label>
+                                    <button type="submit" class="cr-btn cr-btn-primary">Post</button>
+                                </div>
                             </div>
+                            @error('attachment')<p class="mt-2 text-sm font-semibold text-status-red">{{ $message }}</p>@enderror
                         </form>
                     @endif
 
+                    {{-- Top-level messages only; each renders its own replies, so a
+                         question and its answers stay together. --}}
                     <div id="collabFeed" class="mt-4 space-y-3">
-                        @forelse($document->comments as $comment)
+                        @forelse($document->comments->whereNull('parent_id') as $comment)
                             @include('track.partials.comment', ['comment' => $comment, 'canPost' => $canPost, 'document' => $document])
                         @empty
-                            <p id="collabEmpty" class="text-sm italic text-ink-soft">No posts yet.</p>
+                            <p id="collabEmpty" class="text-sm italic text-ink-soft">No messages yet. Post an update, or ask the assignee a question.</p>
                         @endforelse
                     </div>
                 </div>
@@ -512,22 +522,66 @@
             if (!root || !window.Echo) return;
             const id = root.dataset.documentId;
             const feed = document.getElementById('collabFeed');
-            const badge = { internal: 'background:#eef2ef;color:#5b6b62;', public: 'background:#eef5f0;color:#0f5c2e;', system: 'background:#fbf3e0;color:#8a6d1f;' };
+            const badge = {
+                internal: 'background:#eef2ef;color:#5b6b62;',
+                public: 'background:#eef5f0;color:#0f5c2e;',
+                citizen: 'background:#e7f0fb;color:#1d4e89;',
+                system: 'background:#fbf3e0;color:#8a6d1f;',
+            };
 
+            /**
+             * Live messages on the staff channel — both threads arrive here,
+             * including anything the citizen just posted. A reply is threaded
+             * under the message it answers; new top-level messages go to the end,
+             * the way a conversation reads.
+             */
             window.Echo.private('documents.' + id + '.staff').listen('.comment', (e) => {
+                if (document.getElementById('comment-' + e.id)) return;
                 document.getElementById('collabEmpty')?.remove();
-                if (document.getElementById('comment-' + e.id) || document.getElementById('reply-' + e.id)) return;
-                const label = e.author_type === 'public' ? 'public' : (e.author_type === 'system' ? 'system' : (e.visibility || 'internal'));
-                const tag = e.author_type === 'system' ? 'system' : (e.visibility || 'internal');
-                const html = '<div class="rounded-xl border border-[#e6ece8] bg-white p-3" id="comment-' + e.id + '">' +
-                    '<div class="flex items-center justify-between"><span class="text-[13px] font-bold text-[#16211b]">' + e.author +
-                    ' <span class="ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style="' + (badge[tag] || badge.internal) + '">' + tag + '</span></span>' +
-                    '<span class="text-[12px] text-[#51625a]">' + (e.timestamp || '') + '</span></div>' +
-                    '<p class="mt-1 whitespace-pre-wrap text-[14px] text-[#33433b]"></p></div>';
-                const wrap = document.createElement('div');
-                wrap.innerHTML = html;
-                wrap.querySelector('p').textContent = e.body;
-                feed.prepend(wrap.firstChild);
+
+                const tag = e.author_type === 'system'
+                    ? 'system'
+                    : (e.author_type === 'citizen' ? 'citizen' : (e.visibility || 'internal'));
+                const parent = e.parent_id ? document.getElementById('comment-' + e.parent_id) : null;
+
+                const el = document.createElement('div');
+                el.id = 'comment-' + e.id;
+
+                if (parent) {
+                    el.className = 'rounded-lg p-2 ' + (tag === 'citizen' ? 'bg-[#eef5fd]' : 'bg-green-wash/40');
+                    el.innerHTML = '<div class="flex items-center justify-between">' +
+                        '<span class="text-[12px] font-bold text-ink"><span data-author></span>' +
+                        ' <span class="ml-1 text-[10px] font-semibold text-ink-soft">· ' + tag + '</span></span>' +
+                        '<span class="text-[11px] text-ink-soft" data-time></span></div>' +
+                        '<p class="mt-0.5 whitespace-pre-wrap text-[13px] text-ink" data-body></p>';
+                } else {
+                    el.className = tag === 'citizen'
+                        ? 'rounded-xl border-2 border-[#bcd6f5] bg-[#f7fbff] p-3'
+                        : 'rounded-xl border border-hairline bg-paper p-3';
+                    el.innerHTML = '<div class="flex items-center justify-between">' +
+                        '<span class="text-[13px] font-bold text-ink"><span data-author></span>' +
+                        ' <span class="ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style="' + (badge[tag] || badge.internal) + '">' + tag + '</span></span>' +
+                        '<span class="text-[12px] text-ink-soft" data-time></span></div>' +
+                        '<p class="mt-1 whitespace-pre-wrap text-[14px] text-ink" data-body></p>';
+                }
+
+                // textContent for anything author-supplied.
+                el.querySelector('[data-author]').textContent = e.author || 'Staff';
+                el.querySelector('[data-time]').textContent = e.timestamp || '';
+                el.querySelector('[data-body]').textContent = e.body;
+
+                if (parent) {
+                    let replies = parent.querySelector('[data-replies]');
+                    if (!replies) {
+                        replies = document.createElement('div');
+                        replies.dataset.replies = '';
+                        replies.className = 'mt-3 space-y-2 border-l-2 border-hairline pl-3';
+                        parent.appendChild(replies);
+                    }
+                    replies.appendChild(el);
+                } else {
+                    feed.appendChild(el);
+                }
             });
         })();
     </script>

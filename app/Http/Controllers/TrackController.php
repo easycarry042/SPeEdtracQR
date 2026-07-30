@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
+use App\Models\DocumentComment;
 use App\Support\AssignmentScope;
+use App\Support\CitizenThreadAccess;
 use App\Support\CompletionPredictor;
 use App\Support\DocumentSeal;
 use App\Support\RequestReview;
@@ -252,9 +254,37 @@ class TrackController extends Controller
             }
         }
 
-        // Collaboration feed. Staff see everything; the public view is filtered
-        // to citizen-facing posts only (see the citizen Blade).
-        $document->load(['comments.author', 'comments.replies.author']);
+        // Conversation. Staff load both threads; the citizen view loads ONLY the
+        // citizen-visible one, so an internal note cannot reach that page even if
+        // a future template forgot to filter.
+        // Both feeds read oldest-first, the way a conversation does — and the way
+        // the live listeners append new messages. `reorder()` is required: the
+        // relation is declared newest-first, and an added orderBy would only be a
+        // tie-breaker behind it.
+        if (auth()->check()) {
+            $document->load([
+                'comments' => fn ($query) => $query->reorder()->oldest(),
+                'comments.author',
+                'comments.replies.author',
+            ]);
+
+            // Opening the request is what marks the citizen's messages read and
+            // clears the ticket's unread badge.
+            CommentController::markCitizenMessagesRead($document);
+        } else {
+            $document->load([
+                'comments' => fn ($query) => $query->citizenVisible()->reorder()->oldest(),
+                'comments.replies' => fn ($query) => $query->citizenVisible(),
+            ]);
+
+            // The citizen is looking at the thread now, so staff replies are read
+            // — replies included, hence allComments().
+            $document->allComments()
+                ->citizenVisible()
+                ->where('author_type', '!=', DocumentComment::AUTHOR_CITIZEN)
+                ->whereNull('citizen_read_at')
+                ->update(['citizen_read_at' => now()]);
+        }
 
         $user = auth()->user();
         $canAct = false;
@@ -328,6 +358,10 @@ class TrackController extends Controller
             'custody' => $custody,
             'verifyUrl' => $verifyUrl,
             'sealSvg' => $sealSvg,
+            // Citizen composer state: whether this visitor has confirmed a contact
+            // detail on the request, and whether confirming is even possible.
+            'citizenVerified' => $isPublicView && CitizenThreadAccess::isVerified(request(), $document),
+            'citizenCanVerify' => CitizenThreadAccess::canBeVerified($document),
         ]);
     }
 

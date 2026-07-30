@@ -203,22 +203,79 @@
         {{-- ── Self-hosted AI assistant (Pillar 3) — floats bottom-right ─────── --}}
         <x-doc-assistant :document="$document" />
 
-        {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
-        @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
-        <div class="panel">
-            <div class="ph"><h2>Messages from staff</h2></div>
-            <div class="pb space-y-3" id="citizenMessages">
-                @forelse($publicPosts as $post)
-                    <div class="rounded-xl border border-hairline bg-paper p-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[13px] font-bold text-ink">{{ $post->author_type === 'system' ? 'Update' : 'Staff' }}</span>
-                            <span class="text-[12px] text-ink-soft">{{ optional($post->created_at)->format('M d, Y h:i A') }}</span>
-                        </div>
-                        <p class="mt-1 whitespace-pre-wrap text-sm text-ink">{{ $post->body }}</p>
+        {{-- ── Conversation with the office ────────────────────────────────────
+             Two-way: the citizen can ask, staff answer, and replies stay grouped
+             under the message they answer. Only the citizen-visible thread is
+             loaded here (see TrackController) — internal staff notes are never
+             fetched, so they cannot leak into this page. ── --}}
+        @php $thread = $document->comments; @endphp
+        <div class="panel" id="citizenThreadPanel">
+            <div class="ph">
+                <h2>Messages</h2>
+                <span class="sub">Ask the office about this request — replies appear here.</span>
+            </div>
+
+            <div class="pb">
+                @if(session('status'))
+                    <div class="mb-3 rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm font-medium text-green-deep" role="status">
+                        {{ session('status') }}
                     </div>
-                @empty
-                    <p id="citizenMessagesEmpty" class="text-sm italic text-ink-soft">No messages yet.</p>
-                @endforelse
+                @endif
+
+                <div class="space-y-3" id="citizenMessages">
+                    @forelse($thread as $post)
+                        @include('track.partials.citizen-message', ['post' => $post, 'canPost' => $citizenVerified])
+                    @empty
+                        <p id="citizenMessagesEmpty" class="text-sm italic text-ink-soft">No messages yet. Ask a question below and the office will reply here.</p>
+                    @endforelse
+                </div>
+
+                {{-- Composer, gated on confirming a detail already on the request. --}}
+                <div class="mt-4 border-t border-hairline pt-4">
+                    @if($citizenVerified)
+                        <form method="POST" action="{{ route('track.messages.store', $document->tracking_number) }}"
+                              enctype="multipart/form-data" class="space-y-3">
+                            @csrf
+                            <label for="citizenMessageBody" class="block text-sm font-semibold text-ink">Send a message</label>
+                            <textarea id="citizenMessageBody" name="body" rows="3" required maxlength="5000"
+                                      placeholder="e.g. Good day, may I ask what else is needed for my permit?"
+                                      class="w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">{{ old('body') }}</textarea>
+                            @error('body')<p class="text-sm font-semibold text-status-red">{{ $message }}</p>@enderror
+
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <label class="text-xs text-ink-soft">
+                                    Attach a file <span class="font-normal">(optional)</span>
+                                    <input type="file" name="attachment" accept="{{ \App\Support\UploadRules::accept() }}"
+                                           class="mt-1 block text-xs text-ink-soft file:mr-2 file:rounded-lg file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-green-deep">
+                                </label>
+                                <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Send message</button>
+                            </div>
+                            @error('attachment')<p class="text-sm font-semibold text-status-red">{{ $message }}</p>@enderror
+                        </form>
+                    @elseif($citizenCanVerify)
+                        <form method="POST" action="{{ route('track.messages.verify', $document->tracking_number) }}" class="space-y-2">
+                            @csrf
+                            <p class="text-sm font-semibold text-ink">Want to message the office about this request?</p>
+                            <p class="text-xs text-ink-soft">
+                                Confirm the email address or mobile number you filed this request with. This keeps
+                                someone who happens to have your tracking link from writing messages as you.
+                            </p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label for="citizenDetail" class="sr-only">Email or mobile number on this request</label>
+                                <input id="citizenDetail" type="text" name="detail" required autocomplete="off"
+                                       placeholder="Email or mobile number on this request"
+                                       class="min-w-[240px] flex-1 rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
+                                <button type="submit" class="cr-btn cr-btn-sm">Confirm</button>
+                            </div>
+                            @error('detail')<p class="text-sm font-semibold text-status-red">{{ $message }}</p>@enderror
+                        </form>
+                    @else
+                        <p class="text-sm text-ink-soft">
+                            This request has no contact details on file, so messaging is not available for it.
+                            Please contact the handling office directly.
+                        </p>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -416,6 +473,68 @@
             setTimeout(() => row.classList.remove('bg-emerald-50'), 2000);
         }
 
+        /**
+         * Render a live message. A reply is threaded under the message it answers;
+         * a new top-level message goes to the end of the thread, which is where a
+         * conversation continues (unlike the activity log, which reads newest-first).
+         */
+        function appendCitizenMessage(e) {
+            const box = document.getElementById('citizenMessages');
+            if (!box || document.getElementById('cmsg-' + e.id)) return;
+
+            document.getElementById('citizenMessagesEmpty')?.remove();
+
+            const mine = e.author_type === 'citizen';
+            // Staff are named, matching publicAuthorLabel() on a reload — the
+            // payload carries the name. 'Staff' covers a message with no author.
+            const label = e.author_type === 'system'
+                ? 'Update'
+                : (mine ? 'You' : (e.author || 'Staff'));
+            const parent = e.parent_id ? document.getElementById('cmsg-' + e.parent_id) : null;
+
+            const el = document.createElement('div');
+            el.id = 'cmsg-' + e.id;
+
+            if (parent) {
+                el.className = 'rounded-lg p-2 ' + (mine ? 'bg-green-wash/40' : 'bg-hairline/25');
+                el.innerHTML = '<div class="flex items-center justify-between gap-3">' +
+                    '<span class="text-[12px] font-bold text-ink"></span>' +
+                    '<span class="shrink-0 text-[11px] text-ink-soft"></span></div>' +
+                    '<p class="mt-0.5 whitespace-pre-wrap text-[13px] text-ink"></p>';
+            } else {
+                el.className = 'rounded-xl border p-3 ' + (mine
+                    ? 'border-green/30 bg-green-wash/50'
+                    : (e.author_type === 'system' ? 'border-status-amber-wash bg-status-amber-wash/40' : 'border-hairline bg-paper'));
+                el.innerHTML = '<div class="flex items-center justify-between gap-3">' +
+                    '<span class="text-[13px] font-bold text-ink"></span>' +
+                    '<span class="shrink-0 text-[12px] text-ink-soft"></span></div>' +
+                    '<p class="mt-1 whitespace-pre-wrap text-sm text-ink"></p>';
+            }
+
+            // textContent throughout: message bodies are user input.
+            const spans = el.querySelectorAll('span');
+            spans[0].textContent = label;
+            spans[1].textContent = e.timestamp || '';
+            el.querySelector('p').textContent = e.body;
+
+            if (parent) {
+                let replies = parent.querySelector('[data-replies]');
+                if (!replies) {
+                    replies = document.createElement('div');
+                    replies.dataset.replies = '';
+                    replies.className = 'mt-3 space-y-2 border-l-2 border-hairline pl-3';
+                    parent.appendChild(replies);
+                }
+                replies.appendChild(el);
+            } else {
+                box.appendChild(el);
+            }
+
+            if (!mine) {
+                flashBanner(e.author_type === 'system' ? 'New update on your request' : 'New reply from the office');
+            }
+        }
+
         function flashBanner(message) {
             const banner = document.getElementById('updateBanner');
             if (!banner) return;
@@ -444,20 +563,9 @@
                         flashBanner('Status updated!');
                     })
                     .listen('.comment', (e) => {
-                        // Only public posts ever reach this public channel.
-                        const box = document.getElementById('citizenMessages');
-                        if (!box || document.getElementById('cmsg-' + e.id)) return;
-                        document.getElementById('citizenMessagesEmpty')?.remove();
-                        const el = document.createElement('div');
-                        el.id = 'cmsg-' + e.id;
-                        el.className = 'rounded-xl border border-hairline bg-paper p-3';
-                        el.innerHTML = '<div class="flex items-center justify-between">' +
-                            '<span class="text-[13px] font-bold text-ink">' + (e.author_type === 'system' ? 'Update' : 'Staff') + '</span>' +
-                            '<span class="text-[12px] text-ink-soft">' + (e.timestamp || '') + '</span></div>' +
-                            '<p class="mt-1 whitespace-pre-wrap text-sm text-ink"></p>';
-                        el.querySelector('p').textContent = e.body;
-                        box.prepend(el);
-                        flashBanner('New message from staff');
+                        // Only citizen-visible posts ever reach this public channel
+                        // (see DocumentCommentPosted::broadcastOn).
+                        appendCitizenMessage(e);
                     });
 
                 const pusher = window.Echo.connector?.pusher;

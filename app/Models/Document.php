@@ -363,6 +363,18 @@ class Document extends Model
         return $this->hasMany(DocumentComment::class)->whereNull('parent_id')->latest();
     }
 
+    /**
+     * Every message on the request, replies included.
+     *
+     * Read state and unread counts must use this, not `comments()`: a citizen's
+     * answer under a staff message is a reply, so counting only top-level posts
+     * would leave it permanently unread and its badge permanently lit.
+     */
+    public function allComments(): HasMany
+    {
+        return $this->hasMany(DocumentComment::class);
+    }
+
     /** Citizen-facing posts only — never exposes internal staff notes. */
     public function publicComments()
     {

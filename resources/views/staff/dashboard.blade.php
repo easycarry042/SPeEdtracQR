@@ -45,7 +45,16 @@
                                 <tr>
                                     <td class="idx mono" x-text="i + 1"></td>
                                     <td class="nm" x-text="req.citizen_name || ('File ' + req.tracking_number.slice(-5))"></td>
-                                    <td><span class="code" x-text="req.tracking_number"></span></td>
+                                    <td>
+                                        <span class="code" x-text="req.tracking_number"></span>
+                                        {{-- The citizen is waiting on an answer. --}}
+                                        <span x-show="req.unread_messages > 0" x-cloak
+                                              class="ml-1 inline-flex items-center gap-1 rounded-full bg-[#e7f0fb] px-2 py-0.5 text-[10px] font-bold text-[#1d4e89]"
+                                              :title="req.unread_messages + ' unread message(s) from the citizen'">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-[#1d4e89]"></span>
+                                            <span x-text="req.unread_messages"></span> new
+                                        </span>
+                                    </td>
                                     {{-- Department carries its own code (the THED ID). --}}
                                     <td class="muted">
                                         <span x-text="req.department || 'Not yet routed'"></span>

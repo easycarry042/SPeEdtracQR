@@ -85,12 +85,19 @@
                 </section>
             </div>
 
-            {{-- Right: action panel --}}
-            <div class="lg:col-span-2">
+            {{-- Right: action panel + scan trail.
+                 The whole column is the sticky unit, not just the action panel:
+                 pinning only that panel let it slide down over the scan trail and
+                 cover it on scroll. Sticky from `lg` up only (on a phone the
+                 column is stacked and pinning it would eat the screen), capped to
+                 the viewport with its own scrollbar so a tall column stays fully
+                 reachable. `self-start` stops the grid from stretching the item,
+                 which would otherwise defeat sticky entirely. --}}
+            <div class="space-y-6 lg:col-span-2 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
                 @if($canAct && $currentStep && ! $hasCustody)
                     {{-- QR is load-bearing: the endorsement stays locked until this
                          office scans the folder to prove the paper is in hand. --}}
-                    <div class="panel sticky top-24">
+                    <div class="panel">
                         <div class="ph">
                             <h2>
                                 <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m0 14v1m8-8h-1M5 12H4m1.6-6.4.7.7m11.4-.7-.7.7M3 7h5l2 3h11v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"/></svg>

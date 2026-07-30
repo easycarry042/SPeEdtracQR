@@ -16,9 +16,15 @@
                         <p class="mono text-lg font-extrabold text-green-deep" x-text="active.tracking_number"></p>
                         <p class="mt-0.5 text-sm text-ink-soft" x-text="active.document_type"></p>
                     </div>
-                    <span class="pill shrink-0"
-                          :class="active.needs_triage ? 'p-amber' : 'p-muted'"
-                          x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <span x-show="active.unread_messages > 0" x-cloak
+                              class="inline-flex items-center gap-1 rounded-full bg-[#e7f0fb] px-2.5 py-0.5 text-[11px] font-bold text-[#1d4e89]">
+                            <span x-text="active.unread_messages"></span> new message<span x-show="active.unread_messages > 1">s</span>
+                        </span>
+                        <span class="pill"
+                              :class="active.needs_triage ? 'p-amber' : 'p-muted'"
+                              x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                    </div>
                 </div>
 
                 <div class="max-h-[55vh] space-y-5 overflow-y-auto px-6 py-5">

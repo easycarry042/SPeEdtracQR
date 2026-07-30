@@ -13,6 +13,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
+use App\Http\Controllers\CitizenMessageController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
@@ -115,6 +116,20 @@ Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::
 Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [CitizenDocumentUploadController::class, 'reupload'])
     ->middleware('throttle:12,1')
     ->name('track.requirement-reupload');
+// Citizen ↔ staff conversation. Reading the thread needs only the tracking
+// number; POSTING requires confirming a contact detail on the request first
+// (see App\Support\CitizenThreadAccess), so a forwarded link cannot speak as
+// the requester. Throttled like every other public write.
+Route::post('/track/{trackingNumber}/verify-contact', [CitizenMessageController::class, 'verify'])
+    ->middleware('throttle:10,1')
+    ->name('track.messages.verify');
+Route::post('/track/{trackingNumber}/messages', [CitizenMessageController::class, 'store'])
+    ->middleware('throttle:12,1')
+    ->name('track.messages.store');
+Route::get('/track/messages/{comment}/attachment', [CitizenMessageController::class, 'attachment'])
+    ->middleware('throttle:30,1')
+    ->name('track.messages.attachment');
+
 // Self-hosted AI assistant — answers questions grounded in this document only.
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
@@ -326,8 +341,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
 
-    // Per-document staff collaboration feed (assignee or admin).
+    // Per-document conversation (assignee or admin): internal notes and
+    // citizen-facing messages, both threaded.
     Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+    Route::get('/messages/{comment}/attachment', [CommentController::class, 'attachment'])->name('documents.comments.attachment');
 
     // Physical custody trail — "the folder is now with me" (scan or click).
     Route::post('/documents/{document}/custody', [DocumentCustodyController::class, 'store'])->name('documents.custody.store');

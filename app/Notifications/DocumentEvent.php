@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\User;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * One in-app (database) notification type for the header bell, with named
@@ -58,6 +59,42 @@ class DocumentEvent extends Notification
             event: 'nudge',
             title: 'Flagged for your attention',
             body: "{$label} ({$document->tracking_number}) is overdue. {$byName} asked you to follow up.".($note ? " Note: {$note}" : ''),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** The citizen asked something in their thread — the office owes an answer. */
+    public static function citizenMessage(Document $document, string $body): self
+    {
+        return new self(
+            event: 'citizen_message',
+            title: 'New message from the citizen',
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A staff member asked a question in the internal thread. */
+    public static function internalQuestion(Document $document, string $askedBy, string $body): self
+    {
+        return new self(
+            event: 'internal_question',
+            title: "{$askedBy} asked about this request",
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** Someone answered a question in the internal thread — tell whoever asked. */
+    public static function internalAnswer(Document $document, string $answeredBy, string $body): self
+    {
+        return new self(
+            event: 'internal_answer',
+            title: "{$answeredBy} answered your question",
+            body: Str::limit($body, 120),
             url: route('track.show', $document->tracking_number),
             tracking: $document->tracking_number,
         );

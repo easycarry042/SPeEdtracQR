@@ -62,6 +62,8 @@ class RequestReview
                 || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
+            // Citizen messages nobody has read yet — the "waiting on a reply" badge.
+            'unread_messages' => $document->allComments()->unreadByStaff()->count(),
             // Cockpit context: lets the in-modal status controls render the hold
             // banner, the returned reason, and restore the stepper position on hold.
             'status_before_hold' => $document->status_before_hold,
