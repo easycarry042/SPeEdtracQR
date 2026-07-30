@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Accessibility Widget
+    |--------------------------------------------------------------------------
+    |
+    | Toggles the Sienna accessibility toolbar rendered by the
+    | "layouts.partials.accessibility-widget" partial.
+    |
+    */
+
+    'accessibility_widget' => env('ACCESSIBILITY_WIDGET', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

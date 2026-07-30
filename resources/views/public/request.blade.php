@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Submit a Request — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.accessibility-widget')
 </head>
 <body class="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 antialiased text-gray-900">
 

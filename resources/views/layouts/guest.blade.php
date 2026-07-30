@@ -250,6 +250,7 @@
                 .form-label, .form-input, .checkbox-wrap, .auth-link, .auth-button { font-size: 22px; }
             }
         </style>
+        @include('layouts.partials.accessibility-widget')
     </head>
     <body class="auth-page">
         <main class="auth-main">

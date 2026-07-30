@@ -9,6 +9,7 @@
     <style>[x-cloak]{display:none!important}</style>
     {{-- Page-specific assets (e.g. the PDF editor's own bundle). --}}
     @stack('head')
+    @include('layouts.partials.accessibility-widget')
 </head>
 @php
     $user = auth()->user();

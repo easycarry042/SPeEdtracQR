@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SPeED TraQR — Document Tracking System</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.accessibility-widget')
 </head>
 <body class="min-h-screen bg-[#f1f2f1] antialiased text-gray-900">
 
@@ -43,14 +44,14 @@
         <div class="pointer-events-none absolute -left-40 top-1/2 -z-10 h-[38rem] w-[38rem] -translate-y-1/2 rounded-full bg-emerald-200/25 blur-3xl"></div>
         <div class="pointer-events-none absolute -bottom-56 left-1/4 -z-10 h-[34rem] w-[34rem] rounded-full bg-teal-200/25 blur-3xl"></div>
 
-        {{-- Municipality photos bleed in from the right and feather into the
+        {{-- City photos bleed in from the right and feather into the
              background, so the copy sits on clean light space instead of an
              overlay. Multiple photos cross-fade as a slideshow. --}}
         @if($heroImages->isNotEmpty())
             <div class="pointer-events-none absolute inset-y-0 right-0 -z-10 w-full opacity-25 lg:w-[60%] lg:opacity-100"
                  style="-webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.55) 22%, #000 60%); mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.55) 22%, #000 60%);">
                 @foreach($heroImages as $index => $image)
-                    <img src="{{ $image }}" alt="{{ $index === 0 ? 'Municipality' : '' }}"
+                    <img src="{{ $image }}" alt="{{ $index === 0 ? 'San Pedro City' : '' }}"
                          {{-- Every slide sits in the hero viewport, so none are lazy:
                               a not-yet-loaded slide would cross-fade to blank. --}}
                          @if($index === 0) fetchpriority="high" @else aria-hidden="true" @endif
@@ -93,12 +94,12 @@
         <div class="mx-auto max-w-6xl px-6 pb-24 pt-20 sm:pt-28">
             <div class="max-w-xl">
                 <h1 class="text-4xl font-extrabold leading-[1.1] tracking-tight text-emerald-950 sm:text-5xl">
-                    Your documents,<br>
+                    Your requests,<br>
                     <span class="text-emerald-700">tracked in real time.</span>
                 </h1>
                 <p class="mt-5 max-w-lg text-lg text-gray-600">
-                    Submit a request, get a QR-coded tracking number, and follow it through
-                    every department of the municipality — anytime, from any device.
+                    Submit a request online, get a QR-coded tracking number, and follow
+                    every update from filing to release anytime.
                 </p>
 
                 {{-- Two primary buttons --}}
@@ -126,7 +127,7 @@
     <section class="bg-white py-20">
         <div class="mx-auto max-w-6xl px-6">
             <h2 class="text-center text-3xl font-bold text-emerald-950">How it works</h2>
-            <p class="mx-auto mt-3 max-w-xl text-center text-gray-500">Every document gets a unique QR-coded tracking number. Staff scan it at each department handoff — you see every move.</p>
+            <p class="mx-auto mt-3 max-w-xl text-center text-gray-500">Every request gets a unique QR-coded tracking number. As staff process it, each status change is timestamped and recorded so you can see every move.</p>
 
             <div class="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
                 <div class="rounded-2xl border border-gray-200/80 bg-[#f8faf8] p-7 text-center">
@@ -136,7 +137,7 @@
                         </svg>
                     </div>
                     <h3 class="mt-5 font-bold text-emerald-950">Submit</h3>
-                    <p class="mt-2 text-sm text-gray-500">Bring your document to the receiving counter. Staff registers it and prints a QR-coded receipt with your tracking number.</p>
+                    <p class="mt-2 text-sm text-gray-500">File your request online with your supporting documents attached. You get a QR-coded tracking number right away.</p>
                 </div>
 
                 <div class="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-7 text-center ring-1 ring-emerald-200">
@@ -145,8 +146,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2M3 17v2a2 2 0 002 2h2m10 0h2a2 2 0 002-2v-2M9 12h.01M12 12h.01M15 12h.01"/>
                         </svg>
                     </div>
-                    <h3 class="mt-5 font-bold text-emerald-950">Scan at each step</h3>
-                    <p class="mt-2 text-sm text-gray-500">Each time your document moves between departments, staff scan the QR code. Every handoff is timestamped and recorded.</p>
+                    <h3 class="mt-5 font-bold text-emerald-950">Assigned and processed</h3>
+                    <p class="mt-2 text-sm text-gray-500">Your request is assigned to a staff member who takes it through each stage, from In Progress to In Review to Approved to Completed. Every change is timestamped.</p>
                 </div>
 
                 <div class="rounded-2xl border border-gray-200/80 bg-[#f8faf8] p-7 text-center">
@@ -156,7 +157,7 @@
                         </svg>
                     </div>
                     <h3 class="mt-5 font-bold text-emerald-950">Track anytime</h3>
-                    <p class="mt-2 text-sm text-gray-500">Use your tracking number here anytime to see the current department, status, and the full movement history.</p>
+                    <p class="mt-2 text-sm text-gray-500">Scan your QR code or enter your tracking number to see the current stage, who is handling it, and the full history.</p>
                 </div>
             </div>
         </div>
