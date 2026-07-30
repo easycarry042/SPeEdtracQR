@@ -5,8 +5,7 @@
      menu. Motion respects the global prefers-reduced-motion reset. --}}
 @php
     $shortcuts = collect([
-        // Staff's dashboard is their profile page, which carries their requests.
-        ['key' => 'd', 'label' => 'Dashboard', 'url' => $isSupervisor ? route('dashboard') : ($isSystemAdmin ? route('admin.dashboard') : route('staff.profile', auth()->id())), 'show' => true],
+        ['key' => 'd', 'label' => 'Dashboard',        'url' => $isSupervisor ? route('dashboard') : ($isSystemAdmin ? route('admin.dashboard') : route('staff.dashboard')), 'show' => true],
         ['key' => 'a', 'label' => 'Assignments',       'url' => \Illuminate\Support\Facades\Route::has('admin.assignments.index') ? route('admin.assignments.index') : null, 'show' => auth()->user()?->can('assign documents')],
         ['key' => 'n', 'label' => 'New document',      'url' => \Illuminate\Support\Facades\Route::has('documents.create') ? route('documents.create') : null, 'show' => auth()->user()?->can('create documents')],
         ['key' => 's', 'label' => 'Scan',              'url' => \Illuminate\Support\Facades\Route::has('scan.index') ? route('scan.index') : null, 'show' => auth()->user()?->can('scan documents')],

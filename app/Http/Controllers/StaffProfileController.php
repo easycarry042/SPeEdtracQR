@@ -6,7 +6,6 @@ use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\StaffHighlight;
 use App\Models\User;
-use App\Support\AssignedWorkQueue;
 use App\Support\AssignmentScope;
 use App\Support\StaffProfile;
 use Illuminate\Contracts\View\Factory;
@@ -134,20 +133,11 @@ class StaffProfileController extends Controller
     public function show(Request $request, User $user): Factory|View
     {
         $profile = new StaffProfile($user);
-        $isOwn = (int) auth()->id() === (int) $user->id;
-
-        // Your own profile opens on your work (it replaces the old Requests tab);
-        // a peer's profile opens on their activity, which is what you came to see.
         $tab = in_array($request->get('tab'), ['activity', 'assigned', 'completions'], true)
             ? $request->get('tab')
-            : ($isOwn ? 'assigned' : 'activity');
+            : 'activity';
 
-        // On your own profile the Assigned tab IS the old Requests tab: the full
-        // review cockpit (table + modal). On a peer's profile it stays a
-        // read-only list — you cannot act on someone else's work.
-        $cockpit = $isOwn && $tab === 'assigned'
-            ? (new AssignedWorkQueue($user))->toViewData()
-            : [];
+        $isOwn = (int) auth()->id() === (int) $user->id;
 
         return view('staff.profile', [
             'profileUser' => $user,
@@ -158,12 +148,12 @@ class StaffProfileController extends Controller
             'lastActiveAt' => $profile->lastActiveAt(),
             'heatmap' => $profile->heatmap(),
             'feed' => $tab === 'activity' ? $profile->feed() : collect(),
-            'assigned' => $tab === 'assigned' && ! $isOwn ? $profile->assigned() : collect(),
+            'assigned' => $tab === 'assigned' ? $profile->assigned() : collect(),
             'completions' => $tab === 'completions' ? $profile->completions() : collect(),
-            'unclaimed' => $isOwn && $tab === 'assigned' ? $this->unclaimed($user) : collect(),
+            'worklist' => $isOwn ? $this->worklist($user) : collect(),
+            'unclaimed' => $isOwn ? $this->unclaimed($user) : collect(),
             // The composer document picker lists only the author's own documents.
             'ownDocuments' => $isOwn ? $this->ownDocuments($user) : collect(),
-            ...$cockpit,
         ]);
     }
 
@@ -209,6 +199,16 @@ class StaffProfileController extends Controller
             ->latest()
             ->limit(50)
             ->get(['id', 'tracking_number', 'document_type', 'status']);
+    }
+
+    private function worklist(User $user)
+    {
+        return AssignmentScope::applyDocumentScope(
+            Document::query()
+                ->with('creator:id,name')
+                ->whereIn('status', ['pending', 'in_progress', 'in_review', 'approved', 'on_hold']),
+            $user
+        )->latest()->limit(20)->get();
     }
 
     private function unclaimed(User $user)

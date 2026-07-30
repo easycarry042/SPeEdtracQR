@@ -232,9 +232,7 @@ class ReviewController extends Controller
 
         $comment = $document->logSystemComment("Assignment declined by {$actor}".($reason ? " — {$reason}" : ''));
         event(new DocumentCommentPosted($comment));
-        // oversightNotified: the dedicated "Assignment declined" ping below says
-        // more than a generic status notice would.
-        event(new DocumentStatusUpdated($document->fresh(), auth()->user(), oversightNotified: true));
+        event(new DocumentStatusUpdated($document->fresh(), auth()->user()));
 
         // Header-bell ping for supervisors: the request is back in the queue.
         Notification::send(

@@ -10,7 +10,7 @@
             <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">San Pedro · records office</p>
             <p class="mt-1 text-lg font-extrabold text-green-deep">{{ $badgeUser->name }}</p>
             <p class="text-[13px] text-ink-soft">
-                {{ \App\Support\RoleLabel::forUser($badgeUser) }}@if($badgeUser->department) · {{ $badgeUser->department->name }}@endif
+                {{ \Illuminate\Support\Str::headline($badgeUser->getRoleNames()->first() ?? 'staff') }}@if($badgeUser->department) · {{ $badgeUser->department->name }}@endif
             </p>
 
             <img src="data:image/svg+xml;base64,{{ $badgeSvg }}" alt="Staff badge QR code"

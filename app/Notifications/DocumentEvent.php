@@ -63,26 +63,6 @@ class DocumentEvent extends Notification
         );
     }
 
-    /**
-     * A request's stage moved. Sent to the oversight side (the department's
-     * supervisors plus super admins) so the bell tracks the whole lifecycle, not
-     * just intake and assignment.
-     */
-    public static function statusChanged(Document $document, string $byName): self
-    {
-        $stage = $document->statusEnum();
-
-        return new self(
-            event: 'status_changed',
-            title: 'Request now '.$stage->label(),
-            body: ($document->document_type ?? 'Document').' — '
-                .($document->citizen_name ? $document->citizen_name.' · ' : '')
-                ."updated by {$byName}.",
-            url: route('track.show', $document->tracking_number),
-            tracking: $document->tracking_number,
-        );
-    }
-
     /** A citizen re-uploaded a document that was returned for revision. */
     public static function revisionResubmitted(Document $document, string $requirementLabel): self
     {

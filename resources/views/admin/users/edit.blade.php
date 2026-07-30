@@ -66,7 +66,7 @@
                                 class="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm shadow-sm transition focus:border-emerald-400 focus:outline-none @error('role') border-red-400 @enderror">
                             @foreach($roles as $role)
                                 <option value="{{ $role->name }}" @selected(old('role', $user->roles->first()?->name) === $role->name)>
-                                    {{ \App\Support\RoleLabel::for($role->name) }}
+                                    {{ ucwords(str_replace('_', ' ', $role->name)) }}
                                 </option>
                             @endforeach
                         </select>

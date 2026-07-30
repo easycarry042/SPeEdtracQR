@@ -74,6 +74,4 @@
         </a>
 
     </div>
-
-    <x-help-assistant />
 </x-citizen-layout>

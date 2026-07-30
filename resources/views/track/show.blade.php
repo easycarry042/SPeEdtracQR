@@ -114,9 +114,6 @@
                 @if($document->purpose)
                     <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose }}</dd></div>
                 @endif
-                @if($document->booking && ! $document->booking->isCancelled())
-                    <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Scheduled</dt><dd class="text-right font-medium text-ink">{{ $document->booking->starts_at->format('M d, Y') }}{{ $document->booking->resource ? ' · '.$document->booking->resource->name : '' }}</dd></div>
-                @endif
             </dl>
             @if($document->description)
                 <p class="mt-3 text-sm text-ink"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>

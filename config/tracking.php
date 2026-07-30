@@ -27,9 +27,7 @@ return [
         'stages' => [
             DocumentStatus::Pending->value => false,
             DocumentStatus::InProgress->value => true,
-            // On: the citizen should hear about every stage their request reaches,
-            // not only the start and the end.
-            DocumentStatus::InReview->value => true,
+            DocumentStatus::InReview->value => false,
             DocumentStatus::Approved->value => true,
             DocumentStatus::Completed->value => true,
             DocumentStatus::Returned->value => true,

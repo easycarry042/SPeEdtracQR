@@ -37,41 +37,6 @@ class StaffProfileSmokeTest extends TestCase
         }
     }
 
-    public function test_my_profile_carries_the_assigned_requests_cockpit(): void
-    {
-        $user = $this->staff();
-        $assigned = Document::create([
-            'tracking_number' => 'SPD-T-3', 'document_type' => 'Business Permit',
-            'status' => 'in_progress', 'assigned_to' => $user->id, 'assigned_at' => now(),
-            'accepted_at' => now(), 'citizen_name' => 'Maria Santos',
-        ]);
-
-        // Own profile defaults to the work tab and renders the review cockpit.
-        $this->actingAs($user)
-            ->get(route('staff.profile', $user->id))
-            ->assertOk()
-            ->assertSee($assigned->tracking_number, false)
-            ->assertSee('reviewPanel(', false)
-            ->assertSee('View history');
-    }
-
-    public function test_a_peer_profile_shows_no_review_cockpit(): void
-    {
-        $viewer = $this->staff();
-        $other = User::factory()->create(['is_active' => true]);
-        $other->assignRole('staff');
-        Document::create([
-            'tracking_number' => 'SPD-T-4', 'document_type' => 'Cedula',
-            'status' => 'in_progress', 'assigned_to' => $other->id, 'assigned_at' => now(),
-        ]);
-
-        $this->actingAs($viewer)
-            ->get(route('staff.profile', ['user' => $other->id, 'tab' => 'assigned']))
-            ->assertOk()
-            ->assertSee('SPD-T-4', false)
-            ->assertDontSee('reviewPanel(', false);
-    }
-
     public function test_peer_view_has_no_composer_but_renders(): void
     {
         $viewer = $this->staff();

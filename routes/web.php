@@ -21,11 +21,9 @@ use App\Http\Controllers\DocumentNudgeController;
 use App\Http\Controllers\DocumentPdfEditorController;
 use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentRequirementController;
-use App\Http\Controllers\DocumentScheduleController;
 use App\Http\Controllers\DocumentSlipController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
-use App\Http\Controllers\HelpAssistantController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\InternalRequestController;
 use App\Http\Controllers\NotificationController;
@@ -46,21 +44,26 @@ use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
-| Root — the public landing page is the homepage for EVERYONE. Opening the
-| site (127.0.0.1) always shows the citizen-facing landing, signed in or not:
-| staff and citizens share one front door, exactly like a real municipal site.
-| Signed-in users get a "My workspace" button in the landing header instead of
-| being bounced to their dashboard (see layouts/partials/public-header).
+| Root — the public landing page is the homepage for GUESTS only.
+| Authenticated users are sent to their role workspace via 'home', so they
+| never land back on the public site (e.g. via the browser Back button) while
+| signed in. To reach the public landing they must log out first.
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', fn () => view('welcome'))->name('welcome');
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('home');
+    }
+
+    return view('welcome');
+})->name('welcome');
 
 Route::get('/home', function () {
     $user = auth()->user();
 
     // Mirrors the post-login redirect: super_admin → command center,
-    // supervisors → Dashboard, staff → My Profile (which carries their requests).
+    // supervisors → Dashboard, staff → their own dashboard.
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -116,12 +119,6 @@ Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [Citi
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
     ->name('track.ask');
-
-// Public help desk assistant (citizen landing page): procedural questions only,
-// grounded in the published service catalogue — never in anyone's record.
-Route::post('/help/ask', [HelpAssistantController::class, 'ask'])
-    ->middleware('throttle:20,1')
-    ->name('help.ask');
 
 // Public authenticity check — the signed QR on an issued document lands here.
 Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
@@ -337,11 +334,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // QR-gated release: citizen presents their QR, staff mark the hand-over.
     Route::patch('/documents/{document}/release', [DocumentReleaseController::class, 'store'])->name('documents.release');
-
-    // Staff scheduling: set the calendar date a request is served on. The
-    // controller refuses a date already reserved on the same resource.
-    Route::patch('/documents/{document}/schedule', [DocumentScheduleController::class, 'store'])->name('documents.schedule');
-    Route::get('/resources/{resource}/booked-dates', [DocumentScheduleController::class, 'bookedDates'])->name('resources.booked-dates');
 
     // Manual status progression by the assigned staff member (or an admin).
     Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');

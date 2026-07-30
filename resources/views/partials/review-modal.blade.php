@@ -2,12 +2,7 @@
     Shared Review modal. Driven by the surrounding Alpine `reviewPanel()` scope.
     Pass $mode = 'supervisor' (assign + approve) or 'staff' (approve = complete).
 --}}
-@php
-    $mode = $mode ?? 'supervisor';
-    // Scheduling belongs to the staff cockpit (the person doing the work picks
-    // the date); the supervisor modal only assigns, so it gets an empty list.
-    $scheduleResources = $mode === 'staff' ? ($scheduleResources ?? collect()) : collect();
-@endphp
+@php $mode = $mode ?? 'supervisor'; @endphp
 
 <div x-show="active" x-cloak
      class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8"
@@ -188,55 +183,6 @@
 
                                 <p class="text-sm text-ink-soft" x-text="cockpitHint()"></p>
 
-                                {{-- Scheduling: the day this request is served on. A date is
-                                     exclusive per resource, so the server refuses one that is
-                                     already taken and the picker greys out known dates. --}}
-                                @if($scheduleResources->isNotEmpty())
-                                <div class="rounded-[10px] border border-hairline-strong bg-paper p-4">
-                                    <div class="flex flex-wrap items-baseline justify-between gap-2">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Scheduled date</p>
-                                        <p class="text-sm font-semibold text-green-deep" x-text="active.schedule_label || 'Not scheduled yet'"></p>
-                                    </div>
-
-                                    <template x-if="active.needed_by">
-                                        <p class="mt-1 text-xs text-ink-soft">Citizen needs it by <span x-text="active.needed_by"></span>.</p>
-                                    </template>
-
-                                    <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                        <div>
-                                            <label class="block text-sm font-semibold text-ink">Reserve</label>
-                                            <select x-model="scheduleResourceId" @change="loadBookedDates()"
-                                                    class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
-                                                <option value="">Select what is reserved…</option>
-                                                @foreach($scheduleResources as $resource)
-                                                    <option value="{{ $resource->id }}">{{ $resource->name }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-semibold text-ink">Date</label>
-                                            <input type="date" x-model="scheduleDate" min="{{ now()->toDateString() }}"
-                                                   class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
-                                        </div>
-                                    </div>
-
-                                    <p x-show="dateIsTaken()" x-cloak role="alert"
-                                       class="mt-2 rounded-lg border border-status-amber-wash bg-status-amber-wash px-3 py-2 text-sm font-semibold text-status-amber">
-                                        That date is already booked for this resource — pick another.
-                                    </p>
-                                    <p x-show="scheduleSaved" x-cloak
-                                       class="mt-2 text-sm font-semibold text-green">Schedule saved.</p>
-
-                                    <div class="mt-3 flex justify-end">
-                                        <button type="button" @click="saveSchedule()"
-                                                :disabled="submitting || !scheduleDate || !scheduleResourceId || dateIsTaken()"
-                                                class="cr-btn cr-btn-sm cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-                                            <span x-show="!submitting">Set date</span>
-                                            <span x-show="submitting">Saving…</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                @endif
                             </div>
                         </template>
                     @endif
@@ -560,12 +506,7 @@
             revertOpen: false,
             revertReason: '',
             gateError: '',
-            resourceBase: cfg.resourceBase || '',
             tableQuery: '',
-            scheduleDate: '',
-            scheduleResourceId: '',
-            scheduleSaved: false,
-            bookedDates: [],
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
@@ -751,60 +692,6 @@
                 return this.patchStatus('status/revert', {}, data).then(() => { this.revertReason = ''; });
             },
 
-            // ─── Scheduling: one date per resource, never double-booked ───
-
-            /**
-             * Dates already reserved on the chosen resource (this request's own
-             * booking excluded), so the staff member sees the clash before saving.
-             * The server re-checks on save — this is only a courtesy.
-             */
-            loadBookedDates() {
-                this.bookedDates = [];
-                if (!this.scheduleResourceId || !this.resourceBase || !this.active) return;
-                const url = `${this.resourceBase}/${this.scheduleResourceId}/booked-dates?ignore_document=${this.active.id}`;
-                fetch(url, { headers: { 'Accept': 'application/json' } })
-                    .then((r) => (r.ok ? r.json() : { dates: [] }))
-                    .then((d) => { this.bookedDates = d.dates || []; })
-                    .catch(() => { this.bookedDates = []; });
-            },
-
-            dateIsTaken() {
-                return !!this.scheduleDate && this.bookedDates.includes(this.scheduleDate);
-            },
-
-            saveSchedule() {
-                if (!this.active || this.submitting) return;
-                if (!this.scheduleDate || !this.scheduleResourceId) return;
-
-                this.submitting = true;
-                this.gateError = '';
-                this.scheduleSaved = false;
-
-                return fetch(`${this.openBase}/${this.active.id}/schedule`, {
-                    method: 'PATCH',
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scheduled_date: this.scheduleDate, resource_id: this.scheduleResourceId }),
-                })
-                    .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
-                    .then(({ ok, d }) => {
-                        this.submitting = false;
-                        if (!ok) {
-                            this.gateError = d.errors
-                                ? Object.values(d.errors).flat().join(' ')
-                                : (d.message || 'Could not save the date. Please try again.');
-                            // A refused date is now known to be taken.
-                            this.loadBookedDates();
-
-                            return;
-                        }
-                        this.active.schedule_date = d.schedule_date;
-                        this.active.schedule_label = d.schedule_label;
-                        this.active.resource_id = d.resource_id;
-                        this.scheduleSaved = true;
-                    })
-                    .catch(() => { this.submitting = false; this.gateError = 'Network error. Please try again.'; });
-            },
-
             setStatus(value, reason) {
                 const data = { status: value };
                 if (reason) data.reason = reason;
@@ -853,11 +740,6 @@
                 this.revertOpen = false;
                 this.revertReason = '';
                 this.gateError = '';
-                // Seed the schedule controls from whatever this request already has.
-                this.scheduleDate = req.schedule_date || '';
-                this.scheduleResourceId = req.resource_id || '';
-                this.scheduleSaved = false;
-                this.loadBookedDates();
             },
 
             openById(id) {

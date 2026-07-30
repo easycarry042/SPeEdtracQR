@@ -21,7 +21,7 @@
                 <option value="">All Roles</option>
                 @foreach($roles as $role)
                     <option value="{{ $role->name }}" @selected(request('role') === $role->name)>
-                        {{ \App\Support\RoleLabel::for($role->name) }}
+                        {{ ucfirst($role->name) }}
                     </option>
                 @endforeach
             </select>
@@ -86,7 +86,7 @@
                                 <td class="px-4 py-3">
                                     @foreach($user->roles as $role)
                                         <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                                            {{ \App\Support\RoleLabel::for($role->name) }}
+                                            {{ ucfirst($role->name) }}
                                         </span>
                                     @endforeach
                                 </td>
@@ -247,7 +247,7 @@
                                 <option value="">Select a role…</option>
                                 @foreach($roles as $role)
                                     <option value="{{ $role->name }}" @selected(old('role') === $role->name)>
-                                        {{ \App\Support\RoleLabel::for($role->name) }}
+                                        {{ ucwords(str_replace('_', ' ', $role->name)) }}
                                     </option>
                                 @endforeach
                             </select>

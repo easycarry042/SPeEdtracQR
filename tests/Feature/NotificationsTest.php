@@ -2,13 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Mail\StatusUpdated;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -83,71 +81,10 @@ class NotificationsTest extends TestCase
             'reason' => 'Not my area.',
         ]);
 
-        // A decline sends its own dedicated ping — and only that one, so the
-        // supervisor doesn't also get a generic "now Pending" status notice.
-        $events = $supervisor->fresh()->unreadNotifications->pluck('data.event');
-        $this->assertSame(['declined'], $events->all());
-        $this->assertSame(0, $staff->fresh()->unreadNotifications->count());
-    }
-
-    public function test_every_status_move_notifies_supervisors_and_the_citizen(): void
-    {
-        $this->seedRolesAndPermissions();
-        Mail::fake();
-
-        $dept = Department::create(['name' => 'Records', 'code' => 'REC', 'is_active' => true]);
-        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
-        $staff = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
-        $doc = $this->doc([
-            'department_id' => $dept->id,
-            'status' => 'in_progress',
-            'assigned_to' => $staff->id,
-            'assigned_at' => now(),
-            'accepted_at' => now(),
-            'citizen_email' => 'jane@example.com',
-            'notify_citizen' => true,
-        ]);
-
-        $this->actingAs($staff)->patchJson(route('documents.status.advance', $doc), [
-            'expected_status' => 'in_progress',
-            'note' => 'Verified the submitted requirements against the originals.',
-        ])->assertOk();
-
-        // Oversight hears about it on the bell…
-        $notification = $supervisor->fresh()->unreadNotifications
-            ->firstWhere('data.event', 'status_changed');
+        $notification = $supervisor->fresh()->unreadNotifications->first();
         $this->assertNotNull($notification);
-        $this->assertSame($doc->tracking_number, data_get($notification->data, 'tracking'));
-
-        // …the actor does not get pinged about their own action…
-        $this->assertNull($staff->fresh()->unreadNotifications->firstWhere('data.event', 'status_changed'));
-
-        // …and the citizen is emailed about the new stage (StatusUpdated is queued).
-        Mail::assertQueued(StatusUpdated::class);
-    }
-
-    public function test_holding_a_request_also_notifies_supervisors(): void
-    {
-        $this->seedRolesAndPermissions();
-        $dept = Department::create(['name' => 'Assessor', 'code' => 'ASR', 'is_active' => true]);
-        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
-        $staff = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
-        $doc = $this->doc([
-            'department_id' => $dept->id,
-            'status' => 'in_progress',
-            'assigned_to' => $staff->id,
-            'assigned_at' => now(),
-            'accepted_at' => now(),
-        ]);
-
-        $this->actingAs($staff)->patchJson(route('documents.status.hold', $doc), [
-            'hold_reason' => 'Waiting on the barangay clearance.',
-            'blocked_by' => 'citizen',
-        ])->assertOk();
-
-        $this->assertNotNull(
-            $supervisor->fresh()->unreadNotifications->firstWhere('data.event', 'status_changed')
-        );
+        $this->assertSame('declined', data_get($notification->data, 'event'));
+        $this->assertSame(0, $staff->fresh()->unreadNotifications->count());
     }
 
     public function test_opening_a_notification_marks_it_read_and_redirects(): void

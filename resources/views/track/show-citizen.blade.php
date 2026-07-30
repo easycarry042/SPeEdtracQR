@@ -200,6 +200,9 @@
             </div>
         </div>
 
+        {{-- ── Self-hosted AI assistant (Pillar 3) — floats bottom-right ─────── --}}
+        <x-doc-assistant :document="$document" />
+
         {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
         @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
         <div class="panel">
@@ -377,10 +380,6 @@
             const desc = document.getElementById('statusDescription');
             if (desc && statusDesc[status]) { desc.textContent = statusDesc[status]; }
 
-            // "Not yet assigned" is written only when the payload explicitly says
-            // nobody is assigned (null). A missing/undefined key leaves whatever
-            // the server rendered in place — a poll response that forgot this
-            // field used to blank the assigned staff name every 30 seconds.
             if (department) {
                 dept.textContent = department;
             } else if (department === null) {
