@@ -36,10 +36,10 @@
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',
         request()->routeIs('staff.index') => 'Staff directory',
-        request()->routeIs('staff.dashboard') => 'Dashboard',
+        request()->routeIs('staff.dashboard') => 'Requests',
         request()->routeIs('dashboard'), request()->routeIs('admin.dashboard') => 'Dashboard',
         request()->routeIs('analytics*') => 'Analytics',
-        request()->routeIs('track.*'), request()->routeIs('scan.*') => 'Requests',
+        request()->routeIs('track.*'), request()->routeIs('scan.*') => 'Look up',
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
         request()->routeIs('admin.assignments*') => 'Assignments',

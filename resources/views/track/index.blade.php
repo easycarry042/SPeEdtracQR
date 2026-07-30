@@ -1,6 +1,5 @@
 <x-app-layout>
-    {{-- Requests hub (formerly "Look up"): find a request by tracking number or
-         by its QR code.
+    {{-- Look up hub: find a ticket by tracking number or by its QR code.
          The QR-IMAGE UPLOAD is the primary scan path (works on every device);
          the live camera is offered only when a camera actually exists.
          Rendered for /track?find=1 (and /scan) and as the empty fallback. --}}
@@ -9,7 +8,7 @@
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
             </div>
-            <p class="mt-3 font-semibold text-ink">Find a request</p>
+            <p class="mt-3 font-semibold text-ink">Look up a document</p>
             <p class="mt-1 text-sm text-ink-soft">Finding a document only opens it — status is changed on the document itself.</p>
 
             @if($errors->has('lookup'))

@@ -72,7 +72,7 @@ class NavigationTest extends TestCase
             ->assertRedirect(route('track.index', ['find' => 1]));
     }
 
-    public function test_find_mode_renders_the_requests_hub_instead_of_redirecting(): void
+    public function test_find_mode_renders_look_up_hub_instead_of_redirecting(): void
     {
         $this->seedRolesAndPermissions();
 
@@ -89,7 +89,7 @@ class NavigationTest extends TestCase
         $this->actingAs($user)
             ->get(route('track.index', ['find' => 1]))
             ->assertOk()
-            ->assertSee('Find a request');
+            ->assertSee('Look up a document');
     }
 
     public function test_unknown_tracking_number_soft_fails_without_a_404(): void

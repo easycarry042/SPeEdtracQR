@@ -7,10 +7,8 @@
         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 3 10v10a1 1 0 0 0 1 1h6v-7h4v7h6a1 1 0 0 0 1-1V10l-9-7z"/></svg>
         Dashboard
     @else
-        {{-- Staff's own worklist page, named "Dashboard" so the vocabulary matches
-             the supervisor and admin dashboards. --}}
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 3 10v10a1 1 0 0 0 1 1h6v-7h4v7h6a1 1 0 0 0 1-1V10l-9-7z"/></svg>
-        Dashboard
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Requests
     @endif
 </a>
 
@@ -27,7 +25,7 @@
 
 <a href="{{ route('track.index') }}" class="{{ $link(request()->routeIs('track.*') || request()->routeIs('scan.*')) }}">
     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
-    Requests
+    Look up
 </a>
 
 @canany(['act on internal requests', 'create internal requests'])
