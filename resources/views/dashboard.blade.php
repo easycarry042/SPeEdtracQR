@@ -174,12 +174,19 @@
             'assignBase' => url('/documents'),
             'denyBase' => url('/documents'),
         ]))">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Requests</h2>
-                <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
-                    Show all
-                    <span aria-hidden="true">›</span>
-                </a>
+                <div class="flex flex-wrap items-center gap-3">
+                    {{-- Search lives with the table it filters, not in the header. --}}
+                    <label class="sr-only" for="requestSearch">Search requests</label>
+                    <input type="search" id="requestSearch" x-model="tableQuery" data-kbd-search
+                           placeholder="Search name, tracking #, or type…"
+                           class="w-56 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                    <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
+                        Show all
+                        <span aria-hidden="true">›</span>
+                    </a>
+                </div>
             </div>
 
             <div class="panel">
@@ -190,7 +197,6 @@
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">#</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">File Name</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Tracking ID</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">THED ID</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Department</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Date</th>
                                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Category</th>
@@ -199,13 +205,17 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                            <template x-for="(req, i) in requests" :key="req.id">
+                            <template x-for="(req, i) in visibleRequests()" :key="req.id">
                                 <tr class="even:bg-gray-50/50">
                                     <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="i + 1"></td>
                                     <td class="px-4 py-3 text-sm text-gray-800" x-text="req.citizen_name || ('File ' + req.tracking_number.slice(-5))"></td>
                                     <td class="px-4 py-3"><span class="font-mono text-sm font-semibold text-emerald-800" x-text="req.tracking_number"></span></td>
-                                    <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="req.thed_id || '—'"></td>
-                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="req.department || 'Not yet routed'"></td>
+                                    {{-- Department carries its own code (the THED ID) — one
+                                         column instead of two saying the same thing. --}}
+                                    <td class="px-4 py-3 text-sm text-gray-500">
+                                        <span x-text="req.department || 'Not yet routed'"></span>
+                                        <span class="ml-1 font-mono text-xs text-gray-400" x-show="req.thed_id" x-text="'· ' + req.thed_id"></span>
+                                    </td>
                                     <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="req.submitted_at"></td>
                                     <td class="px-4 py-3 text-sm text-gray-500" x-text="req.document_type"></td>
                                     <td class="px-4 py-3"><span class="pill p-muted">Pending</span></td>
@@ -218,14 +228,14 @@
                                     </td>
                                 </tr>
                             </template>
-                            <tr x-show="requests.length === 0">
-                                <td colspan="9" class="px-4 py-12 text-center">
+                            <tr x-show="visibleRequests().length === 0">
+                                <td colspan="8" class="px-4 py-12 text-center">
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
                                         <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
                                         </div>
-                                        <p class="mt-3 text-sm font-semibold text-gray-700">No pending requests</p>
-                                        <p class="mt-1 text-sm text-gray-500">New citizen submissions awaiting approval will appear here.</p>
+                                        <p class="mt-3 text-sm font-semibold text-gray-700" x-text="tableQuery.trim() ? 'No matching requests' : 'No pending requests'"></p>
+                                        <p class="mt-1 text-sm text-gray-500" x-text="tableQuery.trim() ? 'Nothing matches your search — clear it to see the full queue.' : 'New citizen submissions awaiting approval will appear here.'"></p>
                                     </div>
                                 </td>
                             </tr>

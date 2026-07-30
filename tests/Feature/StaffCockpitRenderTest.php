@@ -40,7 +40,12 @@ class StaffCockpitRenderTest extends TestCase
             'accepted_at' => now(),
         ]);
 
-        $res = $this->actingAs($staff)->get(route('staff.dashboard'));
+        // The old Requests tab now forwards into My Profile, where the cockpit lives.
+        $this->actingAs($staff)
+            ->get(route('staff.dashboard'))
+            ->assertRedirect(route('staff.profile', ['user' => $staff->id, 'tab' => 'assigned']));
+
+        $res = $this->actingAs($staff)->get(route('staff.profile', ['user' => $staff->id, 'tab' => 'assigned']));
 
         $res->assertOk();
         // Flow passed to the Alpine config (label present)

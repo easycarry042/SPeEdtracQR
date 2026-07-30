@@ -60,7 +60,7 @@
                             <option value="">Select a role…</option>
                             @foreach($roles as $role)
                                 <option value="{{ $role->name }}" @selected(old('role') === $role->name)>
-                                    {{ ucwords(str_replace('_', ' ', $role->name)) }}
+                                    {{ \App\Support\RoleLabel::for($role->name) }}
                                 </option>
                             @endforeach
                         </select>

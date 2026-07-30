@@ -82,35 +82,51 @@
                 $isPendingReview = $supervisorView && $document->statusEnum() === \App\Enums\DocumentStatus::Pending;
                 $isStaffAssigned = $staffView && (int) $document->assigned_to === (int) auth()->id();
                 $isStaffApprovable = $isStaffAssigned && $document->status === 'approved';
-                $canEditDetails = \App\Support\AssignmentScope::userCanEditDocument($document);
             @endphp
 
+            {{-- Status progress leads the panel: the stage is the first thing a
+                 reviewer needs, before any of the record's details. --}}
             <div class="mt-5 flex flex-wrap items-center gap-3">
                 <x-status-badge :status="$document->status" />
-                @if($canEditDetails)
-                    <a href="{{ route('documents.edit', $document) }}" class="cr-btn">
-                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-                        Edit details
-                    </a>
+                @if($document->assigned_to)
+                    <p class="text-[13px] text-ink-soft">
+                        Assigned to <span class="font-semibold text-green-deep">{{ $document->assignedTo->name ?? '—' }}</span>
+                    </p>
                 @endif
+            </div>
+
+            <div class="mt-4">
+                <x-routing-stepper :document="$document" :controls="true" />
             </div>
 
             {{-- Responsible & contact — always visible: who/where handles this
                  ticket, plus how to reach the requester. --}}
             @unless($document->isInternal())
             <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">THED ID</dt><dd class="text-right font-medium text-ink">{{ $document->department?->code ?: '—' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Department</dt><dd class="text-right font-medium text-ink">{{ $document->department?->name ?: 'Not yet routed' }}</dd></div>
+                {{-- Department shows its own code, so there is no separate THED row. --}}
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Department</dt><dd class="text-right font-medium text-ink">{{ $document->department?->name ?: 'Not yet routed' }}@if($document->department?->code)<span class="mono ml-1 text-xs text-ink-soft">· {{ $document->department->code }}</span>@endif</dd></div>
                 <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Staff assigned</dt><dd class="text-right font-medium text-ink">{{ $document->assignedTo?->name ?: 'Not yet assigned' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Submitted by</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_name ?: '—' }}</dd></div>
                 <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Email</dt><dd class="text-right font-medium text-ink break-all">{{ $document->citizen_email ?: '—' }}</dd></div>
                 <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Created</dt><dd class="text-right font-medium text-ink">{{ $document->created_at?->format('M d, Y \a\t h:i A') ?: '—' }}</dd></div>
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">{{ $document->source === 'online' ? 'Entered' : 'Encoded by' }}</dt><dd class="text-right font-medium text-ink">{{ $document->source === 'online' ? 'Online (citizen self-service)' : ($document->creator?->name ?? 'Staff') }}</dd></div>
+                @if($document->purpose)
+                    <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose }}</dd></div>
+                @endif
+                @if($document->booking && ! $document->booking->isCancelled())
+                    <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Scheduled</dt><dd class="text-right font-medium text-ink">{{ $document->booking->starts_at->format('M d, Y') }}{{ $document->booking->resource ? ' · '.$document->booking->resource->name : '' }}</dd></div>
+                @endif
             </dl>
+            @if($document->description)
+                <p class="mt-3 text-sm text-ink"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>
+            @endif
             @endunless
 
-            {{-- Physical custody trail (shared with the internal-request panel). --}}
-            @if(! $document->statusEnum()->isTerminal())
-                @include('partials.custody-scan', ['document' => $document, 'custody' => $custody])
-            @endif
+            {{-- No custody/QR card here: for a citizen request the detail panel is
+                 for reviewing and deciding. Folder custody scanning belongs to the
+                 internal endorsement chain, which requires it and shows its own
+                 scan trail (resources/views/requests/show.blade.php). --}}
 
             {{-- ── QR-gated release: Completed docs are claimed at the counter ── --}}
             @if($document->status === 'completed')
@@ -304,6 +320,25 @@
                     <p class="text-[14px] font-bold text-ink">Attached Files</p>
                     <x-document-images :document="$document" :limit="12" size="lg" class="mt-2" :manage="true" />
                     <p class="mt-1 text-[12px] text-ink-soft">Hover a file and tap × to remove one placed by mistake.</p>
+
+                    {{-- PDFs open in the built-in editor, where the staff member can
+                         place their registered e-signature. Saving writes a new
+                         version and keeps the citizen's original on file. --}}
+                    @php
+                        $editablePdfs = \App\Support\AssignmentScope::userCanEditDocument($document)
+                            ? $document->attachments->filter(fn ($a) => strtolower(pathinfo((string) $a->file_path, PATHINFO_EXTENSION)) === 'pdf')
+                            : collect();
+                    @endphp
+                    @if($editablePdfs->isNotEmpty())
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            @foreach($editablePdfs as $pdf)
+                                <a href="{{ route('attachments.edit', $pdf) }}" class="cr-btn cr-btn-sm">
+                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m16.86 4.49 1.69-1.69a1.875 1.875 0 1 1 2.65 2.65L10.58 16.07a4.5 4.5 0 0 1-1.9 1.13L6 18l.8-2.69a4.5 4.5 0 0 1 1.13-1.9l8.93-8.92Z"/></svg>
+                                    Edit &amp; sign PDF {{ $editablePdfs->count() > 1 ? '#'.$loop->iteration : '' }}
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @endif
 
@@ -376,13 +411,6 @@
                         Open internal request chain
                     </a>
                 @endif
-                <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn {{ $document->isInternal() ? '' : 'cr-btn-primary' }}">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
-                    Print QR sticker
-                </a>
-                <a href="{{ route('track.index', ['find' => 1]) }}" class="cr-btn">
-                    Open scanner
-                </a>
             </div>
 
             {{-- Predictive insights (self-hosted analytics) --}}
@@ -405,59 +433,6 @@
 
             <div class="mt-6">
                 <x-eta-estimate :prediction="$prediction ?? null" :document="$document" />
-            </div>
-
-            <div class="mt-8">
-                <div class="mb-3 text-[14px] font-bold text-ink">Status Progress</div>
-                @if($document->assigned_to)
-                    <p class="mb-2 text-[13px] text-ink-soft">
-                        Assigned to <span class="font-semibold text-green-deep">{{ $document->assignedTo->name ?? '—' }}</span>
-                    </p>
-                @endif
-                <x-routing-stepper :document="$document" :controls="true" />
-            </div>
-
-            {{-- Origin / Creation — how this document entered the office --}}
-            <div class="panel mt-8">
-                <div class="ph"><h2>Origin</h2></div>
-                <div class="pb text-[14px] text-ink">
-                    <div class="mb-3">
-                        <x-document-origin :source="$document->source" :by="$document->creator?->name" :at="$document->created_at" />
-                    </div>
-
-                    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                        <div class="flex gap-2">
-                            <dt class="w-28 shrink-0 text-ink-soft">Submitted by</dt>
-                            <dd class="font-medium">{{ $document->citizen_name ?: '—' }}</dd>
-                        </div>
-                        <div class="flex gap-2">
-                            <dt class="w-28 shrink-0 text-ink-soft">Email</dt>
-                            <dd class="font-medium break-all">{{ $document->citizen_email ?: '—' }}</dd>
-                        </div>
-                        <div class="flex gap-2">
-                            <dt class="w-28 shrink-0 text-ink-soft">Contact</dt>
-                            <dd class="font-medium">{{ $document->citizen_contact ?: '—' }}</dd>
-                        </div>
-                        <div class="flex gap-2">
-                            <dt class="w-28 shrink-0 text-ink-soft">Created</dt>
-                            <dd class="font-medium">{{ $document->created_at?->format('M d, Y \a\t h:i A') ?? '—' }}</dd>
-                        </div>
-                        <div class="flex gap-2">
-                            <dt class="w-28 shrink-0 text-ink-soft">{{ $document->source === 'online' ? 'Entered' : 'Encoded by' }}</dt>
-                            <dd class="font-medium">{{ $document->source === 'online' ? 'Online submission (citizen self-service)' : ($document->creator?->name ?? 'Staff') }}</dd>
-                        </div>
-                        @if($document->purpose)
-                            <div class="flex gap-2">
-                                <dt class="w-28 shrink-0 text-ink-soft">Purpose</dt>
-                                <dd class="font-medium">{{ $document->purpose }}</dd>
-                            </div>
-                        @endif
-                    </dl>
-
-                    @if($document->description)
-                        <p class="mt-3 border-t border-hairline pt-3"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>
-                    @endif
-                </div>
             </div>
 
             <div class="panel mt-8">

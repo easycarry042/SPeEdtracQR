@@ -25,7 +25,7 @@
                  only the form column scrolls. On smaller screens the whole body scrolls. --}}
             <div id="createModalBody" class="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-y-auto p-6 lg:grid-cols-2 lg:overflow-hidden">
                 <div class="min-h-0 rounded-2xl bg-gray-100/80 p-4">
-                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="image/*,.pdf,.doc,.docx" multiple class="sr-only">
+                    <input type="file" id="attachmentInput" name="attachments[]" form="submissionForm" accept="{{ \App\Support\UploadRules::accept() }}" multiple class="sr-only">
 
                     <div
                         id="dropZone"

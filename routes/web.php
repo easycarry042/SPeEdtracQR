@@ -18,11 +18,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentCustodyController;
 use App\Http\Controllers\DocumentNudgeController;
+use App\Http\Controllers\DocumentPdfEditorController;
 use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentRequirementController;
+use App\Http\Controllers\DocumentScheduleController;
 use App\Http\Controllers\DocumentSlipController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
+use App\Http\Controllers\HelpAssistantController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\InternalRequestController;
 use App\Http\Controllers\NotificationController;
@@ -33,6 +36,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
 use App\Http\Controllers\ServiceReportController;
 use App\Http\Controllers\SignatureController;
+use App\Http\Controllers\StaffBadgeController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
@@ -42,26 +46,21 @@ use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
-| Root — the public landing page is the homepage for GUESTS only.
-| Authenticated users are sent to their role workspace via 'home', so they
-| never land back on the public site (e.g. via the browser Back button) while
-| signed in. To reach the public landing they must log out first.
+| Root — the public landing page is the homepage for EVERYONE. Opening the
+| site (127.0.0.1) always shows the citizen-facing landing, signed in or not:
+| staff and citizens share one front door, exactly like a real municipal site.
+| Signed-in users get a "My workspace" button in the landing header instead of
+| being bounced to their dashboard (see layouts/partials/public-header).
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    if (auth()->check()) {
-        return redirect()->route('home');
-    }
-
-    return view('welcome');
-})->name('welcome');
+Route::get('/', fn () => view('welcome'))->name('welcome');
 
 Route::get('/home', function () {
     $user = auth()->user();
 
     // Mirrors the post-login redirect: super_admin → command center,
-    // supervisors → Dashboard, staff → Requests.
+    // supervisors → Dashboard, staff → My Profile (which carries their requests).
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -117,6 +116,12 @@ Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [Citi
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
     ->name('track.ask');
+
+// Public help desk assistant (citizen landing page): procedural questions only,
+// grounded in the published service catalogue — never in anyone's record.
+Route::post('/help/ask', [HelpAssistantController::class, 'ask'])
+    ->middleware('throttle:20,1')
+    ->name('help.ask');
 
 // Public authenticity check — the signed QR on an issued document lands here.
 Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
@@ -273,6 +278,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
     Route::get('/request-steps/{requestStep}/signature', [RequestStepController::class, 'signature'])->name('requests.steps.signature');
 
+    // Staff badge: the printable QR that re-confirms identity when signing an
+    // endorsement hop (replaces the password prompt on decisions).
+    Route::get('/profile/badge', [StaffBadgeController::class, 'show'])->name('profile.badge');
+    Route::post('/profile/badge/regenerate', [StaffBadgeController::class, 'regenerate'])->name('profile.badge.regenerate');
+
     // Registered e-signature (drawn once on the profile page).
     Route::post('/profile/signature', [SignatureController::class, 'store'])->name('profile.signature.store');
     Route::get('/profile/signature', [SignatureController::class, 'show'])->name('profile.signature.show');
@@ -308,7 +318,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
 
@@ -329,6 +338,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // QR-gated release: citizen presents their QR, staff mark the hand-over.
     Route::patch('/documents/{document}/release', [DocumentReleaseController::class, 'store'])->name('documents.release');
 
+    // Staff scheduling: set the calendar date a request is served on. The
+    // controller refuses a date already reserved on the same resource.
+    Route::patch('/documents/{document}/schedule', [DocumentScheduleController::class, 'store'])->name('documents.schedule');
+    Route::get('/resources/{resource}/booked-dates', [DocumentScheduleController::class, 'bookedDates'])->name('resources.booked-dates');
+
     // Manual status progression by the assigned staff member (or an admin).
     Route::patch('/documents/{document}/status/advance', [DocumentStatusController::class, 'advance'])->name('documents.status.advance');
     Route::patch('/documents/{document}/status/revert', [DocumentStatusController::class, 'revert'])->name('documents.status.revert');
@@ -348,6 +362,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/documents/{document}/accept', [AssignmentController::class, 'accept'])
         ->middleware('permission:accept documents|assign documents')
         ->name('documents.accept');
+
+    // Built-in PDF editor: place the registered e-signature / notes on an
+    // attached PDF. Saving writes a NEW attachment; the original is never
+    // modified (see DocumentPdfEditorController).
+    Route::get('/attachments/{attachment}/edit', [DocumentPdfEditorController::class, 'edit'])->name('attachments.edit');
+    Route::post('/attachments/{attachment}/edit', [DocumentPdfEditorController::class, 'store'])->name('attachments.edit.store');
 
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');

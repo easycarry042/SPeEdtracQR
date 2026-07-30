@@ -139,7 +139,7 @@ class InternalRequestFlowTest extends TestCase
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), [
-                'password' => 'password',
+                'badge_payload' => $mayorSupervisor->badgePayload(),
                 'remarks' => 'Approved for the lobby refresh.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -169,7 +169,7 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $budgetSupervisor);
 
         $this->actingAs($budgetSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $budgetSupervisor->badgePayload()])
             ->assertRedirect(route('requests.show', $document));
 
         $document->refresh();
@@ -183,22 +183,24 @@ class InternalRequestFlowTest extends TestCase
         $document = $this->makeRequest();
 
         // Budget's hop is not open yet — its supervisor must wait for the Mayor's.
-        $this->actingAs($this->supervisorOf($this->budget))
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+        $budgetSupervisor = $this->supervisorOf($this->budget);
+
+        $this->actingAs($budgetSupervisor)
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $budgetSupervisor->badgePayload()])
             ->assertForbidden();
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
     }
 
-    public function test_wrong_password_blocks_the_decision(): void
+    public function test_a_foreign_badge_blocks_the_decision(): void
     {
         $document = $this->makeRequest();
         $mayorSupervisor = $this->supervisorOf($this->mayor);
         $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'wrong-password'])
-            ->assertSessionHasErrors('password');
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => 'SPDSTAFF:'.str_repeat('z', 32)])
+            ->assertSessionHasErrors('badge_payload');
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->fresh()->requestSteps->first()->status);
     }
@@ -210,7 +212,7 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertSessionHasErrors('signature');
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->fresh()->requestSteps->first()->status);
@@ -223,12 +225,12 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.deny', $document), ['password' => 'password'])
+            ->post(route('requests.steps.deny', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertSessionHasErrors('remarks');
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.deny', $document), [
-                'password' => 'password',
+                'badge_payload' => $mayorSupervisor->badgePayload(),
                 'remarks' => 'No budget line for decorative items this quarter.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -248,7 +250,7 @@ class InternalRequestFlowTest extends TestCase
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.return', $document), [
-                'password' => 'password',
+                'badge_payload' => $mayorSupervisor->badgePayload(),
                 'remarks' => 'Attach three price quotations first.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -268,7 +270,7 @@ class InternalRequestFlowTest extends TestCase
             ->get(route('requests.show', $document))
             ->assertOk()
             ->assertSee('Scan to take custody')
-            ->assertDontSee('Confirm your password');
+            ->assertDontSee('Scan your staff badge');
 
         // Once the folder is scanned in, the decision form unlocks.
         $this->takeCustody($document, $mayorSupervisor);
@@ -276,7 +278,7 @@ class InternalRequestFlowTest extends TestCase
             ->get(route('requests.show', $document))
             ->assertOk()
             ->assertSee('Your office holds this request')
-            ->assertSee('Confirm your password');
+            ->assertSee('Scan your staff badge');
 
         $this->actingAs($this->supervisorOf($this->budget))
             ->get(route('requests.show', $document))
@@ -299,7 +301,7 @@ class InternalRequestFlowTest extends TestCase
         // No custody yet: approve, deny, and return are all refused.
         foreach (['requests.steps.approve', 'requests.steps.deny', 'requests.steps.return'] as $route) {
             $this->actingAs($mayorSupervisor)
-                ->post(route($route, $document), ['password' => 'password', 'remarks' => 'x'])
+                ->post(route($route, $document), ['badge_payload' => $mayorSupervisor->badgePayload(), 'remarks' => 'x'])
                 ->assertSessionHasErrors('custody');
         }
 
@@ -308,7 +310,7 @@ class InternalRequestFlowTest extends TestCase
         // After scanning the folder, the same approval goes through.
         $this->takeCustody($document, $mayorSupervisor);
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertRedirect(route('requests.show', $document));
 
         $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
@@ -323,7 +325,7 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor, method: 'manual');
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertRedirect(route('requests.show', $document));
 
         $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
@@ -341,7 +343,7 @@ class InternalRequestFlowTest extends TestCase
         $this->assertFalse($document->currentStepHasCustody());
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertSessionHasErrors('custody');
     }
 
@@ -360,7 +362,7 @@ class InternalRequestFlowTest extends TestCase
         $this->assertFalse($document->currentStepHasCustody());
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()])
             ->assertSessionHasErrors('custody');
     }
 
@@ -370,7 +372,7 @@ class InternalRequestFlowTest extends TestCase
         $mayorSupervisor = $this->supervisorOf($this->mayor);
         $this->takeCustody($document, $mayorSupervisor);
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password']);
+            ->post(route('requests.steps.approve', $document), ['badge_payload' => $mayorSupervisor->badgePayload()]);
 
         $step = $document->requestSteps()->first();
         $this->assertNotNull($step->signature_path);

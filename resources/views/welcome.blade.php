@@ -10,13 +10,26 @@
 
     {{-- Header --}}
     <header class="sticky top-0 z-50 border-b border-emerald-200/60 bg-[#f1f2f1]/90 backdrop-blur-md">
-        <div class="mx-auto flex max-w-6xl items-center justify-center px-6 py-4">
+        <div class="relative mx-auto flex max-w-6xl items-center justify-center px-6 py-4">
             <div class="flex items-center gap-3">
                 <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-xl">
                 <span class="text-lg font-extrabold tracking-tight text-emerald-950">
                     SPeED <span class="font-bold text-emerald-700">TraQR</span>
                 </span>
             </div>
+
+            {{-- The landing page stays the front door even when signed in, so staff
+                 need one way back to their own workspace. Guests see nothing here:
+                 the hero carries their two calls to action. --}}
+            @auth
+                <a href="{{ route('home') }}"
+                   class="absolute right-6 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-95">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
+                    </svg>
+                    My workspace
+                </a>
+            @endauth
         </div>
     </header>
 
@@ -168,6 +181,10 @@
             &copy; {{ date('Y') }} SPeED TraQR — Document Tracking System. All rights reserved.
         </div>
     </footer>
+
+    {{-- Public help desk: procedural questions ("what do I need for X?"), not
+         per-document status — that lives on the tracking page. --}}
+    <x-help-assistant />
 
     @include('layouts.partials.bfcache-guard')
 

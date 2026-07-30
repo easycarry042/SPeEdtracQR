@@ -7,6 +7,7 @@ use App\Models\Document;
 use App\Models\DocumentAttachment;
 use App\Models\DocumentRequirement;
 use App\Notifications\DocumentEvent;
+use App\Support\UploadRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -20,7 +21,7 @@ class CitizenDocumentUploadController extends Controller
     public function reupload(Request $request, string $trackingNumber, DocumentRequirement $requirement)
     {
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'file' => UploadRules::rules(required: true),
         ]);
 
         $document = Document::where('tracking_number', $trackingNumber)->with('assignedTo')->firstOrFail();
@@ -63,7 +64,7 @@ class CitizenDocumentUploadController extends Controller
     {
         $validated = $request->validate([
             'attachments' => ['required', 'array', 'min:1', 'max:5'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments.*' => UploadRules::rules(),
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 

@@ -88,7 +88,7 @@
                                 </template>
                                 <span x-show="fileName" x-text="fileName" class="max-w-full truncate text-[12px] font-medium text-green-deep"></span>
                                 {{-- sr-only (not hidden) keeps the input keyboard-focusable and Tab-reachable. --}}
-                                <input type="file" name="paper_scan" accept="image/jpeg,image/png,image/webp,application/pdf"
+                                <input type="file" name="paper_scan" accept="{{ \App\Support\UploadRules::accept() }}"
                                        class="sr-only" x-ref="paperInput" @change="onFileChange($event)">
                             </label>
                             @error('paper_scan')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror

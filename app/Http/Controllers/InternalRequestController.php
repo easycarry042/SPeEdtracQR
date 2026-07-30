@@ -10,6 +10,7 @@ use App\Models\RequestStep;
 use App\Models\RouteTemplate;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
+use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -125,7 +126,7 @@ class InternalRequestController extends Controller
         $validated = $request->validate([
             'route_template_id' => ['required', 'exists:route_templates,id'],
             'purpose' => ['required', 'string', 'max:255'],
-            'paper_scan' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+            'paper_scan' => UploadRules::rules(),
             // Optional supervisor-chosen QR placement on the scanned page.
             'qr_x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_y' => ['nullable', 'numeric', 'min:0', 'max:1'],
@@ -263,6 +264,13 @@ class InternalRequestController extends Controller
             'canAct' => $document->canActOnCurrentStep(auth()->user()),
             'currentStep' => $document->currentRequestStep(),
             'hasCustody' => $document->currentStepHasCustody(),
+            // Who scanned this folder, and when: the endorsement view has to
+            // answer "who had this paper?" without digging through the audit log.
+            'custodyTrail' => $document->custodyEvents()
+                ->with('user:id,name,department_id', 'user.department:id,name')
+                ->latest()
+                ->take(15)
+                ->get(),
         ]);
     }
 

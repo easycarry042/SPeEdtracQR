@@ -3,6 +3,13 @@ import './echo';
 
 import Alpine from 'alpinejs';
 
+// QR scanning library, bundled rather than pulled from a CDN so the scanner also
+// works on an offline/locked-down office LAN. Exposed globally for the Blade
+// scan helpers (see partials/qr-scan-helpers.blade.php).
+import { Html5Qrcode } from 'html5-qrcode';
+
+window.Html5Qrcode = Html5Qrcode;
+
 window.Alpine = Alpine;
 
 Alpine.start();

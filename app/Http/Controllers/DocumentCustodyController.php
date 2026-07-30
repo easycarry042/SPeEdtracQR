@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\DocumentCustodyEvent;
 use App\Support\AssignmentScope;
+use App\Support\ScannedCode;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -43,18 +44,18 @@ class DocumentCustodyController extends Controller
 
         $isScan = $validated['capture_method'] === 'scan';
 
-        // A scan must decode to THIS document's tracking number — scanning the
-        // wrong folder (or pasting garbage) is refused. The QR encodes the
-        // tracking URL, so extract the number rather than comparing raw strings.
+        // A scan must decode to THIS document's tracking number, and the code must
+        // be one WE issued (our own tracking/verify URL, or a bare tracking
+        // number). A foreign QR that merely mentions a tracking number is refused
+        // — the browser applies the same rule, this is the authority.
         if ($isScan) {
-            preg_match('/SPD-\d{8}-[0-9A-Z]{6}/i', (string) $validated['scanned_value'], $matches);
-            $scanned = isset($matches[0]) ? strtoupper($matches[0]) : null;
+            $scanned = ScannedCode::trackingNumber((string) $validated['scanned_value']);
 
             if ($scanned !== strtoupper($document->tracking_number)) {
                 throw ValidationException::withMessages([
                     'custody' => $scanned
                         ? "That QR belongs to a different folder ({$scanned}). Scan this document's folder."
-                        : 'That QR does not contain a valid tracking number. Scan the folder\'s QR code.',
+                        : ScannedCode::FOREIGN_CODE_MESSAGE,
                 ]);
             }
         }

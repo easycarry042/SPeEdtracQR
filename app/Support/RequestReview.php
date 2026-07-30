@@ -34,7 +34,9 @@ class RequestReview
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements');
+        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements', 'booking.resource');
+
+        $booking = $document->booking;
 
         return [
             'id' => $document->id,
@@ -62,6 +64,14 @@ class RequestReview
                 || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
+            // Scheduling: the day this request is served on, and what it reserves.
+            // Null until a staff member sets a date in the review modal.
+            'schedule_date' => $booking && ! $booking->isCancelled() ? $booking->starts_at->toDateString() : null,
+            'schedule_label' => $booking && ! $booking->isCancelled()
+                ? $booking->starts_at->format('M j, Y').($booking->resource ? ' · '.$booking->resource->name : '')
+                : null,
+            'resource_id' => $booking && ! $booking->isCancelled() ? $booking->resource_id : null,
+            'needed_by' => $document->needed_by?->toDateString(),
             // Cockpit context: lets the in-modal status controls render the hold
             // banner, the returned reason, and restore the stepper position on hold.
             'status_before_hold' => $document->status_before_hold,

@@ -55,7 +55,14 @@ class DashboardController extends Controller
         // and not yet assigned to a staff member. Approving (assign) removes it.
         // Internal dept-to-dept requests are excluded — they travel their own
         // endorsement chain (see the Internal Requests inbox), never this desk.
-        $pendingRequests = $this->deptScope($this->scopeDocuments(
+        //
+        // Intake is scoped INCLUSIVELY: a citizen request whose request type has
+        // no handling department is left unrouted (department_id null), and strict
+        // department scoping hid those from every Supervisor — so tickets that had
+        // already pinged them on the bell were nowhere to be found on this desk.
+        // Unowned intake is visible to every triager, which is also who gets
+        // notified about it (see DocumentEvent::departmentTriagers).
+        $pendingRequests = $this->deptScopeIncludingUnrouted($this->scopeDocuments(
             Document::with('attachments', 'department', 'requirements')
                 ->where('origin', '!=', Document::ORIGIN_INTERNAL)
                 ->where('status', DocumentStatus::Pending->value)
@@ -123,6 +130,20 @@ class DashboardController extends Controller
     private function deptScope(Builder $query, ?int $deptId): Builder
     {
         return $query->when($deptId, fn (Builder $q) => $q->where('department_id', $deptId));
+    }
+
+    /**
+     * Department scope for queues of UNOWNED work: this department's requests
+     * plus every request no department owns yet. Without the null branch,
+     * unrouted citizen submissions are invisible to all Supervisors.
+     */
+    private function deptScopeIncludingUnrouted(Builder $query, ?int $deptId): Builder
+    {
+        return $query->when($deptId, fn (Builder $q) => $q->where(
+            fn (Builder $inner) => $inner
+                ->where('department_id', $deptId)
+                ->orWhereNull('department_id')
+        ));
     }
 
     /**

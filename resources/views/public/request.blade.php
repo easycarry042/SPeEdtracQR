@@ -247,6 +247,10 @@
             });
         })();
 
+        // Accepted upload formats come from App\Support\UploadRules, so the file
+        // picker always matches what the server will accept.
+        const ACCEPTED_UPLOADS = @json(\App\Support\UploadRules::accept());
+
         // Branch the form on the selected type's kind: document types show a
         // requirement checklist (optional uploads); booking types show a
         // resource + date/time reservation block.
@@ -304,7 +308,7 @@
                             <span class="text-sm font-medium text-gray-800">${esc(r.label)}</span>
                             <span class="shrink-0 text-[11px] font-semibold ${r.mandatory ? 'text-red-600' : 'text-gray-400'}">${r.mandatory ? 'Required' : 'Optional'}</span>
                         </div>
-                        <input type="file" name="requirements[${r.id}]" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                        <input type="file" name="requirements[${r.id}]" accept="${ACCEPTED_UPLOADS}"
                                class="mt-2 w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">`;
                     reqList.appendChild(li);
                 });

@@ -266,7 +266,9 @@
             </div>
 
             {{-- Document type breakdown (1/2) --}}
-            <div class="panel an-span-3">
+            {{-- Full width: with 4+2 and 2+2+2 above, a 3-wide card here would
+                 leave half a row empty and throw the grid out of alignment. --}}
+            <div class="panel an-span-6">
                 <div class="ph"><h2>What volume by type?</h2><span class="sub">created in window</span></div>
                 <div class="pb">
                     @if ($typeBreakdown->isEmpty())

@@ -16,41 +16,9 @@
 </button>
 @endif
 
-@php
-    // The people-search jumps to a staff member's profile — only surface it on
-    // the tabs where looking someone up is actually part of the task (dashboards,
-    // the staff directory/profiles, and the assignment/user-management desks).
-    $showPeopleSearch = request()->routeIs(
-        'dashboard', 'admin.dashboard', 'staff.dashboard',
-        'staff.index', 'staff.profile',
-        'admin.assignments*', 'admin.users*',
-    );
-@endphp
-@if($showPeopleSearch)
-<div class="relative hidden sm:block"
-     x-data="{ open: false, q: '', results: [],
-        run() {
-            if (! this.q.trim()) { this.results = []; return; }
-            fetch('{{ route('staff.search') }}?q=' + encodeURIComponent(this.q), { headers: { 'Accept': 'application/json' } })
-                .then(r => r.json()).then(d => { this.results = d; }).catch(() => { this.results = []; });
-        } }">
-    <button type="button"
-            @click="open = ! open; if (open) $nextTick(() => $refs.pinput.focus())"
-            class="flex h-11 w-11 items-center justify-center rounded-full bg-green-wash text-green-deep ring-1 ring-hairline-strong transition hover:scale-105 hover:bg-emerald-300/90 active:scale-95"
-            title="Find a person" aria-haspopup="true">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
-    </button>
-    <div x-show="open" x-cloak @click.outside="open = false" class="people-panel">
-        <input type="text" x-ref="pinput" x-model="q" @input.debounce.300ms="run()" placeholder="Find a staff member…">
-        <div class="mt-1">
-            <template x-for="p in results" :key="p.url">
-                <a :href="p.url" class="people-result"><span x-text="p.name"></span><span class="r" x-text="p.role"></span></a>
-            </template>
-            <div x-show="q.length && ! results.length" class="people-empty">No matches.</div>
-        </div>
-    </div>
-</div>
-@endif
+{{-- No global search here: searching is offered inside the tab that needs it
+     (the Requests table below the supervisor dashboard, the staff directory, the
+     assignments desk, History), which keeps the header to identity + alerts. --}}
 
 @php
     // Real unread feed for the bell (database notifications, see DocumentEvent).

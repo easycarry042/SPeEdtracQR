@@ -804,8 +804,13 @@ aside.sidebar-pinned {
 .delta.bad { color: var(--red); }
 .spark { display: block; width: 100%; height: 30px; margin-top: 8px; }
 
-/* Mixed-width chart grid */
-.an-grid { display: grid; gap: 14px; grid-template-columns: repeat(6, 1fr); align-items: start; }
+/* Mixed-width chart grid. `stretch` + full-height cells keep every card in a
+   row the same height, so the analytics section reads as one even grid instead
+   of a ragged collage of differently-sized panels. */
+.an-grid { display: grid; gap: 14px; grid-template-columns: repeat(6, 1fr); align-items: stretch; }
+.an-grid > * { min-width: 0; }
+.an-grid > .panel { display: flex; flex-direction: column; height: 100%; }
+.an-grid > .panel > .pb { flex: 1; }
 .an-span-2 { grid-column: span 2; }
 .an-span-3 { grid-column: span 3; }
 .an-span-4 { grid-column: span 4; }
@@ -1014,4 +1019,33 @@ aside.sidebar-pinned {
 .nav-brand:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(199, 154, 62, .55);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PDF editor placement layer (resources/js/pdf-editor.js)
+   The overlay sits exactly on top of the rendered page; every placement is
+   stored as a fraction of the page, so zooming never moves a signature.
+   ───────────────────────────────────────────────────────────────────────── */
+.pdfe-overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.pdfe-item {
+    position: absolute; border: 1px dashed rgba(21, 95, 55, .55);
+    background: rgba(21, 95, 55, .04); cursor: move;
+    display: flex; align-items: center; justify-content: flex-start;
+}
+.pdfe-item.is-selected { border-color: var(--green); background: rgba(21, 95, 55, .09); }
+.pdfe-signature { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.pdfe-text {
+    padding: 0 2px; font-size: 13px; line-height: 1.1; color: #12211a;
+    white-space: nowrap; overflow: hidden; pointer-events: none;
+}
+.pdfe-handle {
+    position: absolute; right: -5px; bottom: -5px; width: 11px; height: 11px;
+    border-radius: 2px; background: var(--green); cursor: nwse-resize;
+}
+.pdfe-remove {
+    position: absolute; top: -9px; right: -9px; width: 18px; height: 18px;
+    border-radius: 999px; border: 1px solid var(--hairline-strong);
+    background: #fff; color: var(--red); font-size: 13px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
 }

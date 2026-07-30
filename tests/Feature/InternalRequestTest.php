@@ -202,9 +202,11 @@ class InternalRequestTest extends TestCase
         $stamped = $document->attachments->pluck('file_path')->first(fn ($p) => str_ends_with($p, '-qr-stamped.png'));
         $img = imagecreatefromstring(Storage::disk('local')->get($stamped));
 
-        // At 0.40 the white QR box spans ~268px, so (200,200) is covered; the
-        // default 0.22 stamp (~147px) would leave that point red.
-        $this->assertWhitish($img, 200, 200);
+        // At 0.40 the QR box spans ~268px, so (200,200) is covered by the stamp;
+        // the default 0.22 stamp (~147px) would leave that point red. The point
+        // may land on the white pad OR on a black QR module depending on the
+        // code's module layout, so assert "stamped, not page" rather than white.
+        $this->assertNotReddish($img, 200, 200);
     }
 
     public function test_qr_size_outside_the_allowed_band_is_rejected(): void
@@ -234,6 +236,15 @@ class InternalRequestTest extends TestCase
     {
         $rgb = imagecolorsforindex($image, imagecolorat($image, $x, $y));
         $this->assertGreaterThan(230, min($rgb['red'], $rgb['green'], $rgb['blue']), "Expected a white QR pad at ({$x},{$y}).");
+    }
+
+    /** The pixel belongs to the stamp (white pad or QR ink), not the red page. */
+    private function assertNotReddish($image, int $x, int $y): void
+    {
+        $rgb = imagecolorsforindex($image, imagecolorat($image, $x, $y));
+        $isPageRed = $rgb['red'] > 180 && $rgb['green'] < 80 && $rgb['blue'] < 80;
+
+        $this->assertFalse($isPageRed, "Expected the QR stamp to cover ({$x},{$y}).");
     }
 
     private function assertReddish($image, int $x, int $y): void
@@ -324,7 +335,7 @@ class InternalRequestTest extends TestCase
 
         // Only the department head can endorse; doing so forwards it to the next office.
         $this->actingAs($head)->post(route('requests.steps.approve', $document), [
-            'password' => 'password',
+            'badge_payload' => $head->badgePayload(),
         ])->assertRedirect(route('requests.show', $document));
 
         $document->refresh();

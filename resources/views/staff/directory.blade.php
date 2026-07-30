@@ -37,7 +37,7 @@
         <div class="dir-chips" aria-label="Filter by role">
             <a href="{{ route('staff.index', $chipParams(null)) }}" class="dir-chip {{ $role === '' ? 'on' : '' }}">All</a>
             @foreach($roles as $r)
-                <a href="{{ route('staff.index', $chipParams($r)) }}" class="dir-chip {{ $role === $r ? 'on' : '' }}">{{ \Illuminate\Support\Str::headline($r) }}</a>
+                <a href="{{ route('staff.index', $chipParams($r)) }}" class="dir-chip {{ $role === $r ? 'on' : '' }}">{{ \App\Support\RoleLabel::for($r) }}</a>
             @endforeach
             <span class="dir-count">{{ $staff->count() }} {{ \Illuminate\Support\Str::plural('person', $staff->count()) }}</span>
         </div>
@@ -54,7 +54,7 @@
                             <div class="dir-name">{{ $person['name'] }}</div>
                             <div class="dir-sub">
                                 @if($person['role'])
-                                    <span class="sp-role">{{ \Illuminate\Support\Str::headline($person['role']) }}</span>
+                                    <span class="sp-role">{{ \App\Support\RoleLabel::for($person['role']) }}</span>
                                 @endif
                                 <span class="dir-active">{{ $person['last_active'] ? 'Active '.$person['last_active'] : 'No activity yet' }}</span>
                             </div>
@@ -88,7 +88,7 @@
                 </div>
             @empty
                 <div class="panel sp-empty" style="grid-column:1/-1;">
-                    <p>No staff found{{ $q !== '' ? ' for "'.$q.'"' : '' }}{{ $role !== '' ? ' with the role "'.\Illuminate\Support\Str::headline($role).'"' : '' }}.</p>
+                    <p>No staff found{{ $q !== '' ? ' for "'.$q.'"' : '' }}{{ $role !== '' ? ' with the role "'.\App\Support\RoleLabel::for($role).'"' : '' }}.</p>
                     @if($q !== '' || $role !== '')
                         <p style="margin-top:4px;"><a href="{{ route('staff.index') }}" class="cr-link">Clear filters</a></p>
                     @endif

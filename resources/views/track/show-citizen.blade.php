@@ -200,9 +200,6 @@
             </div>
         </div>
 
-        {{-- ── Self-hosted AI assistant (Pillar 3) — floats bottom-right ─────── --}}
-        <x-doc-assistant :document="$document" />
-
         {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
         @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
         <div class="panel">
@@ -255,7 +252,7 @@
                             <form method="POST" action="{{ route('track.requirement-reupload', [$document->tracking_number, $req]) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-center gap-2">
                                 @csrf
                                 <label for="reupload-{{ $req->id }}" class="sr-only">Re-upload {{ $req->label }}</label>
-                                <input id="reupload-{{ $req->id }}" type="file" name="file" accept="image/*,.pdf,.doc,.docx" required
+                                <input id="reupload-{{ $req->id }}" type="file" name="file" accept="{{ \App\Support\UploadRules::accept() }}" required
                                        class="block text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
                                 <button type="submit" class="cr-btn cr-btn-primary min-h-[44px]">Re-upload</button>
                             </form>
@@ -301,7 +298,7 @@
                     @csrf
                     <div>
                         <label for="citizen_attachments" class="block text-sm font-medium text-ink">Files (up to 5 — images, PDF or Word)</label>
-                        <input type="file" id="citizen_attachments" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple required
+                        <input type="file" id="citizen_attachments" name="attachments[]" accept="{{ \App\Support\UploadRules::accept() }}" multiple required
                                class="mt-1 block w-full text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
                     </div>
                     <div>
@@ -380,6 +377,10 @@
             const desc = document.getElementById('statusDescription');
             if (desc && statusDesc[status]) { desc.textContent = statusDesc[status]; }
 
+            // "Not yet assigned" is written only when the payload explicitly says
+            // nobody is assigned (null). A missing/undefined key leaves whatever
+            // the server rendered in place — a poll response that forgot this
+            // field used to blank the assigned staff name every 30 seconds.
             if (department) {
                 dept.textContent = department;
             } else if (department === null) {

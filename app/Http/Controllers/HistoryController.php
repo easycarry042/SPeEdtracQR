@@ -9,26 +9,40 @@ use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
+/**
+ * History is the archive of finished work: it lists COMPLETED requests only.
+ * Anything still moving belongs on a dashboard, not in history — mixing the two
+ * made History a second, confusing worklist.
+ */
 class HistoryController extends Controller
 {
     use ScopesToAssignedWork;
 
     public function index(Request $request): Factory|View
     {
-        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
+        $query = $this->completedDocuments();
 
         $this->applyFilters($query, $request);
 
-        $documents = $query->latest('created_at')->paginate(15);
-        $documentTypes = $this->scopeDocuments(Document::query())->distinct()->pluck('document_type');
-        $statuses = DocumentStatus::values();
+        $documents = $query->latest('completed_at')->latest('created_at')->paginate(15);
+        $documentTypes = $this->completedDocuments()->distinct()->pluck('document_type');
 
-        return view('history.index', ['documents' => $documents, 'documentTypes' => $documentTypes, 'statuses' => $statuses]);
+        return view('history.index', ['documents' => $documents, 'documentTypes' => $documentTypes]);
+    }
+
+    /** Completed requests within the viewer's scope. */
+    private function completedDocuments()
+    {
+        return $this->scopeDocuments(
+            Document::query()
+                ->with('assignedTo')
+                ->where('status', DocumentStatus::Completed->value)
+        );
     }
 
     public function export(Request $request)
     {
-        $query = $this->scopeDocuments(Document::query()->with('assignedTo'));
+        $query = $this->completedDocuments();
 
         $this->applyFilters($query, $request);
 
@@ -65,9 +79,6 @@ class HistoryController extends Controller
             });
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
         if ($request->filled('document_type')) {
             $query->where('document_type', $request->document_type);
         }

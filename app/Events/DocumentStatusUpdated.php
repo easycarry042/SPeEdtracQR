@@ -24,6 +24,14 @@ class DocumentStatusUpdated implements ShouldBroadcast
     public function __construct(
         public Document $document,
         public ?User $actor = null,
+        /**
+         * Set true when the caller already sends its own targeted bell
+         * notification for this action (e.g. an assignment decline), so the
+         * generic oversight ping in NotifyOversightOfStatusChange stays quiet
+         * and the supervisor gets one notification instead of two. The
+         * broadcast to the citizen tracking page is unaffected.
+         */
+        public bool $oversightNotified = false,
     ) {}
 
     public function broadcastOn(): Channel

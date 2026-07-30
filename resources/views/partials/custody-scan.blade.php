@@ -38,8 +38,10 @@
             <input type="hidden" name="scanned_value" x-ref="scannedValue">
         </form>
 
-        {{-- Audited fallback for a torn/unreadable QR — visibly secondary. --}}
-        <div class="custody-manual">
+        {{-- Audited fallback for a torn/unreadable QR — visibly secondary, and
+             only offered once a scan is actually being attempted, so the detail
+             view stays a single quiet line until someone acts. --}}
+        <div class="custody-manual" x-show="scanning" x-cloak>
             <button type="button" class="cs-manual-link" @click="openManual()">QR torn or unreadable? Record manually</button>
             <form x-show="manualOpen" x-cloak method="POST" action="{{ route('documents.custody.store', $document) }}" class="cs-manual-form">
                 @csrf
@@ -86,7 +88,7 @@
                         } else {
                             this.error = tracking
                                 ? `That's a different folder (${tracking}). Scan this document's folder.`
-                                : 'That QR does not contain a tracking number.';
+                                : window.SpeedQr.FOREIGN_CODE_MESSAGE;
                         }
                     }, () => {
                         this.scanning = false;

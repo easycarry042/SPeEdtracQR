@@ -10,6 +10,7 @@ use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\DocumentFormOptions;
+use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -60,7 +61,7 @@ class PublicTicketController extends Controller
             'citizen_contact' => ['nullable', 'string', 'max:255'],
             // Optional per-requirement uploads, keyed by request_type_requirement id.
             'requirements' => ['nullable', 'array'],
-            'requirements.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'requirements.*' => UploadRules::rules(),
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
@@ -163,6 +164,12 @@ class PublicTicketController extends Controller
             'status' => DocumentStatus::Pending->value,
             'status_changed_at' => now(),
             'source' => 'online',
+            // Routing is automatic, never a choice on the form: anything filed
+            // through the public form is an EXTERNAL (citizen) request and enters
+            // the citizen flow; dept-to-dept requests are created only through the
+            // internal wizard, which stamps ORIGIN_INTERNAL. Set explicitly rather
+            // than relying on the column default so the flow is visible here.
+            'origin' => Document::ORIGIN_EXTERNAL,
             'created_by' => null, // submitted by a citizen, not a staff user
         ]);
 

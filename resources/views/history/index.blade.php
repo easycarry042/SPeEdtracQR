@@ -24,17 +24,11 @@
             </div>
 
             {{-- Toggleable filter panel --}}
-            <div x-show="filtersOpen" x-cloak class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+            <div x-show="filtersOpen" x-cloak class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
                 <select name="document_type" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
                     <option value="">All Categories</option>
                     @foreach($documentTypes as $type)
                         <option value="{{ $type }}" @selected(request('document_type')===$type)>{{ $type }}</option>
-                    @endforeach
-                </select>
-                <select name="status" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                    <option value="">All Statuses</option>
-                    @foreach($statuses as $status)
-                        <option value="{{ $status }}" @selected(request('status')===$status)>{{ str_replace('_', ' ', ucfirst($status)) }}</option>
                     @endforeach
                 </select>
                 <input type="date" name="from" value="{{ request('from') }}" title="From date"
@@ -59,7 +53,6 @@
                             <th>Date</th>
                             <th>Category</th>
                             <th>Status</th>
-                            <th style="text-align:right">Sticker</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -73,15 +66,14 @@
                                 :tracking="$doc->tracking_number"
                                 :fileName="$doc->citizen_name ?: 'File '.substr($doc->tracking_number, -5)"
                                 :category="$doc->document_type"
-                                :status="$doc->status === 'completed' ? 'completed' : $doc->status"
+                                :status="$doc->status"
                                 :href="route('track.show', $doc->tracking_number)"
-                                :sticker-href="route('documents.sticker', $doc)"
                             />
                         @empty
                             <tr>
-                                <td colspan="7">
+                                <td colspan="6">
                                     <x-empty-state icon="search" title="No records match">
-                                        Nothing lines up with the current search or filters. Try broadening your terms or clearing the filters.
+                                        History lists completed requests only. Nothing here matches the current search or filters — try broadening your terms.
                                     </x-empty-state>
                                 </td>
                             </tr>

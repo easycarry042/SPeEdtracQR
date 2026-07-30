@@ -25,14 +25,19 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage bookings',   // staff manage resource reservations (approve/reschedule/cancel)
             'view reports',
             'manage users',
-            'view all documents',
-            'delete documents',
             'manage system',
         ];
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }
+
+        // Prune permissions that no longer gate anything. 'view all documents'
+        // and 'delete documents' were never checked in code — visibility is
+        // decided by App\Support\DepartmentScope/AssignmentScope, and documents
+        // are soft-deleted through the edit flow. Leaving them assignable made
+        // the role matrix look like it granted powers that did not exist.
+        Permission::whereNotIn('name', $permissions)->delete();
 
         // Staff process and manage assigned requests; they no longer CREATE
         // requests — only guests (the public) submit, via the public request form.
@@ -55,7 +60,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $legacyDeptAdminRole = Role::where('name', 'department_admin')->first();
         $supervisorRole = Role::firstOrCreate(['name' => 'Supervisor']);
         $supervisorRole->syncPermissions([
-            'assign documents', 'view reports', 'view all documents',
+            'assign documents', 'view reports',
             'create internal requests', 'act on internal requests',
         ]);
         if ($legacyDeptAdminRole) {

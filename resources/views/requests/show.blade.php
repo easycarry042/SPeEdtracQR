@@ -181,11 +181,41 @@
                                     <span>I understand denying <strong>permanently ends</strong> this request and cannot be undone.</span>
                                 </label>
 
-                                <div>
-                                    <label for="req-password" class="block text-[13px] font-semibold text-ink">Confirm your password <span class="text-status-red">*</span></label>
-                                    <input id="req-password" type="password" name="password" required autocomplete="current-password"
-                                           class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
-                                    <p class="mt-1 text-[12px] text-ink-soft">Identity is re-confirmed on every decision — this is what makes the e-signature credible.</p>
+                                {{-- Identity is re-confirmed by scanning the signer's own staff
+                                     badge QR, not by retyping a password: one action at the
+                                     counter, nothing to shoulder-surf, and it can only be
+                                     satisfied by the person holding that badge. --}}
+                                <div x-data="badgeSign()">
+                                    <p class="block text-[13px] font-semibold text-ink">
+                                        Scan your staff badge <span class="text-status-red">*</span>
+                                    </p>
+
+                                    <input type="hidden" name="badge_payload" :value="payload">
+
+                                    <div x-show="!payload" class="mt-2">
+                                        <button type="button" @click="toggle()" class="cr-btn cr-btn-sm">
+                                            <span x-text="scanning ? 'Cancel scan' : 'Scan badge QR'"></span>
+                                        </button>
+                                        <div x-show="scanning" x-cloak class="mt-3">
+                                            <div id="badgeReader" class="overflow-hidden rounded-[8px]"></div>
+                                            <p class="mt-1 text-[12px] text-ink-soft">Point the camera at the QR on your own badge.</p>
+                                        </div>
+                                    </div>
+
+                                    <p x-show="payload" x-cloak class="mt-2 flex items-center gap-2 text-[13px] font-semibold text-green">
+                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                        Badge scanned — ready to sign
+                                        <button type="button" @click="reset()" class="ml-1 text-[12px] font-normal text-ink-soft underline">rescan</button>
+                                    </p>
+
+                                    <p x-show="error" x-cloak x-text="error" role="alert" class="mt-2 text-[12.5px] font-semibold text-status-red"></p>
+                                    @error('badge_payload')
+                                        <p class="mt-2 text-[12.5px] font-semibold text-status-red">{{ $message }}</p>
+                                    @enderror
+
+                                    <p class="mt-1 text-[12px] text-ink-soft">
+                                        No badge yet? <a href="{{ route('profile.badge') }}" target="_blank" class="font-semibold underline">Print yours</a>.
+                                    </p>
                                 </div>
 
                                 <button type="submit"
@@ -221,7 +251,77 @@
                         </div>
                     </section>
                 @endif
+
+                {{-- Who scanned this folder: every custody hand-off, newest first.
+                     Attribution is the point of scanning at all — the endorsement
+                     view now names the scanner instead of only the current holder. --}}
+                <section class="panel">
+                    <div class="ph"><h2>Scan trail</h2></div>
+                    <div class="pb">
+                        @forelse($custodyTrail as $event)
+                            <div class="flex items-start justify-between gap-3 border-b border-hairline py-2 last:border-b-0">
+                                <div class="min-w-0">
+                                    <p class="text-[13px] font-semibold text-ink">{{ $event->user->name ?? 'Unknown staff' }}</p>
+                                    <p class="text-[12px] text-ink-soft">
+                                        {{ $event->user?->department?->name ?? 'No department' }} ·
+                                        {{ $event->capture_method === 'manual' ? 'recorded manually' : 'QR scanned' }}
+                                        @if($event->capture_method === 'manual' && $event->override_reason)
+                                            — {{ $event->override_reason }}
+                                        @endif
+                                    </p>
+                                </div>
+                                <span class="mono shrink-0 text-[12px] text-ink-soft">{{ $event->created_at->format('M d, h:i A') }}</span>
+                            </div>
+                        @empty
+                            <p class="text-[13px] text-ink-soft">Nobody has scanned this folder yet.</p>
+                        @endforelse
+                    </div>
+                </section>
             </div>
         </div>
     </div>
+
+    {{-- Badge scanning for the signature step (see the decision panel above). --}}
+    @include('partials.qr-scan-helpers')
+    <script>
+        window.badgeSign = function () {
+            return {
+                scanning: false,
+                payload: '',
+                error: '',
+
+                toggle() {
+                    if (this.scanning) {
+                        window.SpeedQr.stop();
+                        this.scanning = false;
+
+                        return;
+                    }
+                    this.error = '';
+                    this.scanning = true;
+                    window.SpeedQr.start('badgeReader', (decodedText) => {
+                        // Only a staff badge signs a decision — a folder QR or any
+                        // other code is refused rather than silently accepted.
+                        if (!window.SpeedQr.isStaffBadge(decodedText)) {
+                            this.error = 'That is not a staff badge QR. Scan the code on your own badge.';
+
+                            return;
+                        }
+                        window.SpeedQr.stop();
+                        this.scanning = false;
+                        this.payload = decodedText.trim();
+                        this.error = '';
+                    }, () => {
+                        this.scanning = false;
+                        this.error = 'Could not start the camera. Check permissions and try again.';
+                    });
+                },
+
+                reset() {
+                    this.payload = '';
+                    this.error = '';
+                },
+            };
+        };
+    </script>
 </x-app-layout>

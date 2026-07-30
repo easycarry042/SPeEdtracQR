@@ -89,16 +89,28 @@ class HomepageTest extends TestCase
         return $found;
     }
 
-    public function test_authenticated_users_are_redirected_off_the_public_landing(): void
+    public function test_the_landing_page_is_the_front_door_for_signed_in_users_too(): void
     {
         $this->seedRolesAndPermissions();
-        $admin = User::factory()->create()->assignRole('super_admin');
 
-        // Signed-in users never see the guest landing page — they go to their
-        // workspace, so the Back button can't strand them on the public site.
-        $this->actingAs($admin)
-            ->get('/')
-            ->assertRedirect(route('home'));
+        // Opening the site never redirects: every role lands on the citizen-facing
+        // landing page and gets a way back to their own workspace from there.
+        foreach (['super_admin', 'Supervisor', 'staff'] as $role) {
+            $user = User::factory()->create()->assignRole($role);
+
+            $this->actingAs($user)
+                ->get('/')
+                ->assertOk()
+                ->assertSee('Citizen Portal')
+                ->assertSee('My workspace');
+        }
+    }
+
+    public function test_guests_get_no_workspace_link_on_the_landing_page(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee('My workspace');
     }
 
     public function test_home_dispatches_a_super_admin_to_the_command_center(): void

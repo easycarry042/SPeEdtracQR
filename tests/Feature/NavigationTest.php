@@ -37,6 +37,52 @@ class NavigationTest extends TestCase
         ], $attributes));
     }
 
+    public function test_every_role_gets_the_same_top_navbar(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $pages = [
+            'staff' => null,           // resolved below (own profile)
+            'Supervisor' => 'dashboard',
+            'super_admin' => 'admin.dashboard',
+        ];
+
+        foreach ($pages as $role => $routeName) {
+            $user = $this->userWithRole($role);
+            $url = $routeName ? route($routeName) : route('staff.profile', $user->id);
+
+            $response = $this->actingAs($user)->get($url)->assertOk();
+
+            // The shared shell, for everyone — no role-specific sidebar.
+            $response->assertSee('topnav-shell', false);
+            $response->assertDontSee('sidebar-pinned', false);
+        }
+    }
+
+    public function test_the_admin_sees_configuration_pages_under_setup(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $this->actingAs($this->userWithRole('super_admin'))
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Setup')
+            ->assertSee(route('admin.departments.index'), false)
+            ->assertSee(route('admin.audit-log.index'), false);
+    }
+
+    public function test_roles_are_labelled_consistently(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        // super_admin reads as "Administrator" in the UI, never as a raw key.
+        $this->actingAs($this->userWithRole('super_admin'))
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Administrator')
+            ->assertDontSee('super_admin');
+    }
+
     public function test_staff_login_lands_on_requests(): void
     {
         $this->seedRolesAndPermissions();
@@ -72,7 +118,7 @@ class NavigationTest extends TestCase
             ->assertRedirect(route('track.index', ['find' => 1]));
     }
 
-    public function test_find_mode_renders_look_up_hub_instead_of_redirecting(): void
+    public function test_find_mode_renders_the_requests_hub_instead_of_redirecting(): void
     {
         $this->seedRolesAndPermissions();
 
@@ -89,7 +135,7 @@ class NavigationTest extends TestCase
         $this->actingAs($user)
             ->get(route('track.index', ['find' => 1]))
             ->assertOk()
-            ->assertSee('Look up a document');
+            ->assertSee('Find a request');
     }
 
     public function test_unknown_tracking_number_soft_fails_without_a_404(): void

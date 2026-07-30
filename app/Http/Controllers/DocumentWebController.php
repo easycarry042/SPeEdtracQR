@@ -9,6 +9,7 @@ use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
+use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -42,9 +43,9 @@ class DocumentWebController extends Controller
             'description' => ['nullable', 'string'],
             'purpose' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachment' => UploadRules::rules(),
             'attachments' => ['nullable', 'array', 'max:10'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments.*' => UploadRules::rules(),
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();

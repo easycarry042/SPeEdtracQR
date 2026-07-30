@@ -101,7 +101,7 @@ class ReviewModalRequirementsTest extends TestCase
         $document->update(['assigned_to' => $staff->id, 'status' => 'in_progress']);
 
         $this->actingAs($staff)
-            ->get(route('staff.dashboard'))
+            ->get(route('staff.profile', ['user' => $staff->id, 'tab' => 'assigned']))
             ->assertOk()
             ->assertSee('Requirements for this request');
     }

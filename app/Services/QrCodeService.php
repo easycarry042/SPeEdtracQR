@@ -80,9 +80,19 @@ class QrCodeService
      * many servers (including ours) don't ship — GD is the project baseline,
      * so drawing the modules ourselves keeps PNG output dependable.
      */
-    private function renderPngWithGd(string $content, int $targetSize = 500, int $marginModules = 1): string
+    /**
+     * Render the QR as a PNG.
+     *
+     * The quiet zone is 4 modules because that is what the QR spec (ISO/IEC
+     * 18004) requires: with a smaller margin many phone cameras and
+     * html5-qrcode simply fail to lock onto a printed sticker, which is why
+     * scanning "didn't read" in the field. Error correction is raised to Q
+     * (~25%) so a folder sticker still decodes once it is scuffed or smudged
+     * from handling — the payload is a short URL, so there is capacity to spare.
+     */
+    private function renderPngWithGd(string $content, int $targetSize = 500, int $marginModules = 4): string
     {
-        $matrix = Encoder::encode($content, ErrorCorrectionLevel::M())->getMatrix();
+        $matrix = Encoder::encode($content, ErrorCorrectionLevel::Q())->getMatrix();
         $modules = $matrix->getWidth();
         $total = $modules + ($marginModules * 2);
         $scale = max(1, intdiv($targetSize, $total));

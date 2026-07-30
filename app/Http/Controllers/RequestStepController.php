@@ -6,10 +6,10 @@ use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\RequestStep;
 use App\Notifications\DocumentEvent;
+use App\Support\StaffBadge;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Hop actions on an internal request's endorsement chain. Only a supervisor of
  * the department holding the current hop may act, and every action re-confirms
- * their password. Approving affixes a frozen copy of their registered
+ * their staff badge QR. Approving affixes a frozen copy of their registered
  * e-signature and advances the chain; deny/return halt it.
  */
 class RequestStepController extends Controller
@@ -28,7 +28,7 @@ class RequestStepController extends Controller
         $user = $request->user();
 
         $this->validateAction($request, remarksRequired: false);
-        $this->confirmPassword($request);
+        $this->confirmIdentity($request);
 
         if (! $user->signature_path || ! Storage::disk('local')->exists($user->signature_path)) {
             throw ValidationException::withMessages([
@@ -91,7 +91,7 @@ class RequestStepController extends Controller
         $user = $request->user();
 
         $this->validateAction($request, remarksRequired: true);
-        $this->confirmPassword($request);
+        $this->confirmIdentity($request);
 
         $step->update([
             'status' => RequestStep::STATUS_DENIED,
@@ -122,7 +122,7 @@ class RequestStepController extends Controller
         $user = $request->user();
 
         $this->validateAction($request, remarksRequired: true);
-        $this->confirmPassword($request);
+        $this->confirmIdentity($request);
 
         $step->update([
             'status' => RequestStep::STATUS_RETURNED,
@@ -178,18 +178,27 @@ class RequestStepController extends Controller
     private function validateAction(Request $request, bool $remarksRequired): void
     {
         $request->validate([
-            'password' => ['required', 'string'],
+            'badge_payload' => ['required', 'string', 'max:200'],
             'remarks' => [$remarksRequired ? 'required' : 'nullable', 'string', 'max:500'],
         ], [
+            'badge_payload.required' => 'Scan your staff badge QR to sign this decision.',
             'remarks.required' => 'Explain the decision so the filing office knows what to fix.',
         ]);
     }
 
-    /** Every hop decision re-confirms identity — this is what makes the e-signature credible. */
-    private function confirmPassword(Request $request): void
+    /**
+     * Every hop decision re-confirms identity — this is what makes the
+     * e-signature credible. The signer scans their own staff badge QR instead of
+     * retyping a password: it is one action at the counter, it cannot be
+     * shoulder-surfed, and it can only be satisfied by someone physically
+     * holding that person's badge.
+     */
+    private function confirmIdentity(Request $request): void
     {
-        if (! Hash::check($request->input('password'), $request->user()->password)) {
-            throw ValidationException::withMessages(['password' => 'The password is incorrect.']);
+        if (! StaffBadge::belongsTo((string) $request->input('badge_payload'), $request->user())) {
+            throw ValidationException::withMessages([
+                'badge_payload' => 'That badge is not yours. Scan your own staff badge QR to sign — print it from your profile if you need a new one.',
+            ]);
         }
     }
 

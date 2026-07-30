@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
 use App\Models\DocumentAttachment;
 use App\Support\AssignmentScope;
+use App\Support\UploadRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,7 +28,7 @@ class AttachmentController extends Controller
 
         $request->validate([
             'attachments' => ['required', 'array', 'min:1', 'max:10'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments.*' => UploadRules::rules(),
         ]);
 
         $created = $this->storeAttachmentsForDocument(
