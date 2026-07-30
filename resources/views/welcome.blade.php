@@ -9,17 +9,8 @@
 </head>
 <body class="min-h-screen bg-[#f1f2f1] antialiased text-gray-900">
 
-    {{-- Header --}}
-    <header class="sticky top-0 z-50 border-b border-emerald-200/60 bg-[#f1f2f1]/90 backdrop-blur-md">
-        <div class="mx-auto flex max-w-6xl items-center justify-center px-6 py-4">
-            <div class="flex items-center gap-3">
-                <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-xl">
-                <span class="text-lg font-extrabold tracking-tight text-emerald-950">
-                    SPeED <span class="font-bold text-emerald-700">TraQR</span>
-                </span>
-            </div>
-        </div>
-    </header>
+    {{-- No page header here: the hero's mark + wordmark lockup is the landing
+         page's branding. Other layouts keep their own headers. --}}
 
     {{-- Hero --}}
     @php
@@ -93,6 +84,17 @@
 
         <div class="mx-auto max-w-6xl px-6 pb-24 pt-20 sm:pt-28">
             <div class="max-w-xl">
+                {{-- Mark + wordmark lockup above the headline. Sized well up from the
+                     navbar's 36px, but kept below the 48px headline so it introduces
+                     the page rather than competing with it. --}}
+                <div class="mb-6 flex items-center gap-3">
+                    <img src="{{ asset('images/icon.png') }}" alt=""
+                         class="h-14 w-14 shrink-0 sm:h-16 sm:w-16">
+                    <span class="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
+                        SPeED <span class="font-bold text-emerald-700">TraQR</span>
+                    </span>
+                </div>
+
                 <h1 class="text-4xl font-extrabold leading-[1.1] tracking-tight text-emerald-950 sm:text-5xl">
                     Your requests,<br>
                     <span class="text-emerald-700">tracked in real time.</span>
