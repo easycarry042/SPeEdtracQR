@@ -181,8 +181,8 @@
                     <label class="sr-only" for="requestSearch">Search requests</label>
                     <input type="search" id="requestSearch" x-model="tableQuery" data-kbd-search
                            placeholder="Search name, tracking #, or type…"
-                           class="w-56 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                    <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
+                           class="h-ctl w-56 rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                    <a href="{{ route('history') }}" class="inline-flex h-ctl items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
                         Show all
                         <span aria-hidden="true">›</span>
                     </a>

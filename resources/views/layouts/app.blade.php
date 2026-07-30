@@ -1,5 +1,12 @@
+@php
+    /* <x-app-layout fixed-height> — the page fills the viewport and never
+       scrolls; its own panels scroll internally. Needed this early because the
+       lock is applied to <html> and <body>, not just the shell. */
+    $fixedHeight = $attributes->has('fixed-height') ? 'main-fixed' : '';
+    $fixedHeightRoot = $fixedHeight ? 'app-fixed-height' : '';
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="{{ $fixedHeightRoot }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,7 +64,7 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="min-h-screen antialiased @auth bg-canvas text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-canvas text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
     @auth
         @if($useTopNav)
             {{-- Staff / supervisor: horizontal top navbar, full-width content --}}
@@ -65,7 +72,7 @@
                 <header class="topnav-bar">
                     <div class="topnav-inner app-frame">
                         <a href="{{ $homeRoute }}" class="topnav-brand">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-brass/60">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-brass/60">
                                 <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR">
                             </span>
                             <div class="min-w-0">
@@ -121,7 +128,7 @@
                     </div>
                 @endisset
 
-                <main class="topnav-main">
+                <main class="topnav-main {{ $fixedHeight }}">
                     <div class="app-frame">
                         {{ $slot }}
                     </div>
@@ -138,7 +145,7 @@
                 <aside @click="if ($event.target.closest('a')) mobileNav = false"
                        class="sidebar-pinned sticky top-0 z-40 flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-green-deep nav-bar">
                     <div class="nav-brand flex h-[4.25rem] shrink-0 items-center justify-center gap-0 border-b border-white/10 px-1 transition-all duration-300 ease-out group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-brass/60">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-brass/60">
                             <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-7 w-7">
                         </span>
                         <div class="nav-text min-w-0 max-w-0 overflow-hidden opacity-0 transition-all duration-300 ease-out group-hover:max-w-[200px] group-hover:opacity-100">
@@ -224,18 +231,14 @@
                         @endcan
                     </nav>
 
-                    <div class="shrink-0 border-t border-white/10 p-1 transition-[padding] duration-300 ease-out group-hover:p-2">
-                        <a href="{{ route('profile.edit') }}" class="{{ request()->routeIs('profile.*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('profile.*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 0 0 .05-2l2-1.55-2-3.45-2.45.7a7.6 7.6 0 0 0-1.75-1.05L14.8 3h-4l-.45 2.65a7.6 7.6 0 0 0-1.75 1.05l-2.45-.7-2 3.45L6.15 11a7.8 7.8 0 0 0 .05 2l-2 1.55 2 3.45 2.45-.7c.53.43 1.12.79 1.75 1.05L10.8 21h4l.45-2.65a7.6 7.6 0 0 0 1.75-1.05l2.45.7 2-3.45-2.05-1.55zM12 15.3A3.3 3.3 0 1 1 12 8.7a3.3 3.3 0 0 1 0 6.6z"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Settings</span>
-                        </a>
-                    </div>
+                    {{-- No Settings entry here: it lives in the profile dropdown
+                         (layouts/partials/header-actions) for every role. --}}
                 </aside>
 
                 <div class="flex min-w-0 flex-1 flex-col">
-                    <header class="sticky top-0 z-30 border-b border-hairline bg-paper/90 py-3 backdrop-blur-md">
+                    {{-- Deep-green rule, not a hairline: the header floats over the
+                         canvas at the same tone, so a faint border disappeared. --}}
+                    <header class="sticky top-0 z-30 border-b-2 border-green-deep bg-paper/90 py-3 backdrop-blur-md">
                         <div class="app-frame flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-3">
                             <button type="button" @click="mobileNav = !mobileNav"
@@ -269,7 +272,7 @@
                         </div>
                     @endisset
 
-                    <main class="flex-1 pb-10 pt-2">
+                    <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
                         <div class="app-frame">
                             {{ $slot }}
                         </div>

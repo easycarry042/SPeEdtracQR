@@ -86,6 +86,70 @@ class RequirementReviewTest extends TestCase
         Notification::assertSentTo($staff, DocumentEvent::class);
     }
 
+    public function test_approving_a_requirement_also_verifies_the_original(): void
+    {
+        [$staff, $doc, $req] = $this->assignedTicket();
+
+        // One button now: Approve records the verification the document's own
+        // approval gate checks for.
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.review', [$doc, $req]), ['review_status' => 'approved'])
+            ->assertRedirect();
+
+        $req->refresh();
+        $this->assertSame('approved', $req->review_status);
+        $this->assertNotNull($req->verified_at);
+        $this->assertSame($staff->id, $req->verified_by);
+    }
+
+    public function test_returning_an_approved_requirement_withdraws_its_verification(): void
+    {
+        Mail::fake();
+        [$staff, $doc, $req] = $this->assignedTicket();
+
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.review', [$doc, $req]), ['review_status' => 'approved'])
+            ->assertRedirect();
+        $this->assertNotNull($req->fresh()->verified_at);
+
+        // Otherwise a withdrawn approval would leave the document advanceable.
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.review', [$doc, $req]), [
+                'review_status' => 'needs_revision',
+                'review_comment' => 'Wrong document attached.',
+            ])
+            ->assertRedirect();
+
+        $req->refresh();
+        $this->assertNull($req->verified_at);
+        $this->assertNull($req->verified_by);
+    }
+
+    public function test_an_approved_requirement_no_longer_offers_review_actions(): void
+    {
+        [$staff, $doc, $req] = $this->assignedTicket();
+
+        // Still open for review: all three decisions are on offer.
+        $this->actingAs($staff)
+            ->get(route('track.show', $doc->tracking_number))
+            ->assertOk()
+            ->assertSee('Approve &amp; verify original', false)
+            ->assertSee('Needs revision')
+            ->assertSee('Reject');
+
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.review', [$doc, $req]), ['review_status' => 'approved'])
+            ->assertRedirect();
+
+        // Settled: the row shows the outcome instead of the buttons.
+        $this->actingAs($staff)
+            ->get(route('track.show', $doc->tracking_number))
+            ->assertOk()
+            ->assertDontSee('Approve &amp; verify original', false)
+            ->assertDontSee('Needs revision')
+            ->assertSee('Original verified');
+    }
+
     public function test_citizen_cannot_reupload_a_requirement_not_awaiting_revision(): void
     {
         Storage::fake('local');

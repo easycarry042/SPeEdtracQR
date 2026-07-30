@@ -58,24 +58,105 @@
 
         let scanner = null;
 
+        /**
+         * Serializes every start/stop. Releasing a camera is asynchronous, so
+         * without this a second scan opens a new stream while the previous one
+         * is still shutting down and the browser refuses it — the scanner looks
+         * dead even though the permission is granted.
+         */
+        let queue = Promise.resolve();
+
+        /**
+         * html5-qrcode measures its container when it starts. Callers usually
+         * reveal the box with x-show and call start() in the same tick, so the
+         * div can still be display:none (zero-sized) at that moment — wait for
+         * it to actually have a layout box.
+         */
+        function waitForBox(elementId, timeoutMs = 3000) {
+            const startedAt = Date.now();
+
+            return new Promise((resolve, reject) => {
+                (function check() {
+                    const element = document.getElementById(elementId);
+
+                    if (! element) {
+                        reject(new Error('The scanner box is not on the page.'));
+
+                        return;
+                    }
+
+                    if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+                        resolve(element);
+
+                        return;
+                    }
+
+                    if (Date.now() - startedAt > timeoutMs) {
+                        reject(new Error('The scanner box never became visible.'));
+
+                        return;
+                    }
+
+                    requestAnimationFrame(check);
+                })();
+            });
+        }
+
+        /** Square viewfinder that always fits — a fixed qrbox throws on small boxes. */
+        function qrbox(viewfinderWidth, viewfinderHeight) {
+            const side = Math.max(120, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7));
+
+            return { width: side, height: side };
+        }
+
+        /** Prefer the rear camera; fall back to whatever this machine has. */
+        function launch(elementId, onDecode) {
+            scanner = new Html5Qrcode(elementId);
+
+            return scanner
+                .start({ facingMode: 'environment' }, { fps: 10, qrbox }, onDecode, () => {})
+                .catch((error) => {
+                    // Desktops with only a built-in webcam reject "environment"
+                    // outright (OverconstrainedError), so retry by device id.
+                    return Html5Qrcode.getCameras().then((cameras) => {
+                        if (! cameras || cameras.length === 0) {
+                            throw error;
+                        }
+
+                        return scanner.start({ deviceId: { exact: cameras[0].id } }, { fps: 10, qrbox }, onDecode, () => {});
+                    });
+                });
+        }
+
         /** Start the live camera in #elementId; onDecode(decodedText) fires per frame. */
         function start(elementId, onDecode, onError) {
-            stop();
             if (typeof Html5Qrcode === 'undefined') {
                 if (onError) onError(new Error('Scanner library unavailable — run npm run build.'));
 
                 return Promise.resolve();
             }
-            scanner = new Html5Qrcode(elementId);
-            return scanner
-                .start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, onDecode, () => {})
+
+            queue = queue
+                .then(() => stop())
+                .then(() => waitForBox(elementId))
+                .then(() => launch(elementId, onDecode))
                 .catch((e) => { scanner = null; if (onError) onError(e); });
+
+            return queue;
         }
 
+        /** Release the camera AND clear the rendered video, so a restart is clean. */
         function stop() {
-            if (!scanner) return;
-            scanner.stop().catch(() => {});
+            const active = scanner;
             scanner = null;
+
+            if (! active) {
+                return Promise.resolve();
+            }
+
+            return active.stop()
+                .then(() => { try { active.clear(); } catch (e) { /* already torn down */ } })
+                .catch(() => {});
         }
 
         /** Non-prompting camera check: resolves true when a videoinput exists. */

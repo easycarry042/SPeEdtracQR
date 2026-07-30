@@ -1,13 +1,31 @@
-<x-app-layout>
+<x-app-layout fixed-height>
     @php
         $supervisorView = $supervisorView ?? false;
     @endphp
+
+    {{-- Scan straight to a request instead of hunting for it in the list. --}}
+    <x-slot name="pageActions">
+        <button type="button"
+                @click="window.dispatchEvent(new CustomEvent('lookup-scan-open'))"
+                class="cr-btn cr-btn-primary">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+                <path stroke-linecap="round" d="M3 12h18"/>
+            </svg>
+            Scan QR
+        </button>
+    </x-slot>
+
     {{-- The Pending / In Progress list is kept compact (1/3) so the ticket
          handling panel gets the room (2/3). --}}
-    <div class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-3"
+    {{-- lg:h-full + lg:grid-rows-1: the grid takes the height the fixed-height
+         shell hands it, giving both panels a definite height to scroll within
+         rather than growing the page. --}}
+    <div class="grid w-full min-h-0 flex-1 grid-cols-1 gap-8 lg:h-full lg:grid-cols-3 lg:grid-rows-1"
          x-data="{ tab: @js($activeTab ?? 'inprogress') }">
         {{-- Fixed-height panel; the list scrolls inside it --}}
-        <div class="panel flex flex-col p-3 lg:col-span-1 lg:h-[calc(100vh-9rem)]">
+        <div class="panel flex min-h-0 flex-col overflow-hidden p-3 lg:col-span-1 lg:h-full">
             @php
                 // (left tab key, label, count) — supervisor: Pending/In Progress,
                 // staff: In Progress/Completed.
@@ -61,7 +79,7 @@
         </div>
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="panel p-6 lg:col-span-2 lg:h-[calc(100vh-9rem)] lg:overflow-y-auto">
+        <div class="panel p-6 lg:col-span-2 lg:h-full lg:overflow-y-auto">
             <div class="flex items-start justify-between">
                 <div class="flex items-center gap-3">
                     <span class="flex h-14 w-14 items-center justify-center rounded-full bg-green-wash text-green-deep">
@@ -114,6 +132,13 @@
                 @if($document->purpose)
                     <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose }}</dd></div>
                 @endif
+                {{-- Set when advancing; the citizen sees the same date. --}}
+                <div class="flex justify-between gap-3 border-b border-hairline pb-1">
+                    <dt class="text-ink-soft">Claiming date</dt>
+                    <dd class="text-right font-semibold {{ $document->claim_date ? 'text-green-deep' : 'text-ink-soft' }}">
+                        {{ $document->claim_date?->format('l, M d, Y') ?: 'Not set yet' }}
+                    </dd>
+                </div>
             </dl>
             @if($document->description)
                 <p class="mt-3 text-sm text-ink"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>
@@ -354,46 +379,90 @@
                                     default => 'bg-hairline/40 text-ink-soft',
                                 };
                             @endphp
-                            <li class="px-3 py-2.5 {{ $req->isApproved() ? 'bg-green-wash/40' : '' }}">
-                                <div class="flex flex-wrap items-center justify-between gap-3">
+                            @php
+                                $fileUrl = $req->uploaded_file_path
+                                    ? route('documents.requirements.file', [$document, $req])
+                                    : null;
+                                $extension = strtolower(pathinfo((string) $req->uploaded_file_path, PATHINFO_EXTENSION));
+                                $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'], true);
+                                $isPdf = $extension === 'pdf';
+                            @endphp
+                            <li class="p-3 {{ $req->isApproved() ? 'bg-green-wash/40' : '' }}">
+                                {{-- Row 1: what it is, where it stands --}}
+                                <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <span class="text-[13px] font-medium text-ink">{{ $req->label }}</span>
+                                            <span class="text-[13px] font-semibold text-ink">{{ $req->label }}</span>
                                             <span class="text-[10.5px] font-semibold {{ $req->is_mandatory ? 'text-status-red' : 'text-ink-soft' }}">{{ $req->is_mandatory ? 'Required' : 'Optional' }}</span>
                                             <span class="rounded-full px-2 py-0.5 text-[10.5px] font-semibold {{ $badge }}">{{ $req->reviewStatusLabel() }}</span>
-                                            @if($req->uploaded_file_path)
-                                                <a href="{{ route('documents.requirements.file', [$document, $req]) }}" target="_blank" class="text-[12px] font-semibold text-green underline">View upload</a>
-                                            @else
-                                                <span class="text-[12px] text-ink-soft">— bring/verify original</span>
-                                            @endif
                                         </div>
+                                        @if($req->isVerified())
+                                            <p class="mt-1 text-[11px] font-medium text-green-deep">✓ Original verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
+                                        @endif
                                         @if($req->review_comment)
                                             <p class="mt-1 text-[12px] text-ink-soft"><span class="font-semibold">Comment:</span> {{ $req->review_comment }}</p>
                                         @endif
-                                        @if($req->isVerified())
-                                            <p class="mt-0.5 text-[11px] text-green-deep">✓ Original verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
-                                        @endif
                                     </div>
-                                    @if($canVerify)
-                                        <form method="POST" action="{{ route('documents.requirements.toggle', [$document, $req]) }}" class="shrink-0">
-                                            @csrf
-                                            <button type="submit" class="cr-btn cr-btn-sm {{ $req->isVerified() ? '' : 'cr-btn-primary' }}">
-                                                {{ $req->isVerified() ? 'Unverify' : 'Verify original' }}
-                                            </button>
-                                        </form>
+                                    @if($fileUrl)
+                                        <a href="{{ $fileUrl }}" target="_blank" rel="noopener" class="cr-btn cr-btn-sm shrink-0">
+                                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-8.5M14 3h7v7M10 14 21 3"/></svg>
+                                            Full size
+                                        </a>
                                     @endif
                                 </div>
-                                @if($canVerify)
-                                    <form method="POST" action="{{ route('documents.requirements.review', [$document, $req]) }}" class="mt-2">
-                                        @csrf
-                                        <label for="review-comment-{{ $req->id }}" class="sr-only">Review comment for {{ $req->label }}</label>
-                                        <textarea id="review-comment-{{ $req->id }}" name="review_comment" rows="2" placeholder="Comment (required when returning or rejecting)" class="w-full rounded-[8px] border border-hairline-strong bg-white px-2 py-1.5 text-[12.5px] text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ $req->review_comment }}</textarea>
-                                        <div class="mt-2 flex flex-wrap gap-2">
-                                            <button type="submit" name="review_status" value="approved" class="cr-btn cr-btn-sm cr-btn-primary">Approve</button>
-                                            <button type="submit" name="review_status" value="needs_revision" class="cr-btn cr-btn-sm">Needs revision</button>
-                                            <button type="submit" name="review_status" value="rejected" class="cr-btn cr-btn-sm">Reject</button>
-                                        </div>
-                                    </form>
+
+                                {{-- Row 2: the upload itself, shown rather than linked --}}
+                                @if($isImage)
+                                    <a href="{{ $fileUrl }}" target="_blank" rel="noopener"
+                                       class="mt-2 block overflow-hidden rounded-[8px] border border-hairline bg-white transition hover:border-green">
+                                        <img src="{{ $fileUrl }}" alt="Upload for {{ $req->label }}" loading="lazy"
+                                             class="max-h-64 w-full bg-hairline/20 object-contain">
+                                    </a>
+                                @elseif($isPdf)
+                                    {{-- Inline PDF: the browser's own viewer, scrollable in place. --}}
+                                    <object data="{{ $fileUrl }}" type="application/pdf"
+                                            class="mt-2 h-64 w-full rounded-[8px] border border-hairline bg-white">
+                                        <p class="p-3 text-[12px] text-ink-soft">
+                                            This browser cannot display the PDF inline —
+                                            <a href="{{ $fileUrl }}" target="_blank" rel="noopener" class="font-semibold text-green underline">open it in a new tab</a>.
+                                        </p>
+                                    </object>
+                                @elseif($fileUrl)
+                                    {{-- Anything else (docx, xlsx…): no browser preview exists. --}}
+                                    <a href="{{ $fileUrl }}" target="_blank" rel="noopener"
+                                       class="mt-2 flex items-center gap-2 rounded-[8px] border border-hairline bg-white px-3 py-2.5 text-[12.5px] font-medium text-ink transition hover:border-green">
+                                        <svg class="h-4 w-4 text-ink-soft" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
+                                        Open {{ $extension !== '' ? strtoupper($extension).' file' : 'file' }}
+                                    </a>
+                                @else
+                                    <p class="mt-2 rounded-[8px] border border-dashed border-hairline-strong bg-hairline/10 px-3 py-2.5 text-[12px] text-ink-soft">
+                                        Nothing uploaded — check the original over the counter.
+                                    </p>
+                                @endif
+
+                                {{-- Row 3: the decision. Each button opens the shared
+                                     dialog below — confirm for approve, comment for
+                                     the two that email the citizen. Once approved,
+                                     the row is settled and the actions drop away. --}}
+                                @if($canVerify && ! $req->isApproved())
+                                    @php
+                                        $reviewAction = route('documents.requirements.review', [$document, $req]);
+                                    @endphp
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <button type="button" class="cr-btn cr-btn-sm cr-btn-primary"
+                                                @click="$dispatch('requirement-review', { mode: 'approved', label: @js($req->label), action: @js($reviewAction), comment: @js($req->review_comment) })">
+                                            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                                            Approve &amp; verify original
+                                        </button>
+                                        <button type="button" class="cr-btn cr-btn-sm"
+                                                @click="$dispatch('requirement-review', { mode: 'needs_revision', label: @js($req->label), action: @js($reviewAction), comment: @js($req->review_comment) })">
+                                            Needs revision
+                                        </button>
+                                        <button type="button" class="cr-btn cr-btn-sm cr-btn-danger"
+                                                @click="$dispatch('requirement-review', { mode: 'rejected', label: @js($req->label), action: @js($reviewAction), comment: @js($req->review_comment) })">
+                                            Reject
+                                        </button>
+                                    </div>
                                 @endif
                             </li>
                         @endforeach
@@ -602,5 +671,211 @@
                 });
             });
         })();
+    </script>
+
+    {{-- ── Requirement decision dialog ──────────────────────────────────────
+         One dialog serves every requirement row: a confirmation for approve,
+         and a remarks box for the two outcomes that email the citizen. The
+         comment is also validated server-side, so a bypassed dialog still
+         cannot return an item without a reason. --}}
+    <div x-data="requirementReview()"
+         x-show="open"
+         x-cloak
+         @requirement-review.window="start($event.detail)"
+         @keydown.escape.window="close()"
+         class="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4"
+         role="dialog"
+         aria-modal="true"
+         :aria-label="heading()">
+        <div @click.outside="close()" class="w-full max-w-md rounded-2xl border border-hairline bg-paper p-5 shadow-2xl">
+            <h2 class="text-base font-bold text-ink" x-text="heading()"></h2>
+            <p class="mt-1 text-[13px] text-ink-soft" x-text="blurb()"></p>
+
+            <form method="POST" :action="action" @submit="submitting = true">
+                @csrf
+                <input type="hidden" name="review_status" :value="mode">
+
+                <template x-if="needsComment()">
+                    <div class="mt-3">
+                        <label for="requirement-review-comment" class="text-[12px] font-semibold text-ink">
+                            Remarks <span class="text-status-red">*</span>
+                        </label>
+                        <textarea id="requirement-review-comment" x-ref="comment" name="review_comment" rows="3" required
+                                  x-model="comment"
+                                  :placeholder="mode === 'rejected' ? 'Why is this being rejected?' : 'What does the citizen need to correct?'"
+                                  class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-2 py-1.5 text-[12.5px] text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25"></textarea>
+                        <p class="mt-1 text-[11px] text-ink-soft">This is emailed to the citizen.</p>
+                    </div>
+                </template>
+
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" @click="close()" class="cr-btn cr-btn-sm">Cancel</button>
+                    <button type="submit"
+                            :disabled="! canSubmit() || submitting"
+                            :class="mode === 'approved' ? 'cr-btn-primary' : (mode === 'rejected' ? 'cr-btn-danger' : '')"
+                            class="cr-btn cr-btn-sm"
+                            x-text="confirmLabel()"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function requirementReview() {
+            return {
+                open: false,
+                submitting: false,
+                mode: '',
+                label: '',
+                action: '',
+                comment: '',
+
+                start(detail) {
+                    this.mode = detail.mode;
+                    this.label = detail.label;
+                    this.action = detail.action;
+                    this.comment = detail.comment || '';
+                    this.submitting = false;
+                    this.open = true;
+
+                    this.$nextTick(() => this.$refs.comment?.focus());
+                },
+
+                close() {
+                    this.open = false;
+                },
+
+                /** Approve is a confirmation; the other two need a reason. */
+                needsComment() {
+                    return this.mode !== 'approved';
+                },
+
+                canSubmit() {
+                    return ! this.needsComment() || this.comment.trim().length > 0;
+                },
+
+                heading() {
+                    if (this.mode === 'approved') {
+                        return 'Approve and verify this requirement?';
+                    }
+
+                    return this.mode === 'rejected' ? 'Reject this requirement' : 'Return this requirement for revision';
+                },
+
+                blurb() {
+                    if (this.mode === 'approved') {
+                        return `“${this.label}” will be marked approved and its original recorded as verified by you.`;
+                    }
+
+                    if (this.mode === 'rejected') {
+                        return `“${this.label}” will be rejected and the citizen emailed your remarks.`;
+                    }
+
+                    return `“${this.label}” will be sent back so the citizen can re-upload it, with your remarks emailed to them.`;
+                },
+
+                confirmLabel() {
+                    if (this.mode === 'approved') {
+                        return 'Approve & verify';
+                    }
+
+                    return this.mode === 'rejected' ? 'Reject & notify' : 'Return & notify';
+                },
+            };
+        }
+    </script>
+
+    {{-- ── Scan-to-open dialog (opened from the "Scan QR" title action) ─────
+         Reuses window.SpeedQr so the accepted-code rules match every other
+         scanner in the app: only codes this system issued are acted on. --}}
+    @include('partials.qr-scan-helpers')
+
+    <div x-data="lookupScanner()"
+         x-show="open"
+         x-cloak
+         @lookup-scan-open.window="start()"
+         @keydown.escape.window="close()"
+         class="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-label="Scan a request QR code">
+        <div @click.outside="close()" class="w-full max-w-md rounded-2xl border border-hairline bg-paper p-5 shadow-2xl">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-bold text-ink">Scan a request</h2>
+                    <p class="mt-0.5 text-[13px] text-ink-soft">Point the camera at the QR on the claim slip or folder.</p>
+                </div>
+                <button type="button" @click="close()" class="cr-btn cr-btn-sm" aria-label="Close scanner">Close</button>
+            </div>
+
+            <div id="lookupScanRegion" class="mt-4 overflow-hidden rounded-xl border-2 border-dashed border-green/40 bg-green-wash/40"></div>
+
+            <p x-show="error" x-text="error" x-cloak class="mt-3 text-[13px] text-status-red"></p>
+
+            {{-- Typing the number is the fallback when there is no camera. --}}
+            <div class="mt-4 flex items-center gap-2">
+                <div class="field flex-1">
+                    <input type="text" x-model="manual" @keydown.enter.prevent="go(manual)"
+                           placeholder="or type the tracking number"
+                           aria-label="Tracking number" class="w-full uppercase">
+                </div>
+                <button type="button" @click="go(manual)" class="cr-btn cr-btn-primary">Open</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function lookupScanner() {
+            return {
+                open: false,
+                error: '',
+                manual: '',
+
+                start() {
+                    this.open = true;
+                    this.error = '';
+
+                    this.$nextTick(() => {
+                        window.SpeedQr.hasCamera().then((available) => {
+                            if (! available) {
+                                this.error = 'No camera found — type the tracking number instead.';
+
+                                return;
+                            }
+
+                            window.SpeedQr.start(
+                                'lookupScanRegion',
+                                (text) => this.go(window.SpeedQr.extractTracking(text), true),
+                                () => { this.error = 'Could not start the camera. Check the browser permission.'; },
+                            );
+                        });
+                    });
+                },
+
+                /** Navigate to a scanned/typed code, refusing anything foreign. */
+                go(code, fromScan = false) {
+                    const tracking = fromScan ? code : window.SpeedQr.extractTracking(code);
+
+                    if (! tracking) {
+                        this.error = fromScan ? window.SpeedQr.FOREIGN_CODE_MESSAGE : 'That does not look like a tracking number.';
+
+                        return;
+                    }
+
+                    window.SpeedQr.stop();
+                    window.location = @json(url('/track')) + '/' + encodeURIComponent(tracking);
+                },
+
+                close() {
+                    if (! this.open) {
+                        return;
+                    }
+
+                    window.SpeedQr.stop();
+                    this.open = false;
+                    this.error = '';
+                },
+            };
+        }
     </script>
 </x-app-layout>

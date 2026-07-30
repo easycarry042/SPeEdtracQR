@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <section class="auth-card">
+    <section class="auth-card glass-panel">
         <div class="auth-grid">
             <div class="auth-left">
                 <div class="auth-brand">

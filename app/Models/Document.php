@@ -56,6 +56,7 @@ class Document extends Model
         'held_at',
         'held_by',
         'claimed_at',
+        'claim_date',
         'released_by',
     ];
 
@@ -85,6 +86,9 @@ class Document extends Model
         'hold_until' => 'date',
         'held_at' => 'datetime',
         'claimed_at' => 'datetime',
+        // The promised collection day (set when advancing), not the moment of
+        // collection — that is `claimed_at`.
+        'claim_date' => 'date',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -182,6 +186,42 @@ class Document extends Model
     public function currentRequestStep(): ?RequestStep
     {
         return $this->requestSteps()->where('status', RequestStep::STATUS_CURRENT)->first();
+    }
+
+    /**
+     * Log a department onto the endorsement chain — used when an office scans
+     * the folder into its custody. The chain is a growing record of who handled
+     * the paper, not a route fixed at filing: it ends only when a department
+     * marks the request done.
+     *
+     * The office that was holding it is closed as `forwarded` (it passed the
+     * paper on) unless it had already been formally acted on.
+     */
+    public function appendEndorsementStep(int $departmentId, string $action = 'Received and handling'): RequestStep
+    {
+        $open = $this->requestSteps()
+            ->whereIn('status', [RequestStep::STATUS_CURRENT, RequestStep::STATUS_PENDING])
+            ->get();
+
+        foreach ($open as $step) {
+            $step->update([
+                'status' => $step->status === RequestStep::STATUS_CURRENT
+                    ? RequestStep::STATUS_FORWARDED
+                    : RequestStep::STATUS_SKIPPED,
+            ]);
+        }
+
+        $step = $this->requestSteps()->create([
+            'step_order' => (int) $this->requestSteps()->max('step_order') + 1,
+            'department_id' => $departmentId,
+            'action' => $action,
+            'status' => RequestStep::STATUS_CURRENT,
+            'started_at' => now(),
+        ]);
+
+        $this->unsetRelation('requestSteps');
+
+        return $step;
     }
 
     /**

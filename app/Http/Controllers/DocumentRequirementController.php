@@ -21,6 +21,11 @@ class DocumentRequirementController extends Controller
      * Rejected, with a comment. Needs-revision and rejected outcomes email the
      * citizen the comment; needs-revision items are then re-uploadable by the
      * citizen from the tracking page.
+     *
+     * Approving also records the verification (who saw the original, when) —
+     * they are one decision for the reviewer, and document approval is gated on
+     * mandatory requirements being verified. Returning or rejecting clears it
+     * again, so a withdrawn approval cannot leave the document advanceable.
      */
     public function review(Request $request, Document $document, DocumentRequirement $requirement)
     {
@@ -42,11 +47,15 @@ class DocumentRequirementController extends Controller
             'review_comment.required' => 'Please explain what needs to be corrected.',
         ]);
 
+        $approved = $validated['review_status'] === DocumentRequirement::REVIEW_APPROVED;
+
         $requirement->update([
             'review_status' => $validated['review_status'],
             'review_comment' => $validated['review_comment'] ?? null,
             'reviewed_at' => now(),
             'reviewed_by' => auth()->id(),
+            'verified_at' => $approved ? ($requirement->verified_at ?? now()) : null,
+            'verified_by' => $approved ? ($requirement->verified_by ?? auth()->id()) : null,
         ]);
 
         activity()->performedOn($document)->causedBy(auth()->user())

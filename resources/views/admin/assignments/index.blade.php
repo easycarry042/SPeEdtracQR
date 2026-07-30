@@ -27,16 +27,14 @@
             @endif
             <input type="text" name="q" value="{{ request('q') }}" autocomplete="off"
                    placeholder="Search tracking #, citizen, or type…"
-                   class="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[220px]">
-            <select name="status" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                <option value="">All statuses</option>
-                @foreach($statuses as $status)
-                    <option value="{{ $status->value }}" @selected(request('status') === $status->value)>{{ $status->label() }}</option>
-                @endforeach
-            </select>
-            <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">Filter</button>
+                   class="h-ctl flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[220px]">
+            <x-select-menu name="status" variant="plain" panel-width="w-56" placeholder="All statuses"
+                           class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                           :options="collect($statuses)->mapWithKeys(fn ($status) => [$status->value => $status->label()])->prepend('All statuses', '')->all()"
+                           :selected="request('status')"/>
+            <button type="submit" class="h-ctl rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">Filter</button>
             @if(request()->hasAny(['q', 'status']))
-                <a href="{{ route('admin.assignments.index') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">Clear</a>
+                <a href="{{ route('admin.assignments.index') }}" class="inline-flex h-ctl items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50">Clear</a>
             @endif
         </form>
 

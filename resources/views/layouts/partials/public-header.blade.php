@@ -1,6 +1,8 @@
 {{-- Public portal top bar — shared by the citizen layout and the guest view of
      app-layout pages (e.g. /track) so both have the same separation on top. --}}
-<header class="sticky top-0 z-40 border-b border-emerald-200/60 bg-white/90 backdrop-blur-md shadow-sm">
+{{-- Transparent over the page wash; the blur stays so content scrolling
+     underneath doesn't collide with the brand and nav button. --}}
+<header class="sticky top-0 z-40 bg-transparent backdrop-blur-md">
     <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
         {{-- Brand --}}
         <a href="{{ route('citizen.dashboard') }}" class="flex items-center gap-3 group">

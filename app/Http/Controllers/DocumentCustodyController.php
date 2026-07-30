@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\DocumentCustodyEvent;
+use App\Models\RequestStep;
+use App\Models\User;
 use App\Support\AssignmentScope;
 use App\Support\ScannedCode;
 use Illuminate\Http\Request;
@@ -12,7 +15,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Physical custody trail. Scanning a folder's QR (or clicking "Take custody")
  * records that the authenticated staff member now physically holds the paper.
- * Purely additive — it never changes the document's status.
+ * It never changes the document's status — but for internal requests it does
+ * grow the endorsement chain, logging the office that just received the folder.
  */
 class DocumentCustodyController extends Controller
 {
@@ -83,7 +87,40 @@ class DocumentCustodyController extends Controller
             ? "Physical custody: folder now with {$user->name} (scanned)"
             : "Physical custody: folder now with {$user->name} (manual: {$validated['override_reason']})");
 
-        return $this->respond($request, 'Custody recorded — the folder is now with you.');
+        $appended = $this->logDepartmentOntoChain($document, $user);
+
+        return $this->respond($request, $appended
+            ? "Custody recorded — {$appended->department->name} added to the endorsement chain."
+            : 'Custody recorded — the folder is now with you.');
+    }
+
+    /**
+     * Growing the chain from scans: whichever office takes custody of an
+     * internal request is logged as the hop now holding it. Nothing is appended
+     * when that office already holds it, when the request is finished, or for
+     * citizen tickets (which have no endorsement chain).
+     */
+    private function logDepartmentOntoChain(Document $document, User $user): ?RequestStep
+    {
+        if (! $document->isInternal() || $user->department_id === null) {
+            return null;
+        }
+
+        if (in_array($document->statusEnum(), [DocumentStatus::Completed, DocumentStatus::Denied], true)) {
+            return null;
+        }
+
+        $current = $document->currentRequestStep();
+        if ($current && (int) $current->department_id === (int) $user->department_id) {
+            return null;
+        }
+
+        $step = $document->appendEndorsementStep($user->department_id);
+
+        activity()->performedOn($document)->causedBy($user)
+            ->log("Endorsement chain: {$step->department->name} received the request");
+
+        return $step;
     }
 
     private function respond(Request $request, string $message)

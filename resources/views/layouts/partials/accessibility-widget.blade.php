@@ -39,7 +39,105 @@
             color: var(--green, #167a3a) !important;
             outline-color: var(--green, #167a3a) !important;
         }
+
+        /* The launcher sits over the left nav, so it rests tucked into the edge
+           with only a sliver showing — enough to stay findable — and slides
+           out on hover, keyboard focus, or a click (.asw-revealed, set below). */
+        .asw-menu-btn {
+            transform: translateX(-96%) !important;
+            opacity: .55;
+            transition: transform 200ms cubic-bezier(.22, 1, .36, 1), opacity 200ms ease;
+        }
+
+        .asw-menu-btn:hover,
+        .asw-menu-btn:focus,
+        .asw-menu-btn:focus-within,
+        html.asw-revealed .asw-menu-btn {
+            transform: none !important;
+            opacity: 1;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .asw-menu-btn { transition: none; }
+        }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/sienna-accessibility/dist/sienna-accessibility.umd.js" async></script>
+
+    <script>
+        (function () {
+            var LAUNCHER = '.asw-menu-btn, .asw-menu';
+            var LINGER_MS = 5000;
+
+            var root = document.documentElement;
+            var hideTimer = null;
+
+            /* Set while the panel is open (opened by a click), so the linger
+               timer never slides the button away mid-use. */
+            var pinned = false;
+
+            /**
+             * @param {EventTarget|null} node
+             * @returns {Element|null}
+             */
+            function launcherFrom(node) {
+                return node && node.closest ? node.closest(LAUNCHER) : null;
+            }
+
+            function reveal() {
+                window.clearTimeout(hideTimer);
+                root.classList.add('asw-revealed');
+            }
+
+            function hide() {
+                window.clearTimeout(hideTimer);
+                pinned = false;
+                root.classList.remove('asw-revealed');
+            }
+
+            /** Keeps the button out for a beat after the pointer leaves it. */
+            function scheduleHide() {
+                window.clearTimeout(hideTimer);
+
+                if (pinned) {
+                    return;
+                }
+
+                hideTimer = window.setTimeout(function () {
+                    root.classList.remove('asw-revealed');
+                }, LINGER_MS);
+            }
+
+            document.addEventListener('mouseover', function (event) {
+                if (launcherFrom(event.target)) {
+                    reveal();
+                }
+            });
+
+            document.addEventListener('mouseout', function (event) {
+                if (! launcherFrom(event.target) || launcherFrom(event.relatedTarget)) {
+                    return;
+                }
+
+                scheduleHide();
+            });
+
+            document.addEventListener('click', function (event) {
+                if (launcherFrom(event.target)) {
+                    pinned = true;
+                    reveal();
+
+                    return;
+                }
+
+                hide();
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    hide();
+                }
+            });
+        })();
+    </script>
 @endif

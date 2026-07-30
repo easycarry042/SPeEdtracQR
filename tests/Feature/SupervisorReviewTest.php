@@ -87,8 +87,9 @@ class SupervisorReviewTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            // Sidebar keeps "Staff"/"Settings"; the account menu no longer
-            // duplicates them under these labels.
-            ->assertDontSee('Staff directory');
+            // The sidebar keeps "Staff", so the menu does not duplicate it.
+            ->assertDontSee('Staff directory')
+            // Settings was removed from the sidebar and now lives only here.
+            ->assertSee(route('profile.edit'));
     }
 }

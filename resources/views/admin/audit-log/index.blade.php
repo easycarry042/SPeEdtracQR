@@ -3,26 +3,21 @@
 
         {{-- Filters --}}
         <form method="GET" class="flex flex-wrap gap-3">
-            <select name="user" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                <option value="">All Users</option>
-                @foreach($users as $u)
-                    <option value="{{ $u->id }}" @selected(request('user') == $u->id)>
-                        {{ $u->name }}
-                    </option>
-                @endforeach
-            </select>
-            <select name="log" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                <option value="">All Events</option>
-                <option value="auth" @selected(request('log') === 'auth')>Auth (Login / Logout)</option>
-                <option value="default" @selected(request('log') === 'default')>Document Changes</option>
-            </select>
+            <x-select-menu name="user" variant="plain" panel-width="w-64" placeholder="All Users"
+                           class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                           :options="$users->mapWithKeys(fn ($u) => [$u->id => $u->name])->prepend('All Users', '')->all()"
+                           :selected="request('user')"/>
+            <x-select-menu name="log" variant="plain" panel-width="w-56" placeholder="All Events"
+                           class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                           :options="['' => 'All Events', 'auth' => 'Auth (Login / Logout)', 'default' => 'Document Changes']"
+                           :selected="request('log')"/>
             <input type="date" name="date" value="{{ request('date') }}"
-                   class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-            <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">
+                   class="h-ctl rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
+            <button type="submit" class="h-ctl rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">
                 Filter
             </button>
             @if(request()->hasAny(['user', 'log', 'date']))
-                <a href="{{ route('admin.audit-log.index') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <a href="{{ route('admin.audit-log.index') }}" class="inline-flex h-ctl items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50">
                     Clear
                 </a>
             @endif

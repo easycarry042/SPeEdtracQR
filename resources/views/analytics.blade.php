@@ -45,7 +45,8 @@
         @endphp
 
         {{-- KPI tiles --}}
-        <div class="tiles" style="margin-bottom:14px;">
+        {{-- Spacing comes from .page-shell's gap; a margin here would double it. --}}
+        <div class="tiles">
             <div class="tile"><div class="k">In progress</div><div class="v mono">{{ $kpis['in_progress'] ?? 0 }}</div><div class="bar amber"></div></div>
             <div class="tile"><div class="k">Completed</div><div class="v mono">{{ $kpis['completed'] ?? 0 }}</div><div class="bar"></div></div>
             <div class="tile"><div class="k">Submitted this month</div><div class="v mono">{{ $kpis['submitted_month'] ?? 0 }}</div><div class="bar bright"></div></div>
@@ -65,24 +66,12 @@
                 </div>
                 <div class="pb">
                     <form method="GET" action="{{ url()->current() }}" class="toolbar" style="margin-bottom:12px;">
-                        <div class="field">
-                            <label>Category</label>
-                            <select name="category">
-                                <option value="">All</option>
-                                @foreach (($categories ?? []) as $c)
-                                    <option value="{{ $c }}" @selected(request('category') === $c)>{{ $c }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label>Status</label>
-                            <select name="status">
-                                <option value="">All</option>
-                                <option value="pending" @selected(request('status') === 'pending')>Pending</option>
-                                <option value="in_progress" @selected(request('status') === 'in_progress')>In progress</option>
-                                <option value="completed" @selected(request('status') === 'completed')>Completed</option>
-                            </select>
-                        </div>
+                        <x-select-menu name="category" label="Category" panel-width="w-56" class="w-56"
+                                       :options="collect($categories ?? [])->mapWithKeys(fn ($c) => [$c => $c])->prepend('All', '')->all()"
+                                       :selected="request('category')"/>
+                        <x-select-menu name="status" label="Status" panel-width="w-48" class="w-48"
+                                       :options="['' => 'All', 'pending' => 'Pending', 'in_progress' => 'In progress', 'completed' => 'Completed']"
+                                       :selected="request('status')"/>
                         <div class="field"><label>From</label><input type="date" name="from" value="{{ request('from') }}"></div>
                         <div class="field"><label>To</label><input type="date" name="to" value="{{ request('to') }}"></div>
                         <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>

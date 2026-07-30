@@ -51,16 +51,16 @@
                 <div class="grid grid-cols-1 gap-5 p-4 lg:grid-cols-2 lg:p-6">
                     <div class="space-y-5">
                         <div>
-                            <label for="route-select" class="block text-[13px] font-semibold text-ink">Request Route <span class="text-status-red">*</span></label>
-                            <select id="route-select" name="route_template_id" x-model="form.route_template_id" required
-                                    class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('route_template_id') border-status-red @enderror">
-                                <option value="">Select a route…</option>
-                                <template x-for="t in templates" :key="t.id">
-                                    <option :value="t.id" x-text="t.name" :selected="String(form.route_template_id) === String(t.id)"></option>
-                                </template>
+                            <label for="route-select" class="block text-[13px] font-semibold text-ink">First department route <span class="text-status-red">*</span></label>
+                            <select id="route-select" name="first_department_id" x-model="form.first_department_id" required
+                                    class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('first_department_id') border-status-red @enderror">
+                                <option value="">Select a department…</option>
+                                @foreach($departments as $d)
+                                    <option value="{{ $d->id }}" @selected(old('first_department_id') == $d->id)>{{ $d->name }} ({{ $d->code }})</option>
+                                @endforeach
                             </select>
-                            <p x-show="selectedTemplate?.description" x-text="selectedTemplate?.description" class="mt-1 text-[12px] text-ink-soft"></p>
-                            @error('route_template_id')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
+                            <p class="mt-1 text-[12px] text-ink-soft">The office this request goes to after your own department endorses it.</p>
+                            @error('first_department_id')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
                         </div>
 
                         <div>
@@ -72,7 +72,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-[13px] font-semibold text-ink">Scanned document</label>
+                            <label class="block text-[13px] font-semibold text-ink">Scanned document <span class="text-status-red">*</span></label>
                             <p class="mt-0.5 text-[12px] text-ink-soft">Attach the scanned copy of the signed paper request (from your office scanner or printer).</p>
                             <label class="mt-2 flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[10px] border-2 border-dashed border-hairline-strong bg-[#f4f7f5] p-4 text-center transition hover:border-green focus-within:border-green focus-within:ring-2 focus-within:ring-green/25"
                                    :class="fileName ? 'border-green bg-green-wash' : ''">
@@ -83,7 +83,7 @@
                                     <div>
                                         <svg class="mx-auto h-8 w-8 text-ink-soft" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
                                         <p class="mt-1.5 text-[13px] font-semibold text-ink">Click or press Enter to attach the scan</p>
-                                        <p class="text-[12px] text-ink-soft">JPG, PNG, WEBP or PDF · up to 10&nbsp;MB · optional</p>
+                                        <p class="text-[12px] text-ink-soft">JPG, PNG, WEBP or PDF · up to 10&nbsp;MB · required</p>
                                     </div>
                                 </template>
                                 <span x-show="fileName" x-text="fileName" class="max-w-full truncate text-[12px] font-medium text-green-deep"></span>
@@ -98,11 +98,11 @@
                     {{-- Live chain preview --}}
                     <div class="rounded-[10px] border border-hairline bg-green-wash/40 p-5">
                         <h3 class="text-[13px] font-bold text-green-deep">Endorsement chain preview</h3>
-                        <p class="mt-0.5 text-[12px] text-ink-soft">Where this request will travel, based on the route and amount.</p>
+                        <p class="mt-0.5 text-[12px] text-ink-soft">Where this request goes: your own department endorses it, then the office you pick.</p>
 
-                        <p x-show="!selectedTemplate" class="mt-4 text-[13px] text-ink-soft">Select a route to preview its steps.</p>
+                        <p x-show="!selectedDepartment" class="mt-4 text-[13px] text-ink-soft">Select a department to preview the chain.</p>
 
-                        <ol x-show="selectedTemplate" class="mt-4 space-y-0">
+                        <ol x-show="selectedDepartment" class="mt-4 space-y-0">
                             <li class="flex gap-3">
                                 <div class="flex flex-col items-center">
                                     <span class="flex h-7 w-7 items-center justify-center rounded-full bg-green text-[11px] font-bold text-white">0</span>
@@ -133,9 +133,10 @@
                 </div>
 
                 <div class="flex items-center justify-end gap-3 border-t border-hairline px-4 py-4 lg:px-6">
-                    <button type="button" @click="goReview()" :disabled="!form.route_template_id || !form.purpose.trim()"
+                    {{-- The scan is part of the request, so it gates Review too. --}}
+                    <button type="button" @click="goReview()" :disabled="! canReview"
                             class="cr-btn cr-btn-primary"
-                            :class="(!form.route_template_id || !form.purpose.trim()) ? 'cursor-not-allowed opacity-40' : ''">
+                            :class="! canReview ? 'cursor-not-allowed opacity-40' : ''">
                         Review →
                     </button>
                 </div>
@@ -154,8 +155,9 @@
                         <dd class="mt-0.5 text-[14px] font-semibold text-ink">{{ $department->name }} ({{ $department->code }})</dd>
                     </div>
                     <div>
-                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Route</dt>
-                        <dd class="mt-0.5 text-[14px] font-semibold text-ink" x-text="selectedTemplate?.name ?? '—'"></dd>
+                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">First department</dt>
+                        <dd class="mt-0.5 text-[14px] font-semibold text-ink"
+                            x-text="selectedDepartment ? `${selectedDepartment.name} (${selectedDepartment.code})` : '—'"></dd>
                     </div>
                     <div class="sm:col-span-2">
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">Request</dt>
@@ -261,7 +263,7 @@
         function requestForm() {
             return {
                 step: 1,
-                templates: @json($templatesJson),
+                departments: @json($departmentsJson),
                 fileName: '',
                 previewUrl: null,
                 qrModal: false,
@@ -271,16 +273,19 @@
                 // PDFs / no scan → server uses its defaults.
                 qr: { ready: false, x: 0.75, y: 0.75, size: 0.24, sizeH: 0.24, scaleShort: 0.22, imgW: 0, imgH: 0, userMoved: false },
                 form: {
-                    route_template_id: @json(old('route_template_id', '')),
+                    first_department_id: @json(old('first_department_id', '')),
                     purpose: @json(old('purpose', '')),
                 },
 
-                get selectedTemplate() {
-                    return this.templates.find(t => String(t.id) === String(this.form.route_template_id)) ?? null;
+                get selectedDepartment() {
+                    return this.departments.find(d => String(d.id) === String(this.form.first_department_id)) ?? null;
                 },
 
+                /** One forward hop now: the department the filer chose. */
                 get resolvedSteps() {
-                    return this.selectedTemplate?.steps ?? [];
+                    const target = this.selectedDepartment;
+
+                    return target ? [{ department: target, action: 'Review and action' }] : [];
                 },
 
                 onFileChange(event) {
@@ -352,8 +357,12 @@
                     window.addEventListener('pointerup', up);
                 },
 
+                get canReview() {
+                    return Boolean(this.form.first_department_id) && this.form.purpose.trim() !== '' && this.fileName !== '';
+                },
+
                 goReview() {
-                    if (this.form.route_template_id && this.form.purpose.trim()) { this.step = 2; }
+                    if (this.canReview) { this.step = 2; }
                 },
             };
         }

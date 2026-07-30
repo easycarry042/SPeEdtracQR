@@ -9,20 +9,15 @@
     <style>[x-cloak]{display:none!important}</style>
     @include('layouts.partials.accessibility-widget')
 </head>
-<body class="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 antialiased text-gray-900">
+<body class="civic-mesh min-h-screen antialiased text-gray-900">
 
     {{-- Top navigation bar --}}
     @include('layouts.partials.public-header')
 
-    {{-- Page content --}}
+    {{-- Page content. No footer: the wash runs to the bottom of the page. --}}
     <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         {{ $slot }}
     </main>
-
-    {{-- Footer --}}
-    <footer class="mt-16 border-t border-emerald-200/60 bg-white/60 py-6 text-center text-sm text-gray-500">
-        &copy; {{ date('Y') }} {{ config('app.name', 'SPeED TraQR') }} &mdash; Citizen Portal
-    </footer>
 
     @include('layouts.partials.bfcache-guard')
 </body>

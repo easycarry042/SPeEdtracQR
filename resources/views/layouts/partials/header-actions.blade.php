@@ -38,9 +38,9 @@
         @endif
     </button>
     <div id="notifPanel"
-         class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl shadow-gray-900/15"
+         class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-2 shadow-xl shadow-gray-900/10"
          style="z-index:9999;">
-        <div class="flex items-center justify-between border-b border-gray-100 px-4 pb-2">
+        <div class="flex items-center justify-between border-b border-gray-200 px-4 pb-2">
             <p class="text-xs font-semibold tracking-wide text-gray-500">Notifications</p>
             @if($bellCount > 0)
                 <form method="POST" action="{{ route('notifications.read-all') }}">
@@ -51,7 +51,7 @@
         </div>
         @forelse($bellUnread as $notification)
             <a href="{{ route('notifications.open', $notification->id) }}"
-               class="block border-b border-gray-50 px-4 py-2.5 transition hover:bg-green-wash/60">
+               class="block border-b border-gray-200/70 px-4 py-2.5 transition hover:bg-gray-200/80">
                 <div class="flex items-baseline justify-between gap-2">
                     <p class="text-[13px] font-bold text-ink">{{ data_get($notification->data, 'title', 'Update') }}</p>
                     <span class="shrink-0 text-[11px] text-ink-soft">{{ $notification->created_at->diffForHumans(short: true) }}</span>
@@ -92,13 +92,14 @@
                 class="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
             Keyboard shortcuts <kbd class="rounded border border-hairline-strong bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">?</kbd>
         </button>
-        {{-- Staff directory + Settings live in the super_admin sidebar; only
-             topnav roles need them here (avoids duplicate menu entries). --}}
+        {{-- Staff directory has its own super_admin sidebar entry, so it only
+             shows here for topnav roles. Settings lives in this menu for
+             everyone — it is not in the sidebar. --}}
         @unless(auth()->user()?->can('manage system'))
             <a href="{{ route('staff.index') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Staff directory</a>
-            <div class="my-1 border-t border-gray-200"></div>
-            <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
         @endunless
+        <div class="my-1 border-t border-gray-200"></div>
+        <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="w-full px-4 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50">Logout</button>

@@ -7,7 +7,6 @@ use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\RequestStep;
-use App\Models\RouteTemplate;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
 use App\Support\UploadRules;
@@ -97,25 +96,18 @@ class InternalRequestController extends Controller
     {
         $department = $this->requireDepartment();
 
-        $templates = RouteTemplate::active()->with('steps.department')->orderBy('name')->get();
-
-        // The wizard previews the endorsement chain client-side as the route
-        // changes, so ship each template's resolved steps as JSON.
-        $templatesJson = $templates->map(fn (RouteTemplate $template): array => [
-            'id' => $template->id,
-            'name' => $template->name,
-            'description' => $template->description,
-            'steps' => $template->stepsForAmount(null)->map(fn ($step): array => [
-                'step_order' => $step->step_order,
-                'action' => $step->action,
-                'department' => ['name' => $step->department->name, 'code' => $step->department->code],
-            ])->values(),
-        ])->values();
+        // The filer picks the office the paper goes to first; the chain is that
+        // department behind their own endorsement, rather than a preset route.
+        $departments = Department::active()->orderBy('name')->get(['id', 'name', 'code']);
 
         return view('requests.create', [
             'department' => $department,
-            'templates' => $templates,
-            'templatesJson' => $templatesJson,
+            'departments' => $departments,
+            'departmentsJson' => $departments->map(fn (Department $d): array => [
+                'id' => $d->id,
+                'name' => $d->name,
+                'code' => $d->code,
+            ])->values(),
         ]);
     }
 
@@ -124,34 +116,27 @@ class InternalRequestController extends Controller
         $department = $this->requireDepartment();
 
         $validated = $request->validate([
-            'route_template_id' => ['required', 'exists:route_templates,id'],
+            'first_department_id' => ['required', 'exists:departments,id'],
             'purpose' => ['required', 'string', 'max:255'],
-            'paper_scan' => UploadRules::rules(),
+            // The signed paper is the request: filing without the scan leaves
+            // the receiving office nothing to act on, so it is required.
+            'paper_scan' => UploadRules::rules(required: true),
             // Optional supervisor-chosen QR placement on the scanned page.
             'qr_x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_y' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_size' => ['nullable', 'numeric', 'min:0.12', 'max:0.40'],
         ]);
 
-        $template = RouteTemplate::active()->with('steps.department')->findOrFail($validated['route_template_id']);
-
-        // The substance (amount, specifications) lives on the scanned paper; the
-        // route drives the chain directly, so no amount branching here.
-        $steps = $template->stepsForAmount(null);
-        if ($steps->isEmpty()) {
-            return back()->withInput()->withErrors([
-                'route_template_id' => 'This route has no applicable steps. Check the template configuration.',
-            ]);
-        }
+        $firstDepartment = Department::active()->findOrFail($validated['first_department_id']);
 
         // Internal dept-to-dept requests carry an INT- prefix so they read
         // distinctly from citizen tickets (SPD-).
         $trackingNumber = $this->qrCodeService->generateTrackingNumber('INT');
 
-        $document = DB::transaction(function () use ($validated, $steps, $template, $department, $trackingNumber) {
+        $document = DB::transaction(function () use ($validated, $firstDepartment, $department, $trackingNumber) {
             $document = Document::create([
                 'tracking_number' => $trackingNumber,
-                'document_type' => $template->name,
+                'document_type' => 'Internal Request',
                 'purpose' => $validated['purpose'],
                 'status' => DocumentStatus::Pending->value,
                 'status_changed_at' => now(),
@@ -174,15 +159,17 @@ class InternalRequestController extends Controller
                 'started_at' => now(),
             ];
 
-            $forwardSteps = $steps->values()->map(fn ($step): array => [
-                'step_order' => $step->step_order,
-                'department_id' => $step->department_id,
-                'action' => $step->action,
+            // One forward hop: the department the filer chose. Further offices
+            // are added by whoever handles it there, rather than presumed here.
+            $forwardStep = [
+                'step_order' => 1,
+                'department_id' => $firstDepartment->id,
+                'action' => 'Review and action',
                 'status' => RequestStep::STATUS_PENDING,
                 'started_at' => null,
-            ])->all();
+            ];
 
-            $document->requestSteps()->createMany([$ownEndorsement, ...$forwardSteps]);
+            $document->requestSteps()->createMany([$ownEndorsement, $forwardStep]);
 
             // The filing office physically holds the paper it just created, so
             // record custody for this first hop automatically — the supervisor
@@ -230,10 +217,11 @@ class InternalRequestController extends Controller
         }
 
         $document->logSystemComment(sprintf(
-            'Internal request filed by %s (%s) via the %s route.',
+            'Internal request filed by %s (%s), routed first to %s (%s).',
             auth()->user()->name,
             $department->name,
-            $template->name,
+            $firstDepartment->name,
+            $firstDepartment->code,
         ));
 
         // Ping the first hop's supervisors: the paper is on its way to them.
@@ -259,11 +247,21 @@ class InternalRequestController extends Controller
 
         $document->load(['requestSteps.department', 'requestSteps.actedBy', 'requestingDepartment', 'attachments', 'creator']);
 
+        $currentStep = $document->currentRequestStep();
+
         return view('requests.show', [
             'document' => $document,
             'canAct' => $document->canActOnCurrentStep(auth()->user()),
-            'currentStep' => $document->currentRequestStep(),
+            'currentStep' => $currentStep,
             'hasCustody' => $document->currentStepHasCustody(),
+            // The office holding the paper decides where it goes next, unless a
+            // hop was already queued when the request was filed.
+            'queuedNextStep' => $document->requestSteps
+                ->firstWhere('status', RequestStep::STATUS_PENDING),
+            'forwardDepartments' => Department::active()
+                ->when($currentStep, fn ($query) => $query->where('id', '!=', $currentStep->department_id))
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']),
             // Who scanned this folder, and when: the endorsement view has to
             // answer "who had this paper?" without digging through the audit log.
             'custodyTrail' => $document->custodyEvents()

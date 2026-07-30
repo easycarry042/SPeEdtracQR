@@ -10,6 +10,7 @@ use App\Mail\StatusUpdated;
 use App\Models\Document;
 use App\Support\StatusGate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -27,7 +28,14 @@ class DocumentStatusController extends Controller
 
         $validated = $request->validate([
             'expected_status' => ['required', 'string'],
+            // Advancing sets the day the citizen collects. It replaces the old
+            // free-text review note: the same decision, but a date the citizen
+            // can act on rather than prose only staff read.
+            'claim_date' => ['required', 'date', 'after_or_equal:today'],
             'note' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'claim_date.required' => 'Pick the claiming date for the citizen.',
+            'claim_date.after_or_equal' => 'The claiming date cannot be in the past.',
         ]);
 
         StatusGate::assertExpectedStatus($document, $validated['expected_status']);
@@ -41,10 +49,18 @@ class DocumentStatusController extends Controller
             return $this->fail('Use Approve on the Requests page to mark this document completed and move it to History.');
         }
 
-        // Hard stage gates: unmet requirements (and a missing review note for
-        // →Approved) block the transition with a per-requirement message.
+        $claimDate = Carbon::parse($validated['claim_date'])->startOfDay();
+
+        // The claiming date is the work evidence the gate used to take as a
+        // note, so the stage checks still have something concrete to accept.
         $note = trim((string) ($validated['note'] ?? '')) ?: null;
+        $note ??= 'Claiming date set to '.$claimDate->format('M d, Y').'.';
+
+        // Hard stage gates: unmet requirements block the transition with a
+        // per-requirement message.
         StatusGate::validate($document, $next, $note);
+
+        $document->update(['claim_date' => $claimDate]);
 
         // The transition note is a real work note: persist it as an internal
         // staff comment so it shows in the feed and satisfies future gates.

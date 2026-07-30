@@ -2,7 +2,8 @@
     <div class="page-shell page-shell-loose">
 
         {{-- KPI tiles --}}
-        <div class="tiles" style="margin-bottom:14px;">
+        {{-- Spacing comes from .page-shell's gap; a margin here would double it. --}}
+        <div class="tiles">
             <div class="tile"><div class="k">Active request types</div><div class="v mono">{{ $kpis['request_types'] }}</div><div class="bar bright"></div></div>
             <div class="tile"><div class="k">Upcoming bookings</div><div class="v mono">{{ $kpis['bookings_upcoming'] }}</div><div class="bar"></div></div>
             <div class="tile"><div class="k">Bookings awaiting approval</div><div class="v mono">{{ $kpis['pending_approvals'] }}</div><div class="bar amber"></div></div>

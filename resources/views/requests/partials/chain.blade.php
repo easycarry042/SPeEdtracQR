@@ -25,6 +25,8 @@
             $isCurrent = $step->status === RequestStep::STATUS_CURRENT;
             $isApproved = $step->status === RequestStep::STATUS_APPROVED;
             $isHalted = in_array($step->status, [RequestStep::STATUS_DENIED, RequestStep::STATUS_RETURNED], true);
+            // Logged by a scan: the office held the paper and passed it on.
+            $isForwarded = $step->status === RequestStep::STATUS_FORWARDED;
         @endphp
         <li class="flex gap-3">
             <div class="flex flex-col items-center">
@@ -32,6 +34,8 @@
                     <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brass text-xs font-bold text-white ring-4 ring-status-amber-wash">{{ $loop->iteration }}</span>
                 @elseif($isApproved)
                     <span class="flex h-8 w-8 items-center justify-center rounded-full bg-green text-xs font-bold text-white">✓</span>
+                @elseif($isForwarded)
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-green-wash text-xs font-bold text-green-deep ring-1 ring-green/40">→</span>
                 @elseif($isHalted)
                     <span class="flex h-8 w-8 items-center justify-center rounded-full bg-status-red text-xs font-bold text-white">✕</span>
                 @else
@@ -69,6 +73,10 @@
                         by <span class="font-semibold text-ink">{{ $step->actedBy?->name ?? '—' }}</span>
                         · {{ $step->acted_at->format('M j, Y g:i A') }}
                     </p>
+                @elseif($isForwarded && $step->started_at)
+                    <p class="mt-0.5 text-[12px] text-ink-soft">
+                        Received {{ $step->started_at->format('M j, Y g:i A') }} · passed to the next office
+                    </p>
                 @endif
 
                 @if($step->remarks)
@@ -83,4 +91,18 @@
             </div>
         </li>
     @endforeach
+
+    {{-- The chain is open-ended: with nothing holding the request and no
+         decision recorded, the next office joins it by scanning the folder. --}}
+    @if(! $document->currentRequestStep() && ! in_array($document->status, ['completed', 'denied', 'returned'], true))
+        <li class="flex gap-3">
+            <div class="flex flex-col items-center">
+                <span class="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-hairline-strong bg-white text-xs font-bold text-ink-soft">?</span>
+            </div>
+            <div class="pb-1">
+                <p class="text-[13px] font-semibold text-ink-soft">Next office</p>
+                <p class="text-[12px] text-ink-soft">Joins the chain when it scans the folder. The request completes only when an office marks it done.</p>
+            </div>
+        </li>
+    @endif
 </ol>

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\RequestStep;
-use App\Models\RouteTemplate;
 use App\Models\User;
 use Database\Seeders\DepartmentSeeder;
 use Database\Seeders\RouteTemplateSeeder;
@@ -30,6 +29,21 @@ class InternalRequestTest extends TestCase
             ->assignRole('Supervisor');
     }
 
+    /**
+     * A valid filing payload: the first department to route to, the request
+     * itself, and the signed scan — all three are required.
+     *
+     * @return array<string, mixed>
+     */
+    private function filing(string $purpose = 'New sound system for the plaza', array $extra = []): array
+    {
+        return array_merge([
+            'first_department_id' => Department::where('code', '!=', 'TRSM')->firstOrFail()->id,
+            'purpose' => $purpose,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
+        ], $extra);
+    }
+
     public function test_supervisor_can_open_the_wizard(): void
     {
         $supervisor = $this->tourismSupervisor();
@@ -38,7 +52,8 @@ class InternalRequestTest extends TestCase
             ->assertOk()
             ->assertSee('File Internal Request')
             ->assertSee('Tourism Office')
-            ->assertSee('Procurement Request');
+            // Departments, not route templates, drive the first hop now.
+            ->assertSee('First department route');
     }
 
     public function test_staff_with_a_department_can_open_the_draft_wizard(): void
@@ -77,57 +92,75 @@ class InternalRequestTest extends TestCase
             ->assertSessionHas('error');
     }
 
-    public function test_filing_a_procurement_request_materializes_the_full_chain(): void
+    public function test_filing_routes_the_request_to_the_chosen_first_department(): void
     {
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
+        $target = Department::where('id', '!=', $supervisor->department_id)->firstOrFail();
 
-        $response = $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
-            'purpose' => 'New sound system for the plaza',
-        ]);
+        $response = $this->actingAs($supervisor)->post(route('requests.store'), $this->filing(extra: [
+            'first_department_id' => $target->id,
+        ]));
 
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
         $response->assertRedirect(route('requests.created', $document));
 
-        $this->assertSame('Procurement Request', $document->document_type);
+        $this->assertSame('Internal Request', $document->document_type);
         $this->assertSame($supervisor->department_id, $document->requesting_department_id);
         $this->assertNotNull($document->qr_code_path);
 
-        // The chain opens with the requesting department's own endorsement, then
-        // the route template's offices in order — no amount branching.
-        $actions = $document->requestSteps->pluck('action')->all();
-        $this->assertSame(['Department endorsement', 'Approve request', 'Certify fund availability', 'Procurement', 'Delivery & inspection'], $actions);
-
-        // The chain opens at the requesting department's endorsement; everything else waits.
-        $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
-        $this->assertSame($supervisor->department_id, $document->requestSteps->first()->department_id);
+        // Two hops now: the filer's own endorsement, then the chosen office.
         $this->assertSame(
-            [RequestStep::STATUS_PENDING],
-            $document->requestSteps->slice(1)->pluck('status')->unique()->values()->all(),
+            ['Department endorsement', 'Review and action'],
+            $document->requestSteps->pluck('action')->all(),
         );
+        $this->assertSame(
+            [$supervisor->department_id, $target->id],
+            $document->requestSteps->pluck('department_id')->all(),
+        );
+
+        // The chain opens at the requesting department's endorsement; the rest waits.
+        $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
+        $this->assertSame(RequestStep::STATUS_PENDING, $document->requestSteps->last()->status);
     }
 
-    public function test_a_non_monetary_route_materializes_its_own_chain(): void
+    public function test_filing_requires_a_first_department_and_a_scanned_document(): void
     {
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Vehicle Request')->firstOrFail();
 
-        $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
-            'purpose' => 'Van to ferry delegates to the tourism summit',
-        ]);
+        // No department picked.
+        $this->actingAs($supervisor)
+            ->post(route('requests.store'), [
+                'purpose' => 'New sound system for the plaza',
+                'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
+            ])
+            ->assertSessionHasErrors('first_department_id');
 
-        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
-        $this->assertNull($document->amount);
-        $this->assertSame(
-            ['Department endorsement', 'Approve vehicle use', 'Dispatch vehicle & issue trip ticket'],
-            $document->requestSteps->pluck('action')->all(),
-        );
+        // No scan attached — the signed paper is the request.
+        $this->actingAs($supervisor)
+            ->post(route('requests.store'), [
+                'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+                'purpose' => 'New sound system for the plaza',
+            ])
+            ->assertSessionHasErrors('paper_scan');
+
+        $this->assertSame(0, Document::where('origin', Document::ORIGIN_INTERNAL)->count());
+    }
+
+    public function test_the_wizard_lists_every_active_department(): void
+    {
+        $supervisor = $this->tourismSupervisor();
+
+        $response = $this->actingAs($supervisor)->get(route('requests.create'))->assertOk();
+
+        foreach (Department::active()->get() as $department) {
+            $response->assertSee($department->name);
+        }
+
+        $response->assertSee('First department route');
     }
 
     public function test_uploaded_paper_scan_is_stored_and_a_qr_stamped_copy_is_archived(): void
@@ -135,10 +168,9 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
             'purpose' => 'Ten monoblock chairs',
             'paper_scan' => UploadedFile::fake()->image('purchase-request.jpg', 800, 1000),
         ]);
@@ -160,11 +192,10 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         // A solid-red page lets us tell stamped (white QR pad) from untouched red.
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
             'purpose' => 'Chairs',
             'paper_scan' => $this->solidPng(600, 800, [220, 20, 20]),
             'qr_x' => 0,
@@ -186,11 +217,10 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         // Large QR pinned to the top-left corner of a 600×800 red page.
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
             'purpose' => 'Chairs',
             'paper_scan' => $this->solidPng(600, 800, [220, 20, 20]),
             'qr_x' => 0,
@@ -212,10 +242,10 @@ class InternalRequestTest extends TestCase
     public function test_qr_size_outside_the_allowed_band_is_rejected(): void
     {
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
             'purpose' => 'Chairs',
             'qr_size' => 0.95,
         ])->assertSessionHasErrors('qr_size');
@@ -259,10 +289,10 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
             'purpose' => 'Vase for the lobby',
         ]);
 
@@ -271,7 +301,7 @@ class InternalRequestTest extends TestCase
         $this->actingAs($supervisor)->get(route('requests.created', $document))
             ->assertOk()
             ->assertSee($document->tracking_number)
-            ->assertSee('Procurement')
+            ->assertSee($document->requestSteps->last()->department->name)
             ->assertSee('Awaiting this office');
 
         $external = Document::create([
@@ -288,10 +318,10 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
             'purpose' => 'Two office tables',
         ]);
 
@@ -321,11 +351,10 @@ class InternalRequestTest extends TestCase
         Storage::disk('local')->put($signature, $this->tinyPng());
         $head->update(['signature_path' => $signature]);
 
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
-
         // A staff member drafts/files the request for the office.
         $this->actingAs($staff)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $tourism->id)->firstOrFail()->id,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
             'purpose' => 'Two office tables',
         ])->assertRedirect();
 
@@ -335,7 +364,7 @@ class InternalRequestTest extends TestCase
 
         // Only the department head can endorse; doing so forwards it to the next office.
         $this->actingAs($head)->post(route('requests.steps.approve', $document), [
-            'badge_payload' => $head->badgePayload(),
+            'document_scan' => $document->tracking_number,
         ])->assertRedirect(route('requests.show', $document));
 
         $document->refresh();
@@ -350,10 +379,10 @@ class InternalRequestTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $supervisor = $this->tourismSupervisor();
-        $template = RouteTemplate::where('name', 'Procurement Request')->firstOrFail();
 
         $this->actingAs($supervisor)->post(route('requests.store'), [
-            'route_template_id' => $template->id,
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
             'purpose' => 'Projector for the AVR',
         ]);
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();

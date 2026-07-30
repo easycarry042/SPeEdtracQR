@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <section class="auth-card">
+    <section class="auth-card glass-panel">
         <div class="auth-grid">
             <div class="auth-left">
                 <div class="auth-brand">
@@ -35,60 +35,28 @@
 
                     <div class="form-group">
                         <label for="password" class="form-label">{{ __('Password') }}</label>
-                        <div>
+                        <div class="relative" x-data="{ show: false }">
                             <input id="password"
+                                :type="show ? 'text' : 'password'"
                                 type="password"
                                 name="password"
                                 required
                                 autocomplete="current-password"
-                                class="form-input" />
+                                class="form-input form-input-with-toggle" />
+
+                            <x-password-toggle />
                         </div>
                         <x-input-error :messages="$errors->get('password')" class="brand-subtitle" />
                     </div>
 
-                    <div class="auth-row">
-                        <label for="show_password" class="checkbox-wrap">
-                            <input id="show_password" type="checkbox" class="checkbox">
-                            <span class="pass-toggle">Show Password</span>
-                        </label>
-
-                        @if (Route::has('password.request'))
-                            <a class="auth-link" href="{{ route('password.request') }}">
-                                Reset Password
-                            </a>
-                        @endif
-                    </div>
-
-                    <button type="submit" class="auth-button">
+                    <button type="submit" class="auth-button auth-button-spaced">
                         Login
                     </button>
-
-                    {{-- Divider --}}
-                    <div class="auth-divider">
-                        <span>or</span>
-                    </div>
-
-                    {{-- Citizen access — no account required --}}
-                    <a href="{{ route('citizen.dashboard') }}" class="citizen-button">
-                        Continue as Guest (Citizen Access)
-                    </a>
                 </form>
             </div>
         </div>
     </section>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const toggle = document.getElementById('show_password');
-            const passwordInput = document.getElementById('password');
-
-            if (!toggle || !passwordInput) {
-                return;
-            }
-
-            toggle.addEventListener('change', function () {
-                passwordInput.type = this.checked ? 'text' : 'password';
-            });
-        });
-    </script>
+    {{-- The reveal toggle is Alpine-driven now (see x-password-toggle), so no
+         script is needed here. --}}
 </x-guest-layout>

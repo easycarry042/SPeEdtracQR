@@ -1,7 +1,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────
    SPeED TraQR — "Civic Record" design tokens.
@@ -38,8 +37,16 @@
 
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
-    /* Layout frame — content stops growing past this when zooming out / on wide screens */
-    --app-max: 80rem; /* matches max-w-7xl — same as super-admin dashboard */
+    /* Control height — one number every inline control (search fields, selects,
+       buttons) is sized to, so a filter/search row lines up on both edges
+       instead of drifting with each control's intrinsic text height. */
+    --control-h: 38px;
+    --control-h-sm: 30px;
+
+    /* Layout frame — fluid: data pages fill whatever width the window has, so
+       zooming out widens the content instead of growing the side margins.
+       Set this back to a length (e.g. 80rem) to cap and centre it again. */
+    --app-max: 100%;
     --app-profile-rail: 280px;
     --app-medium: 48rem;
     --app-wide: 56rem;
@@ -56,6 +63,26 @@
     /* Keyboard focus halo — green-bright at low alpha; reads on white AND on the
        deep-green buttons. Paired with the control's own resting shadow below. */
     --focus-ring: 0 0 0 3px rgba(42, 157, 79, .38);
+
+    /* ── Frosted civic surfaces ───────────────────────────────────────────────
+       The login page's look, held as tokens so the citizen portal renders the
+       same wash and the same glass without a second copy of the values. */
+    --civic-mesh-base: #e4efe8;
+    --civic-mesh:
+        radial-gradient(at 8% 12%, rgba(42, 157, 79, .58) 0, transparent 58%),
+        radial-gradient(at 78% 8%, rgba(255, 255, 255, .88) 0, transparent 52%),
+        radial-gradient(at 92% 72%, rgba(15, 77, 40, .46) 0, transparent 58%),
+        radial-gradient(at 26% 92%, rgba(199, 154, 62, .34) 0, transparent 52%),
+        radial-gradient(at 42% 32%, rgba(22, 122, 58, .40) 0, transparent 45%),
+        radial-gradient(at 62% 76%, rgba(199, 154, 62, .26) 0, transparent 42%);
+
+    --glass-bg: rgba(255, 255, 255, .46);
+    --glass-blur: blur(34px) saturate(190%);
+    --glass-border: rgba(255, 255, 255, .5);
+    --glass-shadow:
+        0 24px 60px rgba(15, 77, 40, .22),
+        inset 0 1px 0 rgba(255, 255, 255, .75),
+        inset 0 -1px 0 rgba(255, 255, 255, .25);
 
     /* Flat by default; these lift only interactive surfaces on hover/press. */
     --shadow-1: 0 1px 1px rgba(15, 77, 40, .05);              /* resting button */
@@ -248,6 +275,26 @@
 .gate-mail { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-soft); margin: 0; }
 .gate-blocked { font-size: 11.5px; font-weight: 600; color: var(--red); margin: 0; }
 .gate-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+/* Advance is a dialog: the claiming date it sets is a commitment to the
+   citizen, so it gets the room and the focus of a modal. */
+.gate-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(22, 33, 27, .4); }
+.gate-modal-card { width: 100%; max-width: 440px; background: var(--paper); border: 1px solid var(--hairline); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow-pop); animation: gate-in .18s cubic-bezier(.22,1,.36,1); }
+@media (prefers-reduced-motion: reduce) { .gate-modal-card { animation: none; } }
+.gate-modal-card label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+
+.gate-claim input[type="date"] { font: inherit; font-size: 15px; font-weight: 600; color: var(--ink); border: 1px solid var(--hairline-strong); border-radius: 8px; padding: 9px 11px; background: #fff; }
+.gate-claim input[type="date"]:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+.gate-claim-label { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.gate-claim-hint { font-size: 11px; font-weight: 400; color: var(--ink-soft); }
+.gate-claim-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.gate-claim-quick .btn-step { font-size: 11.5px; padding: 4px 9px; }
+
+/* Citizen-facing claiming day — the one date they came to the page for. */
+.claim-day { display: flex; align-items: center; gap: 10px; border: 1px solid var(--green); background: var(--green-wash); border-radius: 12px; padding: 10px 13px; }
+.claim-day svg { flex: none; width: 20px; height: 20px; color: var(--green-deep); }
+.claim-day .k { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
+.claim-day .v { font-size: 15px; font-weight: 700; color: var(--green-deep); margin: 1px 0 0; }
+
 .gate-errors { margin: 8px 2px 0; font-size: 12.5px; font-weight: 600; color: var(--red); background: var(--red-wash); border: 1px solid #eecaca; border-radius: 9px; padding: 8px 12px; }
 .gate-errors p { margin: 0; }
 .gate-errors p + p { margin-top: 3px; }
@@ -385,14 +432,14 @@
 .tile.add:hover, .deptcard.add:hover { background: var(--green-wash); border-color: var(--green-bright); color: var(--green-deep); }
 
 /* Civic buttons (opt-in via .cr-btn so they don't clash with Tailwind markup) */
-.cr-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--hairline-strong); background: #fff; color: var(--ink); text-decoration: none; }
+.cr-btn { display: inline-flex; align-items: center; gap: 6px; height: var(--control-h); white-space: nowrap; font-size: 12.5px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--hairline-strong); background: #fff; color: var(--ink); text-decoration: none; }
 .cr-btn svg { width: 14px; height: 14px; }
 .cr-btn:hover { background: #f4f7f5; }
 .cr-btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
 .cr-btn-primary:hover { background: #13682f; }
-.cr-btn-ghost { border-color: transparent; background: transparent; color: var(--green); padding: 6px 8px; }
+.cr-btn-ghost { border-color: transparent; background: transparent; color: var(--green); padding: 0 8px; }
 .cr-btn-ghost:hover { background: var(--green-wash); }
-.cr-btn-sm { padding: 5px 9px; font-size: 11.5px; }
+.cr-btn-sm { height: var(--control-h-sm); padding: 0 9px; font-size: 11.5px; }
 .cr-btn-danger { color: var(--red); border-color: #ecd2d2; }
 .cr-btn-danger:hover { background: var(--red-wash); }
 
@@ -406,10 +453,17 @@
 /* Toolbar + inline filter fields (analytics) */
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toolbar .spacer { flex: 1; }
-.field { display: flex; align-items: center; gap: 8px; background: #f4f7f5; border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 11px; }
+/* A filter row reads as one bar: even the compact buttons take the full
+   control height here so their top and bottom edges meet the fields'. */
+.toolbar .cr-btn { height: var(--control-h); }
+/* Height comes from --control-h, not from the input's own text height, so a
+   field always matches the button sitting next to it. */
+.field { display: flex; align-items: center; gap: 8px; height: var(--control-h); background: #f4f7f5; border: 1px solid var(--hairline); border-radius: 8px; padding: 0 11px; }
 .field svg { width: 15px; height: 15px; color: var(--ink-soft); }
 .field label { font-size: 11px; color: var(--ink-soft); }
-.field input, .field select { border: 0; background: transparent; outline: 0; font-family: inherit; font-size: 13px; color: var(--ink); }
+/* padding: 0 / box-shadow: none undo @tailwindcss/forms' base styling, which
+   would otherwise pad the control inside its own field and break the height. */
+.field input, .field select { border: 0; background: transparent; outline: 0; padding: 0; box-shadow: none; font-family: inherit; font-size: 13px; color: var(--ink); }
 
 /* Inline chart legend + donut legend rows */
 .legend { display: flex; gap: 16px; font-size: 11.5px; color: var(--ink-soft); }
@@ -487,7 +541,31 @@ aside.sidebar-pinned {
     padding-right: 0.75rem;
 }
 
-/* ── App frame — fixed max width, centered (stable layout on zoom-out) ─── */
+/* ── Frosted civic surfaces (see the --civic-mesh / --glass-* tokens) ───── */
+.civic-mesh {
+    background-color: var(--civic-mesh-base);
+    background-image: var(--civic-mesh);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+.glass-panel {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* No backdrop-filter (older Firefox/Safari): fall back to a near-opaque panel
+   so content never sits on an unreadable wash. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+        background: rgba(255, 255, 255, .96);
+    }
+}
+
+/* ── App frame — fluid width, so content tracks the viewport at any zoom ── */
 .app-frame {
     width: 100%;
     max-width: var(--app-max);
@@ -675,8 +753,53 @@ aside.sidebar-pinned {
 .topnav-pagebar h1 { font-size: 1.25rem; font-weight: 800; color: var(--green-deep); letter-spacing: -.02em; }
 @media (min-width: 640px) { .topnav-pagebar h1 { font-size: 1.75rem; } }
 
-.topnav-main { flex: 1; width: 100%; padding-block: 1rem 2.5rem; }
-@media (min-width: 1024px) { .topnav-main { padding-block: 1.25rem 3rem; } }
+/* Top padding matches the sidebar shell's main (pt-2), so the space under the
+   page title reads the same in both layouts and does not stack with the page
+   bar's own padding. */
+.topnav-main { flex: 1; width: 100%; padding-block: .5rem 2.5rem; }
+@media (min-width: 1024px) { .topnav-main { padding-block: .5rem 3rem; } }
+
+/* ── Fixed-height workspace pages (Look up) ────────────────────────────────
+   The shell takes exactly the viewport and stops scrolling; the page's own
+   panels scroll internally instead. Opt in with <x-app-layout fixed-height>.
+   Only from lg up — on a phone the panels stack and the page must scroll. */
+@media (min-width: 1024px) {
+    /* Set on <html>/<body> by the layout, so nothing outside the shell (a
+       stray partial, a tall dialog) can reintroduce a page scrollbar. */
+    html.app-fixed-height,
+    body.app-fixed-height {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .app-fixed-height .topnav-shell,
+    .app-fixed-height .admin-shell {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .main-fixed {
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+        padding-bottom: .75rem;
+    }
+
+    .main-fixed > .app-frame {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+    }
+
+    /* The workspace grid and its panels take the height they are given, so the
+       scrolling happens inside the panels and never on the page. */
+    .main-fixed > .app-frame > * {
+        min-height: 0;
+        max-height: 100%;
+    }
+}
 
 /* Profile page: contained, centered column so it has "length" and does not
    stretch edge-to-edge in the full-width topnav shell (matches the super-admin

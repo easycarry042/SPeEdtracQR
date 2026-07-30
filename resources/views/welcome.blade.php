@@ -30,7 +30,9 @@
         $slideSeconds = 6;   // time each photo holds
         $fadeSeconds = 1.6;  // cross-fade duration
     @endphp
-    <section class="relative isolate overflow-hidden bg-gradient-to-br from-[#eef4f0] via-[#f1f6f3] to-[#dfeee6]">
+    {{-- min-h-[100svh] so the hero fills the first screen without the mobile
+         browser's collapsing toolbar pushing it past the fold. --}}
+    <section class="relative isolate flex min-h-screen min-h-[100svh] items-center overflow-hidden bg-gradient-to-br from-[#eef4f0] via-[#f1f6f3] to-[#dfeee6]">
         {{-- Soft green shapes echoing the sweep behind the photo --}}
         <div class="pointer-events-none absolute -left-40 top-1/2 -z-10 h-[38rem] w-[38rem] -translate-y-1/2 rounded-full bg-emerald-200/25 blur-3xl"></div>
         <div class="pointer-events-none absolute -bottom-56 left-1/4 -z-10 h-[34rem] w-[34rem] rounded-full bg-teal-200/25 blur-3xl"></div>
@@ -82,7 +84,7 @@
             @endif
         @endif
 
-        <div class="mx-auto max-w-6xl px-6 pb-24 pt-20 sm:pt-28">
+        <div class="mx-auto w-full max-w-6xl px-6 py-20">
             <div class="max-w-xl">
                 {{-- Mark + wordmark lockup above the headline. Sized well up from the
                      navbar's 36px, but kept below the 48px headline so it introduces

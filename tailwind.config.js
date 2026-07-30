@@ -58,6 +58,13 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            // `h-ctl` — the one height every inline control (search input,
+            // filter select, button) is sized to, shared with the .field /
+            // .cr-btn CSS components via --control-h.
+            height: {
+                ctl: 'var(--control-h)',
+                'ctl-sm': 'var(--control-h-sm)',
+            },
             colors: {
                 // Base — white cards on a subtly tinted canvas
                 paper: 'var(--paper)',

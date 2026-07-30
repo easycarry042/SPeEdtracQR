@@ -7,7 +7,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
 </head>
-<body class="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 antialiased text-gray-900">
+<body class="civic-mesh min-h-screen antialiased text-gray-900">
 
     {{-- Same public portal header as /citizen and /track for a unified look. --}}
     @include('layouts.partials.public-header')
@@ -31,7 +31,7 @@
             $bad = 'border-red-400 bg-red-50/40';
         @endphp
 
-        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm" novalidate>
+        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data" class="glass-panel mt-6 space-y-5 rounded-2xl p-6" novalidate>
             @csrf
 
             {{-- Honeypot: must stay empty. Hidden from real users. --}}

@@ -16,20 +16,16 @@
         <form method="GET" id="userFilterForm" class="flex flex-wrap gap-3">
             <input type="text" name="search" id="userSearch" value="{{ request('search') }}" autocomplete="off"
                    placeholder="Search name or email…"
-                   class="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
-            <select name="role" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                <option value="">All Roles</option>
-                @foreach($roles as $role)
-                    <option value="{{ $role->name }}" @selected(request('role') === $role->name)>
-                        {{ ucfirst($role->name) }}
-                    </option>
-                @endforeach
-            </select>
-            <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">
+                   class="h-ctl flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
+            <x-select-menu name="role" variant="plain" panel-width="w-56" placeholder="All Roles"
+                           class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                           :options="$roles->mapWithKeys(fn ($role) => [$role->name => ucfirst($role->name)])->prepend('All Roles', '')->all()"
+                           :selected="request('role')"/>
+            <button type="submit" class="h-ctl rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">
                 Filter
             </button>
             @if(request()->hasAny(['search','role']))
-                <a href="{{ route('admin.users.index') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <a href="{{ route('admin.users.index') }}" class="inline-flex h-ctl items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50">
                     Clear
                 </a>
             @endif
@@ -311,7 +307,7 @@
                 timer = setTimeout(refreshResults, 300);
             });
 
-            form.querySelectorAll('select').forEach(function (el) {
+            form.querySelectorAll('select, [data-filter-control]').forEach(function (el) {
                 el.addEventListener('change', refreshResults);
             });
 

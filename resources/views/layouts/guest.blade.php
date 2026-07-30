@@ -33,8 +33,14 @@
                 margin: 0;
                 min-height: 100vh;
                 font-family: Figtree, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-                background: var(--page-bg);
                 color: #1f2937;
+
+                /* Mesh wash + glass tokens live in app.css (--civic-mesh,
+                   --glass-*), shared with the citizen portal. */
+                background-color: var(--civic-mesh-base);
+                background-image: var(--civic-mesh);
+                background-attachment: fixed;
+                background-repeat: no-repeat;
             }
 
             main.auth-main {
@@ -45,18 +51,25 @@
                 padding: 24px;
             }
 
+            /* Frosted glass: the mesh behind shows through, blurred, so the
+               card reads as a pane over the gradient rather than a flat block.
+               Alpha stays high enough (.72) to keep form text legible. */
+            /* Glass treatment comes from .glass-panel in app.css (background,
+               blur, lit rim, shadow, and the no-backdrop-filter fallback). */
             .auth-card {
                 width: min(780px, 100%);
-                background: var(--card-bg);
-                border-radius: 12px;
-                border: 1px solid #e6ece8;
-                box-shadow: 0 10px 30px rgba(15, 77, 40, 0.08);
+                border-radius: 22px;
                 overflow: hidden;
             }
 
             .auth-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
+                /* Holds the card at the height it had before the guest button
+                   and reset row were removed, so the brand half keeps its
+                   proportions. Only while side-by-side — the stacked layout
+                   below 900px sizes to its content. */
+                min-height: 508px;
             }
 
             .auth-left {
@@ -64,8 +77,10 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                border-right: 1px solid #e6ece8;
-                background: #f3f8f5;
+                border-right: 1px solid rgba(255, 255, 255, .45);
+                /* Barely there, or this half would punch an opaque hole in the
+                   frosted pane. */
+                background: rgba(255, 255, 255, .14);
             }
 
             .auth-brand {
@@ -100,6 +115,11 @@
 
             .auth-right {
                 padding: 28px 32px;
+                /* Centred in the taller cell, rather than sitting at the top
+                   with the reclaimed space dangling below the Login button. */
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             .auth-heading {
@@ -146,6 +166,16 @@
             .form-input:focus {
                 border-color: var(--accent);
                 box-shadow: 0 0 0 2px rgba(22, 122, 58, 0.2);
+            }
+
+            /* Clears the reveal icon parked at the field's right edge. */
+            .form-input-with-toggle {
+                padding-right: 44px;
+            }
+
+            /* Replaces the margin the show-password / reset row used to add. */
+            .auth-button-spaced {
+                margin-top: 20px;
             }
 
             .auth-row {
@@ -238,7 +268,7 @@
             }
 
             @media (max-width: 900px) {
-                .auth-grid { grid-template-columns: 1fr; }
+                .auth-grid { grid-template-columns: 1fr; min-height: 0; }
                 .auth-left {
                     border-right: 0;
                     border-bottom: 1px solid #d8e8c0;

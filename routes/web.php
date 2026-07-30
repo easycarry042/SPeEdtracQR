@@ -287,6 +287,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/requests/{document}/steps/approve', [RequestStepController::class, 'approve'])->name('requests.steps.approve');
         Route::post('/requests/{document}/steps/deny', [RequestStepController::class, 'deny'])->name('requests.steps.deny');
         Route::post('/requests/{document}/steps/return', [RequestStepController::class, 'returnToRequester'])->name('requests.steps.return');
+        // The only way an internal request reaches Completed.
+        Route::post('/requests/{document}/steps/complete', [RequestStepController::class, 'complete'])->name('requests.steps.complete');
     });
     Route::get('/request-steps/{requestStep}/signature', [RequestStepController::class, 'signature'])->name('requests.steps.signature');
 

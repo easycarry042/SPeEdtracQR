@@ -64,12 +64,12 @@
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     @foreach($document->attachments as $attachment)
                                         <a href="{{ $attachment->authorizedUrl() }}" target="_blank" class="cr-btn cr-btn-sm">
-                                            {{ str_ends_with($attachment->file_path, '-qr-stamped.png') ? 'QR-stamped copy' : 'Paper scan' }}
+                                            {{ str_ends_with($attachment->file_path, '-qr-stamped.png') ? 'QR-stamped copy' : 'View Uploaded Document' }}
                                         </a>
                                     @endforeach
                                     <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-sm">
                                         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
-                                        Print QR sticker
+                                        Print QR Code
                                     </a>
                                 </div>
                             </div>
@@ -107,7 +107,7 @@
                         </div>
                         <div class="pb space-y-4">
                             <p class="text-[13px] text-ink-soft">
-                                Your office holds this hop, but you must <b class="text-ink">scan the folder's QR</b> to
+                                Your office holds this hop, but you must <b class="text-ink">scan the document's QR Code</b> to
                                 confirm the paper is physically here before you can approve, return, or deny it.
                             </p>
                             @include('partials.custody-scan', ['document' => $document])
@@ -139,7 +139,7 @@
                             @if($custody)
                                 <div class="mb-4 flex items-center gap-2 rounded-[8px] border border-green/25 bg-green/5 px-4 py-2.5 text-[13px] text-ink" role="status">
                                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true" class="text-green"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                    <span>Folder in hand — held by <b>{{ $custody->user->name ?? 'your office' }}</b>{{ $custody->capture_method === 'manual' ? ' (recorded manually)' : ' (QR scanned)' }}.</span>
+                                    <span>Document in hand — held by <b>{{ $custody->user->name ?? 'your office' }}</b>{{ $custody->capture_method === 'manual' ? ' (recorded manually)' : ' (QR scanned)' }}.</span>
                                 </div>
                             @endif
 
@@ -153,6 +153,11 @@
                             <div class="segchips w-full" role="tablist" aria-label="Decision">
                                 <button type="button" role="tab" :aria-selected="mode === 'approve'" @click="mode = 'approve'"
                                         :class="mode === 'approve' ? 'on' : ''" class="flex-1 justify-center">Approve</button>
+                                {{-- Done is the only action that completes a request:
+                                     approving just passes the paper along, and the
+                                     chain grows as each office scans it. --}}
+                                <button type="button" role="tab" :aria-selected="mode === 'done'" @click="mode = 'done'"
+                                        :class="mode === 'done' ? 'on' : ''" class="flex-1 justify-center">Done</button>
                                 <button type="button" role="tab" :aria-selected="mode === 'return'" @click="mode = 'return'"
                                         :class="mode === 'return' ? 'on' : ''" class="flex-1 justify-center">Return</button>
                                 <button type="button" role="tab" :aria-selected="mode === 'deny'" @click="mode = 'deny'; denyAck = false"
@@ -161,24 +166,55 @@
 
                             <form method="POST"
                                   :action="mode === 'approve' ? '{{ route('requests.steps.approve', $document) }}'
+                                          : (mode === 'done' ? '{{ route('requests.steps.complete', $document) }}'
                                           : (mode === 'return' ? '{{ route('requests.steps.return', $document) }}'
-                                          : '{{ route('requests.steps.deny', $document) }}')"
+                                          : '{{ route('requests.steps.deny', $document) }}'))"
                                   class="mt-5 space-y-4">
                                 @csrf
 
                                 <p class="text-[13px] text-ink-soft">
-                                    <span x-show="mode === 'approve'">Approving affixes your registered e-signature and passes the request to the next office.</span>
+                                    <span x-show="mode === 'approve'">Approving affixes your registered e-signature and passes the request to the office you choose below.</span>
+                                    <span x-show="mode === 'done'" x-cloak>Marking this done completes the request — use it when your office is the last to handle the paper.</span>
                                     <span x-show="mode === 'return'" x-cloak>Returning sends the request back to {{ $document->requestingDepartment?->name }} for revision.</span>
                                     <span x-show="mode === 'deny'" x-cloak>Denying ends this request permanently. The filing office is notified.</span>
                                 </p>
 
+                                {{-- Where the paper goes next. A hop queued when the
+                                     request was filed already answers this; from
+                                     there on, the office holding it decides. --}}
+                                <div x-show="mode === 'approve'" x-cloak>
+                                    @if($queuedNextStep)
+                                        <p class="rounded-[8px] border border-hairline bg-[#f6f8f7] px-3 py-2.5 text-[13px] text-ink">
+                                            Next office (set when this request was filed):
+                                            <span class="font-semibold">{{ $queuedNextStep->department?->name }}</span>
+                                            <span class="font-mono text-[11px] text-ink-soft">{{ $queuedNextStep->department?->code }}</span>
+                                        </p>
+                                    @else
+                                        <label for="next-department" class="block text-[13px] font-semibold text-ink">
+                                            Send to which office next? <span class="text-status-red">*</span>
+                                        </label>
+                                        <select id="next-department" name="next_department_id"
+                                                :required="mode === 'approve'"
+                                                class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('next_department_id') border-status-red @enderror">
+                                            <option value="">Select a department…</option>
+                                            @foreach($forwardDepartments as $forwardDepartment)
+                                                <option value="{{ $forwardDepartment->id }}" @selected(old('next_department_id') == $forwardDepartment->id)>
+                                                    {{ $forwardDepartment->name }} ({{ $forwardDepartment->code }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <p class="mt-1 text-[12px] text-ink-soft">If your office is the last to handle this, use <strong>Done</strong> instead.</p>
+                                        @error('next_department_id')<p class="mt-1 text-[12px] font-semibold text-status-red">{{ $message }}</p>@enderror
+                                    @endif
+                                </div>
+
                                 <div>
                                     <label for="req-remarks" class="block text-[13px] font-semibold text-ink">
-                                        Remarks <span x-show="mode !== 'approve'" class="text-status-red">*</span>
+                                        Remarks <span x-show="mode === 'return' || mode === 'deny'" class="text-status-red">*</span>
                                     </label>
                                     <textarea id="req-remarks" name="remarks" rows="3" maxlength="500"
-                                              :required="mode !== 'approve'"
-                                              :placeholder="mode === 'approve' ? 'Optional note for the record' : 'Explain the decision so the filing office knows what to fix'"
+                                              :required="mode === 'return' || mode === 'deny'"
+                                              :placeholder="(mode === 'approve' || mode === 'done') ? 'Optional note for the record' : 'Explain the decision so the filing office knows what to fix'"
                                               class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ old('remarks') }}</textarea>
                                 </div>
 
@@ -188,51 +224,51 @@
                                     <span>I understand denying <strong>permanently ends</strong> this request and cannot be undone.</span>
                                 </label>
 
-                                {{-- Identity is re-confirmed by scanning the signer's own staff
-                                     badge QR, not by retyping a password: one action at the
-                                     counter, nothing to shoulder-surf, and it can only be
-                                     satisfied by the person holding that badge. --}}
-                                <div x-data="badgeSign()">
+                                {{-- The decision is confirmed against the folder itself:
+                                     scan this request's QR sticker. A code from another
+                                     request — or any foreign QR — is refused. --}}
+                                <div x-data="folderSign(@js($document->tracking_number))">
                                     <p class="block text-[13px] font-semibold text-ink">
-                                        Scan your staff badge <span class="text-status-red">*</span>
+                                        Scan this request's QR <span class="text-status-red">*</span>
                                     </p>
 
-                                    <input type="hidden" name="badge_payload" :value="payload">
+                                    <input type="hidden" name="document_scan" :value="payload">
 
                                     <div x-show="!payload" class="mt-2">
                                         <button type="button" @click="toggle()" class="cr-btn cr-btn-sm">
-                                            <span x-text="scanning ? 'Cancel scan' : 'Scan badge QR'"></span>
+                                            <span x-text="scanning ? 'Cancel scan' : 'Scan request QR'"></span>
                                         </button>
                                         <div x-show="scanning" x-cloak class="mt-3">
-                                            <div id="badgeReader" class="overflow-hidden rounded-[8px]"></div>
-                                            <p class="mt-1 text-[12px] text-ink-soft">Point the camera at the QR on your own badge.</p>
+                                            <div id="folderReader" class="overflow-hidden rounded-[8px]"></div>
+                                            <p class="mt-1 text-[12px] text-ink-soft">Point the camera at the QR sticker on this folder.</p>
                                         </div>
                                     </div>
 
                                     <p x-show="payload" x-cloak class="mt-2 flex items-center gap-2 text-[13px] font-semibold text-green">
                                         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                        Badge scanned — ready to sign
+                                        Request QR scanned — ready to sign
                                         <button type="button" @click="reset()" class="ml-1 text-[12px] font-normal text-ink-soft underline">rescan</button>
                                     </p>
 
                                     <p x-show="error" x-cloak x-text="error" role="alert" class="mt-2 text-[12.5px] font-semibold text-status-red"></p>
-                                    @error('badge_payload')
+                                    @error('document_scan')
                                         <p class="mt-2 text-[12.5px] font-semibold text-status-red">{{ $message }}</p>
                                     @enderror
 
                                     <p class="mt-1 text-[12px] text-ink-soft">
-                                        No badge yet? <a href="{{ route('profile.badge') }}" target="_blank" class="font-semibold underline">Print yours</a>.
+                                        Sticker missing? <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="font-semibold underline">Print the QR</a>.
                                     </p>
                                 </div>
 
                                 <button type="submit"
                                         :disabled="(mode === 'approve' && !hasSignature) || (mode === 'deny' && !denyAck)"
                                         :class="{
-                                            'cr-btn-primary': mode === 'approve',
+                                            'cr-btn-primary': mode === 'approve' || mode === 'done',
                                             'cr-btn-danger': mode === 'deny',
                                         }"
                                         class="cr-btn w-full justify-center py-2.5 text-[13px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                                     <span x-show="mode === 'approve'">Approve &amp; sign</span>
+                                    <span x-show="mode === 'done'" x-cloak>Mark as done — complete the request</span>
                                     <span x-show="mode === 'return'" x-cloak>Return for revision</span>
                                     <span x-show="mode === 'deny'" x-cloak>Deny request</span>
                                 </button>
@@ -288,14 +324,15 @@
         </div>
     </div>
 
-    {{-- Badge scanning for the signature step (see the decision panel above). --}}
+    {{-- Folder-QR scanning for the signature step (see the decision panel above). --}}
     @include('partials.qr-scan-helpers')
     <script>
-        window.badgeSign = function () {
+        window.folderSign = function (trackingNumber) {
             return {
                 scanning: false,
                 payload: '',
                 error: '',
+                tracking: String(trackingNumber || '').toUpperCase(),
 
                 toggle() {
                     if (this.scanning) {
@@ -306,17 +343,26 @@
                     }
                     this.error = '';
                     this.scanning = true;
-                    window.SpeedQr.start('badgeReader', (decodedText) => {
-                        // Only a staff badge signs a decision — a folder QR or any
-                        // other code is refused rather than silently accepted.
-                        if (!window.SpeedQr.isStaffBadge(decodedText)) {
-                            this.error = 'That is not a staff badge QR. Scan the code on your own badge.';
+                    window.SpeedQr.start('folderReader', (decodedText) => {
+                        // The same rules the server applies: a code this system
+                        // issued, and this request's — not the folder next to it.
+                        const scanned = window.SpeedQr.extractTracking(decodedText);
+
+                        if (!scanned) {
+                            this.error = window.SpeedQr.FOREIGN_CODE_MESSAGE;
 
                             return;
                         }
+
+                        if (scanned !== this.tracking) {
+                            this.error = `That QR is for ${scanned}. Scan the sticker on this request's folder.`;
+
+                            return;
+                        }
+
                         window.SpeedQr.stop();
                         this.scanning = false;
-                        this.payload = decodedText.trim();
+                        this.payload = scanned;
                         this.error = '';
                     }, () => {
                         this.scanning = false;

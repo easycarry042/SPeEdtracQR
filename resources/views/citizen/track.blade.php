@@ -12,7 +12,7 @@
     <div class="mx-auto max-w-2xl space-y-6">
 
         {{-- Manual tracking input --}}
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div class="glass-panel overflow-hidden rounded-2xl p-6">
             <h2 class="text-sm font-semibold tracking-wide text-emerald-700">Enter Tracking Number</h2>
 
             <form method="GET" action="{{ route('citizen.track') }}" class="mt-4 space-y-4">
@@ -65,7 +65,7 @@
         </div>
 
         {{-- QR scanner --}}
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+        <div class="glass-panel overflow-hidden rounded-2xl p-6 space-y-4">
             <h2 class="text-sm font-semibold tracking-wide text-emerald-700">Scan QR Code</h2>
             <p id="scanStatus" class="text-center text-sm font-medium text-gray-600">
                 Point your camera at the QR code on your document receipt.

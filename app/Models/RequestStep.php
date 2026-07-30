@@ -30,6 +30,13 @@ class RequestStep extends Model
 
     public const STATUS_SKIPPED = 'skipped';
 
+    /**
+     * The office held the paper and passed it on without a formal endorsement —
+     * recorded when the next department scans the folder into its own custody.
+     * The chain grows from those scans, so it is a log, not a planned hop.
+     */
+    public const STATUS_FORWARDED = 'forwarded';
+
     protected $fillable = [
         'document_id',
         'step_order',
@@ -75,6 +82,7 @@ class RequestStep extends Model
             self::STATUS_APPROVED => ['label' => 'Approved', 'band' => 'green'],
             self::STATUS_DENIED => ['label' => 'Denied', 'band' => 'red'],
             self::STATUS_RETURNED => ['label' => 'Returned', 'band' => 'returned'],
+            self::STATUS_FORWARDED => ['label' => 'Handled · passed on', 'band' => 'muted'],
             default => ['label' => 'Waiting', 'band' => 'muted'],
         };
     }

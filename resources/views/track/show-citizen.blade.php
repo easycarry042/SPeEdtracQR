@@ -169,6 +169,20 @@
 
             {{-- Who / where is responsible, plus the requester's contact details. --}}
             <div class="pb">
+                {{-- The claiming day staff set when advancing — the thing the
+                     citizen opened this page to find out. --}}
+                @if($document->claim_date)
+                    <div class="claim-day mb-4">
+                        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                        </svg>
+                        <div>
+                            <p class="k">Claim on</p>
+                            <p class="v">{{ $document->claim_date->format('l, M d, Y') }}</p>
+                        </div>
+                    </div>
+                @endif
+
                 <dl class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
                     <div>
                         <dt class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">THED ID</dt>

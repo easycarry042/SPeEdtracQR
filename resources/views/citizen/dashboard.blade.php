@@ -16,7 +16,7 @@
 
         {{-- ── Card 1: Track a Document ──────────────────────────────────────── --}}
         <a href="{{ route('citizen.track') }}"
-           class="group relative flex flex-col items-center gap-5 rounded-2xl border-2 border-emerald-200 bg-white p-8 text-center shadow-sm transition hover:border-emerald-400 hover:shadow-lg hover:-translate-y-1 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400">
+           class="glass-panel group relative flex flex-col items-center gap-5 rounded-2xl p-8 text-center transition hover:-translate-y-1 hover:border-white/80 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400">
 
             {{-- Icon --}}
             <span class="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition group-hover:bg-emerald-500 group-hover:text-white">
@@ -46,7 +46,7 @@
 
         {{-- ── Card 2: Submit a Request ──────────────────────────────────────── --}}
         <a href="{{ route('public.request.create') }}"
-           class="group relative flex flex-col items-center gap-5 rounded-2xl border-2 border-emerald-200 bg-white p-8 text-center shadow-sm transition hover:border-emerald-400 hover:shadow-lg hover:-translate-y-1 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400">
+           class="glass-panel group relative flex flex-col items-center gap-5 rounded-2xl p-8 text-center transition hover:-translate-y-1 hover:border-white/80 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400">
 
             {{-- Icon --}}
             <span class="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition group-hover:bg-emerald-500 group-hover:text-white">

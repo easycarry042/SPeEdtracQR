@@ -97,23 +97,12 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('admin.dashboard') }}" class="toolbar">
-                <div class="field">
-                    <label>Range</label>
-                    <select name="range" onchange="this.form.submit()">
-                        <option value="7" @selected($filters['range'] === 7)>Last 7 days</option>
-                        <option value="30" @selected($filters['range'] === 30)>Last 30 days</option>
-                        <option value="90" @selected($filters['range'] === 90)>Last 90 days</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Type</label>
-                    <select name="document_type" onchange="this.form.submit()">
-                        <option value="">All</option>
-                        @foreach ($documentTypes as $t)
-                            <option value="{{ $t }}" @selected($filters['document_type'] === $t)>{{ $t }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <x-select-menu name="range" label="Range" submit-on-change panel-width="w-48" class="w-48"
+                               :options="[7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days']"
+                               :selected="$filters['range']"/>
+                <x-select-menu name="document_type" label="Type" submit-on-change panel-width="w-56" class="w-56"
+                               :options="collect($documentTypes)->mapWithKeys(fn ($t) => [$t => $t])->prepend('All', '')->all()"
+                               :selected="$filters['document_type']"/>
                 <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>
                 @if ($filters['active'])
                     <a href="{{ route('admin.dashboard') }}" class="cr-btn cr-btn-sm">Reset</a>

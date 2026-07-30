@@ -28,7 +28,9 @@
       "PowerShell(php artisan test --compact tests/Feature/HomepageTest.php 2>&1)",
       "PowerShell(vendor/bin/pint --dirty --format agent)",
       "PowerShell(php artisan view:clear)",
-      "PowerShell(npm run build 2>&1)"
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(git stash push resources/css/app.css resources/views/welcome.blade.php)",
+      "PowerShell(git stash pop)"
     ]
   },
   "disabledMcpjsonServers": [
