@@ -41,7 +41,9 @@
         {{-- Audited fallback for a torn/unreadable QR — visibly secondary, and
              only offered once a scan is actually being attempted, so the detail
              view stays a single quiet line until someone acts. --}}
-        <div class="custody-manual" x-show="scanning" x-cloak>
+        {{-- Stays reachable when the camera failed, not only while scanning —
+             a broken camera is exactly when the manual fallback is needed. --}}
+        <div class="custody-manual" x-show="scanning || error" x-cloak>
             <button type="button" class="cs-manual-link" @click="openManual()">QR torn or unreadable? Record manually</button>
             <form x-show="manualOpen" x-cloak method="POST" action="{{ route('documents.custody.store', $document) }}" class="cs-manual-form">
                 @csrf
@@ -90,9 +92,10 @@
                                 ? `That's a different folder (${tracking}). Scan this document's folder.`
                                 : window.SpeedQr.FOREIGN_CODE_MESSAGE;
                         }
-                    }, () => {
+                    }, (cameraError) => {
                         this.scanning = false;
-                        this.error = 'Could not start the camera. Check permissions, or record manually below.';
+                        this.manualOpen = true;
+                        this.error = window.SpeedQr.describe(cameraError) + ' You can record custody manually below.';
                     });
                 },
 

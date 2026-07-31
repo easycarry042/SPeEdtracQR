@@ -13,9 +13,12 @@ use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Supervisor-only wizard for internal dept-to-dept requests (e.g. procurement):
@@ -125,6 +128,8 @@ class InternalRequestController extends Controller
             'qr_x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_y' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_size' => ['nullable', 'numeric', 'min:0.12', 'max:0.40'],
+            // Which page of a multi-page PDF scan carries the stamp.
+            'qr_page' => ['nullable', 'integer', 'min:1', 'max:500'],
         ]);
 
         $firstDepartment = Department::active()->findOrFail($validated['first_department_id']);
@@ -188,30 +193,45 @@ class InternalRequestController extends Controller
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
 
-        // Keep the original paper scan, and (for raster images) archive a
-        // digital copy with the QR stamped on — both as private attachments.
+        // Keep the original paper scan, and archive a digital copy with the QR
+        // stamped on — both as private attachments.
         if ($request->hasFile('paper_scan')) {
             $attachments = $this->storeAttachmentsForDocument($document, [$request->file('paper_scan')]);
 
             if ($qrResult['success'] && $attachments !== []) {
+                $original = $attachments[0];
                 $position = isset($validated['qr_x'], $validated['qr_y'])
                     ? ['x' => (float) $validated['qr_x'], 'y' => (float) $validated['qr_y']]
                     : null;
+                $sizeFraction = isset($validated['qr_size']) ? (float) $validated['qr_size'] : null;
 
-                $stampedPath = $this->qrCodeService->stampQrOntoImage(
-                    $attachments[0]->file_path,
-                    $qrResult['relative_path'],
-                    $trackingNumber,
-                    $position,
-                    isset($validated['qr_size']) ? (float) $validated['qr_size'] : null,
-                );
-
-                if ($stampedPath !== null) {
-                    $document->attachments()->create([
-                        'file_path' => $stampedPath,
-                        'uploaded_by' => auth()->id(),
-                        'sort_order' => (int) $document->attachments()->max('sort_order') + 1,
+                if ($this->isPdf($original->file_path)) {
+                    // PHP has no PDF toolchain here, so a PDF scan is stamped in
+                    // the browser with pdf-lib on the confirmation screen (same
+                    // approach as the built-in PDF editor). Hand it the placement.
+                    session()->flash('internal_pdf_stamp', [
+                        'attachment_id' => $original->id,
+                        'x' => $position['x'] ?? null,
+                        'y' => $position['y'] ?? null,
+                        'size' => $sizeFraction,
+                        'page' => (int) ($validated['qr_page'] ?? 1),
                     ]);
+                } else {
+                    $stampedPath = $this->qrCodeService->stampQrOntoImage(
+                        $original->file_path,
+                        $qrResult['relative_path'],
+                        $trackingNumber,
+                        $position,
+                        $sizeFraction,
+                    );
+
+                    if ($stampedPath !== null) {
+                        $document->attachments()->create([
+                            'file_path' => $stampedPath,
+                            'uploaded_by' => auth()->id(),
+                            'sort_order' => (int) $document->attachments()->max('sort_order') + 1,
+                        ]);
+                    }
                 }
             }
         }
@@ -280,6 +300,59 @@ class InternalRequestController extends Controller
         $document->load(['requestSteps.department', 'requestingDepartment', 'attachments']);
 
         return view('requests.created', ['document' => $document]);
+    }
+
+    /**
+     * Store the QR-stamped copy of a PDF paper scan, produced in the browser by
+     * pdf-lib right after filing. The original upload is untouched: this saves a
+     * second attachment, exactly as the image path does server-side.
+     */
+    public function storeStampedScan(Request $request, Document $document): JsonResponse
+    {
+        abort_unless($document->isInternal(), 404);
+        // Only the office that filed it (or an org-wide admin) may add the
+        // stamped copy — the same people who could have filed it in the first place.
+        abort_unless(
+            $document->created_by === auth()->id()
+                || auth()->user()?->can('manage system')
+                || ($document->requesting_department_id !== null
+                    && $document->requesting_department_id === auth()->user()?->department_id),
+            403,
+        );
+
+        $request->validate([
+            'pdf' => ['required', 'file', 'mimes:pdf', 'max:'.UploadRules::MAX_KILOBYTES],
+        ]);
+
+        $binary = (string) file_get_contents($request->file('pdf')->getRealPath());
+
+        // mimes: trusts the client's extension, so confirm the bytes are a PDF.
+        if (! str_starts_with($binary, '%PDF-')) {
+            throw ValidationException::withMessages(['pdf' => 'That file is not a valid PDF.']);
+        }
+
+        $path = "document-attachments/{$document->tracking_number}-qr-stamped.pdf";
+
+        // Idempotent: a reload of the confirmation screen must not pile up copies.
+        $attachment = $document->attachments()->firstOrNew(['file_path' => $path]);
+        Storage::disk('local')->put($path, $binary);
+
+        if (! $attachment->exists) {
+            $attachment->fill([
+                'uploaded_by' => auth()->id(),
+                'sort_order' => (int) $document->attachments()->max('sort_order') + 1,
+            ])->save();
+        }
+
+        return response()->json([
+            'url' => $attachment->authorizedUrl(),
+        ]);
+    }
+
+    /** Whether a stored path is a PDF (stamped in the browser, not with GD). */
+    private function isPdf(?string $path): bool
+    {
+        return strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)) === 'pdf';
     }
 
     /**

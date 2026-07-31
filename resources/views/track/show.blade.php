@@ -808,7 +808,7 @@
                 <button type="button" @click="close()" class="cr-btn cr-btn-sm" aria-label="Close scanner">Close</button>
             </div>
 
-            <div id="lookupScanRegion" class="mt-4 overflow-hidden rounded-xl border-2 border-dashed border-green/40 bg-green-wash/40"></div>
+            <div id="lookupScanRegion" class="mt-4 min-h-[220px] overflow-hidden rounded-xl border-2 border-dashed border-green/40 bg-green-wash/40"></div>
 
             <p x-show="error" x-text="error" x-cloak class="mt-3 text-[13px] text-status-red"></p>
 
@@ -838,7 +838,10 @@
                     this.$nextTick(() => {
                         window.SpeedQr.hasCamera().then((available) => {
                             if (! available) {
-                                this.error = 'No camera found — type the tracking number instead.';
+                                // Distinguishes "this device has no camera" from
+                                // "the browser hides cameras on an insecure origin".
+                                this.error = window.SpeedQr.describe(new DOMException('No camera.', 'NotFoundError'))
+                                    + ' You can type the tracking number instead.';
 
                                 return;
                             }
@@ -846,7 +849,7 @@
                             window.SpeedQr.start(
                                 'lookupScanRegion',
                                 (text) => this.go(window.SpeedQr.extractTracking(text), true),
-                                () => { this.error = 'Could not start the camera. Check the browser permission.'; },
+                                (cameraError) => { this.error = window.SpeedQr.describe(cameraError); },
                             );
                         });
                     });

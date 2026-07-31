@@ -3,6 +3,11 @@
         <h1 class="text-2xl font-bold tracking-tight text-green-deep">File Internal Request</h1>
     </x-slot>
 
+    {{-- Lets a PDF scan be previewed (and QR-placed) exactly like an image one. --}}
+    @push('head')
+        @vite('resources/js/pdf-scan-preview.js')
+    @endpush
+
     <div class="page-shell" x-data="requestForm()">
 
         {{-- Step indicator --}}
@@ -168,12 +173,22 @@
                         <dd class="mt-0.5 text-[14px] text-ink" x-text="fileName || 'None attached'"></dd>
                     </div>
 
-                    {{-- Drag the QR to where it should be stamped on the paper. Only
-                         raster scans can be stamped, so this appears for images. --}}
-                    <div class="sm:col-span-2" x-show="previewUrl" x-cloak>
+                    {{-- Drag the QR to where it should be stamped on the paper.
+                         Works for image scans and for PDFs (page by page). --}}
+                    <div class="sm:col-span-2" x-show="previewUrl || pdfRendering || pdfError" x-cloak>
                         <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">QR placement on the page</dt>
                         <dd class="mt-1.5">
                             <p class="mb-2 text-[12px] text-ink-soft">Drag the QR square onto a clear area of the paper, and use the slider to resize it — it will be stamped exactly there. Defaults to the bottom-right corner.</p>
+
+                            <p x-show="pdfRendering" class="mb-2 text-[12px] font-semibold text-ink-soft">Opening the PDF…</p>
+                            <p x-show="pdfError" x-text="pdfError" class="mb-2 text-[12px] font-semibold text-status-amber"></p>
+
+                            {{-- Multi-page PDFs: choose which page carries the stamp. --}}
+                            <div x-show="pdfFile && pdfPageCount > 1" class="mb-2 flex items-center gap-2">
+                                <button type="button" @click="goToPdfPage(pdfPage - 1)" :disabled="pdfPage <= 1" class="cr-btn cr-btn-sm disabled:opacity-40">‹ Prev</button>
+                                <span class="text-[12px] font-semibold text-ink-soft" x-text="`Page ${pdfPage} of ${pdfPageCount}`"></span>
+                                <button type="button" @click="goToPdfPage(pdfPage + 1)" :disabled="pdfPage >= pdfPageCount" class="cr-btn cr-btn-sm disabled:opacity-40">Next ›</button>
+                            </div>
                             <div class="inline-block select-none rounded-[8px] border border-hairline bg-[#f4f7f5] p-2">
                                 <div class="relative inline-block leading-none" data-qr-stage>
                                     <img :src="previewUrl" alt="Scanned document" class="block max-h-[420px] w-auto rounded-[4px]" @load="initQrPlacement($event.target)" draggable="false">
@@ -200,6 +215,7 @@
                             <input type="hidden" name="qr_x" :value="qr.ready ? qr.x.toFixed(4) : ''">
                             <input type="hidden" name="qr_y" :value="qr.ready ? qr.y.toFixed(4) : ''">
                             <input type="hidden" name="qr_size" :value="qr.ready ? qr.scaleShort.toFixed(4) : ''">
+                            <input type="hidden" name="qr_page" :value="pdfFile ? pdfPage : ''">
                         </dd>
                     </div>
 
@@ -267,10 +283,17 @@
                 fileName: '',
                 previewUrl: null,
                 qrModal: false,
+                // PDF scans: the chosen file stays in memory so any page can be
+                // re-rendered as the placement preview.
+                pdfFile: null,
+                pdfPage: 1,
+                pdfPageCount: 1,
+                pdfRendering: false,
+                pdfError: '',
                 // Normalized QR placement on the scanned page (fractions of the
                 // image). `scaleShort` is the QR side as a fraction of the short
-                // edge (matches the server's 0.22 default). Stays unset for
-                // PDFs / no scan → server uses its defaults.
+                // edge (matches the server's 0.22 default). Stays unset when
+                // there is no previewable scan → the default bottom-right is used.
                 qr: { ready: false, x: 0.75, y: 0.75, size: 0.24, sizeH: 0.24, scaleShort: 0.22, imgW: 0, imgH: 0, userMoved: false },
                 form: {
                     first_department_id: @json(old('first_department_id', '')),
@@ -293,9 +316,56 @@
                     this.qr.ready = false;
                     this.qr.userMoved = false;
                     this.qr.scaleShort = 0.22;
+                    this.pdfFile = null;
+                    this.pdfPage = 1;
+                    this.pdfPageCount = 1;
+                    this.pdfError = '';
                     if (!file) { this.fileName = ''; this.previewUrl = null; return; }
                     this.fileName = file.name;
+
+                    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+                        // PDFs get rasterised page-by-page so the same drag-and-size
+                        // stage works; the stamp is burned in later by pdf-lib.
+                        this.pdfFile = file;
+                        this.previewUrl = null;
+                        this.renderPdfPreview();
+
+                        return;
+                    }
+
                     this.previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+                },
+
+                /** Rasterise the chosen PDF page into the placement preview. */
+                async renderPdfPreview() {
+                    if (!this.pdfFile || typeof window.renderPdfPagePreview !== 'function') {
+                        this.pdfError = 'The PDF preview could not start. The request can still be filed — the QR goes to the bottom-right of page 1.';
+
+                        return;
+                    }
+
+                    this.pdfRendering = true;
+                    this.pdfError = '';
+                    try {
+                        const result = await window.renderPdfPagePreview(this.pdfFile, this.pdfPage);
+                        this.pdfPageCount = result.pageCount;
+                        this.pdfPage = result.page;
+                        this.qr.ready = false;
+                        this.previewUrl = result.dataUrl;
+                    } catch (error) {
+                        console.error(error);
+                        this.previewUrl = null;
+                        this.pdfError = 'That PDF could not be previewed, so the QR will be stamped at the bottom-right of page 1.';
+                    } finally {
+                        this.pdfRendering = false;
+                    }
+                },
+
+                goToPdfPage(page) {
+                    const target = Math.min(Math.max(page, 1), this.pdfPageCount);
+                    if (target === this.pdfPage) { return; }
+                    this.pdfPage = target;
+                    this.renderPdfPreview();
                 },
 
                 // Recompute the on-screen box from `scaleShort` so it lands exactly

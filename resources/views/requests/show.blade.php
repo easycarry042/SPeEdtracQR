@@ -64,7 +64,7 @@
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     @foreach($document->attachments as $attachment)
                                         <a href="{{ $attachment->authorizedUrl() }}" target="_blank" class="cr-btn cr-btn-sm">
-                                            {{ str_ends_with($attachment->file_path, '-qr-stamped.png') ? 'QR-stamped copy' : 'View Uploaded Document' }}
+                                            {{ str_contains($attachment->file_path, '-qr-stamped.') ? 'QR-stamped copy' : 'View Uploaded Document' }}
                                         </a>
                                     @endforeach
                                     <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-sm">
@@ -239,7 +239,7 @@
                                             <span x-text="scanning ? 'Cancel scan' : 'Scan request QR'"></span>
                                         </button>
                                         <div x-show="scanning" x-cloak class="mt-3">
-                                            <div id="folderReader" class="overflow-hidden rounded-[8px]"></div>
+                                            <div id="folderReader" class="min-h-[200px] max-w-[320px] overflow-hidden rounded-[8px]"></div>
                                             <p class="mt-1 text-[12px] text-ink-soft">Point the camera at the QR sticker on this folder.</p>
                                         </div>
                                     </div>
@@ -364,9 +364,9 @@
                         this.scanning = false;
                         this.payload = scanned;
                         this.error = '';
-                    }, () => {
+                    }, (cameraError) => {
                         this.scanning = false;
-                        this.error = 'Could not start the camera. Check permissions and try again.';
+                        this.error = window.SpeedQr.describe(cameraError);
                     });
                 },
 

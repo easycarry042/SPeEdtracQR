@@ -251,6 +251,126 @@ class InternalRequestTest extends TestCase
         ])->assertSessionHasErrors('qr_size');
     }
 
+    public function test_a_pdf_scan_is_handed_to_the_browser_stamper_with_the_chosen_placement(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'purpose' => 'Chairs',
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
+            'qr_x' => 0.1,
+            'qr_y' => 0.2,
+            'qr_size' => 0.3,
+            'qr_page' => 2,
+        ]);
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        // GD cannot touch a PDF, so filing stores only the original here; the
+        // stamped copy arrives from the confirmation screen.
+        $this->assertCount(1, $document->attachments);
+
+        $this->assertSame([
+            'attachment_id' => $document->attachments->first()->id,
+            'x' => 0.1,
+            'y' => 0.2,
+            'size' => 0.3,
+            'page' => 2,
+        ], session('internal_pdf_stamp'));
+    }
+
+    public function test_the_confirmation_screen_runs_the_pdf_stamper(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), [
+            'first_department_id' => Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id,
+            'purpose' => 'Chairs',
+            'paper_scan' => UploadedFile::fake()->create('signed-request.pdf', 120, 'application/pdf'),
+        ]);
+
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        $this->actingAs($supervisor)->get(route('requests.created', $document))
+            ->assertOk()
+            ->assertSee('id="pdfQrStamp"', false)
+            ->assertSee(route('requests.qr-stamp', $document), false);
+    }
+
+    public function test_the_browser_stamped_pdf_is_stored_as_a_second_attachment(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), $this->filing());
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        $stamped = UploadedFile::fake()->createWithContent('qr-stamped.pdf', "%PDF-1.7\n stamped bytes");
+
+        $this->actingAs($supervisor)
+            ->post(route('requests.qr-stamp', $document), ['pdf' => $stamped])
+            ->assertOk()
+            ->assertJsonStructure(['url']);
+
+        $path = "document-attachments/{$document->tracking_number}-qr-stamped.pdf";
+        Storage::disk('local')->assertExists($path);
+        $this->assertTrue($document->fresh()->attachments->contains('file_path', $path));
+
+        // Re-posting (a reload of the confirmation screen) must not pile up copies.
+        $this->actingAs($supervisor)
+            ->post(route('requests.qr-stamp', $document), [
+                'pdf' => UploadedFile::fake()->createWithContent('qr-stamped.pdf', "%PDF-1.7\n stamped again"),
+            ])
+            ->assertOk();
+
+        $this->assertCount(2, $document->fresh()->attachments);
+    }
+
+    public function test_a_non_pdf_upload_is_rejected_by_the_stamp_endpoint(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), $this->filing());
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        // Right extension, wrong bytes: the header check must still refuse it.
+        $this->actingAs($supervisor)
+            ->post(route('requests.qr-stamp', $document), [
+                'pdf' => UploadedFile::fake()->createWithContent('qr-stamped.pdf', 'GIF89a not a pdf'),
+            ])
+            ->assertSessionHasErrors('pdf');
+
+        $this->assertCount(1, $document->fresh()->attachments);
+    }
+
+    public function test_another_department_cannot_replace_the_stamped_pdf(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->post(route('requests.store'), $this->filing());
+        $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
+
+        $outsider = User::factory()
+            ->create(['department_id' => Department::where('code', '!=', 'TRSM')->firstOrFail()->id])
+            ->assignRole('Supervisor');
+
+        $this->actingAs($outsider)
+            ->post(route('requests.qr-stamp', $document), [
+                'pdf' => UploadedFile::fake()->createWithContent('qr-stamped.pdf', "%PDF-1.7\n other office"),
+            ])
+            ->assertForbidden();
+    }
+
     private function solidPng(int $width, int $height, array $rgb): UploadedFile
     {
         $image = imagecreatetruecolor($width, $height);

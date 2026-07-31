@@ -277,6 +277,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('permission:create internal requests')->group(function () {
         Route::get('/requests/create', [InternalRequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [InternalRequestController::class, 'store'])->name('requests.store');
+        // PDF scans are QR-stamped in the browser (no PDF toolchain on the
+        // server); this stores the result the confirmation screen produces.
+        Route::post('/requests/{document}/qr-stamp', [InternalRequestController::class, 'storeStampedScan'])->name('requests.qr-stamp');
     });
     Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
     Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
