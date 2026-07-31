@@ -66,31 +66,23 @@
 
     /* ── Frosted civic surfaces ───────────────────────────────────────────────
        The login page's look, held as tokens so the citizen portal renders the
-       same wash and the same glass without a second copy of the values.
-
-       A single quiet mint wash, not a mesh: the whole field stays inside
-       #d3edda–#f1f8f4, lit softly from the top-right. The previous six-blob
-       version mixed white, mid-green, deep green and brass, which read as
-       glaring and busy behind a login form. Paper grain sits on top so the
-       flat field still has texture instead of looking like dead fill. */
-    --civic-mesh-base: #e2f0e7;
+       same wash and the same glass without a second copy of the values. */
+    --civic-mesh-base: #e4efe8;
     --civic-mesh:
-        radial-gradient(at 84% 6%, rgba(255, 255, 255, .55) 0, transparent 58%),
-        radial-gradient(at 10% 98%, rgba(160, 205, 176, .30) 0, transparent 60%),
-        linear-gradient(to top right, #d5eddd 0%, #e4f1e9 55%, #f1f8f4 100%);
+        radial-gradient(at 8% 12%, rgba(42, 157, 79, .58) 0, transparent 58%),
+        radial-gradient(at 78% 8%, rgba(255, 255, 255, .88) 0, transparent 52%),
+        radial-gradient(at 92% 72%, rgba(15, 77, 40, .46) 0, transparent 58%),
+        radial-gradient(at 26% 92%, rgba(199, 154, 62, .34) 0, transparent 52%),
+        radial-gradient(at 42% 32%, rgba(22, 122, 58, .40) 0, transparent 45%),
+        radial-gradient(at 62% 76%, rgba(199, 154, 62, .26) 0, transparent 42%);
 
-    /* Monochrome fractal noise, ~5% — visible as grain, never as speckle. */
-    --civic-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.05'/%3E%3C/svg%3E");
-
-    /* Whiter than before: over a pale, near-flat wash a .46 pane all but
-       disappears, so the card needs more of its own body to stay a card. */
-    --glass-bg: rgba(255, 255, 255, .68);
-    --glass-blur: blur(24px) saturate(135%);
-    --glass-border: rgba(255, 255, 255, .72);
+    --glass-bg: rgba(255, 255, 255, .46);
+    --glass-blur: blur(34px) saturate(190%);
+    --glass-border: rgba(255, 255, 255, .5);
     --glass-shadow:
-        0 18px 44px rgba(15, 77, 40, .13),
-        inset 0 1px 0 rgba(255, 255, 255, .8),
-        inset 0 -1px 0 rgba(255, 255, 255, .3);
+        0 24px 60px rgba(15, 77, 40, .22),
+        inset 0 1px 0 rgba(255, 255, 255, .75),
+        inset 0 -1px 0 rgba(255, 255, 255, .25);
 
     /* Flat by default; these lift only interactive surfaces on hover/press. */
     --shadow-1: 0 1px 1px rgba(15, 77, 40, .05);              /* resting button */
@@ -554,13 +546,9 @@ aside.sidebar-pinned {
 /* ── Frosted civic surfaces (see the --civic-mesh / --glass-* tokens) ───── */
 .civic-mesh {
     background-color: var(--civic-mesh-base);
-    /* Grain first so it sits on top of the wash. The repeat/size lists are
-       written out per layer — CSS cycles a short list, which would tile the
-       gradients too. */
-    background-image: var(--civic-grain), var(--civic-mesh);
-    background-repeat: repeat, no-repeat, no-repeat, no-repeat;
-    background-size: 140px 140px, auto, auto, auto;
+    background-image: var(--civic-mesh);
     background-attachment: fixed;
+    background-repeat: no-repeat;
 }
 
 .glass-panel {

@@ -64,7 +64,7 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-canvas text-ink @else civic-mesh text-gray-900 @endauth">
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-canvas text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth">
     @auth
         @if($useTopNav)
             {{-- Staff / supervisor: horizontal top navbar, full-width content --}}

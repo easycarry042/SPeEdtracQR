@@ -29,13 +29,18 @@
 
             * { box-sizing: border-box; }
 
-            /* The wash itself comes from .civic-mesh in app.css (one definition,
-               shared with the citizen portal and the public request page). */
             body.auth-page {
                 margin: 0;
                 min-height: 100vh;
                 font-family: Figtree, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
                 color: #1f2937;
+
+                /* Mesh wash + glass tokens live in app.css (--civic-mesh,
+                   --glass-*), shared with the citizen portal. */
+                background-color: var(--civic-mesh-base);
+                background-image: var(--civic-mesh);
+                background-attachment: fixed;
+                background-repeat: no-repeat;
             }
 
             main.auth-main {
@@ -277,7 +282,7 @@
         </style>
         @include('layouts.partials.accessibility-widget')
     </head>
-    <body class="auth-page civic-mesh">
+    <body class="auth-page">
         <main class="auth-main">
             {{ $slot }}
         </main>
