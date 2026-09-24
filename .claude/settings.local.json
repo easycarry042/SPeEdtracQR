@@ -30,7 +30,8 @@
       "PowerShell(php artisan view:clear)",
       "PowerShell(npm run build 2>&1)",
       "PowerShell(git stash push resources/css/app.css resources/views/welcome.blade.php)",
-      "PowerShell(git stash pop)"
+      "PowerShell(git stash pop)",
+      "Bash(python -)"
     ]
   },
   "disabledMcpjsonServers": [

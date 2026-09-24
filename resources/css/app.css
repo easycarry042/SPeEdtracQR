@@ -1,3 +1,7 @@
+/* Zain carries every title and heading; Nunito carries body copy. Imported
+   here (not per-layout) so every Vite-built page gets both faces. */
+@import url('https://fonts.googleapis.com/css2?family=Zain:wght@300;400;700;800;900&family=Nunito:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -76,6 +80,31 @@
         radial-gradient(at 42% 32%, rgba(22, 122, 58, .40) 0, transparent 45%),
         radial-gradient(at 62% 76%, rgba(199, 154, 62, .26) 0, transparent 42%);
 
+    /* Public wash — deep green into light yellow-green across the top, easing
+       to a faint tint at the bottom so the arrow doodle keeps showing through.
+       Each layout supplies the doodle URL itself, via asset(), so the path
+       survives a subdirectory install; only the colour lives here. */
+    --page-wash-base: #f6faf7;
+
+    /* Holds the doodle at 20%: a background layer can't take an opacity of its
+       own, so 80% of the base colour sits on top of it instead. Signed-in pages
+       use this alone — the doodle without the colour. */
+    --page-wash-veil: linear-gradient(rgba(246, 250, 247, .80), rgba(246, 250, 247, .80));
+
+    /* Public pages add the colour ramp above the veil. It expands to two
+       layers, which is why those layouts' background-size / position lists are
+       shorter than the layer count — CSS repeats them. */
+    --page-wash:
+        linear-gradient(
+            to bottom,
+            rgba(19, 106, 51, .80) 0%,
+            rgba(94, 170, 79, .64) 16%,
+            rgba(190, 224, 110, .56) 32%,
+            rgba(214, 238, 178, .34) 56%,
+            rgba(233, 245, 218, .22) 100%
+        ),
+        var(--page-wash-veil);
+
     --glass-bg: rgba(255, 255, 255, .46);
     --glass-blur: blur(34px) saturate(190%);
     --glass-border: rgba(255, 255, 255, .5);
@@ -95,6 +124,14 @@
         background-color: var(--paper);
         color: var(--ink);
         overflow-x: hidden;
+        font-family: theme('fontFamily.sans');
+    }
+
+    /* Every title and header is Zain. Body copy inherits Nunito from <body>.
+       Anything that needs Nunito inside a heading (the TraQR half of the
+       wordmark, for one) opts back out with `font-sans`. */
+    h1, h2, h3, h4, h5, h6 {
+        font-family: theme('fontFamily.display');
     }
 
     /* Stamped-logbook treatment for reference codes, dates, timestamps. */
@@ -113,11 +150,11 @@
     }
 
     .auth-heading {
-        @apply !text-3xl text-center font-semibold text-green-deep;
+        @apply !text-3xl text-center !font-black uppercase tracking-wide text-green-deep;
     }
 
     .auth-subheading {
-        @apply !text-lg text-center text-ink-soft;
+        @apply !text-base text-center font-semibold text-green-deep;
     }
 
     .form-label {
@@ -155,7 +192,7 @@
 
     /* DASHBOARD */
     .nav-bar {
-        @apply bg-green-deep rounded-r-[20px];
+        @apply bg-green-deep rounded-r-[1rem];
     }
 
     .nav-icon {
@@ -530,18 +567,6 @@ aside.sidebar-pinned {
     width: 16rem;
 }
 
-.sidebar-pinned .nav-text {
-    max-width: 240px;
-    opacity: 1;
-}
-
-.sidebar-pinned .nav-link,
-.sidebar-pinned .nav-brand {
-    justify-content: flex-start;
-    gap: 0.75rem;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-}
 
 /* ── Frosted civic surfaces (see the --civic-mesh / --glass-* tokens) ───── */
 .civic-mesh {
@@ -559,11 +584,26 @@ aside.sidebar-pinned {
     box-shadow: var(--glass-shadow);
 }
 
+/* Citizen portal choice cards — the login card's glass, at card scale. Tint,
+   blur, rim and shadow all come from the same tokens, so the portal and the
+   login page read as one surface treatment. */
+.portal-card {
+    background: rgba(198, 238, 213, .46);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
 /* No backdrop-filter (older Firefox/Safari): fall back to a near-opaque panel
    so content never sits on an unreadable wash. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .glass-panel {
         background: rgba(255, 255, 255, .96);
+    }
+
+    .portal-card {
+        background: rgba(222, 243, 230, .96);
     }
 }
 
@@ -592,10 +632,11 @@ aside.sidebar-pinned {
 
 /* Responsive page title in layout header */
 .layout-title {
+    font-family: theme('fontFamily.display');
     font-size: 1.25rem;
-    font-weight: 600;
+    font-weight: 800;
     letter-spacing: -0.02em;
-    color: var(--green-deep);
+    color: var(--green);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1173,4 +1214,85 @@ aside.sidebar-pinned {
     border-radius: 999px; border: 1px solid var(--hairline-strong);
     background: #fff; color: var(--red); font-size: 13px; line-height: 1;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Speedy — the assistant card on the citizen portal. A conic green→gold ring
+   rotates around the card; the wordmark and its button carry the same ramp as
+   a slow shimmer. @property animates the angle; browsers without it hold a
+   static gradient, which is the same design minus the motion.
+   ───────────────────────────────────────────────────────────────────────── */
+@property --speedy-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+/* Decorative ring: bright is fine, nothing is read off it. The glass rim it
+   inherits from .portal-card is dropped, or the two would read as a double
+   border. */
+.speedy-card {
+    position: relative;
+    border-color: transparent;
+}
+
+.speedy-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(
+        from var(--speedy-angle),
+        var(--green-deep), var(--green-bright), #e8c25a, var(--brass), var(--green-deep)
+    );
+    /* Punch out the interior so only the 2px rim paints — keeps the card's
+       translucency instead of tinting it with the gradient underneath. */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: speedy-spin 5s linear infinite;
+    pointer-events: none;
+}
+
+/* Card contents sit above the ring's stacking context. */
+.speedy-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes speedy-spin {
+    to { --speedy-angle: 360deg; }
+}
+
+/* Wordmark + button share one ramp. Both ends are dark enough that white
+   button text clears AA wherever the gradient happens to land. */
+.speedy-text,
+.speedy-btn {
+    background-image: linear-gradient(
+        100deg,
+        var(--green-deep), var(--green), #8a6a12, var(--green-deep)
+    );
+    background-size: 300% 100%;
+    animation: speedy-shimmer 6s linear infinite;
+}
+
+.speedy-text {
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+@keyframes speedy-shimmer {
+    to { background-position: -300% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .speedy-card::before,
+    .speedy-text,
+    .speedy-btn {
+        animation: none;
+    }
 }

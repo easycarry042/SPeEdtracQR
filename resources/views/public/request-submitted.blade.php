@@ -13,7 +13,7 @@
         <div class="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
             <a href="{{ url('/') }}" class="flex items-center gap-3">
                 <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-xl">
-                <span class="text-lg font-extrabold tracking-tight text-emerald-950">SPeED <span class="text-emerald-700">TraQR</span></span>
+                <span class="text-lg font-extrabold tracking-tight text-emerald-950"><span class="font-display">SPeED</span> <span class="font-sans text-emerald-700">TraQR</span></span>
             </a>
             <a href="{{ route('track.index') }}" class="text-sm font-semibold text-emerald-800 hover:underline">Track a request</a>
         </div>

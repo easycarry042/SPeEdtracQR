@@ -56,7 +56,10 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                // Nunito is the default for all body copy; Zain (`font-display`)
+                // is the title/heading face, applied to h1–h6 in the base layer.
+                sans: ['Nunito', ...defaultTheme.fontFamily.sans],
+                display: ['Zain', 'Nunito', ...defaultTheme.fontFamily.sans],
             },
             // `h-ctl` — the one height every inline control (search input,
             // filter select, button) is sized to, shared with the .field /

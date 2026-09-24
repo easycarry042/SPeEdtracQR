@@ -29,7 +29,7 @@
     <button type="button"
             id="notifBtn"
             onclick="toggleHeaderDropdown('notifPanel', 'profilePanel')"
-            class="relative flex h-11 w-11 items-center justify-center rounded-full bg-green-wash text-green-deep ring-1 ring-hairline-strong transition hover:scale-105 hover:bg-emerald-300/90 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            class="relative flex h-12 w-12 items-center justify-center rounded-full bg-paper text-green-deep shadow-sm ring-1 ring-hairline-strong transition hover:bg-green-wash active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
             title="Notifications"
             aria-haspopup="true">
         <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2z"/></svg>
@@ -68,14 +68,35 @@
     </div>
 </div>
 
+@php
+    // The desk the signed-in user acts for. Department scoping decides what
+    // they can see, so the chip names it rather than leaving it implied.
+    $departmentName = auth()->user()?->department?->name;
+@endphp
 <div class="relative" id="profileDropdown">
     <button type="button"
             id="profileBtn"
             onclick="toggleHeaderDropdown('profilePanel', 'notifPanel')"
-            class="inline-flex items-center gap-2 rounded-full bg-green-wash py-1.5 pl-1.5 pr-3 text-green-deep ring-1 ring-hairline-strong transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
+            class="inline-flex items-center gap-3 rounded-full bg-paper py-1.5 pl-1.5 pr-3 text-green-deep shadow-sm ring-1 ring-hairline-strong transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
             aria-haspopup="true">
-        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">{{ $initials }}</span>
-        <svg class="h-4 w-4 text-emerald-900/70" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-wash text-sm font-extrabold text-green-deep ring-1 ring-green/30">{{ $initials }}</span>
+
+        {{-- Names drop below sm: the avatar and chevron still open the menu. --}}
+        <span class="hidden min-w-0 text-left sm:block">
+            <span class="block truncate text-sm font-bold leading-tight text-ink">
+                {{ $name }}@if($roleLabel) · {{ $roleLabel }}@endif
+            </span>
+            @if($departmentName)
+                <span class="mt-0.5 flex items-center gap-1 text-xs leading-tight text-ink-soft">
+                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V8l7-4 7 4v13M10 12h1m3 0h1m-5 4h1m3 0h1"/>
+                    </svg>
+                    <span class="truncate">{{ $departmentName }}</span>
+                </span>
+            @endif
+        </span>
+
+        <svg class="h-4 w-4 shrink-0 text-ink-soft" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
     </button>
     <div id="profilePanel"
          class="dropdown-panel hidden absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-1 shadow-xl shadow-gray-900/10"

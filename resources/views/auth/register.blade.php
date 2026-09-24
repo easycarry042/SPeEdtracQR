@@ -1,4 +1,6 @@
 <x-guest-layout>
+    <x-slot name="title">Register</x-slot>
+
     <section class="auth-card glass-panel">
         <div class="auth-grid">
             <div class="auth-left">

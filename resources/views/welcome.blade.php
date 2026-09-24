@@ -93,7 +93,8 @@
                     <img src="{{ asset('images/icon.png') }}" alt=""
                          class="h-14 w-14 shrink-0 sm:h-16 sm:w-16">
                     <span class="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
-                        SPeED <span class="font-bold text-emerald-700">TraQR</span>
+                        <span class="font-display">SPeED</span>
+                        <span class="font-sans font-bold text-emerald-700">TraQR</span>
                     </span>
                 </div>
 
@@ -106,62 +107,67 @@
                     every update from filing to release anytime.
                 </p>
 
-                {{-- Two primary buttons --}}
-                <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                {{-- Staff get a quiet text link; citizens get the one primary button. --}}
+                <p class="mt-5 text-[15px] text-emerald-700">
+                    Are you a municipal staff?
+                    <a href="{{ route('login') }}" class="font-semibold underline underline-offset-2 transition hover:text-emerald-900">Click here</a>
+                </p>
+
+                <div class="mt-6">
                     <a href="{{ route('citizen.dashboard') }}"
-                       class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800 active:scale-95">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                       class="inline-flex items-center justify-center gap-2.5 rounded-full bg-emerald-600 px-8 py-4 text-base font-semibold text-white shadow-[0_0_28px_rgba(16,185,129,0.55)] ring-4 ring-white/70 transition hover:bg-emerald-700 hover:shadow-[0_0_36px_rgba(16,185,129,0.7)] active:scale-95">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/>
                         </svg>
                         Citizen Portal
-                    </a>
-                    <a href="{{ route('login') }}"
-                       class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white/80 px-6 py-3.5 text-sm font-semibold text-emerald-800 shadow-sm backdrop-blur-sm transition hover:border-emerald-300 hover:bg-white active:scale-95">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M9 4H7a2 2 0 00-2 2v12a2 2 0 002 2h2"/>
-                        </svg>
-                        Staff Login
                     </a>
                 </div>
             </div>
         </div>
     </section>
 
-    {{-- How it works --}}
-    <section class="bg-white py-20">
+    {{-- How it works — one copy of the arrow doodle scaled to cover the band, so
+         no tile seams show, washed back so the cards and copy stay readable. --}}
+    <section class="relative isolate overflow-hidden bg-[#f1f2f1] py-20">
+        <div class="pointer-events-none absolute inset-0 -z-10 bg-cover bg-center bg-no-repeat opacity-[0.18]"
+             style="background-image: url('{{ asset('images/doodle-bg.png') }}');"></div>
+
         <div class="mx-auto max-w-6xl px-6">
-            <h2 class="text-center text-3xl font-bold text-emerald-950">How it works</h2>
-            <p class="mx-auto mt-3 max-w-xl text-center text-gray-500">Every request gets a unique QR-coded tracking number. As staff process it, each status change is timestamped and recorded so you can see every move.</p>
+            <div class="text-center">
+                <span class="block text-5xl font-extrabold leading-none text-emerald-700" aria-hidden="true">?</span>
+                <h2 class="mt-3 text-3xl font-extrabold tracking-tight text-emerald-900">How It Works</h2>
+                <p class="mx-auto mt-3 max-w-xl text-gray-500">Every request gets a unique QR-coded tracking number. As staff process it, each status change is timestamped and recorded so you can see every move.</p>
+            </div>
 
             <div class="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-                <div class="rounded-2xl border border-gray-200/80 bg-[#f8faf8] p-7 text-center">
-                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                <div class="rounded-3xl bg-emerald-100/80 p-8 text-center shadow-sm ring-1 ring-emerald-200/60">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-200/70 text-emerald-800">
+                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5m-9.5 1.5L19 5a1.914 1.914 0 00-2.707-2.707L7.5 11.086V16.5H13z"/>
                         </svg>
                     </div>
-                    <h3 class="mt-5 font-bold text-emerald-950">Submit</h3>
-                    <p class="mt-2 text-sm text-gray-500">File your request online with your supporting documents attached. You get a QR-coded tracking number right away.</p>
+                    <h3 class="mt-5 text-lg font-extrabold text-emerald-900">Submit</h3>
+                    <p class="mt-2 text-sm text-emerald-950/70">File your request online with your supporting documents attached. You get a QR-coded tracking number right away.</p>
                 </div>
 
-                <div class="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-7 text-center ring-1 ring-emerald-200">
-                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md">
-                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2M3 17v2a2 2 0 002 2h2m10 0h2a2 2 0 002-2v-2M9 12h.01M12 12h.01M15 12h.01"/>
+                <div class="rounded-3xl bg-emerald-100/80 p-8 text-center shadow-sm ring-1 ring-emerald-200/60">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-200/70 text-emerald-800">
+                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8V5a2 2 0 012-2h3m8 0h3a2 2 0 012 2v3m0 8v3a2 2 0 01-2 2h-3m-8 0H5a2 2 0 01-2-2v-3"/>
                         </svg>
                     </div>
-                    <h3 class="mt-5 font-bold text-emerald-950">Assigned and processed</h3>
-                    <p class="mt-2 text-sm text-gray-500">Your request is assigned to a staff member who takes it through each stage, from In Progress to In Review to Approved to Completed. Every change is timestamped.</p>
+                    <h3 class="mt-5 text-lg font-extrabold text-emerald-900">Assigned and Processed</h3>
+                    <p class="mt-2 text-sm text-emerald-950/70">Your request is assigned to a staff member who takes it through each stage, from In Progress to In Review to Approved to Completed. Every change is timestamped.</p>
                 </div>
 
-                <div class="rounded-2xl border border-gray-200/80 bg-[#f8faf8] p-7 text-center">
-                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                <div class="rounded-3xl bg-emerald-100/80 p-8 text-center shadow-sm ring-1 ring-emerald-200/60">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-200/70 text-emerald-800">
+                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    <h3 class="mt-5 font-bold text-emerald-950">Track anytime</h3>
-                    <p class="mt-2 text-sm text-gray-500">Scan your QR code or enter your tracking number to see the current stage, who is handling it, and the full history.</p>
+                    <h3 class="mt-5 text-lg font-extrabold text-emerald-900">Track anytime</h3>
+                    <p class="mt-2 text-sm text-emerald-950/70">Scan your QR code or enter your tracking number to see the current stage, who is handling it, and the full history.</p>
                 </div>
             </div>
         </div>

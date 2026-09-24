@@ -35,6 +35,40 @@ class HomepageTest extends TestCase
             ->assertDontSee('Staff Sign In');
     }
 
+    public function test_hero_leads_with_one_citizen_button_and_a_staff_text_link(): void
+    {
+        // Staff are the minority audience: they get a sentence, not a button
+        // competing with the citizen call to action.
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Citizen Portal')
+            ->assertSee('Are you a municipal staff?')
+            ->assertSee('Click here')
+            ->assertDontSee('Staff Login');
+    }
+
+    public function test_wordmark_splits_zain_and_nunito_across_its_two_halves(): void
+    {
+        // "SPeED" is Zain (font-display), "TraQR" is Nunito (font-sans) — the
+        // span must opt back out because the lockup sits inside heading type.
+        $content = $this->get('/')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/font-display[^>]*>\s*SPeED\s*<\/span>\s*<span class="font-sans[^>]*>\s*TraQR/',
+            $content
+        );
+    }
+
+    public function test_how_it_works_is_papered_with_the_arrow_doodle(): void
+    {
+        $this->assertFileExists(public_path('images/doodle-bg.png'));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('How It Works')
+            ->assertSee('images/doodle-bg.png', false);
+    }
+
     public function test_landing_hero_uses_the_municipality_photo_as_its_backdrop(): void
     {
         $response = $this->get('/')->assertOk();

@@ -40,6 +40,21 @@
             outline-color: var(--green, #167a3a) !important;
         }
 
+@if($hideLauncher ?? false)
+        /* Signed-in pages reach the toolbar from the sidebar's Accessibility
+           row, so the vendor launcher is taken out of sight entirely. It stays
+           in the DOM and keeps its click handler — the sidebar row opens the
+           panel by clicking it — which is why this parks it off-screen rather
+           than using display:none. */
+        .asw-menu-btn {
+            position: fixed !important;
+            left: -9999px !important;
+            top: auto !important;
+            bottom: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+@else
         /* The launcher sits over the left nav, so it rests tucked into the edge
            with only a sliver showing — enough to stay findable — and slides
            out on hover, keyboard focus, or a click (.asw-revealed, set below). */
@@ -60,6 +75,7 @@
         @media (prefers-reduced-motion: reduce) {
             .asw-menu-btn { transition: none; }
         }
+@endif
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/sienna-accessibility/dist/sienna-accessibility.umd.js" async></script>

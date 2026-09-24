@@ -1,14 +1,31 @@
 {{-- Public portal top bar — shared by the citizen layout and the guest view of
      app-layout pages (e.g. /track) so both have the same separation on top. --}}
-{{-- Transparent over the page wash; the blur stays so content scrolling
-     underneath doesn't collide with the brand and nav button. --}}
-<header class="sticky top-0 z-40 bg-transparent backdrop-blur-md">
+@php
+    // The citizen portal's wash opens on a deep-green band, which the bar sits
+    // on top of. Dark-on-dark would drop the wordmark below AA there, so those
+    // pages pass `onDarkWash` and the brand flips to light type.
+    $onDarkWash ??= false;
+@endphp
+{{-- No surface at all: the bar is just the brand and one control sitting
+     directly on the page wash. --}}
+<header class="sticky top-0 z-40 bg-transparent">
     <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-        {{-- Brand --}}
+        {{-- Brand. The white mark is for the dark band; on pale layouts it
+             would disappear, so those keep the green one. --}}
         <a href="{{ route('citizen.dashboard') }}" class="flex items-center gap-3 group">
-            <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-lg">
-            <span class="text-lg font-extrabold tracking-tight text-emerald-950 group-hover:text-emerald-700 transition">
-                SPeED <span class="text-emerald-600">TraQR</span>
+            <img src="{{ asset($onDarkWash ? 'images/icon-white.png' : 'images/icon.png') }}"
+                 alt="SPeED TraQR" class="h-9 w-9 rounded-lg">
+            <span @class([
+                'text-lg font-extrabold tracking-tight transition',
+                'text-white' => $onDarkWash,
+                'text-emerald-950 group-hover:text-emerald-700' => ! $onDarkWash,
+            ])>
+                <span class="font-display">SPeED</span>
+                <span @class([
+                    'font-sans',
+                    'text-lime-100' => $onDarkWash,
+                    'text-emerald-600' => ! $onDarkWash,
+                ])>TraQR</span>
             </span>
         </a>
 
