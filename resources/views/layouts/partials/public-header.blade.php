@@ -5,10 +5,15 @@
     // on top of. Dark-on-dark would drop the wordmark below AA there, so those
     // pages pass `onDarkWash` and the brand flips to light type.
     $onDarkWash ??= false;
+
+    // The bar has no surface of its own, so anything scrolling beneath it shows
+    // through. That reads fine on short pages, but a long form collides with the
+    // wordmark — those pages pass `sticky: false` and the bar scrolls away.
+    $sticky ??= true;
 @endphp
 {{-- No surface at all: the bar is just the brand and one control sitting
      directly on the page wash. --}}
-<header class="sticky top-0 z-40 bg-transparent">
+<header @class(['z-40 bg-transparent', 'sticky top-0' => $sticky, 'relative' => ! $sticky])>
     <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
         {{-- Brand. The white mark is for the dark band; on pale layouts it
              would disappear, so those keep the green one. --}}

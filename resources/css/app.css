@@ -1296,3 +1296,209 @@ aside.sidebar-pinned {
         animation: none;
     }
 }
+
+/* ── "Submit a request" surface set ─────────────────────────────────────────
+   From the Figma REQS FORM / SUBMIT REQS PAGE frames. A frosted shell holding
+   lime-wash fields — a warmer, rounder treatment than the registry panels,
+   because this is the one page a citizen fills in rather than reads. Kept as
+   components, not utilities: the same three pieces repeat ~12 times in the
+   view, and the exact rgba values come straight from the design. */
+.req-shell {
+    background: rgba(214, 214, 214, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: .5px solid rgba(0, 64, 4, .5);
+    border-radius: 28px;
+}
+
+.req-label {
+    display: block;
+    font-weight: 700;
+    color: #000;
+    font-size: .95rem;
+}
+
+.req-star { color: #ea5200; }
+
+/* Shared by inputs, selects, textareas and the composite contact row, so a
+   bare input and a wrapper full of parts read as the same control. */
+.req-field {
+    width: 100%;
+    background: rgba(141, 255, 60, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: .5px solid rgba(0, 64, 4, .5);
+    border-radius: 20px;
+    padding: .85rem 1.15rem;
+    color: #10231a;
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.req-field::placeholder { color: rgba(0, 0, 0, .5); }
+
+.req-field:focus,
+.req-field:focus-within {
+    outline: none;
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(22, 122, 58, .22);
+}
+
+/* Invalid state has a border AND a tint — colour alone would fail AA for
+   anyone who can't distinguish the green from the orange rim. */
+.req-field[aria-invalid="true"],
+.req-field.is-invalid {
+    border-color: #c2410c;
+    background: rgba(234, 82, 0, .10);
+}
+
+/* Native select arrow removed so the design's caret can sit where it does in
+   the frame. Padding keeps the text clear of it. */
+.req-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 3.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23004004'%3E%3Cpath d='M12 16.5 4.5 9h15z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1.15rem center;
+    background-size: 1.25rem;
+}
+
+/* Live character counter parked inside the field's right edge. */
+.req-counted { padding-right: 4.75rem; }
+
+.req-count {
+    position: absolute;
+    right: 1.15rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: .85rem;
+    color: rgba(0, 0, 0, .5);
+    pointer-events: none;
+}
+
+/* +63 prefix on the contact row: a static affix, a hairline, then a bare
+   input that inherits the wrapper's surface. */
+.req-affix {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    padding-block: 0;
+}
+
+.req-affix > input {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    padding: .85rem 0;
+    color: #10231a;
+    font-size: 1rem;
+}
+
+.req-affix > input:focus { outline: none; }
+.req-affix > input::placeholder { color: rgba(0, 0, 0, .5); }
+
+.req-affix-label {
+    flex: none;
+    padding-left: 0;
+    color: #10231a;
+    font-size: 1rem;
+}
+
+.req-affix-rule {
+    flex: none;
+    width: 1px;
+    height: 2.1rem;
+    background: rgba(0, 64, 4, .35);
+}
+
+/* Privacy notice and the dynamic per-kind panels share the lime wash, one
+   step rounder than a field. */
+.req-note {
+    background: rgba(141, 255, 60, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: .5px solid rgba(0, 64, 4, .5);
+    border-radius: 24px;
+}
+
+.req-note-title {
+    color: #245501;
+    font-weight: 800;
+}
+
+.req-note-body { color: #245501; }
+
+/* Checkbox drawn to the design's 34px rounded square. The tick is a background
+   image, not a ::before — an input is a replaced element, so pseudo-elements
+   never render on it. The :checked rule also has to out-specify Tailwind's
+   forms plugin, which paints checked boxes blue via [type='checkbox']:checked;
+   matching its specificity and coming later in the file is what wins. */
+.req-check {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: none;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 64, 4, .5);
+    background-color: rgba(141, 255, 60, .2);
+    background-image: none;
+    cursor: pointer;
+    transition: background-color .12s ease-in-out, border-color .12s ease-in-out;
+}
+
+.req-check:checked {
+    background-color: #01721a;
+    border-color: #01721a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.5 3.5 3.5L13 5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 66%;
+}
+
+.req-check:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+
+.req-submit {
+    background: #01721a;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 50px;
+    padding: 1rem 2.5rem;
+    transition: background-color .15s ease-in-out;
+}
+
+.req-submit:hover { background: #015c15; }
+
+.req-submit:focus-visible {
+    outline: 2px solid #004004;
+    outline-offset: 3px;
+}
+
+@media (min-width: 640px) {
+    .req-shell { border-radius: 50px; }
+    .req-label { font-size: 1.05rem; }
+    .req-field { min-height: 70px; padding: 1.1rem 1.5rem; font-size: 1.05rem; }
+    .req-affix { padding-block: 0; }
+    .req-affix > input { padding-block: 1.1rem; font-size: 1.05rem; }
+    .req-note { border-radius: 30px; }
+    .req-count { right: 1.5rem; font-size: .95rem; }
+    .req-counted { padding-right: 5.5rem; }
+    .req-check { width: 2.15rem; height: 2.15rem; }
+}
+
+/* No backdrop-filter (older Firefox/Safari): the wash behind these is busy, so
+   fall back to near-opaque surfaces rather than a translucent tint. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .req-shell { background: rgba(246, 250, 247, .94); }
+    .req-field,
+    .req-note { background: rgba(226, 248, 214, .96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .req-check { transition: none; }
+}

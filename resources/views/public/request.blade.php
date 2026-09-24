@@ -7,17 +7,44 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
 </head>
-<body class="civic-mesh min-h-screen antialiased text-gray-900">
+{{-- The design's two "welcome light" glows over the arrow doodle. They're
+     radial gradients rather than the 1156px SVGs from the file: at that size
+     the SVGs are pure decoration, and gradients scale to any viewport for
+     free. Fixed, so the glows stay put as the long form scrolls. --}}
+<body class="relative min-h-screen antialiased text-gray-900"
+      style="background-color: var(--page-wash-base);
+             background-image:
+                 radial-gradient(62% 55% at 10% -6%, rgba(141, 255, 60, .26), rgba(141, 255, 60, 0) 68%),
+                 radial-gradient(58% 52% at 82% -10%, rgba(1, 114, 26, .20), rgba(1, 114, 26, 0) 68%),
+                 var(--page-wash-veil),
+                 url('{{ asset('images/doodle-bg.png') }}');
+             background-size: cover, cover, cover, cover;
+             background-position: center, center, center, center;
+             background-attachment: fixed, fixed, fixed, fixed;
+             background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;">
 
-    {{-- Same public portal header as /citizen and /track for a unified look. --}}
-    @include('layouts.partials.public-header')
+    {{-- Same public portal header as /citizen and /track. The wash is pale at
+         the top here, so the brand keeps its green mark. Not sticky: the bar is
+         transparent, and this form is long enough that fields would scroll
+         through the wordmark. --}}
+    @include('layouts.partials.public-header', ['sticky' => false])
 
-    <main class="mx-auto max-w-3xl px-6 py-10">
-        <h1 class="text-3xl font-extrabold tracking-tight text-emerald-950">Submit a request online</h1>
-        <p class="mt-2 text-sm text-gray-600">Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.</p>
+    <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+
+        {{-- Title block: icon, heading, one line of orientation. --}}
+        <div class="flex items-start gap-4 sm:gap-6">
+            <img src="{{ asset('images/icon-submit-request.svg') }}" alt=""
+                 class="h-14 w-14 shrink-0 sm:h-20 sm:w-20" aria-hidden="true">
+            <div class="min-w-0">
+                <h1 class="text-2xl font-black tracking-tight sm:text-3xl" style="color: #004004;">Submit a request</h1>
+                <p class="mt-1 max-w-3xl text-sm font-medium text-gray-800 sm:mt-2 sm:text-lg">
+                    Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.
+                </p>
+            </div>
+        </div>
 
         @if($errors->any())
-            <div class="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+            <div class="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
                 <p class="font-semibold">Please fix the highlighted {{ $errors->count() === 1 ? 'field' : 'fields' }} below:</p>
                 <ul class="mt-1 list-inside list-disc space-y-1">
                     @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
@@ -25,13 +52,8 @@
             </div>
         @endif
 
-        @php
-            $field = 'w-full rounded-xl border bg-gray-50 px-4 py-3 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30';
-            $ok = 'border-gray-200';
-            $bad = 'border-red-400 bg-red-50/40';
-        @endphp
-
-        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data" class="glass-panel mt-6 space-y-5 rounded-2xl p-6" novalidate>
+        <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data"
+              class="req-shell mt-6 space-y-6 p-5 sm:mt-8 sm:space-y-7 sm:p-10" novalidate>
             @csrf
 
             {{-- Honeypot: must stay empty. Hidden from real users. --}}
@@ -57,8 +79,8 @@
             {{-- Step 1 (JS only): pick a category to narrow the type list below.
                  Hidden without JS — the full grouped type select still works. --}}
             <div id="categoryWrap" class="hidden">
-                <label for="request_category" class="mb-1 block text-sm font-semibold text-gray-700">Request category <span class="text-red-500">*</span></label>
-                <select id="request_category" class="{{ $field }} {{ $ok }}">
+                <label for="request_category" class="req-label">Request category <span class="req-star">*</span></label>
+                <select id="request_category" class="req-field req-select mt-2">
                     <option value="">Select a category…</option>
                     @foreach($groups as $kind => $groupLabel)
                         @if($groupedTypes->has($kind))
@@ -69,9 +91,9 @@
             </div>
 
             <div>
-                <label for="document_type" class="mb-1 block text-sm font-semibold text-gray-700">Request type <span class="text-red-500">*</span></label>
-                <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="{{ $field }} @error('document_type') {{ $bad }} @else {{ $ok }} @enderror">
-                    <option value="">Select type…</option>
+                <label for="document_type" class="req-label">Request Type <span class="req-star">*</span></label>
+                <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="req-field req-select mt-2">
+                    <option value="">Select a request type…</option>
                     @foreach($groups as $kind => $groupLabel)
                         @if($groupedTypes->has($kind))
                             <optgroup label="{{ $groupLabel }}">
@@ -82,77 +104,77 @@
                         @endif
                     @endforeach
                 </select>
-                @error('document_type')<p id="document_type-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                @error('document_type')<p id="document_type-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             {{-- Requirements for the chosen request type — populated by JS from the
                  catalog. Citizens bring the originals to the counter. --}}
-            <div id="requirementsSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-                <p class="text-sm font-semibold text-emerald-900">Requirements for this request</p>
-                <p class="mt-0.5 text-xs text-gray-600">Please bring the <strong>original</strong> of each to the counter — staff will verify them. Attaching a copy below is optional.</p>
+            <div id="requirementsSection" class="req-note hidden p-4 sm:p-5">
+                <p class="req-note-title text-sm sm:text-base">Requirements for this request</p>
+                <p class="req-note-body mt-1 text-xs sm:text-sm">Please bring the <strong>original</strong> of each to the counter — staff will verify them. Attaching a copy below is optional.</p>
                 <ul id="requirementsList" class="mt-3 space-y-3"></ul>
             </div>
 
             {{-- Facility reservations: reserve a place for a specific time window
                  on one day (e.g. covered court, 4:00 PM – 7:00 PM). --}}
-            <div id="bookingSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-                <p class="text-sm font-semibold text-emerald-900">Reservation details</p>
-                <p class="mt-0.5 text-xs text-gray-600">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div id="bookingSection" class="req-note hidden p-4 sm:p-5">
+                <p class="req-note-title text-sm sm:text-base">Reservation details</p>
+                <p class="req-note-body mt-1 text-xs sm:text-sm">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                        <label for="booking_date" class="mb-1 block text-xs font-semibold text-gray-700">Date</label>
-                        <input id="booking_date" type="date" name="booking_date" value="{{ old('booking_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('booking_date') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('booking_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="booking_date" class="req-label text-sm">Date</label>
+                        <input id="booking_date" type="date" name="booking_date" value="{{ old('booking_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('booking_date') is-invalid @enderror">
+                        @error('booking_date')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <x-time-clock name="start_time" label="Start time" :value="old('start_time', '')" default="09:00" />
-                        @error('start_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('start_time')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <x-time-clock name="end_time" label="End time" :value="old('end_time', '')" default="10:00" />
-                        @error('end_time')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('end_time')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
 
             {{-- Equipment borrowing: how many units, and the borrow-to-return dates. --}}
-            <div id="equipmentSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-                <p class="text-sm font-semibold text-emerald-900">Borrowing details</p>
-                <p class="mt-0.5 text-xs text-gray-600">You're borrowing <strong id="equipmentResource"></strong>. Tell us how many and when — staff confirm availability.</p>
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div id="equipmentSection" class="req-note hidden p-4 sm:p-5">
+                <p class="req-note-title text-sm sm:text-base">Borrowing details</p>
+                <p class="req-note-body mt-1 text-xs sm:text-sm">You're borrowing <strong id="equipmentResource"></strong>. Tell us how many and when — staff confirm availability.</p>
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                        <label for="quantity" class="mb-1 block text-xs font-semibold text-gray-700">How many</label>
-                        <input id="quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 50" class="{{ $field }} @error('quantity') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('quantity')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="quantity" class="req-label text-sm">How many</label>
+                        <input id="quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 50" class="req-field mt-2 @error('quantity') is-invalid @enderror">
+                        @error('quantity')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="needed_date" class="mb-1 block text-xs font-semibold text-gray-700">Date needed</label>
-                        <input id="needed_date" type="date" name="needed_date" value="{{ old('needed_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('needed_date') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('needed_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="needed_date" class="req-label text-sm">Date needed</label>
+                        <input id="needed_date" type="date" name="needed_date" value="{{ old('needed_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_date') is-invalid @enderror">
+                        @error('needed_date')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="return_date" class="mb-1 block text-xs font-semibold text-gray-700">Return by</label>
-                        <input id="return_date" type="date" name="return_date" value="{{ old('return_date') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('return_date') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('return_date')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="return_date" class="req-label text-sm">Return by</label>
+                        <input id="return_date" type="date" name="return_date" value="{{ old('return_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('return_date') is-invalid @enderror">
+                        @error('return_date')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
 
             {{-- Service / production requests (e.g. lei making): how many to make,
                  and the date they're needed. No resource is reserved. --}}
-            <div id="serviceSection" class="hidden rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-                <p class="text-sm font-semibold text-emerald-900">Service details</p>
-                <p class="mt-0.5 text-xs text-gray-600">Tell us how many you need and by when.</p>
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div id="serviceSection" class="req-note hidden p-4 sm:p-5">
+                <p class="req-note-title text-sm sm:text-base">Service details</p>
+                <p class="req-note-body mt-1 text-xs sm:text-sm">Tell us how many you need and by when.</p>
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                        <label for="service_quantity" class="mb-1 block text-xs font-semibold text-gray-700">How many</label>
-                        <input id="service_quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 10" class="{{ $field }} @error('quantity') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('quantity')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="service_quantity" class="req-label text-sm">How many</label>
+                        <input id="service_quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 10" class="req-field mt-2 @error('quantity') is-invalid @enderror">
+                        @error('quantity')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="needed_by" class="mb-1 block text-xs font-semibold text-gray-700">Date needed</label>
-                        <input id="needed_by" type="date" name="needed_by" value="{{ old('needed_by') }}" min="{{ now()->toDateString() }}" class="{{ $field }} @error('needed_by') {{ $bad }} @else {{ $ok }} @enderror">
-                        @error('needed_by')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        <label for="needed_by" class="req-label text-sm">Date needed</label>
+                        <input id="needed_by" type="date" name="needed_by" value="{{ old('needed_by') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_by') is-invalid @enderror">
+                        @error('needed_by')<p class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
@@ -169,45 +191,68 @@
             </script>
 
             <div>
-                <label for="purpose" class="mb-1 block text-sm font-semibold text-gray-700">Purpose</label>
-                <input id="purpose" name="purpose" value="{{ old('purpose') }}" maxlength="255" aria-invalid="@error('purpose')true @else false @enderror" @error('purpose') aria-describedby="purpose-err" @enderror class="{{ $field }} @error('purpose') {{ $bad }} @else {{ $ok }} @enderror">
-                <p class="mt-1 text-xs text-gray-500">What the document is for — e.g. “business permit renewal.”</p>
-                @error('purpose')<p id="purpose-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                <label for="purpose" class="req-label">Purpose</label>
+                <div class="relative mt-2">
+                    <input id="purpose" name="purpose" value="{{ old('purpose') }}" maxlength="255" placeholder="What is this request for?" data-counter aria-invalid="@error('purpose')true @else false @enderror" @error('purpose') aria-describedby="purpose-err" @enderror class="req-field req-counted @error('purpose') is-invalid @enderror">
+                    <span class="req-count" data-count-for="purpose" aria-hidden="true"></span>
+                </div>
+                <p class="mt-1.5 text-xs text-gray-600">What the document is for — e.g. “business permit renewal.”</p>
+                @error('purpose')<p id="purpose-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label for="description" class="mb-1 block text-sm font-semibold text-gray-700">Description</label>
-                <textarea id="description" name="description" rows="3" maxlength="5000" aria-invalid="@error('description')true @else false @enderror" @error('description') aria-describedby="description-err" @enderror class="{{ $field }} @error('description') {{ $bad }} @else {{ $ok }} @enderror">{{ old('description') }}</textarea>
-                @error('description')<p id="description-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                    <label for="citizen_name" class="mb-1 block text-sm font-semibold text-gray-700">Your name <span class="text-red-500">*</span></label>
-                    <input id="citizen_name" name="citizen_name" value="{{ old('citizen_name') }}" required autocomplete="name" maxlength="255" aria-invalid="@error('citizen_name')true @else false @enderror" @error('citizen_name') aria-describedby="citizen_name-err" @enderror class="{{ $field }} @error('citizen_name') {{ $bad }} @else {{ $ok }} @enderror">
-                    @error('citizen_name')<p id="citizen_name-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="citizen_email" class="mb-1 block text-sm font-semibold text-gray-700">Email <span class="text-red-500">*</span></label>
-                    <input id="citizen_email" type="email" name="citizen_email" value="{{ old('citizen_email') }}" required autocomplete="email" inputmode="email" maxlength="255" aria-invalid="@error('citizen_email')true @else false @enderror" aria-describedby="citizen_email-hint @error('citizen_email') citizen_email-err @enderror" class="{{ $field }} @error('citizen_email') {{ $bad }} @else {{ $ok }} @enderror">
-                    <p id="citizen_email-hint" class="mt-1 text-xs text-gray-500">We'll send your tracking link here.</p>
-                    @error('citizen_email')<p id="citizen_email-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
-                </div>
+                <label for="description" class="req-label">Description</label>
+                <textarea id="description" name="description" rows="3" maxlength="5000" placeholder="Anything else the office should know…" aria-invalid="@error('description')true @else false @enderror" @error('description') aria-describedby="description-err" @enderror class="req-field mt-2 @error('description') is-invalid @enderror">{{ old('description') }}</textarea>
+                @error('description')<p id="description-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label for="citizen_contact" class="mb-1 block text-sm font-semibold text-gray-700">Contact number</label>
-                <input id="citizen_contact" type="tel" name="citizen_contact" value="{{ old('citizen_contact') }}" autocomplete="tel" inputmode="tel" maxlength="255" aria-invalid="@error('citizen_contact')true @else false @enderror" @error('citizen_contact') aria-describedby="citizen_contact-err" @enderror class="{{ $field }} @error('citizen_contact') {{ $bad }} @else {{ $ok }} @enderror">
-                @error('citizen_contact')<p id="citizen_contact-err" class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                <label for="citizen_name" class="req-label">Name <span class="req-star">*</span></label>
+                <div class="relative mt-2">
+                    <input id="citizen_name" name="citizen_name" value="{{ old('citizen_name') }}" required autocomplete="name" maxlength="255" placeholder="Your name..." data-counter aria-invalid="@error('citizen_name')true @else false @enderror" @error('citizen_name') aria-describedby="citizen_name-err" @enderror class="req-field req-counted @error('citizen_name') is-invalid @enderror">
+                    <span class="req-count" data-count-for="citizen_name" aria-hidden="true"></span>
+                </div>
+                @error('citizen_name')<p id="citizen_name-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
             </div>
 
-            <label class="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm text-emerald-900">
-                <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="mt-0.5">
-                <span>I agree that the information I provide will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
-            </label>
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-5">
+                <div>
+                    <label for="citizen_email" class="req-label">Email <span class="req-star">*</span></label>
+                    <div class="relative mt-2">
+                        <input id="citizen_email" type="email" name="citizen_email" value="{{ old('citizen_email') }}" required autocomplete="email" inputmode="email" maxlength="255" placeholder="Your email..." data-counter aria-invalid="@error('citizen_email')true @else false @enderror" aria-describedby="citizen_email-hint @error('citizen_email') citizen_email-err @enderror" class="req-field req-counted @error('citizen_email') is-invalid @enderror">
+                        <span class="req-count" data-count-for="citizen_email" aria-hidden="true"></span>
+                    </div>
+                    <p id="citizen_email-hint" class="mt-1.5 text-xs text-gray-600">We'll send your tracking link here.</p>
+                    @error('citizen_email')<p id="citizen_email-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="citizen_contact" class="req-label">Contact No.</label>
+                    {{-- +63 is a static affix, not part of the value: the field has
+                         always stored whatever the citizen typed, and changing that
+                         would rewrite how existing numbers read. --}}
+                    <div class="req-field req-affix req-counted relative mt-2 @error('citizen_contact') is-invalid @enderror">
+                        <span class="req-affix-label">+63</span>
+                        <span class="req-affix-rule" aria-hidden="true"></span>
+                        <input id="citizen_contact" type="tel" name="citizen_contact" value="{{ old('citizen_contact') }}" autocomplete="tel" inputmode="tel" maxlength="255" placeholder="9123456789" data-counter aria-invalid="@error('citizen_contact')true @else false @enderror" @error('citizen_contact') aria-describedby="citizen_contact-err" @enderror>
+                        <span class="req-count" data-count-for="citizen_contact" aria-hidden="true"></span>
+                    </div>
+                    @error('citizen_contact')<p id="citizen_contact-err" class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                </div>
+            </div>
 
-            <div class="flex justify-end">
-                <button type="submit" class="rounded-xl bg-emerald-800 px-6 py-2.5 font-semibold text-white transition hover:bg-emerald-900">Submit request</button>
+            {{-- Privacy notice — RA 10173 consent, which the server requires. --}}
+            <div class="req-note p-5 text-center sm:p-8">
+                <img src="{{ asset('images/icon-privacy-shield.svg') }}" alt=""
+                     class="mx-auto h-12 w-12 sm:h-16 sm:w-16" aria-hidden="true">
+                <p class="req-note-title mt-3 text-xl sm:text-3xl">Privacy Notice</p>
+                <label class="mt-4 flex items-start gap-4 text-left sm:mt-6">
+                    <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="req-check mt-0.5">
+                    <span class="req-note-body text-sm sm:text-lg">I agree that the information I provide will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
+                </label>
+            </div>
+
+            <div class="flex justify-center pt-1">
+                <button type="submit" class="req-submit w-full sm:w-auto sm:min-w-[230px]">Submit Request</button>
             </div>
         </form>
     </main>
@@ -236,15 +281,31 @@
                 e.preventDefault();
 
                 problems.forEach(({ el, msg }, i) => {
-                    if (el.type !== 'checkbox') { el.classList.add('border-red-400', 'bg-red-50/40'); }
-                    const anchor = el.type === 'checkbox' ? el.closest('label') : el;
+                    // The contact row puts the surface on a wrapper, so the tint
+                    // has to land there rather than on the bare input.
+                    const surface = el.closest('.req-affix') || el;
+                    if (el.type !== 'checkbox') { surface.classList.add('is-invalid'); }
+                    const anchor = el.type === 'checkbox' ? el.closest('label') : (surface.closest('.relative') || surface);
                     const p = document.createElement('p');
                     p.dataset.clientErr = '1';
-                    p.className = 'mt-1 text-xs font-medium text-red-600';
+                    p.className = 'mt-1.5 text-xs font-medium text-red-600';
                     p.textContent = msg;
                     anchor.insertAdjacentElement('afterend', p);
                     if (i === 0) { el.focus(); anchor.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
                 });
+            });
+        })();
+
+        // Live character counters, as in the design. Each reads its own
+        // maxlength, so the cap shown is always the cap enforced.
+        (function () {
+            document.querySelectorAll('[data-counter]').forEach((el) => {
+                const out = document.querySelector('[data-count-for="' + el.id + '"]');
+                const max = el.getAttribute('maxlength');
+                if (!out || !max) { return; }
+                const sync = () => { out.textContent = el.value.length + '/' + max; };
+                el.addEventListener('input', sync);
+                sync();
             });
         })();
 
@@ -303,11 +364,11 @@
                 reqSection.classList.remove('hidden');
                 reqs.forEach((r) => {
                     const li = document.createElement('li');
-                    li.className = 'rounded-lg border border-gray-200 bg-white p-3';
+                    li.className = 'rounded-2xl border border-white/60 bg-white/70 p-3';
                     li.innerHTML =
                         `<div class="flex items-center justify-between gap-2">
                             <span class="text-sm font-medium text-gray-800">${esc(r.label)}</span>
-                            <span class="shrink-0 text-[11px] font-semibold ${r.mandatory ? 'text-red-600' : 'text-gray-400'}">${r.mandatory ? 'Required' : 'Optional'}</span>
+                            <span class="shrink-0 text-[11px] font-semibold ${r.mandatory ? 'text-red-600' : 'text-gray-500'}">${r.mandatory ? 'Required' : 'Optional'}</span>
                         </div>
                         <input type="file" name="requirements[${r.id}]" accept="${ACCEPTED_UPLOADS}"
                                class="mt-2 w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">`;
