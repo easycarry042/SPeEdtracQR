@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\SeedGuard;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -24,10 +25,19 @@ class UserSeeder extends Seeder
             ['email' => 'admin@speedtraqr.com'],
             [
                 'name' => 'Super Admin',
-                'password' => bcrypt(env('ADMIN_PASSWORD', 'password123')),
+                'password' => bcrypt(SeedGuard::adminPassword()),
             ]
         );
         $admin->syncRoles([$adminRole]);
+
+        // The named staff below are demo fixtures on a shared weak password.
+        // They exist to make a fresh clone usable, and must never reach a live
+        // system — stop here, having still created roles and the super admin.
+        if (! SeedGuard::allowsDemoAccounts()) {
+            $this->command?->warn('Skipping demo staff accounts: not a local/testing environment.');
+
+            return;
+        }
 
         // ── Staff ──────────────────────────────────────────────────────────────
         $staffUsers = [
@@ -65,8 +75,10 @@ class UserSeeder extends Seeder
             $user->syncRoles([$staffRole]);
         }
 
-        $adminPassword = env('ADMIN_PASSWORD', 'password123');
-        $this->command->info("✓ Super Admin  → admin@speedtraqr.com  / {$adminPassword}");
+        // Only ever printed in local/testing — the early return above means a
+        // real deployment never reaches this, so no credential is ever echoed
+        // into a production deploy log.
+        $this->command->info('✓ Super Admin  → admin@speedtraqr.com  / '.SeedGuard::adminPassword());
         $this->command->info('✓ Staff        → *@speedtraqr.com       / staff1234');
     }
 }

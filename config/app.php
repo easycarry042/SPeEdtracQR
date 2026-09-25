@@ -55,6 +55,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seeded Super Admin Password
+    |--------------------------------------------------------------------------
+    |
+    | Read here rather than via env() in the seeders, so a cached config still
+    | resolves it. App\Support\SeedGuard refuses to seed outside local/testing
+    | unless this is set to a strong value that has never appeared in this
+    | repository.
+    |
+    */
+
+    'admin_password' => env('ADMIN_PASSWORD', ''),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

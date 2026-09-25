@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\SeedGuard;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -81,11 +82,14 @@ class RolesAndPermissionsSeeder extends Seeder
             $legacyRole->delete();
         }
 
+        // SeedGuard aborts here if ADMIN_PASSWORD is missing or weak outside
+        // local/testing — a failed deploy beats a live super admin on a
+        // password that is published in this repository.
         $admin = User::firstOrCreate(
             ['email' => 'admin@speedtraqr.com'],
             [
                 'name' => 'Super Admin',
-                'password' => bcrypt(env('ADMIN_PASSWORD', 'password123')),
+                'password' => bcrypt(SeedGuard::adminPassword()),
                 'is_active' => true,
             ]
         );

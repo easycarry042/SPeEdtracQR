@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\SeedGuard;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -13,11 +14,20 @@ class TeamUsersSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        // This seeder exists purely to populate a development machine with a
+        // believable municipal team on a shared weak password. None of it
+        // belongs on a live system.
+        if (! SeedGuard::allowsDemoAccounts()) {
+            $this->command?->warn('Skipping the demo municipal team: not a local/testing environment.');
+
+            return;
+        }
+
         // ── Users ─────────────────────────────────────────────────────────────
         // Format: [ name, email, password, role ]
         $users = [
             // Admin
-            ['Super Admin',     'admin@speedtraqr.com',              env('ADMIN_PASSWORD', 'password123'), 'super_admin'],
+            ['Super Admin',     'admin@speedtraqr.com',              SeedGuard::adminPassword(), 'super_admin'],
 
             // Front Desk
             ['Maria Santos',    'maria.santos@speedtraqr.com',       'staff1234',   'staff'],
