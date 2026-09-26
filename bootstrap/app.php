@@ -25,6 +25,22 @@ return Application::configure(basePath: dirname(__DIR__))
             'active.user' => EnsureUserIsActive::class,
         ]);
 
+        // Behind nginx (production) or cloudflared (a tunnel), the proxy speaks
+        // HTTPS to the world and plain HTTP to us. Without trusting its
+        // forwarded headers Laravel believes every request is insecure and
+        // generates http:// URLs on an https:// page — which browsers block as
+        // mixed content, so the site loads completely unstyled.
+        //
+        // Loopback only, and hardcoded on purpose:
+        //  - It is exactly the proxy we expect in both deployment shapes, and a
+        //    remote client cannot spoof it (unlike trusting '*').
+        //  - It is NOT read from config or env: this closure runs before the
+        //    config service is bound, and env() would return null under
+        //    `config:cache` in production — failing silently, in production only.
+        //
+        // If the proxy ever runs on a different host, name that host here.
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+
         $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->appendToGroup('web', PreventBackHistory::class);
         $middleware->appendToGroup('web', SecurityHeaders::class);
