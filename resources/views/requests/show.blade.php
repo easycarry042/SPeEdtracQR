@@ -255,6 +255,40 @@
                                         <p class="mt-2 text-[12.5px] font-semibold text-status-red">{{ $message }}</p>
                                     @enderror
 
+                                    {{-- Audited fallback, mirroring the custody widget. Kept
+                                         visibly secondary so scanning stays the norm, but it
+                                         must exist: with no fallback a machine without a
+                                         working camera cannot action internal requests at
+                                         all, which halts the office. Revealed once the user
+                                         has tried to scan (or the camera has failed) — which
+                                         is exactly when it is needed. --}}
+                                    <div x-show="!payload && (scanning || error)" x-cloak class="mt-2">
+                                        <button type="button"
+                                                @click="manualOpen = !manualOpen"
+                                                class="text-[12px] font-semibold text-ink-soft underline">
+                                            QR torn, or no camera on this machine? Confirm manually
+                                        </button>
+
+                                        <div x-show="manualOpen" x-cloak class="mt-2">
+                                            <label for="scan_override_reason" class="block text-[12px] font-semibold text-ink">
+                                                Why can't you scan? <span class="text-status-red">*</span>
+                                            </label>
+                                            <textarea id="scan_override_reason"
+                                                      name="scan_override_reason"
+                                                      rows="2"
+                                                      minlength="10"
+                                                      maxlength="500"
+                                                      placeholder="e.g. Sticker torn on the folder cover; verified tracking number by hand."
+                                                      class="mt-1 w-full rounded-[8px] border border-hairline bg-paper px-2.5 py-1.5 text-[13px]">{{ old('scan_override_reason') }}</textarea>
+                                            <p class="mt-1 text-[12px] text-ink-soft">
+                                                This is recorded against the request and shown in its history.
+                                            </p>
+                                            @error('scan_override_reason')
+                                                <p class="mt-1 text-[12.5px] font-semibold text-status-red">{{ $message }}</p>
+                                            @enderror
+                                        </div>
+                                    </div>
+
                                     <p class="mt-1 text-[12px] text-ink-soft">
                                         Sticker missing? <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="font-semibold underline">Print the QR</a>.
                                     </p>
@@ -332,6 +366,10 @@
                 scanning: false,
                 payload: '',
                 error: '',
+                // Whether the "confirm without scanning" panel is expanded. The
+                // reason textarea is only submitted when the supervisor has
+                // deliberately opened it.
+                manualOpen: false,
                 tracking: String(trackingNumber || '').toUpperCase(),
 
                 toggle() {

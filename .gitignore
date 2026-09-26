@@ -30,3 +30,4 @@ Thumbs.db
 # spatie/laravel-backup output
 /storage/backups
 /storage/backup-temp
+phpunit.*.xml

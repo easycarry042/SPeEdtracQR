@@ -249,10 +249,16 @@ class RequestStepController extends Controller
     private function validateAction(Request $request, bool $remarksRequired): void
     {
         $request->validate([
-            'document_scan' => ['required', 'string', 'max:2000'],
+            // Either the folder's QR is scanned, or a written reason is given for
+            // why it could not be. One of the two is always required: a decision
+            // must never be recordable without SOME account of the paper.
+            'document_scan' => ['required_without:scan_override_reason', 'nullable', 'string', 'max:2000'],
+            'scan_override_reason' => ['required_without:document_scan', 'nullable', 'string', 'min:10', 'max:500'],
             'remarks' => [$remarksRequired ? 'required' : 'nullable', 'string', 'max:500'],
         ], [
-            'document_scan.required' => "Scan this request's QR code to confirm the decision.",
+            'document_scan.required_without' => "Scan this request's QR code to confirm the decision, or record why you could not.",
+            'scan_override_reason.required_without' => 'Give a reason for confirming without a scan.',
+            'scan_override_reason.min' => 'Explain briefly why the QR could not be scanned.',
             'remarks.required' => 'Explain the decision so the filing office knows what to fix.',
         ]);
     }
@@ -265,10 +271,37 @@ class RequestStepController extends Controller
      *
      * Note this proves the paper is present, not who is signing; the signer is
      * the authenticated supervisor of the office holding the hop.
+     *
+     * A written override is accepted when the QR genuinely cannot be scanned —
+     * a torn sticker, or (much more commonly) a machine with no working camera.
+     * Without this escape hatch a broken webcam halts the office entirely, which
+     * is a worse failure than a logged manual confirmation. The override is
+     * recorded on the activity log and mirrored into the request's own feed, so
+     * it is visible rather than silent.
      */
     private function confirmScannedFolder(Request $request, Document $document): void
     {
-        $scanned = ScannedCode::trackingNumber((string) $request->input('document_scan'));
+        $override = trim((string) $request->input('scan_override_reason'));
+
+        // The hidden scan field always posts, so an unscanned folder arrives as
+        // an empty string rather than null — compare on the trimmed value.
+        $scan = trim((string) $request->input('document_scan'));
+
+        if ($override !== '' && $scan === '') {
+            activity()
+                ->performedOn($document)
+                ->causedBy(auth()->user())
+                ->withProperties(['reason' => $override, 'tracking_number' => $document->tracking_number])
+                ->log('Decision confirmed WITHOUT a QR scan — reason: '.$override);
+
+            $document->logSystemComment(
+                auth()->user()->name.' confirmed a decision without scanning the QR. Reason: '.$override
+            );
+
+            return;
+        }
+
+        $scanned = ScannedCode::trackingNumber($scan);
 
         if ($scanned === null) {
             throw ValidationException::withMessages([
