@@ -47,18 +47,33 @@
              @pointerup="endDrag($event)" @pointercancel="endDrag($event)"
              x-ref="face">
             <circle cx="100" cy="100" r="96" fill="#f0fdf4" stroke="#a7f3d0" stroke-width="2"/>
-            {{-- Hour numbers --}}
-            <template x-for="n in 12" :key="n">
-                <text :x="100 + 78 * Math.sin(n * Math.PI / 6)"
-                      :y="100 - 78 * Math.cos(n * Math.PI / 6) + 5"
-                      text-anchor="middle" class="fill-emerald-800 text-[13px] font-semibold" x-text="n"></text>
-            </template>
-            {{-- Minute ticks --}}
-            <template x-for="t in 60" :key="'t'+t">
-                <circle :cx="100 + 92 * Math.sin(t * Math.PI / 30)"
-                        :cy="100 - 92 * Math.cos(t * Math.PI / 30)"
-                        :r="t % 5 === 0 ? 1.6 : 0.7" fill="#34d399"/>
-            </template>
+
+            {{-- Hour numbers and minute ticks are drawn here in Blade, NOT with
+                 Alpine's x-for.
+
+                 Inside an <svg>, the HTML parser does not create a real
+                 HTMLTemplateElement for <template> — it creates an SVG element
+                 that happens to be named "template", which has no `.content`.
+                 Alpine reads `.content` to clone the loop body, gets undefined,
+                 and throws on every page load; the face then renders empty
+                 while the console fills with "n is not defined".
+
+                 The geometry is fixed anyway — twelve numbers on a circle never
+                 change — so there is nothing for the client to compute. Only
+                 the hand below is dynamic, and it uses plain attribute
+                 bindings, which work fine in SVG. --}}
+            @for ($n = 1; $n <= 12; $n++)
+                <text x="{{ round(100 + 78 * sin($n * M_PI / 6), 2) }}"
+                      y="{{ round(100 - 78 * cos($n * M_PI / 6) + 5, 2) }}"
+                      text-anchor="middle"
+                      class="fill-emerald-800 text-[13px] font-semibold">{{ $n }}</text>
+            @endfor
+
+            @for ($t = 1; $t <= 60; $t++)
+                <circle cx="{{ round(100 + 92 * sin($t * M_PI / 30), 2) }}"
+                        cy="{{ round(100 - 92 * cos($t * M_PI / 30), 2) }}"
+                        r="{{ $t % 5 === 0 ? '1.6' : '0.7' }}" fill="#34d399"/>
+            @endfor
             {{-- Active hand --}}
             <line x1="100" y1="100"
                   :x2="100 + handLen() * Math.sin(handAngle() * Math.PI / 180)"

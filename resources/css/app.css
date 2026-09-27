@@ -1421,6 +1421,15 @@ aside.sidebar-pinned {
     backdrop-filter: blur(10px);
     border: .5px solid rgba(0, 64, 4, .5);
     border-radius: 24px;
+
+    /* backdrop-filter creates a stacking context, which traps anything
+       positioned inside this panel. The time picker's popover lives in the
+       reservation panel and opens downward over the Purpose and Description
+       fields — those are later siblings, so without lifting the panel itself
+       they paint on top and the clock is hidden behind them. Its own z-index
+       cannot escape the context, so the lift has to happen here. */
+    position: relative;
+    z-index: 20;
 }
 
 .req-note-title {
