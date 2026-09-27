@@ -39,7 +39,7 @@ class PublicRequestRequirementsTest extends TestCase
             'citizen_name' => 'Jane Dela Cruz',
             'citizen_email' => 'jane@example.com',
             'consent' => '1',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $doc = Document::firstOrFail();
         $this->assertCount(2, $doc->requirements);
@@ -65,7 +65,7 @@ class PublicRequestRequirementsTest extends TestCase
             'requirements' => [
                 $clearance->id => UploadedFile::fake()->image('clearance.jpg'),
             ],
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $uploaded = Document::firstOrFail()->requirements->firstWhere('label', 'Barangay Business Clearance');
         $this->assertNotNull($uploaded->uploaded_file_path);

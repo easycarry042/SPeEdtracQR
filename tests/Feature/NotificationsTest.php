@@ -39,7 +39,7 @@ class NotificationsTest extends TestCase
             'citizen_name' => 'Jane Citizen',
             'citizen_email' => 'jane@example.com',
             'consent' => '1',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         Notification::assertSentTo(
             $supervisor,

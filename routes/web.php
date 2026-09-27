@@ -89,6 +89,14 @@ Route::post('/request', [PublicTicketController::class, 'store'])
     ->middleware('throttle:8,1')
     ->name('public.request.store');
 
+// Post/Redirect/Get: `store` redirects here instead of rendering the receipt
+// itself, so refreshing the confirmation page cannot re-submit the form and
+// file a second identical request. The tracking number travels in the session,
+// never the URL — a guessable /request/submitted/{tracking} would let anyone
+// pull up someone else's receipt.
+Route::get('/request/submitted', [PublicTicketController::class, 'submitted'])
+    ->name('public.request.submitted');
+
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
 // JSON lookup that powers the inline search on the landing page (result shown

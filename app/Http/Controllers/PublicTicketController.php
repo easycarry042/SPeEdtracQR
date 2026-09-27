@@ -13,6 +13,7 @@ use App\Support\DocumentFormOptions;
 use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -228,10 +229,43 @@ class PublicTicketController extends Controller
             activity()->performedOn($document)->log('Emailed TicketSubmitted to citizen');
         }
 
-        // Show the QR + tracking number first (do NOT jump straight to the
-        // tracker) so the citizen can save the QR before navigating away.
-        return view('public.request-submitted', [
-            'document' => $document->fresh(),
-        ]);
+        // Post/Redirect/Get. Rendering the receipt straight from this POST left
+        // the browser on a submitted form, so a refresh — or Back then Forward —
+        // re-posted it and filed a second identical request. Redirecting means a
+        // refresh just re-reads the receipt.
+        //
+        // The tracking number goes through the session rather than the URL: a
+        // guessable /request/submitted/{tracking} would let anyone open someone
+        // else's receipt, QR and all.
+        return to_route('public.request.submitted')
+            ->with('submitted_tracking', $document->tracking_number);
+    }
+
+    /**
+     * The receipt: QR code and tracking number, shown once after filing.
+     *
+     * Reached only by redirect from `store`. The tracking number is re-flashed
+     * on each view so the citizen can refresh or reopen it while they save the
+     * QR, but it does not survive navigating away — on a shared counter
+     * terminal the next person must not find the previous citizen's receipt
+     * sitting there.
+     */
+    public function submitted(Request $request): RedirectResponse|View
+    {
+        $tracking = $request->session()->get('submitted_tracking');
+
+        if (! $tracking) {
+            return to_route('public.request.create');
+        }
+
+        $document = Document::where('tracking_number', $tracking)->first();
+
+        if (! $document) {
+            return to_route('public.request.create');
+        }
+
+        $request->session()->keep('submitted_tracking');
+
+        return view('public.request-submitted', ['document' => $document]);
     }
 }

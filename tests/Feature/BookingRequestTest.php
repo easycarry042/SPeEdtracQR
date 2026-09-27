@@ -56,7 +56,7 @@ class BookingRequestTest extends TestCase
             'booking_date' => $date->toDateString(),
             'start_time' => '16:00',
             'end_time' => '19:00',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $booking = Document::firstOrFail()->booking;
         $this->assertNotNull($booking);
@@ -119,7 +119,7 @@ class BookingRequestTest extends TestCase
             'quantity' => 50,
             'needed_date' => $needed->toDateString(),
             'return_date' => $needed->copy()->addDay()->toDateString(),
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $document = Document::firstOrFail();
         $booking = $document->booking;
@@ -144,7 +144,7 @@ class BookingRequestTest extends TestCase
             'consent' => '1',
             'quantity' => 10,
             'needed_by' => $needed->toDateString(),
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $document = Document::firstOrFail();
         $this->assertSame(10, $document->quantity);
@@ -171,9 +171,9 @@ class BookingRequestTest extends TestCase
             'return_date' => $needed->toDateString(),
         ];
 
-        $this->post(route('public.request.store'), $payload)->assertOk();
+        $this->post(route('public.request.store'), $payload)->assertRedirect(route('public.request.submitted'));
         // Same window, different requester — equipment is shared stock, so it is accepted.
-        $this->post(route('public.request.store'), array_merge($payload, ['citizen_email' => 'b@example.com']))->assertOk();
+        $this->post(route('public.request.store'), array_merge($payload, ['citizen_email' => 'b@example.com']))->assertRedirect(route('public.request.submitted'));
 
         $this->assertSame(2, Booking::count());
     }
@@ -194,7 +194,7 @@ class BookingRequestTest extends TestCase
             'booking_date' => $date->toDateString(),
             'start_time' => '16:00',
             'end_time' => '19:00',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $document = Document::firstOrFail();
         $this->assertSame(1, $document->requirements()->count());

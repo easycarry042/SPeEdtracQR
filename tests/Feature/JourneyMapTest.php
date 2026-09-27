@@ -122,14 +122,14 @@ class JourneyMapTest extends TestCase
         $this->get(route('citizen.dashboard'))->assertOk();
         $this->get(route('public.request.create'))->assertOk();
 
-        // 2. Filing succeeds and renders the QR / tracking-number page.
-        //    NOTE: this POST returns a view rather than redirecting — there is no
-        //    Post/Redirect/Get here, which is why refreshing re-submits. Asserted
-        //    as-is so this test documents the current behaviour rather than
-        //    silently passing if it changes.
+        // 2. Filing redirects to the receipt (Post/Redirect/Get), so refreshing
+        //    the confirmation page re-reads it instead of filing a second
+        //    identical request. See PublicRequestRedirectTest for that rule.
         $this->post(route('public.request.store'), $this->filing())
-            ->assertOk()
+            ->assertRedirect(route('public.request.submitted'))
             ->assertSessionHasNoErrors();
+
+        $this->get(route('public.request.submitted'))->assertOk();
 
         $doc = Document::latest('id')->firstOrFail();
         $this->assertSame('pending', $doc->status);

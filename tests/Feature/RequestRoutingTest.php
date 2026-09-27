@@ -34,7 +34,7 @@ class RequestRoutingTest extends TestCase
             'citizen_name' => 'Maria Santos',
             'citizen_email' => 'maria@example.com',
             'consent' => '1',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         $document = Document::latest('id')->first();
         $this->assertSame(Document::ORIGIN_EXTERNAL, $document->origin);
