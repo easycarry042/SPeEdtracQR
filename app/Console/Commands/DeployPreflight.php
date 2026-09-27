@@ -2,6 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Department;
+use App\Models\RequestType;
+use App\Models\RouteTemplateStep;
 use App\Support\SeedGuard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +46,7 @@ class DeployPreflight extends Command
         $this->checkHttps();
         $this->checkDatabase();
         $this->checkSecurityHeaders();
+        $this->checkRoutingIsStaffed();
 
         $this->newLine();
 
@@ -180,5 +184,47 @@ class DeployPreflight extends Command
         }
 
         $this->line('  ✓ Security headers configured (camera allowed for QR scanning)');
+    }
+
+    /**
+     * A department with no Supervisor cannot act on an internal request, and a
+     * request type with no department reaches no queue. Both fail silently at
+     * runtime — the request is accepted, endorsed, arrives somewhere, and then
+     * simply never moves. Catch it here instead.
+     */
+    private function checkRoutingIsStaffed(): void
+    {
+        try {
+            // Only offices that actually appear in a route template matter: an
+            // unused department being empty is not a problem.
+            $routed = RouteTemplateStep::query()
+                ->whereHas('routeTemplate', fn ($q) => $q->where('is_active', true))
+                ->pluck('department_id')
+                ->unique()
+                ->filter();
+
+            $deadEnds = Department::whereIn('id', $routed)
+                ->whereDoesntHave('users', fn ($q) => $q->role('Supervisor'))
+                ->pluck('code');
+
+            if ($deadEnds->isNotEmpty()) {
+                $this->addFailure(
+                    'These departments appear in a route template but have no Supervisor, so an internal request sent there can never be approved: '
+                    .$deadEnds->join(', ')
+                );
+            } else {
+                $this->line('  ✓ Every routed department has a Supervisor');
+            }
+
+            $unrouted = RequestType::where('is_active', true)->whereNull('department_id')->count();
+
+            if ($unrouted > 0) {
+                $this->addWarning(
+                    $unrouted.' active request type(s) have no handling department, so those requests reach no specific office queue.'
+                );
+            }
+        } catch (Throwable $e) {
+            $this->addWarning('Could not check routing staffing: '.$e->getMessage());
+        }
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\Department;
 use App\Models\RequestType;
 use Illuminate\Database\Seeder;
 
@@ -17,8 +18,15 @@ class RequestTypeSeeder extends Seeder
 {
     public function run(): void
     {
+        // Each request type names the office that handles it. Without this the
+        // ticket is created with no department and reaches no specific queue —
+        // the routing added in July does nothing, and every Supervisor ends up
+        // triaging every request regardless of office.
+        $this->callOnce(DepartmentSeeder::class);
+        $departments = Department::pluck('id', 'code');
+
         $types = [
-            ['Business Permit', [
+            ['Business Permit', 'OM', [
                 'Barangay Business Clearance',
                 'Community Tax Certificate (Cedula)',
                 'DTI / SEC / CDA Registration',
@@ -27,40 +35,45 @@ class RequestTypeSeeder extends Seeder
                 'Fire Safety Inspection Certificate',
                 'Sanitary Permit',
             ]],
-            ["Mayor's Permit", [
+            ["Mayor's Permit", 'OM', [
                 'Barangay Clearance',
                 'Community Tax Certificate (Cedula)',
                 'Proof of Business Registration',
             ]],
-            ['Building Permit', [
+            ['Building Permit', 'ENG', [
                 'Transfer Certificate of Title or Tax Declaration',
                 'Lot Plan / Survey',
                 'Building Plans & Specifications',
                 'Bill of Materials',
             ]],
-            ['Barangay Clearance', [
+            ['Barangay Clearance', 'OM', [
                 'Community Tax Certificate (Cedula)',
                 'Valid Government ID',
                 'Proof of Residency',
             ]],
-            ['Community Tax Certificate', [
+            ['Community Tax Certificate', 'TRSY', [
                 'Valid Government ID',
             ]],
-            ['Real Property Tax', [
+            ['Real Property Tax', 'TRSY', [
                 'Latest Tax Declaration or Official Receipt',
                 'Valid Government ID',
             ]],
-            ['Birth Certificate Request', [
+            ['Birth Certificate Request', 'MHO', [
                 'Valid Government ID',
                 'Authorization Letter (if not the document owner)',
             ]],
-            ['Other', []],
+            ['Other', 'OM', []],
         ];
 
-        foreach ($types as $order => [$name, $requirements]) {
+        foreach ($types as $order => [$name, $departmentCode, $requirements]) {
             $type = RequestType::updateOrCreate(
                 ['name' => $name],
-                ['kind' => RequestType::KIND_DOCUMENT, 'is_active' => true, 'sort_order' => $order],
+                [
+                    'kind' => RequestType::KIND_DOCUMENT,
+                    'is_active' => true,
+                    'sort_order' => $order,
+                    'department_id' => $departments[$departmentCode] ?? null,
+                ],
             );
 
             foreach ($requirements as $reqOrder => $label) {
@@ -76,11 +89,11 @@ class RequestTypeSeeder extends Seeder
         // ribbon-and-flower medallions worn by officials at inaugurations — is
         // the canonical local example.
         $services = [
-            ['Lei Making', 'Ribbon-and-flower leis prepared for ceremonies and building inaugurations.', 'Letter of Request addressed to the Mayor'],
-            ['Tarpaulin / Streamer Printing', 'Printed tarpaulins or streamers for events and announcements.', 'Approved layout / design'],
+            ['Lei Making', 'GSO', 'Ribbon-and-flower leis prepared for ceremonies and building inaugurations.', 'Letter of Request addressed to the Mayor'],
+            ['Tarpaulin / Streamer Printing', 'GSO', 'Printed tarpaulins or streamers for events and announcements.', 'Approved layout / design'],
         ];
 
-        foreach ($services as $order => [$name, $description, $requirement]) {
+        foreach ($services as $order => [$name, $departmentCode, $description, $requirement]) {
             $type = RequestType::updateOrCreate(
                 ['name' => $name],
                 [
@@ -88,6 +101,7 @@ class RequestTypeSeeder extends Seeder
                     'description' => $description,
                     'is_active' => true,
                     'sort_order' => 200 + $order,
+                    'department_id' => $departments[$departmentCode] ?? null,
                 ],
             );
 

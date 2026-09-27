@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\Department;
 use App\Models\RequestType;
 use App\Models\Resource;
 use Illuminate\Database\Seeder;
@@ -37,6 +38,12 @@ class ResourceSeeder extends Seeder
 
     public function run(): void
     {
+        // Facilities and equipment are the General Services Office's to lend,
+        // so every booking and borrowing request routes there. Without a
+        // department the ticket reaches no specific queue.
+        $this->callOnce(DepartmentSeeder::class);
+        $generalServices = Department::where('code', 'GSO')->value('id');
+
         foreach (self::CATALOG as $order => [$resourceName, $kind, $typeName, $description]) {
             $resource = Resource::updateOrCreate(
                 ['name' => $resourceName],
@@ -51,6 +58,7 @@ class ResourceSeeder extends Seeder
                     'description' => $description,
                     'is_active' => true,
                     'sort_order' => 100 + $order,
+                    'department_id' => $generalServices,
                 ],
             );
 
