@@ -25,6 +25,16 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SecurityHeaders
 {
+    /**
+     * Where `npm run dev` serves assets from. Both spellings are listed
+     * because Vite and the browser disagree about whether the host is
+     * "localhost" or "127.0.0.1" depending on how the page was opened.
+     */
+    private const VITE_DEV_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
@@ -66,6 +76,22 @@ class SecurityHeaders
             $directives['connect-src'] ?? ["'self'"],
             $this->connectSources(),
         )));
+
+        // With `npm run dev`, Laravel serves CSS and JS from the Vite dev
+        // server. That is a DIFFERENT origin to the app (another port), so
+        // 'self' does not cover it and the CSP blocks every asset — the page
+        // renders completely unstyled with no obvious cause.
+        //
+        // Only ever added in local: the dev server does not exist in
+        // production, and naming it there would widen the policy for nothing.
+        if (app()->environment('local')) {
+            foreach (['script-src', 'style-src', 'font-src', 'img-src'] as $directive) {
+                $directives[$directive] = array_values(array_unique(array_merge(
+                    $directives[$directive] ?? ["'self'"],
+                    self::VITE_DEV_ORIGINS,
+                )));
+            }
+        }
 
         $parts = [];
         foreach ($directives as $name => $values) {

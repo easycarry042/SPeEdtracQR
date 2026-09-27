@@ -96,6 +96,38 @@ class SecurityHeadersTest extends TestCase
         );
     }
 
+    /**
+     * With `npm run dev`, assets come from the Vite dev server on port 5173 —
+     * a different origin to the app, so 'self' does not cover it. Leaving it
+     * out of script-src/style-src blocks every asset and the whole site renders
+     * unstyled, which is exactly what happened on 2026-09-27 and is miserable
+     * to diagnose: the page looks catastrophically broken for a header reason.
+     */
+    public function test_local_csp_allows_the_vite_dev_server(): void
+    {
+        app()->detectEnvironment(fn () => 'local');
+
+        $csp = (string) $this->get(route('welcome'))->headers->get('Content-Security-Policy');
+
+        foreach (['script-src', 'style-src'] as $directive) {
+            $line = collect(explode(';', $csp))
+                ->map(fn ($p) => trim($p))
+                ->first(fn ($p) => str_starts_with($p, $directive.' '));
+
+            $this->assertStringContainsString('http://127.0.0.1:5173', (string) $line, "{$directive} must allow the Vite dev server in local.");
+        }
+    }
+
+    /** The dev server does not exist in production; naming it there would widen the policy for nothing. */
+    public function test_production_csp_does_not_mention_the_vite_dev_server(): void
+    {
+        app()->detectEnvironment(fn () => 'production');
+
+        $csp = (string) $this->get(route('welcome'))->headers->get('Content-Security-Policy');
+
+        $this->assertStringNotContainsString('5173', $csp);
+    }
+
     /** Signed-in pages get the same treatment as public ones. */
     public function test_headers_are_sent_on_authenticated_pages(): void
     {
