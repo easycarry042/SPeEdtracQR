@@ -50,7 +50,7 @@
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
         request()->routeIs('admin.assignments*') => 'Assignments',
-        request()->routeIs('bookings*') => 'Bookings',
+        request()->routeIs('bookings*') => 'Booking',
         request()->routeIs('reports.services') => 'Services report',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',
@@ -59,7 +59,7 @@
         request()->routeIs('admin.resources*') => 'Resources',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
-        request()->routeIs('requests.*') => 'Internal Requests',
+        request()->routeIs('requests.*') => 'Internal',
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
@@ -84,19 +84,19 @@
                 {{-- Fixed, always-expanded sidebar (no hover-collapse animation on navigate).
                      The mobile drawer still slides in via .mobile-nav-open. --}}
                 <aside @click="if ($event.target.closest('a')) mobileNav = false"
-                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-64 shrink-0 flex-col overflow-hidden nav-bar">
+                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-[290px] shrink-0 flex-col overflow-hidden nav-bar xl:w-[371px]">
                     {{-- Brand: the white mark on deep green, no strapline — the
                          page bar below already names where you are. --}}
-                    <div class="nav-brand flex h-[4.75rem] shrink-0 items-center justify-center gap-3 px-4">
-                        <img src="{{ asset('images/icon-white.png') }}" alt="" class="h-8 w-8 shrink-0 object-contain">
-                        <p class="nav-text truncate whitespace-nowrap text-lg font-extrabold tracking-tight text-white">
-                            <span class="font-display">SPeED</span> <span class="font-sans">TraQR</span>
+                    <div class="nav-brand flex shrink-0 items-center gap-[11px] pb-[26px] pl-[25px] pt-[45px] xl:pl-[53px]">
+                        <img src="{{ asset('images/staff/logo-white.png') }}" alt="" class="h-[46px] w-[46px] shrink-0 object-contain xl:h-[57px] xl:w-[57px]">
+                        <p class="nav-text truncate whitespace-nowrap text-[21px] tracking-tight text-white xl:text-[25px]">
+                            <span class="font-display font-black text-[#f9fff9]">SPeED</span> <span class="font-sans font-medium">TraQR</span>
                         </p>
                     </div>
 
-                    <p class="px-5 pb-2 pt-3 text-sm font-semibold text-white/75">Main Menu</p>
+                    <p class="px-[18px] pb-[14px] text-[17px] font-semibold text-white/75 xl:px-[25px] xl:text-[20px]">Main Menu</p>
 
-                    <nav class="nav-scroll flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-3 py-1">
+                    <nav class="nav-scroll flex flex-1 flex-col gap-0 overflow-y-auto overflow-x-hidden px-[14px] py-1">
                         @include('layouts.partials.sidebar-links')
                     </nav>
 
@@ -104,17 +104,14 @@
                          screen edge where it is easy to miss, so the sidebar gives
                          it a named row. Hidden when the widget is switched off. --}}
                     @if(config('app.accessibility_widget', true))
-                        <div class="shrink-0 border-t border-white/10 px-3 py-4">
+                        <div class="shrink-0 border-t border-white/10 py-[22px] pl-[18px] xl:pl-[36px]">
                             <button type="button"
                                     onclick="document.querySelector('.asw-menu-btn')?.click()"
-                                    class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-brass transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass">
-                                <span class="flex h-10 w-10 shrink-0 items-center justify-center">
-                                    <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                        <circle cx="12" cy="4" r="2"/>
-                                        <path d="M20 8.5c-2.4.8-5.1 1.2-8 1.2s-5.6-.4-8-1.2L4.5 10c1.8.6 3.7 1 5.7 1.2l-.6 3.3L7 21.2l1.9.7 2.3-6h1.6l2.3 6 1.9-.7-2.6-6.7-.6-3.3c2-.2 3.9-.6 5.7-1.2L20 8.5z"/>
-                                    </svg>
+                                    class="flex w-full items-center gap-[18px] rounded-xl py-1 text-left transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass">
+                                <span class="flex h-[28px] w-[28px] shrink-0 items-center justify-center">
+                                    <img src="{{ asset('images/staff/nav-accessibility.svg') }}" alt="" class="h-[28px] w-[28px]">
                                 </span>
-                                <span class="nav-text whitespace-nowrap text-sm font-bold">Accessibility</span>
+                                <span class="nav-text whitespace-nowrap text-[17px] font-extrabold text-[#feba1b] xl:text-[20px]">Accessibility</span>
                             </button>
                         </div>
                     @endif
@@ -137,11 +134,12 @@
                             </button>
                             {{-- City and Tourism Office seals lead the page bar; they
                                  are branding, so the title carries the alt text. --}}
-                            <span class="hidden shrink-0 items-center gap-1.5 sm:flex">
-                                <img src="{{ asset('images/SPL-logo.png') }}" alt="" class="h-10 w-10 object-contain">
-                                <img src="{{ asset('images/TOURISM-logo.png') }}" alt="" class="h-10 w-10 object-contain">
+                            <span class="hidden shrink-0 items-center gap-[5px] sm:flex">
+                                <img src="{{ asset('images/staff/seal-1.png') }}" alt="" class="h-[50px] w-[50px] object-contain">
+                                <img src="{{ asset('images/staff/seal-2.png') }}" alt="" class="h-[53px] w-[53px] object-contain">
                             </span>
-                            <span class="hidden h-9 w-1 shrink-0 rounded-full bg-brass sm:block" aria-hidden="true"></span>
+                            <img src="{{ asset('images/staff/title-divider.svg') }}" alt="" aria-hidden="true"
+                                 class="hidden h-[50px] w-[5px] shrink-0 sm:block">
                             {{-- No role badge here: the identity chip on the right
                                  already names the role and the desk. --}}
                             <h1 class="layout-title">{{ $pageTitle }}</h1>
@@ -190,6 +188,9 @@
     @endif
 
     <x-image-view-modal />
+
+    {{-- The shared pop-up error report (window.ErrorAlert). --}}
+    <x-error-alert />
 
     @include('layouts.partials.bfcache-guard')
 </body>

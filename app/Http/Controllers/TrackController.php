@@ -11,7 +11,10 @@ use App\Support\CitizenThreadAccess;
 use App\Support\CompletionPredictor;
 use App\Support\DocumentSeal;
 use App\Support\RequestReview;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Spatie\Activitylog\Models\Activity;
 
@@ -38,77 +41,138 @@ class TrackController extends Controller
             return to_route('welcome');
         }
 
-        // Explicit finder mode (?find=1): render the Look up hub (tracking
-        // search + QR image upload + live camera) instead of auto-opening a
-        // work item. This is where /scan and "Open scanner" land.
-        if ($request->boolean('find')) {
+        // ?scan=1 keeps the QR hub (image upload + live camera), which is still
+        // the fastest way in when the paper is in hand.
+        if ($request->boolean('scan')) {
             return view('track.index');
         }
 
-        // Supervisors land on the unified Track view (track.show) with the
-        // Pending / In Progress split folded into its sidebar. Pick a sensible
-        // default document to open: the first pending request, else the first
-        // in-progress one. With nothing to show, fall back to the empty state.
-        $user = auth()->user();
-        if ($user && AssignmentScope::canViewAll($user)) {
-            $default = $this->scopeDocuments(
-                Document::where('origin', '!=', Document::ORIGIN_INTERNAL)
-                    ->where('status', DocumentStatus::Pending->value)->whereNull('assigned_to')->latest('created_at')
-            )->first(['tracking_number']);
+        // Everything else lands on the Look Up desk — the browsable table of the
+        // work in scope (Figma: STAFF LOOK UP).
+        //
+        // This used to auto-open whichever request the viewer had touched most
+        // recently, which meant the sidebar's "Look Up" never actually reached
+        // this screen: staff clicked it and got dropped into one request's own
+        // page. A finder that picks the answer for you is not a finder. The
+        // per-request view is still there, reached from a row or a scanned QR.
+        return $this->lookupDesk($request);
+    }
 
-            $tab = 'pending';
-            if (! $default) {
-                $default = $this->scopeDocuments(
-                    Document::whereNotNull('assigned_to')->where('status', '!=', DocumentStatus::Pending->value)->latest('updated_at')
-                )->first(['tracking_number']);
-                $tab = 'inprogress';
-            }
+    /**
+     * The Look Up desk: a browsable table of the work in the viewer's scope,
+     * with a detail modal per row. This is where staff land when they do NOT
+     * have a tracking number in hand — ?find=1&scan=1 keeps the QR hub for when
+     * they do.
+     *
+     * Everything the modal needs travels in one payload rather than a fetch per
+     * row: the desk is capped at a page of work, and a round trip per open would
+     * be slower than shipping what is already loaded.
+     */
+    private function lookupDesk(Request $request): Factory|View
+    {
+        // Two queues, named as the design names them. "Pending" is work that has
+        // landed but not been started; "In Progress" is everything still open
+        // beyond that. Completed work is reached from History, not here.
+        $pendingStatuses = [DocumentStatus::Pending->value];
+        $activeStatuses = [
+            DocumentStatus::InProgress->value,
+            DocumentStatus::InReview->value,
+            DocumentStatus::Approved->value,
+            DocumentStatus::Returned->value,
+            DocumentStatus::OnHold->value,
+        ];
 
-            if ($default) {
-                return to_route('track.show', ['trackingNumber' => $default->tracking_number, 'tab' => $tab]);
-            }
-
-            return view('track.index');
-        }
-
-        // Staff land on the same sidebar+detail view: open the most recent
-        // request assigned to them (In Progress tab), else their latest
-        // completed one, else the empty search state.
-        if ($user) {
-            $active = Document::where('assigned_to', $user->id)
-                ->whereIn('status', [
-                    DocumentStatus::InProgress->value,
-                    DocumentStatus::InReview->value,
-                    DocumentStatus::Approved->value,
+        $documents = $this->scopeDocuments(
+            Document::query()
+                ->with([
+                    'attachments', 'requirements', 'department', 'assignedTo',
+                    // The Messages panel renders the citizen-facing thread inside
+                    // the modal, so it travels with the row. Internal staff notes
+                    // are deliberately excluded — that thread is not this panel's.
+                    'allComments' => fn ($q) => $q
+                        ->where('visibility', DocumentComment::VISIBILITY_PUBLIC)
+                        ->oldest(),
                 ])
-                ->latest('updated_at')
-                ->first(['tracking_number']);
+                // Internal dept-to-dept requests have their own desk; mixing them
+                // in here would put them in front of people who only handle
+                // citizen work.
+                ->where('origin', '!=', Document::ORIGIN_INTERNAL)
+                ->whereIn('status', array_merge($pendingStatuses, $activeStatuses))
+        )->latest('created_at')->get();
 
-            if ($active) {
-                return to_route('track.show', ['trackingNumber' => $active->tracking_number, 'tab' => 'inprogress']);
-            }
+        $logs = $this->deskLogs($documents->pluck('id')->all());
 
-            $completed = Document::where('assigned_to', $user->id)
-                ->where('status', DocumentStatus::Completed->value)
-                ->latest('updated_at')
-                ->first(['tracking_number']);
+        return view('track.desk', [
+            'pendingRows' => $this->deskRows($documents->whereIn('status', $pendingStatuses), $logs),
+            'activeRows' => $this->deskRows($documents->whereIn('status', $activeStatuses), $logs),
+            'flow' => collect(DocumentStatus::flow())
+                ->map(fn (DocumentStatus $s): array => ['value' => $s->value, 'label' => $s->label()])
+                ->values()->all(),
+        ]);
+    }
 
-            if ($completed) {
-                return to_route('track.show', ['trackingNumber' => $completed->tracking_number, 'tab' => 'completed']);
-            }
+    /**
+     * Shape a set of documents into desk rows — the review payload plus the few
+     * fields this screen adds on top of it.
+     *
+     * @param  Collection<int, Document>  $documents
+     * @param  array<int, array<int, array{event: string, time: string}>>  $logs
+     * @return array<int, array<string, mixed>>
+     */
+    private function deskRows($documents, array $logs): array
+    {
+        return $documents->map(function (Document $document) use ($logs): array {
+            return RequestReview::forModal($document) + [
+                'date_short' => $document->created_at?->format('m/d/y'),
+                'logs' => $logs[$document->id] ?? [],
+                'messages' => $document->allComments->map(
+                    fn (DocumentComment $comment): array => $comment->deskPayload()
+                )->values()->all(),
+                // Drives whether the panel offers a composer or reads as an
+                // archive: a colleague may see the thread without owning it.
+                'can_message' => CommentController::userCanPost($document, auth()->user()),
+            ];
+        })->values()->all();
+    }
 
-            // Fall back to anything in their scope so the page isn't empty.
-            $latest = $this->scopeDocuments(
-                Document::query()->where('origin', '!=', Document::ORIGIN_INTERNAL)
-                    ->whereIn('status', DocumentStatus::activeValues())->latest('created_at')
-            )->first(['tracking_number']);
-
-            if ($latest) {
-                return to_route('track.show', $latest->tracking_number);
-            }
+    /**
+     * Status-change history for every document on the desk, in ONE query
+     * grouped by subject — a per-row lookup would be a query per open row.
+     *
+     * @param  array<int, int>  $documentIds
+     * @return array<int, array<int, array{event: string, time: string}>>
+     */
+    private function deskLogs(array $documentIds): array
+    {
+        if ($documentIds === []) {
+            return [];
         }
 
-        return view('track.index');
+        return Activity::query()
+            ->where('subject_type', (new Document)->getMorphClass())
+            ->whereIn('subject_id', $documentIds)
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function ($activities): array {
+                return $activities
+                    ->map(function (Activity $activity): ?array {
+                        $to = data_get($activity->properties, 'attributes.status');
+
+                        if (! $to) {
+                            return null;
+                        }
+
+                        return [
+                            'event' => 'Updated to '.DocumentStatus::fromLoose($to)->label(),
+                            'time' => $activity->created_at?->format('M j, g:i A') ?? '',
+                        ];
+                    })
+                    ->filter()
+                    ->values()
+                    ->all();
+            })
+            ->all();
     }
 
     /**

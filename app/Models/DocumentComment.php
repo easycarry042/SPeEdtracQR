@@ -73,6 +73,34 @@ class DocumentComment extends Model
         return $this->visibility === self::VISIBILITY_PUBLIC;
     }
 
+    /**
+     * Shape for the Look Up desk's Messages panel (Figma: STAFF LOOK UP 1321:1750).
+     *
+     * Lives on the model because two places build it: the desk ships the whole
+     * thread with the row, and CommentController returns the one just posted so
+     * the panel can append it without reloading the desk underneath it.
+     *
+     * @return array{from: string, author: string, body: string, time: string, read: bool, attachment: ?array{name: string, url: string}}
+     */
+    public function deskPayload(): array
+    {
+        return [
+            'from' => $this->author_type,
+            'author' => $this->authorLabel(),
+            'body' => $this->body,
+            'attachment' => $this->hasAttachment() ? [
+                'name' => $this->attachment_name ?: basename((string) $this->attachment_path),
+                'url' => route('documents.comments.attachment', $this),
+            ] : null,
+            // The frame times today's traffic as "Today 10:40 AM" and dates
+            // anything older, which is how a chat reads.
+            'time' => $this->created_at?->isToday()
+                ? 'Today '.$this->created_at->format('g:i A')
+                : $this->created_at?->format('M j, g:i A') ?? '',
+            'read' => $this->citizen_read_at !== null,
+        ];
+    }
+
     public function isInternal(): bool
     {
         return $this->visibility === self::VISIBILITY_INTERNAL;

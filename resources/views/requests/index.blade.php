@@ -3,9 +3,9 @@
          action moves up here rather than repeating the heading beneath it. --}}
     @if($canFile)
         <x-slot name="pageActions">
-            <a href="{{ route('requests.create') }}" class="cr-btn cr-btn-primary">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                File Request
+            <a href="{{ route('requests.create') }}" title="File a request" aria-label="File a request"
+               class="flex h-[52px] w-[52px] items-center justify-center rounded-full border border-hairline bg-paper text-green-deep shadow-sm transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
             </a>
         </x-slot>
     @endif
@@ -30,12 +30,12 @@
         @endif
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="segchips" role="tablist" aria-label="Request queues">
+            <div class="segchips segchips-lg max-w-[640px]" role="tablist" aria-label="Request queues">
                 @foreach($tabs as $tab)
                     <button type="button" role="tab" :aria-selected="tab === '{{ $tab['key'] }}'"
                             @click="tab = '{{ $tab['key'] }}'" :class="tab === '{{ $tab['key'] }}' ? 'on' : ''">
                         {{ $tab['label'] }}
-                        <span class="ml-1.5 rounded-full bg-white/70 px-1.5 text-[11px] font-semibold text-ink-soft">{{ $tab['list']->count() }}</span>
+                        <span class="sp-group-count ml-1.5">{{ $tab['list']->count() }}</span>
                     </button>
                 @endforeach
             </div>
@@ -45,7 +45,7 @@
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
                     <input type="text" name="q" value="{{ $search }}" placeholder="Search tracking # or request…" aria-label="Search internal requests" class="w-52">
                 </div>
-                <button type="submit" class="cr-btn cr-btn-primary">Search</button>
+                <button type="submit" class="cr-btn cr-btn-primary h-[46px]">Search</button>
                 @if($search !== '')
                     <a href="{{ route('requests.index') }}" class="cr-btn">Clear</a>
                 @endif

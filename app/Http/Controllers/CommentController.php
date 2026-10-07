@@ -80,9 +80,32 @@ class CommentController extends Controller
 
         event(new DocumentCommentPosted($comment));
 
+        // The Look Up desk posts from inside its Messages panel and appends the
+        // reply in place; a redirect would reload the desk and close the modal
+        // the staff member is still working in.
+        if ($request->expectsJson()) {
+            return response()->json(['comment' => $comment->deskPayload()], 201);
+        }
+
         return back()->with('status', $comment->isPublic()
             ? 'Message sent — the citizen has been notified.'
             : 'Internal note added.');
+    }
+
+    /**
+     * Clear the ticket's unread badge once staff have actually seen the thread.
+     *
+     * Scoped by access rather than by authorizePost: reading a conversation is
+     * not posting to it, so a colleague who may open the request may also clear
+     * what they have read.
+     */
+    public function markRead(Document $document)
+    {
+        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+
+        self::markCitizenMessagesRead($document);
+
+        return response()->json(['ok' => true]);
     }
 
     /**
@@ -159,16 +182,29 @@ class CommentController extends Controller
      */
     private function authorizePost(Document $document): void
     {
-        $user = auth()->user();
+        abort_unless(
+            self::userCanPost($document, auth()->user()),
+            403,
+            'Only the assigned staff member or an admin can post on this document.'
+        );
+    }
 
-        if ($user?->can('manage system') || $user?->can('assign documents')) {
-            return;
+    /**
+     * Whether this user may post on the request. Public so screens can render
+     * the composer read-only instead of offering a box the server will 403.
+     */
+    public static function userCanPost(Document $document, ?User $user): bool
+    {
+        if ($user === null) {
+            return false;
         }
 
-        $isAssignedStaff = $user?->can('advance documents')
+        if ($user->can('manage system') || $user->can('assign documents')) {
+            return true;
+        }
+
+        return $user->can('advance documents')
             && $document->assigned_to !== null
             && (int) $document->assigned_to === (int) $user->id;
-
-        abort_unless($isAssignedStaff, 403, 'Only the assigned staff member or an admin can post on this document.');
     }
 }

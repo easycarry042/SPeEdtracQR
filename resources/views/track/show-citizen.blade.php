@@ -11,7 +11,9 @@
     $pillClass = $pillClassMap[$document->status] ?? 'p-amber'; // in_progress / in_review / in_transit
 @endphp
 
-<x-citizen-layout>
+{{-- hide-speedy: this page carries the real, document-scoped assistant
+     (<x-doc-assistant/>), which draws its own launcher in the same corner. --}}
+<x-citizen-layout hide-speedy>
     <x-slot name="title">Tracking {{ $document->tracking_number }}</x-slot>
 
     {{-- Back / Home live in the shared public header — no in-body duplicate here. --}}
@@ -363,30 +365,219 @@
                         {{ session('upload_success') }}
                     </div>
                 @endif
+                {{-- Without JavaScript this box is the whole report; with it, the
+                     script below hands these messages to the shared pop-up and
+                     hides the box, so a refusal is not left sitting in a panel
+                     the citizen may have scrolled past. --}}
                 @if($errors->any())
-                    <div class="mb-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red">
-                        {{ $errors->first() }}
+                    <div id="uploadErrorSummary" class="mb-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red" role="alert">
+                        <ul class="space-y-1">
+                            @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+                        </ul>
                     </div>
                 @endif
                 <form method="POST" action="{{ route('track.citizen-upload', $document->tracking_number) }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
-                    <div>
-                        <label for="citizen_attachments" class="block text-sm font-medium text-ink">Files (up to 5 — images, PDF or Word)</label>
-                        <input type="file" id="citizen_attachments" name="attachments[]" accept="{{ \App\Support\UploadRules::accept() }}" multiple required
-                               class="mt-1 block w-full text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
+                    {{-- The bare file input showed only "3 files" and had no way
+                         to drop one of them — the wrong pick meant starting the
+                         whole selection again. Each chosen file is now listed by
+                         name with its own Remove button, and the 5-file cap is
+                         shown as it fills rather than announced after the fact.
+                         The input keeps name="attachments[]", so the POST and the
+                         server rules are unchanged. --}}
+                    <div data-file-picker
+                         data-max-files="5"
+                         data-max-kilobytes="{{ \App\Support\UploadRules::MAX_KILOBYTES }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <label for="citizen_attachments" class="block text-sm font-medium text-ink">Files (images, PDF, Word or Excel)</label>
+                            <span data-file-count class="text-xs font-semibold text-ink-soft">0 of 5 files selected</span>
+                        </div>
+
+                        {{-- Visually hidden, not display:none — it stays focusable
+                             and keyboard-reachable through its label. --}}
+                        <input type="file" id="citizen_attachments" name="attachments[]"
+                               accept="{{ \App\Support\UploadRules::accept() }}" multiple
+                               data-file-input class="sr-only" />
+
+                        <button type="button" data-file-browse
+                                class="mt-2 inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-sm font-semibold text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
+                            </svg>
+                            <span data-file-browse-label>Choose files</span>
+                        </button>
+
+                        <p class="mt-1.5 text-xs text-ink-soft">{{ \App\Support\UploadRules::hint() }}. Up to 5 files per upload.</p>
+
+                        <ul data-file-list class="mt-3 space-y-2"></ul>
                     </div>
                     <div>
                         <label for="citizen_note" class="block text-sm font-medium text-ink">Short note (optional)</label>
                         <textarea id="citizen_note" name="note" rows="2" maxlength="1000" placeholder="e.g. Missing ID copy attached"
                                   class="mt-1 block w-full rounded-lg border border-hairline-strong text-sm shadow-sm">{{ old('note') }}</textarea>
                     </div>
-                    <button type="submit" class="cr-btn cr-btn-primary w-full justify-center sm:w-auto">
+                    {{-- Disabled until there is something to send: the button's
+                         state says what is missing before it is pressed. --}}
+                    <button type="submit" data-file-submit disabled
+                            class="cr-btn cr-btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
                         Send to department
                     </button>
                 </form>
             </div>
         </div>
         @endif
+
+        {{-- Keeps the chosen files visible and individually removable. The real
+             <input type="file"> is still what posts; it is rewritten from the
+             kept list through a DataTransfer, because a FileList cannot be
+             edited in place. Without JavaScript the input is still a working
+             multi-file picker and the server still caps the upload at 5. --}}
+        <script>
+            // A refused upload comes back as a redirect, so its messages are
+            // rendered into the panel first; lift them into the pop-up and hide
+            // the box, the same hand-off the public request form does.
+            //
+            // Deferred to DOMContentLoaded because the alert component is
+            // included by the layout at the end of the body — window.ErrorAlert
+            // does not exist yet while this script is being parsed.
+            document.addEventListener('DOMContentLoaded', function () {
+                const summary = document.getElementById('uploadErrorSummary');
+                if (!summary) { return; }
+
+                const messages = Array.from(summary.querySelectorAll('li')).map((li) => li.textContent.trim());
+                if (!messages.length) { return; }
+
+                summary.classList.add('hidden');
+                window.ErrorAlert?.show(messages, document.getElementById('citizen_attachments'), 'Your files were not sent');
+            });
+
+            (function () {
+                document.querySelectorAll('[data-file-picker]').forEach((picker) => {
+                    const input = picker.querySelector('[data-file-input]');
+                    const list = picker.querySelector('[data-file-list]');
+                    const countEl = picker.querySelector('[data-file-count]');
+                    const browseBtn = picker.querySelector('[data-file-browse]');
+                    const browseLabel = picker.querySelector('[data-file-browse-label]');
+                    const form = picker.closest('form');
+                    const submitBtn = form && form.querySelector('[data-file-submit]');
+
+                    const maxFiles = parseInt(picker.dataset.maxFiles, 10) || 5;
+                    const maxBytes = (parseInt(picker.dataset.maxKilobytes, 10) || 10240) * 1024;
+
+                    // Files can only be removed by rebuilding the input's list,
+                    // so the kept set is tracked here and mirrored back.
+                    let kept = [];
+
+                    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+                    const formatSize = (bytes) => bytes >= 1048576
+                        ? (bytes / 1048576).toFixed(1) + ' MB'
+                        : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+
+                    // Problems are raised in the shared pop-up over the page
+                    // (window.ErrorAlert), the same report the rest of the app
+                    // uses, rather than as a line under the list.
+                    function showError(messages) {
+                        const problems = [].concat(messages || []).filter(Boolean);
+                        if (!problems.length) {
+                            window.ErrorAlert?.hide();
+
+                            return;
+                        }
+
+                        window.ErrorAlert?.show(problems, browseBtn, problems.length > 1
+                            ? 'Some files were not added'
+                            : 'That file was not added');
+                    }
+
+                    function render() {
+                        const transfer = new DataTransfer();
+                        kept.forEach((file) => transfer.items.add(file));
+                        input.files = transfer.files;
+
+                        countEl.textContent = `${kept.length} of ${maxFiles} files selected`;
+                        browseLabel.textContent = kept.length ? 'Add more files' : 'Choose files';
+                        browseBtn.disabled = kept.length >= maxFiles;
+                        browseBtn.classList.toggle('opacity-50', kept.length >= maxFiles);
+                        if (submitBtn) { submitBtn.disabled = kept.length === 0; }
+
+                        list.textContent = '';
+                        kept.forEach((file, index) => {
+                            const row = document.createElement('li');
+                            row.className = 'flex items-center justify-between gap-3 rounded-lg border border-hairline bg-white px-3 py-2';
+
+                            const meta = document.createElement('div');
+                            meta.className = 'min-w-0';
+                            const name = document.createElement('p');
+                            name.className = 'truncate text-sm font-medium text-ink';
+                            name.textContent = file.name;
+                            const size = document.createElement('p');
+                            size.className = 'text-xs text-ink-soft';
+                            size.textContent = formatSize(file.size);
+                            meta.append(name, size);
+
+                            const remove = document.createElement('button');
+                            remove.type = 'button';
+                            remove.className = 'shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-status-red transition hover:bg-status-red-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-status-red';
+                            remove.textContent = 'Remove';
+                            // Names the file, so the control is unambiguous to a
+                            // screen reader reading the buttons on their own.
+                            remove.setAttribute('aria-label', `Remove ${file.name}`);
+                            remove.addEventListener('click', () => {
+                                kept.splice(index, 1);
+                                showError([]);
+                                render();
+                            });
+
+                            row.append(meta, remove);
+                            list.append(row);
+                        });
+                    }
+
+                    function add(files) {
+                        const problems = [];
+                        let rejectedForSpace = 0;
+
+                        Array.from(files).forEach((file) => {
+                            const already = kept.some((k) => k.name === file.name
+                                && k.size === file.size
+                                && k.lastModified === file.lastModified);
+                            if (already) { return; }
+
+                            if (file.size > maxBytes) {
+                                problems.push(`"${file.name}" is ${formatSize(file.size)}, over the ${Math.round(maxBytes / 1048576)} MB limit. Compress it or photograph the document at a lower resolution, then add it again.`);
+
+                                return;
+                            }
+
+                            if (kept.length >= maxFiles) {
+                                rejectedForSpace++;
+
+                                return;
+                            }
+
+                            kept.push(file);
+                        });
+
+                        if (rejectedForSpace) {
+                            problems.push(`Only ${maxFiles} files can be sent at a time, so ${plural(rejectedForSpace, 'file')} ${rejectedForSpace === 1 ? 'was' : 'were'} not added. Remove one below to make room, or send the rest in a second upload after this one.`);
+                        }
+
+                        showError(problems);
+                        render();
+                    }
+
+                    browseBtn.addEventListener('click', () => input.click());
+                    input.addEventListener('change', () => {
+                        // Read the picker's own selection, then rebuild the input
+                        // from the kept list inside add() → render().
+                        add(input.files);
+                    });
+
+                    render();
+                });
+            })();
+        </script>
 
         {{-- ── Scan Timeline ─────────────────────────────────────────────────── --}}
         <div class="panel">

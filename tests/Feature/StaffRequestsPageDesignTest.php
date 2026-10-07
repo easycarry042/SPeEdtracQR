@@ -44,8 +44,8 @@ class StaffRequestsPageDesignTest extends TestCase
         $this->actingAs($this->staff())
             ->get(route('staff.dashboard'))
             ->assertOk()
-            ->assertSee('images/SPL-logo.png', false)
-            ->assertSee('images/TOURISM-logo.png', false)
+            ->assertSee('images/staff/seal-1.png', false)
+            ->assertSee('images/staff/seal-2.png', false)
             ->assertSee('<h1 class="layout-title">Requests</h1>', false);
     }
 
@@ -93,7 +93,7 @@ class StaffRequestsPageDesignTest extends TestCase
             ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSee('Main Menu')
-            ->assertSee('images/icon-white.png', false)
+            ->assertSee('images/staff/logo-white.png', false)
             ->assertSee('Accessibility')
             ->assertSee(".asw-menu-btn')?.click()", false);
     }
@@ -145,12 +145,12 @@ class StaffRequestsPageDesignTest extends TestCase
 
     public function test_the_active_nav_row_is_marked_by_more_than_colour(): void
     {
-        // The lit panel carries a brass edge marker, so the current page is
+        // The lit panel carries an amber edge marker, so the current page is
         // still identifiable without colour perception.
         $this->actingAs($this->staff())
             ->get(route('staff.dashboard'))
             ->assertOk()
-            ->assertSee('before:bg-brass', false);
+            ->assertSee('before:bg-[#f8bf38]', false);
     }
 
     public function test_the_three_headline_tiles_count_the_staff_members_work(): void

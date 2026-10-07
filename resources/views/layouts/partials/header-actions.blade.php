@@ -20,6 +20,16 @@
      (the Requests table below the supervisor dashboard, the staff directory, the
      assignments desk, History), which keeps the header to identity + alerts. --}}
 
+{{-- The frame puts three controls on this side of the bar, each on its own white
+     disc: scan, notifications, then the identity chip (Figma: STAFF LOOK UP,
+     "Group 84"). The scan disc is how staff get to the QR hub when they have the
+     paper in hand — the desk below is for when they do not. --}}
+<a href="{{ route('track.index', ['scan' => 1]) }}"
+   class="header-disc" title="Scan a QR code" aria-label="Scan a QR code">
+    <img src="{{ asset('images/staff/icon-scan.svg') }}" alt=""
+         style="width:35px; height:35px; max-width:none;">
+</a>
+
 @php
     // Real unread feed for the bell (database notifications, see DocumentEvent).
     $bellUnread = auth()->check() ? auth()->user()->unreadNotifications()->latest()->take(10)->get() : collect();
@@ -29,12 +39,13 @@
     <button type="button"
             id="notifBtn"
             onclick="toggleHeaderDropdown('notifPanel', 'profilePanel')"
-            class="relative flex h-12 w-12 items-center justify-center rounded-full bg-paper text-green-deep shadow-sm ring-1 ring-hairline-strong transition hover:bg-green-wash active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
+            class="header-disc"
             title="Notifications"
             aria-haspopup="true">
-        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2z"/></svg>
+        <img src="{{ asset('images/staff/icon-bell.svg') }}" alt=""
+             style="width:30px; height:30px; max-width:none;">
         @if($bellCount > 0)
-            <span class="absolute right-1 top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
+            <span class="absolute right-0 top-0 flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-[#e5342a] px-1 text-[12px] font-bold text-white">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
         @endif
     </button>
     <div id="notifPanel"
@@ -77,26 +88,26 @@
     <button type="button"
             id="profileBtn"
             onclick="toggleHeaderDropdown('profilePanel', 'notifPanel')"
-            class="inline-flex items-center gap-3 rounded-full bg-paper py-1.5 pl-1.5 pr-3 text-green-deep shadow-sm ring-1 ring-hairline-strong transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
+            class="header-chip"
             aria-haspopup="true">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-wash text-sm font-extrabold text-green-deep ring-1 ring-green/30">{{ $initials }}</span>
+        <span class="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-[#d6ffe0] text-[19px] font-bold text-[#1e5a30] ring-[0.5px] ring-[rgba(0,64,4,0.5)] sm:h-[59px] sm:w-[59px] sm:text-[25px]">{{ $initials }}</span>
 
         {{-- Names drop below sm: the avatar and chevron still open the menu. --}}
         <span class="hidden min-w-0 text-left sm:block">
-            <span class="block truncate text-sm font-bold leading-tight text-ink">
+            <span class="block truncate text-[15px] font-bold leading-tight text-black">
                 {{ $name }}@if($roleLabel) · {{ $roleLabel }}@endif
             </span>
             @if($departmentName)
-                <span class="mt-0.5 flex items-center gap-1 text-xs leading-tight text-ink-soft">
-                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V8l7-4 7 4v13M10 12h1m3 0h1m-5 4h1m3 0h1"/>
-                    </svg>
+                <span class="mt-0.5 flex items-center gap-1 text-[14px] font-bold leading-tight text-[#666]">
+                    <img src="{{ asset('images/staff/icon-bank.svg') }}" alt="" aria-hidden="true"
+                         style="width:15px; height:15px; max-width:none;" class="shrink-0">
                     <span class="truncate">{{ $departmentName }}</span>
                 </span>
             @endif
         </span>
 
-        <svg class="h-4 w-4 shrink-0 text-ink-soft" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        <img src="{{ asset('images/staff/icon-caret-down.svg') }}" alt="" aria-hidden="true"
+             style="width:28px; height:28px; max-width:none;" class="shrink-0">
     </button>
     <div id="profilePanel"
          class="dropdown-panel hidden absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-1 shadow-xl shadow-gray-900/10"

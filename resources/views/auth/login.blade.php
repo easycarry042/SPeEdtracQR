@@ -5,7 +5,7 @@
         <div class="auth-grid">
             <div class="auth-left">
                 <div class="auth-brand">
-                    <img src="{{ asset('images/logo.png') }}" alt="SPeED TraQR Logo" class="auth-logo">
+                    <img src="{{ asset('images/landing/speed-icon.png') }}" alt="SPeED TraQR Logo" class="auth-logo">
                     <h1 class="brand-title">SPeED <span>TraQR</span></h1>
                     <p class="brand-subtitle">Secure document tracking and QR verification.</p>
                 </div>
@@ -24,10 +24,7 @@
                         <label for="email" class="form-label">{{ __('Email') }}</label>
                         <div class="field-shell">
                             <span class="field-icon" aria-hidden="true">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                    <rect x="3" y="5" width="18" height="14" rx="2"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 7l8.5 6 8.5-6"/>
-                                </svg>
+                                <img src="{{ asset('images/auth/icon-email.svg') }}" alt="" class="h-[30px] w-[30px]">
                             </span>
                             <input id="email"
                                 type="email"
@@ -46,10 +43,7 @@
                         <label for="password" class="form-label">{{ __('Password') }}</label>
                         <div class="field-shell" x-data="{ show: false }">
                             <span class="field-icon" aria-hidden="true">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="9"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.5a1.6 1.6 0 00-.8 3v2a.8.8 0 001.6 0v-2a1.6 1.6 0 00-.8-3z" fill="currentColor" stroke="none"/>
-                                </svg>
+                                <img src="{{ asset('images/auth/icon-password.svg') }}" alt="" class="h-[30px] w-[30px]">
                             </span>
                             <input id="password"
                                 :type="show ? 'text' : 'password'"

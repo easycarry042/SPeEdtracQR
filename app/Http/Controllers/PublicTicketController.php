@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\Document;
 use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
+use App\Rules\ContactNumber;
 use App\Services\QrCodeService;
 use App\Support\DocumentFormOptions;
 use App\Support\UploadRules;
@@ -32,16 +33,32 @@ class PublicTicketController extends Controller
 
     public function create(): Factory|View
     {
+        // Both kinds: document types carry requirements, booking types carry
+        // a resource + date/time. The form branches on kind client-side.
+        $requestTypes = RequestType::query()
+            ->where('is_active', true)
+            ->with(['requirements', 'resource'])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        // Documents record the type by name, not by id, so popularity is counted
+        // off that column rather than a relation.
+        $filedCounts = Document::query()
+            ->selectRaw('document_type, COUNT(*) as total')
+            ->groupBy('document_type')
+            ->pluck('total', 'document_type');
+
         return view('public.request', [
             'categories' => DocumentFormOptions::categoryOptions(),
-            // Both kinds: document types carry requirements, booking types carry
-            // a resource + date/time. The form branches on kind client-side.
-            'requestTypes' => RequestType::query()
-                ->where('is_active', true)
-                ->with(['requirements', 'resource'])
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get(),
+            'requestTypes' => $requestTypes,
+            // "Mostly Requested" shortcuts: the four types citizens actually file
+            // most, so the common errands skip the dropdown entirely. Ties and a
+            // cold start fall back to the curated sort order above.
+            'popularTypes' => $requestTypes
+                ->sortByDesc(fn (RequestType $type) => $filedCounts[$type->name] ?? 0)
+                ->take(4)
+                ->values(),
         ]);
     }
 
@@ -53,13 +70,20 @@ class PublicTicketController extends Controller
                 ->with('status', 'Your request has been received.');
         }
 
+        // Store the contact number in one canonical shape (09XXXXXXXXX) whatever
+        // separators or +63 prefix were typed, so follow-up calls and the
+        // contact check on the citizen thread always compare like with like.
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
+
         $validated = $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'purpose' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'citizen_name' => ['required', 'string', 'max:255'],
             'citizen_email' => ['required', 'email', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
             // Optional per-requirement uploads, keyed by request_type_requirement id.
             'requirements' => ['nullable', 'array'],
             'requirements.*' => UploadRules::rules(),

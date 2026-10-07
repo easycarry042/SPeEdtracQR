@@ -39,34 +39,17 @@ class CitizenPortalHeaderTest extends TestCase
             ->assertDontSee('Staff Login');
     }
 
-    public function test_brand_goes_light_only_where_the_bar_sits_on_the_dark_band(): void
+    public function test_the_bar_carries_its_own_white_surface_on_every_page(): void
     {
-        // The portal's wash opens deep green under the bar, so the wordmark
-        // flips to light type there. Layouts with a pale top keep the dark
-        // wordmark — flipping it everywhere would make it white on white.
-        $this->get(route('citizen.dashboard'))
-            ->assertOk()
-            ->assertSee('text-white', false)
-            ->assertSee('text-lime-100', false);
-
-        $this->get(route('public.request.create'))
-            ->assertOk()
-            ->assertSee('text-emerald-950', false)
-            ->assertDontSee('text-lime-100', false);
-    }
-
-    public function test_the_white_mark_is_paired_with_the_light_wordmark(): void
-    {
-        // The white mark is invisible on a pale layout, so it travels with the
-        // light type rather than being swapped in everywhere.
-        $this->get(route('citizen.dashboard'))
-            ->assertOk()
-            ->assertSee('images/icon-white.png', false);
-
-        $this->get(route('public.request.create'))
-            ->assertOk()
-            ->assertSee('images/icon.png', false)
-            ->assertDontSee('images/icon-white.png', false);
+        // The bar no longer sits on a deep-green wash, so the wordmark is dark
+        // green on white everywhere — one lockup, no light/dark variants.
+        foreach ([route('citizen.dashboard'), route('public.request.create')] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertSee('images/landing/speed-icon.png', false)
+                ->assertSee('text-[#004004]', false)
+                ->assertDontSee('images/icon-white.png', false);
+        }
     }
 
     public function test_sub_pages_show_only_a_back_button_not_a_homepage_button(): void

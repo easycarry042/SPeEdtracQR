@@ -62,10 +62,13 @@ class PageTitleDuplicationTest extends TestCase
     public function test_internal_requests_keeps_its_file_request_action(): void
     {
         // Removing the heading must not take the page's only action with it.
+        // The action is now the design's round "+" button, so it is asserted by
+        // its accessible name rather than a visible label.
         $this->actingAs($this->supervisor())
             ->get(route('requests.index'))
             ->assertOk()
-            ->assertSee('File Request');
+            ->assertSee('aria-label="File a request"', false)
+            ->assertSee('href="'.route('requests.create').'"', false);
     }
 
     public function test_staff_directory_keeps_its_search(): void
@@ -95,6 +98,6 @@ class PageTitleDuplicationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('requests.index'))
             ->assertOk()
-            ->assertSee('File Request');
+            ->assertSee('aria-label="File a request"', false);
     }
 }

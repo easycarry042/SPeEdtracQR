@@ -3,6 +3,7 @@
     'chain' => null,     // deprecated (routing-era); ignored
     'compact' => false,
     'controls' => false, // render inline Advance / Move back / Return controls
+    'line' => true,      // draw the stage line; off where the page draws its own
 ])
 
 @php
@@ -44,7 +45,10 @@
 @endif
 
 {{-- Status progress: stamped stage markers along the document's lifecycle.
-     done = filled deep-green w/ brass check · now = active · todo = hollow. --}}
+     done = filled deep-green w/ brass check · now = active · todo = hollow.
+     Suppressed with :line="false" on pages that draw the rail themselves
+     (Look Up, which uses the design's own bar) but still need the controls. --}}
+@if($line)
 <div {{ $attributes->merge(['class' => 'steps']) }} style="margin:8px 2px 4px;">
     @foreach($flow as $i => $s)
         @php
@@ -72,6 +76,7 @@
         @endif
     @endforeach
 </div>
+@endif
 
 @if($canAct)
     @php

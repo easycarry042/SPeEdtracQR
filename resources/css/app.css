@@ -144,25 +144,27 @@
 }
 
 @layer components {
-    /* LOGIN PAGE DESIGN */
+    /* LOGIN PAGE DESIGN — sizes come from the Figma LOGIN frame. These override
+       the layout's own inline rules on purpose: the auth pages share this one
+       set so Login, Register and the password screens stay in step. */
     .auth-logo {
-        @apply block w-[220px] mx-auto;
+        @apply block w-[204px] mx-auto;
     }
 
     .auth-heading {
-        @apply !text-3xl text-center !font-black uppercase tracking-wide text-green-deep;
+        @apply !text-[40px] text-center !font-extrabold uppercase tracking-wide !text-[#004004];
     }
 
     .auth-subheading {
-        @apply !text-base text-center font-semibold text-green-deep;
+        @apply !text-[20px] text-center font-semibold !text-[#1e1e1e];
     }
 
     .form-label {
-        @apply !text-base;
+        @apply !text-[20px];
     }
 
     .form-input {
-        @apply !text-base;
+        @apply !text-[20px];
     }
 
     .pass-toggle {
@@ -178,7 +180,7 @@
     }
 
     .auth-button {
-        @apply !text-base;
+        @apply !text-[20px];
     }
 
     .switch-link {
@@ -519,6 +521,373 @@
 .segchips button, .segchips a { border: 0; background: transparent; color: var(--ink-soft); font-size: 12px; padding: 5px 11px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; }
 .segchips .on { background: #fff; color: var(--green-deep); font-weight: 600; }
 
+/* Queue tabs at panel scale (Figma: STAFF LOOK UP / STAFF INTERNAL). The track
+   is deep green and the SELECTED side is the translucent white panel inside it
+   — the inverse of .segchips, which sits on white. */
+.segchips-lg { display: flex; width: 100%; padding: 5px; border-radius: 12px; }
+.segchips-lg button { flex: 1; justify-content: center; white-space: nowrap; font-size: 16px; font-weight: 600; padding: 11px 14px; border-radius: 9px; }
+.segchips-lg .on { background: var(--green-deep); color: #fff; font-weight: 700; }
+.segchips-lg .on .sp-group-count { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* Look Up's two panels (Figma: STAFF LOOK UP, "ENTER TRACKING ID BG"). Values
+   are the frame's: a near-clear grey glass with a deep-green hairline over the
+   doodle backdrop, at a 20px radius. Deliberately NOT the app's white .panel —
+   the whole screen is designed to read as glass laid on the pattern. */
+.lookup-panel {
+    background: rgba(223, 223, 223, .2);
+    border: 1px solid rgba(0, 64, 4, .5);
+    border-radius: 20px;
+    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(15px);
+}
+
+/* No backdrop-filter: fall back to a near-opaque panel so the doodle never
+   shows through the text. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .lookup-panel {
+        background: rgba(247, 249, 247, .94);
+    }
+}
+
+/* Look Up's three jump buttons (Figma: Messages / View Attachments / Set
+   Claiming Date). */
+.lookup-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 46px;
+    padding: 0 18px;
+    border: 1px solid #004004;
+    border-radius: 10px;
+    background: rgba(1, 114, 9, .3);
+    color: #000;
+    font-size: 17px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background var(--dur-base) var(--ease-out);
+}
+
+.lookup-action:hover { background: rgba(1, 114, 9, .45); }
+
+.lookup-action:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+@media (min-width: 1280px) { .lookup-action { font-size: 20px; } }
+
+/* Dotted leader between a log entry and its time, as the frame draws it. The
+   design set it as a literal run of dots; a repeating gradient keeps it filling
+   whatever width is left instead of overflowing on a narrow panel. */
+.lookup-leader {
+    flex: 1 1 auto;
+    min-width: 20px;
+    height: 18px;
+    background-image: radial-gradient(circle, #686868 1.2px, transparent 1.3px);
+    background-size: 7px 18px;
+    background-repeat: repeat-x;
+    background-position: center;
+}
+
+/* Look Up's pager (Figma). Steppers are lime discs; the current page is a
+   square-cornered chip; the rest are plain numerals. */
+.lookup-page-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: .5px solid rgba(0, 64, 4, .5);
+    border-radius: 60px;
+    background: rgba(141, 255, 60, .2);
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.lookup-page-step:hover:enabled { background: rgba(141, 255, 60, .45); }
+.lookup-page-step:disabled { opacity: .4; }
+
+.lookup-page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    border: .5px solid transparent;
+    border-radius: 5px;
+    color: #666;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.lookup-page:hover { color: var(--green-deep); }
+
+.lookup-page.on {
+    border-color: rgba(0, 64, 4, .5);
+    background: rgba(1, 114, 9, .2);
+    color: #01721a;
+    font-weight: 900;
+}
+
+/* Look Up modal's three square action tiles (Adjust Date / View Attachments /
+   Messages). */
+.desk-tile {
+    display: flex;
+    width: 102px;
+    min-height: 94px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 6px;
+    border: 1px solid #004004;
+    border-radius: 10px;
+    background: rgba(1, 114, 9, .2);
+    color: #000;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.15;
+    text-align: center;
+    text-decoration: none;
+    transition: background var(--dur-base) var(--ease-out);
+}
+
+.desk-tile:hover { background: rgba(1, 114, 9, .34); }
+.desk-tile.on { background: rgba(1, 114, 9, .42); }
+
+.desk-tile:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Staff header controls (Figma: STAFF LOOK UP, "Group 84"). Three white
+   surfaces on the right of the page bar — two 66px discs and the identity pill.
+   A soft all-round shadow, no ring: the frame separates them from the doodle
+   backdrop with depth rather than a border. Sized down below `sm` so three
+   controls still fit a phone. */
+.header-disc,
+.header-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    position: relative;
+    border-radius: 60px;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, .25);
+    color: var(--green-deep);
+    transition: background var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.header-disc { width: 52px; height: 52px; }
+
+.header-chip {
+    gap: 12px;
+    padding: 3px 14px 3px 3px;
+    min-height: 52px;
+}
+
+@media (min-width: 640px) {
+    .header-disc { width: 66px; height: 66px; }
+    .header-chip { min-height: 66px; padding-right: 18px; }
+}
+
+.header-disc:hover,
+.header-chip:hover { background: var(--green-wash); }
+
+.header-disc:active { transform: scale(.95); }
+
+.header-disc:focus-visible,
+.header-chip:focus-visible {
+    outline: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, .25), var(--focus-ring);
+}
+
+/* Look Up's claiming-date calendar (Figma: STAFF LOOK UP 1321:1370). Month
+   arrows, then day cells: Sundays red as the frame draws them, neighbouring
+   months faded, the chosen day a bordered lime chip. */
+.desk-cal-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 60px;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.desk-cal-nav:hover { background: rgba(141, 255, 60, .3); }
+
+.desk-cal-nav:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.desk-cal-day {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 102px;
+    min-height: 58px;
+    border: 2px solid transparent;
+    border-radius: 15px;
+    color: #000;
+    font-size: 20px;
+    font-weight: 500;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.desk-cal-day.sunday { color: #a50003; }
+.desk-cal-day.faded { color: rgba(0, 64, 4, .5); }
+.desk-cal-day.sunday.faded { color: rgba(165, 0, 3, .5); }
+
+.desk-cal-day:hover:enabled { background: rgba(0, 166, 11, .12); }
+
+.desk-cal-day:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+
+.desk-cal-day.on {
+    border-color: rgba(0, 64, 4, .5);
+    background: rgba(0, 166, 11, .2);
+    font-weight: 900;
+}
+
+.desk-cal-day:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Look Up's conversation panel (Figma: STAFF LOOK UP 1321:1750). The citizen
+   speaks in green on the left; staff answer in grey on the right, carrying the
+   read receipt — which is the frame's arrangement, not the usual one. */
+.desk-bubble {
+    padding: 15px 23px;
+    border-radius: 100px;
+    color: #000;
+    font-size: 20px;
+    font-weight: 500;
+    /* Long messages and pasted links must wrap inside the pill rather than
+       stretch it past the panel. */
+    overflow-wrap: anywhere;
+}
+
+.desk-bubble.from-citizen { background: #9dda8e; }
+.desk-bubble.from-staff { background: #d9d9d9; }
+
+.desk-composer {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 62px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 10px;
+    background: #eaeaea;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, .25);
+    color: #000;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.desk-composer::placeholder { color: #848484; }
+
+.desk-composer:focus {
+    outline: none;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, .25), var(--focus-ring);
+}
+
+/* Look Up desk's queue tabs (Figma 1293:1331). A light translucent track with
+   a deep-green pill on the selected side — the inverse of .lookup-tabs, which
+   the older Look Up frame used. Both exist because both frames do. */
+.desk-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px;
+    border: 1px solid rgba(0, 64, 4, .5);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.desk-tabs button {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding: 0 16px;
+    border: .5px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #135226;
+    font-size: 22px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background var(--dur-base) var(--ease-out);
+}
+
+.desk-tabs button:hover { background: rgba(19, 82, 38, .1); }
+
+.desk-tabs .on {
+    background: rgba(19, 82, 38, .95);
+    border-color: rgba(0, 64, 4, .5);
+    color: #fff;
+    font-weight: 900;
+}
+
+.lookup-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 5px;
+    border: .5px solid rgba(0, 64, 4, .5);
+    border-radius: 15px;
+    background: rgba(19, 82, 38, .95);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.lookup-tabs button {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 45px;
+    padding: 0 12px;
+    border: .5px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background var(--dur-base) var(--ease-out);
+}
+
+.lookup-tabs button:hover { background: rgba(255, 255, 255, .1); }
+
+.lookup-tabs .on {
+    background: rgba(255, 255, 255, .2);
+    border-color: rgba(0, 64, 4, .5);
+    font-weight: 900;
+}
+
+.lookup-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .22);
+    font-size: 12px;
+    font-weight: 700;
+}
+
 /* Movements — full-width stacked rows ("length") with horizontal stepper */
 .mvlist { display: flex; flex-direction: column; gap: 14px; }
 .mvrow { background: #fff; border: 1px solid var(--hairline); border-left: 4px solid var(--green); border-radius: var(--r); padding: 16px 20px; }
@@ -562,9 +931,18 @@
 
 /* Sidebar pinned (expanded) state — labels visible and left-aligned without
    relying on hover, so it works on touch devices. Higher specificity than the
-   Tailwind utilities it overrides, so no !important needed. */
+   Tailwind utilities it overrides, so no !important needed — which also means
+   the width has to be set here rather than with a `w-*` class on the element. */
 aside.sidebar-pinned {
-    width: 16rem;
+    width: 290px;
+}
+
+/* 371px is the width the design draws. Held back until there is room for it:
+   below this the rail would eat a quarter of a laptop screen. */
+@media (min-width: 1280px) {
+    aside.sidebar-pinned {
+        width: 371px;
+    }
 }
 
 
@@ -595,6 +973,181 @@ aside.sidebar-pinned {
     box-shadow: var(--glass-shadow);
 }
 
+/* Tracking page panels (Figma: TRACK). A near-clear grey glass with a thin
+   deep-green rim — quieter than .portal-card because these panels hold a
+   camera feed and a form rather than being the thing you click. */
+.track-panel {
+    background: rgba(223, 223, 223, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 64, 4, .5);
+}
+
+/* The one call-to-action size shared by Start Camera and Search, so the two
+   panels' buttons line up across the rule between them. */
+.track-cta {
+    height: 80px;
+}
+
+/* ── Booking screen (Figma: STAFF BOOKING) ───────────────────────────────────
+   The same near-clear grey glass as .track-panel, at the 35px radius the frame
+   draws, and a month grid whose only chrome is a hairline between the weeks. */
+.bk-panel {
+    background: rgba(223, 223, 223, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 0.5px solid rgba(0, 64, 4, .5);
+    border-radius: 35px;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .bk-panel { background: rgba(246, 250, 247, .94); }
+}
+
+/* Panel titles: Zain 22, the frame's heading size for a side panel. */
+.bk-title {
+    font-family: theme('fontFamily.display');
+    font-size: 22px;
+    line-height: 37px;
+    font-weight: 700;
+    color: var(--green-deep);
+}
+
+.bk-month {
+    font-size: 30px;
+    line-height: 41px;
+    font-weight: 700;
+    color: var(--green-deep);
+}
+
+.bk-dow {
+    font-size: 20px;
+    line-height: 27px;
+    font-weight: 600;
+    color: var(--green-deep);
+}
+
+/* Sunday is the one coloured column head in the frame — it reads as the
+   non-working day rather than as an error, so it is a deep red, not the
+   status red used for problems. */
+.bk-dow-sun,
+.bk-day-sun .bk-day-n { color: #a50003; }
+
+.bk-week { border-top: 1px solid rgba(0, 0, 0, .2); }
+
+.bk-day {
+    display: flex;
+    width: 100%;
+    min-height: 104px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px;
+    border: 2px solid transparent;
+    border-radius: 15px;
+    text-align: left;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+@media (min-width: 1280px) {
+    .bk-day { min-height: 139px; padding: 16px 12px; }
+}
+
+.bk-day:hover { background: rgba(1, 114, 26, .07); }
+
+.bk-day:focus-visible {
+    outline: none;
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(1, 114, 26, .25);
+}
+
+.bk-day-n {
+    font-size: 22px;
+    line-height: 30px;
+    font-weight: 500;
+    color: #000;
+}
+
+/* Days spilling in from the neighbouring month stay legible but recede. */
+.bk-day-out .bk-day-n { color: rgba(0, 64, 4, .5); }
+.bk-day-sun.bk-day-out .bk-day-n { color: rgba(165, 0, 3, .5); }
+
+/* A day that holds reservations carries the office green, as the frame draws
+   the 11th and the 19th. */
+.bk-day-has .bk-day-n { color: var(--green-deep); font-weight: 700; }
+
+.bk-day-on {
+    background: rgba(0, 166, 11, .2);
+    border-color: rgba(0, 64, 4, .5);
+}
+
+/* How many reservations a day holds, red when two of them overlap — the one
+   thing on this screen that needs resolving. */
+.bk-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-soft);
+}
+
+.bk-count::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--green);
+}
+
+.bk-count.is-clash { color: var(--red); }
+.bk-count.is-clash::before { background: var(--red); }
+
+/* Empty panels: the frame centres a line-art book over one muted sentence. */
+.bk-empty {
+    display: flex;
+    height: 100%;
+    min-height: 260px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    text-align: center;
+}
+
+.bk-empty p {
+    font-size: 18px;
+    line-height: 25px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, .5);
+}
+
+.bk-empty svg { color: rgba(0, 0, 0, .42); }
+
+/* ── Camera viewport ──────────────────────────────────────────────────────
+   html5-qrcode injects a <video> at the stream's own dimensions, which are
+   landscape on essentially every device. Inside a square box that letterboxes:
+   a wide strip of picture with a black band underneath. Force the feed to cover
+   the box instead, and hide the library's shaded viewfinder — it is positioned
+   against the video's natural box, so it lands askew once the video is
+   transformed, and the page draws its own corner brackets anyway. */
+.qr-viewport {
+    position: relative;
+    aspect-ratio: 1 / 1;
+}
+
+.qr-viewport video {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+}
+
+.qr-viewport #qr-shaded-region {
+    display: none !important;
+}
+
 /* No backdrop-filter (older Firefox/Safari): fall back to a near-opaque panel
    so content never sits on an unreadable wash. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -604,6 +1157,10 @@ aside.sidebar-pinned {
 
     .portal-card {
         background: rgba(222, 243, 230, .96);
+    }
+
+    .track-panel {
+        background: rgba(247, 249, 247, .92);
     }
 }
 
@@ -633,16 +1190,16 @@ aside.sidebar-pinned {
 /* Responsive page title in layout header */
 .layout-title {
     font-family: theme('fontFamily.display');
-    font-size: 1.25rem;
-    font-weight: 800;
+    font-size: 1.5rem;
+    font-weight: 900;
     letter-spacing: -0.02em;
-    color: var(--green);
+    color: #01721a;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-@media (min-width: 640px) { .layout-title { font-size: 1.75rem; } }
-@media (min-width: 1024px) { .layout-title { font-size: 2.25rem; } }
+@media (min-width: 640px) { .layout-title { font-size: 2rem; } }
+@media (min-width: 1024px) { .layout-title { font-size: 2.5rem; } }
 
 /* Tables scroll horizontally on small screens without stretching the page */
 .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1304,18 +1861,29 @@ aside.sidebar-pinned {
    components, not utilities: the same three pieces repeat ~12 times in the
    view, and the exact rgba values come straight from the design. */
 .req-shell {
-    background: rgba(214, 214, 214, .2);
+    background: rgba(223, 223, 223, .2);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 28px;
+    border: 1px solid rgba(0, 64, 4, .5);
+    border-radius: 20px;
+}
+
+/* Label sits on its own row with the live character count pushed to the far
+   right of the field below it, as the frame draws it. */
+.req-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
 .req-label {
     display: block;
+    font-family: theme('fontFamily.display');
     font-weight: 700;
     color: #000;
-    font-size: .95rem;
+    font-size: 1.25rem;
+    line-height: 1.2;
 }
 
 .req-star { color: #ea5200; }
@@ -1324,16 +1892,21 @@ aside.sidebar-pinned {
    bare input and a wrapper full of parts read as the same control. */
 .req-field {
     width: 100%;
-    background: rgba(141, 255, 60, .2);
+    min-height: 60px;
+    background: rgba(168, 168, 168, .2);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 20px;
-    padding: .85rem 1.15rem;
+    border-radius: 10px;
+    padding: .85rem 1.4rem;
     color: #10231a;
-    font-size: 1rem;
+    font-size: 1.05rem;
     line-height: 1.4;
 }
+
+/* Placeholders are set in italic in the design — it keeps a sample answer
+   ("e.g. Juan Cruz") from reading as a value already filled in. */
+.req-field::placeholder { font-style: italic; }
 
 .req-field::placeholder { color: rgba(0, 0, 0, .5); }
 
@@ -1364,17 +1937,67 @@ aside.sidebar-pinned {
     background-size: 1.25rem;
 }
 
-/* Live character counter parked inside the field's right edge. */
-.req-counted { padding-right: 4.75rem; }
+/* The validation alert arrives with a short drop-in, so a refused submit reads
+   as an answer to the button press rather than as furniture that was always
+   there. Replayed on each failed attempt (see showFormErrors). */
+.req-pop {
+    animation: req-pop-in .18s cubic-bezier(.2, .8, .3, 1) both;
+}
 
+@keyframes req-pop-in {
+    from { opacity: 0; transform: translateY(-10px) scale(.97); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .req-pop { animation: none; }
+}
+
+/* Same tight line box as the label beside it. On its default line-height the
+   counter's taller line box won the baseline alignment and pushed the label
+   down a few pixels, so a column whose first field has a counter started lower
+   than the column next to it. */
 .req-count {
-    position: absolute;
-    right: 1.15rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: .85rem;
+    flex: none;
+    line-height: 1.2;
+    font-size: 1.05rem;
     color: rgba(0, 0, 0, .5);
     pointer-events: none;
+}
+
+/* "Mostly Requested" shortcut chips — the lime wash the fields used to carry,
+   kept here because these are the one thing on the form you click rather than
+   fill in. */
+.req-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .7rem;
+    min-height: 50px;
+    padding: 0 1.1rem;
+    background: rgba(141, 255, 60, .2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 64, 4, .5);
+    border-radius: 10px;
+    color: #000;
+    font-size: 1.05rem;
+    font-weight: 500;
+    text-align: left;
+    transition: background var(--dur-base) var(--ease-out);
+}
+
+.req-chip:hover { background: rgba(141, 255, 60, .38); }
+
+.req-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* The chip whose type is currently selected reads as chosen, so clicking one
+   is visibly connected to the dropdown above it. */
+.req-chip[aria-pressed="true"] {
+    background: rgba(1, 114, 26, .28);
+    border-color: #01721a;
 }
 
 /* +63 prefix on the contact row: a static affix, a hairline, then a bare
@@ -1416,11 +2039,11 @@ aside.sidebar-pinned {
 /* Privacy notice and the dynamic per-kind panels share the lime wash, one
    step rounder than a field. */
 .req-note {
-    background: rgba(141, 255, 60, .2);
+    background: rgba(55, 131, 0, .2);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 24px;
+    border-radius: 10px;
 
     /* backdrop-filter creates a stacking context, which traps anything
        positioned inside this panel. The time picker's popover lives in the
@@ -1450,7 +2073,7 @@ aside.sidebar-pinned {
     flex: none;
     width: 1.9rem;
     height: 1.9rem;
-    border-radius: 12px;
+    border-radius: 999px;
     border: 1px solid rgba(0, 64, 4, .5);
     background-color: rgba(141, 255, 60, .2);
     background-image: none;
@@ -1473,9 +2096,14 @@ aside.sidebar-pinned {
 }
 
 .req-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
     background: #01721a;
     color: #fff;
     font-weight: 700;
+    font-size: 1.05rem;
     border-radius: 50px;
     padding: 1rem 2.5rem;
     transition: background-color .15s ease-in-out;
@@ -1489,22 +2117,21 @@ aside.sidebar-pinned {
 }
 
 @media (min-width: 640px) {
-    .req-shell { border-radius: 50px; }
-    .req-label { font-size: 1.05rem; }
-    .req-field { min-height: 70px; padding: 1.1rem 1.5rem; font-size: 1.05rem; }
+    .req-label { font-size: 1.375rem; }
+    .req-field { min-height: 70px; padding: 1.1rem 1.5rem; font-size: 1.25rem; }
     .req-affix { padding-block: 0; }
-    .req-affix > input { padding-block: 1.1rem; font-size: 1.05rem; }
-    .req-note { border-radius: 30px; }
-    .req-count { right: 1.5rem; font-size: .95rem; }
-    .req-counted { padding-right: 5.5rem; }
-    .req-check { width: 2.15rem; height: 2.15rem; }
+    .req-affix > input { padding-block: 1.1rem; font-size: 1.25rem; }
+    .req-count { font-size: 1.25rem; }
+    .req-submit { min-height: 70px; font-size: 1.25rem; }
+    .req-check { width: 1.93rem; height: 1.93rem; }
 }
 
 /* No backdrop-filter (older Firefox/Safari): the wash behind these is busy, so
    fall back to near-opaque surfaces rather than a translucent tint. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .req-shell { background: rgba(246, 250, 247, .94); }
-    .req-field,
+    .req-field { background: rgba(238, 238, 238, .96); }
+    .req-chip,
     .req-note { background: rgba(226, 248, 214, .96); }
 }
 

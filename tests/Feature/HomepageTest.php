@@ -61,66 +61,38 @@ class HomepageTest extends TestCase
 
     public function test_how_it_works_is_papered_with_the_arrow_doodle(): void
     {
-        $this->assertFileExists(public_path('images/doodle-bg.png'));
+        $this->assertFileExists(public_path('images/landing/doodle-pattern.jpg'));
 
         $this->get('/')
             ->assertOk()
             ->assertSee('How It Works')
-            ->assertSee('images/doodle-bg.png', false);
+            ->assertSee('images/landing/doodle-pattern.jpg', false);
     }
 
-    public function test_landing_hero_uses_the_municipality_photo_as_its_backdrop(): void
+    public function test_landing_hero_uses_the_city_hall_photo_as_its_backdrop(): void
     {
+        $this->assertFileExists(public_path('images/landing/hero-cityhall.jpg'));
+        $this->assertFileExists(public_path('images/landing/hero-gradient.svg'));
+
         $response = $this->get('/')->assertOk();
 
-        // No placeholder card any more: either the photo is the backdrop, or the
-        // gradient stands in for it.
+        // No placeholder card any more: the photo is the backdrop.
         $response->assertDontSee('Municipality photo');
+        $response->assertSee('images/landing/hero-cityhall.jpg', false);
 
-        foreach ($this->municipalityPhotos() as $photo) {
-            $response->assertSee("images/{$photo}", false);
-        }
-
-        // With or without a photo the hero keeps its light background, so the
-        // headline stays readable either way.
-        $response->assertSee('from-[#eef4f0] via-[#f1f6f3] to-[#dfeee6]', false);
+        // The exported vignette feathers the photo's edges into the paper the
+        // copy sits on. Without it the photo ends on a hard vertical seam.
+        $response->assertSee('images/landing/hero-gradient.svg', false);
     }
 
-    public function test_multiple_photos_cross_fade_as_a_slideshow(): void
+    public function test_nav_pill_sits_at_the_top_and_scrolls_away(): void
     {
-        $photos = $this->municipalityPhotos();
-
-        if (count($photos) < 2) {
-            $this->markTestSkipped('Slideshow needs at least two hero photos on disk.');
-        }
-
-        $response = $this->get('/')->assertOk();
-
-        // One staggered slide per photo, driven by a single shared keyframe.
-        $response->assertSee('@keyframes heroSlideFade', false);
-        $this->assertSame(
-            count($photos),
-            substr_count($response->getContent(), 'class="hero-slide')
-        );
-        $response->assertSee('prefers-reduced-motion: reduce', false);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function municipalityPhotos(): array
-    {
-        $found = [];
-
-        foreach (['hero-image', 'hero-image2', 'hero-image3', 'municipality-hero'] as $name) {
-            foreach (['jpg', 'png', 'webp'] as $extension) {
-                if (file_exists(public_path("images/{$name}.{$extension}"))) {
-                    $found[] = "{$name}.{$extension}";
-                }
-            }
-        }
-
-        return $found;
+        // It is absolute, not fixed: the design draws it as a capsule laid over
+        // the hero, not a bar that follows the page down over the content.
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('absolute inset-x-0 top-[4px]', false)
+            ->assertSeeInOrder(['Home', 'Features', 'How It Works', 'Security', 'FAQ']);
     }
 
     public function test_authenticated_users_are_redirected_off_the_public_landing(): void

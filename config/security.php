@@ -44,13 +44,21 @@ return [
             // layouts/partials/accessibility-widget.blade.php.
             'script-src' => ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net'],
 
-            'style-src' => ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+            // fonts.googleapis.com serves the @import at the top of
+            // resources/css/app.css, which is what pulls in Zain and Nunito.
+            // Without it the whole app silently falls back to system sans —
+            // every heading loses its face and nothing in the UI says why.
+            'style-src' => ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://fonts.googleapis.com'],
 
             // data: covers inline SVG/QR payloads and the caret icons encoded in
             // app.css; blob: covers the camera preview used by the QR scanners.
             'img-src' => ["'self'", 'data:', 'blob:'],
 
-            'font-src' => ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
+            // gstatic is the second half of the Google Fonts pair: googleapis
+            // serves the stylesheet, gstatic serves the .woff2 files it names.
+            // Allowing only the first gets a stylesheet whose every font URL is
+            // then blocked, which looks identical to not allowing either.
+            'font-src' => ["'self'", 'data:', 'https://cdn.jsdelivr.net', 'https://fonts.gstatic.com'],
 
             // Reverb's WebSocket origin is appended at runtime — see
             // SecurityHeaders::connectSources().

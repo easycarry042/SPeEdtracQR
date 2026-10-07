@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 /**
  * The track page offers two routes in side by side — scan the receipt's QR, or
- * type the number printed on it — each in its own glass card.
+ * type the number printed on it — each in its own glass panel.
  */
 class CitizenTrackPageDesignTest extends TestCase
 {
@@ -23,8 +23,8 @@ class CitizenTrackPageDesignTest extends TestCase
         $response->assertSee('Start Camera');
         $response->assertSee('Search');
 
-        // Both columns carry the portal's glass card.
-        $this->assertSame(2, substr_count($response->getContent(), 'portal-card'));
+        // Both columns carry the tracking page's own glass panel.
+        $this->assertSame(2, substr_count($response->getContent(), 'track-panel'));
     }
 
     public function test_the_lookup_field_shows_the_tracking_number_shape(): void
@@ -76,6 +76,21 @@ class CitizenTrackPageDesignTest extends TestCase
 
         // Foreign QR codes are rejected rather than sent to a bogus lookup.
         $response->assertSee('window.SpeedQr.extractTracking(', false);
+    }
+
+    public function test_a_successful_scan_opens_the_record_without_a_second_tap(): void
+    {
+        // A scan used to stop at a "Track this Document" confirmation — a step
+        // with no decision in it, over a number the citizen cannot read anyway.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $content = $response->getContent();
+        $handler = substr($content, strpos($content, 'window.SpeedQr.start('));
+
+        $this->assertStringContainsString('goToTracking(tracking);', $handler);
+        // The panel stays, but as feedback during the redirect.
+        $response->assertSee('QR code detected — opening your record…', false);
+        $response->assertSee('Open it now');
     }
 
     public function test_a_failed_lookup_still_reports_inside_the_lookup_card(): void

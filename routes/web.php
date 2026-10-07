@@ -326,6 +326,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
     Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
     Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
+    // Move the claiming date without moving the stage (Look Up's "Adjust Date").
+    Route::patch('/documents/{document}/claim-date', [ReviewController::class, 'setClaimDate'])->name('documents.claim-date');
 
     // Supporting-requirement verification (staff confirm they've seen originals).
     Route::post('/documents/{document}/requirements/{requirement}/verify', [DocumentRequirementController::class, 'toggle'])->name('documents.requirements.toggle');
@@ -357,6 +359,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Per-document conversation (assignee or admin): internal notes and
     // citizen-facing messages, both threaded.
     Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+    Route::post('/documents/{document}/comments/read', [CommentController::class, 'markRead'])->name('documents.comments.read');
     Route::get('/messages/{comment}/attachment', [CommentController::class, 'attachment'])->name('documents.comments.attachment');
 
     // Physical custody trail — "the folder is now with me" (scan or click).

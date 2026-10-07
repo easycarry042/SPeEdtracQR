@@ -94,8 +94,12 @@
                             <input name="citizen_email" type="email" value="{{ old('citizen_email') }}" placeholder="name@gmail.com" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-600">Citizen Contact</label>
-                            <input name="citizen_contact" value="{{ old('citizen_contact') }}" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                            <label for="createCitizenContact" class="mb-1 block text-sm font-medium text-gray-600">Citizen Contact</label>
+                            {{-- Same 11-digit constraint the public form and
+                                 App\Rules\ContactNumber enforce, so a number
+                                 encoded at the counter is stored identically. --}}
+                            <input id="createCitizenContact" name="citizen_contact" type="tel" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" placeholder="09123456789" value="{{ old('citizen_contact') }}" aria-describedby="createCitizenContactHint" class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                            <p id="createCitizenContactHint" class="mt-1 text-xs text-gray-500">11 digits, starting with 09.</p>
                         </div>
                         <div class="flex justify-end gap-3 pt-2">
                             <button type="button" data-close-create-modal class="rounded-xl bg-gray-300 px-6 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-400">Cancel</button>
@@ -173,7 +177,22 @@
             if (label) label.textContent = submitting ? 'Submitting…' : 'Submit';
         }
 
-        function showSubmitErrors(messages) {
+        /**
+         * Refusals go to the shared pop-up (window.ErrorAlert) rather than a box
+         * inside the scrolling form column, where a message about a field near
+         * the top was reported below the fold. The box is kept as a fallback for
+         * the case where the component is not on the page.
+         *
+         * @param {string[]} messages
+         * @param {Element|null} [target] field to jump to
+         */
+        function showSubmitErrors(messages, target) {
+            if (window.ErrorAlert) {
+                window.ErrorAlert.show(messages, target);
+
+                return;
+            }
+
             const box = document.getElementById('createModalErrors');
             if (!box) return;
             box.innerHTML = '';
@@ -202,6 +221,7 @@
 
         function submitViaFetch() {
             document.getElementById('createModalErrors')?.classList.add('hidden');
+            window.ErrorAlert?.hide();
             setSubmitting(true);
 
             fetch(form.action, {
@@ -224,7 +244,11 @@
                     }
                     if (response.status === 422 && contentType.includes('json')) {
                         const data = await response.json();
-                        showSubmitErrors(Object.values(data.errors || {}).flat());
+                        const errors = data.errors || {};
+                        // The first rejected field is what "Take me there" opens on.
+                        const firstField = Object.keys(errors)[0];
+                        const target = firstField ? form.querySelector('[name="' + firstField + '"]') : null;
+                        showSubmitErrors(Object.values(errors).flat(), target);
                         return;
                     }
                     throw new Error('Unexpected response: ' + response.status);

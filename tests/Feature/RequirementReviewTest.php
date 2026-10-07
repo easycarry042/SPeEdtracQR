@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\CitizenDocumentUploadMail;
 use App\Mail\RequirementRevisionRequested;
 use App\Models\Document;
 use App\Models\User;
@@ -84,6 +85,25 @@ class RequirementReviewTest extends TestCase
         $this->assertNotNull($req->uploaded_file_path);
 
         Notification::assertSentTo($staff, DocumentEvent::class);
+    }
+
+    /**
+     * The staff notice must go through the queue: sending it inline made an
+     * SMTP outage return a 500 to the citizen after their file was saved.
+     */
+    public function test_reupload_queues_the_staff_email_instead_of_sending_inline(): void
+    {
+        Storage::fake('local');
+        Mail::fake();
+        [$staff, $doc, $req] = $this->assignedTicket();
+        $req->update(['review_status' => 'needs_revision', 'review_comment' => 'Expired.']);
+
+        $this->post(route('track.requirement-reupload', [$doc->tracking_number, $req]), [
+            'file' => UploadedFile::fake()->create('clearance.pdf', 100, 'application/pdf'),
+        ])->assertRedirect();
+
+        Mail::assertNothingSent();
+        Mail::assertQueued(CitizenDocumentUploadMail::class, fn ($m) => $m->hasTo($staff->email));
     }
 
     public function test_approving_a_requirement_also_verifies_the_original(): void

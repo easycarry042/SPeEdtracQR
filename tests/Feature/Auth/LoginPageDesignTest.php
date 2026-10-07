@@ -17,7 +17,7 @@ class LoginPageDesignTest extends TestCase
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('images/logo.png', false)
+            ->assertSee('images/landing/speed-icon.png', false)
             ->assertSee('Secure document tracking and QR verification.')
             ->assertSee('Welcome')
             ->assertSee('Input your credentials to continue');
@@ -51,11 +51,11 @@ class LoginPageDesignTest extends TestCase
             ->assertSee('<title>SPeED TraQR — Forgot Password</title>', false);
     }
 
-    public function test_login_wash_uses_the_arrow_doodle(): void
+    public function test_login_backdrop_uses_the_arrow_doodle(): void
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('images/doodle-bg.png', false);
+            ->assertSee('images/landing/doodle-pattern.jpg', false);
     }
 
     public function test_password_stays_masked_until_the_reveal_is_used(): void

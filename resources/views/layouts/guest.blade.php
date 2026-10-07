@@ -35,16 +35,20 @@
                 font-family: Nunito, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
                 color: #1f2937;
 
-                /* Shared public wash (--page-wash in app.css) over the arrow
-                   doodle — the same treatment the citizen portal uses. */
-                background-color: var(--page-wash-base);
+                /* The frame's two "welcome light" glows over the arrow doodle at
+                   15%. They are single-stop radial gradients in the file, so CSS
+                   reproduces them exactly and scales to any viewport — a pair of
+                   fixed 1156px SVGs would not. */
+                background-color: #ffffff;
                 background-image:
-                    var(--page-wash),
-                    url('{{ asset('images/doodle-bg.png') }}');
-                background-size: cover, cover;
-                background-position: center, center;
-                background-attachment: fixed, fixed;
-                background-repeat: no-repeat, no-repeat;
+                    radial-gradient(circle 578px at 26.9% 71px, rgba(132, 255, 94, .5), rgba(104, 244, 61, 0) 100%),
+                    radial-gradient(circle 578px at 73.1% -88px, rgba(1, 114, 26, .5), rgba(1, 114, 26, 0) 100%),
+                    linear-gradient(rgba(255, 255, 255, .85), rgba(255, 255, 255, .85)),
+                    url('{{ asset('images/landing/doodle-pattern.jpg') }}');
+                background-size: cover, cover, cover, cover;
+                background-position: center, center, center, center;
+                background-attachment: fixed, fixed, fixed, fixed;
+                background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
             }
 
             main.auth-main {
@@ -61,14 +65,14 @@
             /* Glass treatment comes from .glass-panel in app.css (background,
                blur, lit rim, shadow, and the no-backdrop-filter fallback). */
             .auth-card {
-                width: min(880px, 100%);
-                border-radius: 26px;
+                width: min(1100px, 100%);
+                border-radius: 50px;
                 overflow: hidden;
-                /* Green-tinted glass over the wash, rather than the neutral
-                   white pane — the card belongs to the same family as the
-                   portal's cards. */
-                background: rgba(198, 238, 213, .46);
-                border-color: rgba(255, 255, 255, .55);
+                /* Lime glass over the glows, rather than the neutral white pane —
+                   the card belongs to the same family as the portal's cards. */
+                background: rgba(141, 255, 60, .2);
+                border: .5px solid rgba(0, 64, 4, .5);
+                box-shadow: none;
             }
 
             .auth-grid {
@@ -78,7 +82,7 @@
                    and reset row were removed, so the brand half keeps its
                    proportions. Only while side-by-side — the stacked layout
                    below 900px sizes to its content. */
-                min-height: 508px;
+                min-height: 700px;
             }
 
             .auth-left {
@@ -88,7 +92,7 @@
                 justify-content: center;
                 /* A hairline rule, not a panel edge: the two halves are one
                    card split down the middle. */
-                border-right: 1px solid rgba(15, 77, 40, .18);
+                border-right: 2px solid rgba(0, 0, 0, .2);
                 background: transparent;
             }
 
@@ -107,7 +111,7 @@
             /* Wordmark: "SPeED" in Zain, "TraQR" in Nunito. */
             .brand-title {
                 margin: 0;
-                font-size: 36px;
+                font-size: 45px;
                 font-weight: 600;
                 line-height: 1;
                 color: var(--text-main);
@@ -121,12 +125,15 @@
 
             .brand-subtitle {
                 margin-top: 10px;
-                color: var(--text-sub);
-                font-size: 14px;
+                color: #1e1e1e;
+                font-size: 18px;
+                font-weight: 500;
             }
 
             .auth-right {
-                padding: 28px 32px;
+                /* 56px gutters hold the fields at the frame's 450px width inside
+                   the card's right half, instead of running edge to edge. */
+                padding: 28px 56px;
                 /* Centred in the taller cell, rather than sitting at the top
                    with the reclaimed space dangling below the Login button. */
                 display: flex;
@@ -136,16 +143,16 @@
 
             .auth-heading {
                 margin: 0;
-                font-size: 52px;
+                font-size: 40px;
                 line-height: 1;
-                font-weight: 700;
-                color: var(--text-main);
+                font-weight: 800;
+                color: #004004;
             }
 
             .auth-subheading {
-                margin-top: 8px;
-                font-size: 36px;
-                color: var(--text-main);
+                margin-top: 16px;
+                font-size: 20px;
+                color: #1e1e1e;
                 font-weight: 600;
             }
 
@@ -153,13 +160,13 @@
                 margin-top: 20px;
             }
 
-            .form-group { margin-bottom: 16px; }
+            .form-group { margin-bottom: 22px; }
 
             .form-label {
                 display: block;
-                font-size: 30px;
-                font-weight: 700;
-                color: var(--text-main);
+                font-size: 20px;
+                font-weight: 600;
+                color: #004004;
                 margin-bottom: 8px;
                 letter-spacing: .01em;
             }
@@ -168,18 +175,21 @@
                what marks the input, so the rows read as one soft stack. */
             .form-input {
                 width: 100%;
-                border-radius: 999px;
+                min-height: 80px;
+                border-radius: 60px;
                 border: 1px solid transparent;
-                background: rgba(151, 214, 175, .42);
-                padding: 13px 18px;
-                font-size: 16px;
-                color: #16211b;
+                background: rgba(1, 114, 26, .3);
+                padding: 13px 34px;
+                font-size: 20px;
+                font-weight: 600;
+                color: #004004;
                 outline: none;
                 transition: background .15s, border-color .15s, box-shadow .15s;
             }
 
             .form-input::placeholder {
-                color: rgba(22, 33, 27, .5);
+                color: rgba(0, 64, 4, .5);
+                font-weight: 600;
             }
 
             .form-input:focus {
@@ -194,7 +204,7 @@
 
             .field-icon {
                 position: absolute;
-                left: 18px;
+                left: 34px;
                 top: 50%;
                 transform: translateY(-50%);
                 display: flex;
@@ -203,17 +213,17 @@
             }
 
             .form-input-with-icon {
-                padding-left: 52px;
+                padding-left: 92px;
             }
 
             /* Clears the reveal icon parked at the field's right edge. */
             .form-input-with-toggle {
-                padding-right: 48px;
+                padding-right: 72px;
             }
 
             /* Replaces the margin the show-password / reset row used to add. */
             .auth-button-spaced {
-                margin-top: 20px;
+                margin-top: 41px;
             }
 
             .auth-row {
@@ -244,19 +254,20 @@
 
             .auth-button {
                 width: 100%;
+                min-height: 80px;
                 border: 0;
-                border-radius: 999px;
-                background: var(--text-main);
+                border-radius: 60px;
+                background: #01721a;
                 color: #fff;
                 padding: 15px 16px;
-                font-size: 16px;
-                font-weight: 700;
+                font-size: 20px;
+                font-weight: 900;
                 cursor: pointer;
-                box-shadow: 0 8px 20px -10px rgba(15, 77, 40, .8);
+                box-shadow: none;
                 transition: background 0.15s;
             }
 
-            .auth-button:hover { background: var(--accent); }
+            .auth-button:hover { background: #004004; }
 
             .switch-link {
                 display: inline-block;

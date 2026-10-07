@@ -37,8 +37,12 @@
                 </div>
                 <div>
                     <x-input-label for="citizen_contact" :value="__('Citizen Contact')" />
-                    <x-text-input id="citizen_contact" name="citizen_contact" type="text" class="mt-1 block w-full"
+                    {{-- 11 digits (09XXXXXXXXX), matching App\Rules\ContactNumber. --}}
+                    <x-text-input id="citizen_contact" name="citizen_contact" type="tel" inputmode="numeric"
+                                  maxlength="11" pattern="09[0-9]{9}" placeholder="09123456789"
+                                  aria-describedby="citizen_contact_hint" class="mt-1 block w-full"
                                   :value="old('citizen_contact', $document->citizen_contact)" />
+                    <p id="citizen_contact_hint" class="mt-1 text-xs text-gray-500">11 digits, starting with 09.</p>
                     <x-input-error :messages="$errors->get('citizen_contact')" class="mt-2" />
                 </div>
             </div>

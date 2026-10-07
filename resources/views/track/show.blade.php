@@ -17,15 +17,76 @@
         </button>
     </x-slot>
 
+    {{-- Paging for the queue lists. The rows are server-rendered, so the page
+         window is computed over the ones currently matching the search box
+         rather than over a JS array. Five per page, as the frame draws. --}}
+    <script>
+        window.lookupPager = function () {
+            return {
+                page: 1,
+                perPage: 5,
+
+                matchingRows() {
+                    const list = this.$refs.list;
+
+                    if (! list) {
+                        return [];
+                    }
+
+                    const needle = (this.q || '').trim().toLowerCase();
+
+                    return [...list.querySelectorAll('[data-search]')]
+                        .filter(function (row) {
+                            return ! needle || row.dataset.search.includes(needle);
+                        });
+                },
+
+                rowVisible(el) {
+                    const index = this.matchingRows().indexOf(el);
+
+                    if (index === -1) {
+                        return false;
+                    }
+
+                    return index >= (this.page - 1) * this.perPage
+                        && index < this.page * this.perPage;
+                },
+
+                get pageCount() {
+                    return Math.max(1, Math.ceil(this.matchingRows().length / this.perPage));
+                },
+
+                get pageList() {
+                    const last = this.pageCount;
+
+                    if (last <= 6) {
+                        return Array.from({ length: last }, function (_, i) { return i + 1; });
+                    }
+
+                    if (this.page > 5) {
+                        return [1, 'gap', this.page - 1, this.page, this.page + 1, 'gap', last]
+                            .filter(function (p) { return p === 'gap' || (p >= 1 && p <= last); });
+                    }
+
+                    return [1, 2, 3, 4, 5, 'gap', last];
+                },
+
+                go(page) {
+                    this.page = Math.min(Math.max(1, page), this.pageCount);
+                },
+            };
+        };
+    </script>
+
     {{-- The Pending / In Progress list is kept compact (1/3) so the ticket
          handling panel gets the room (2/3). --}}
     {{-- lg:h-full + lg:grid-rows-1: the grid takes the height the fixed-height
          shell hands it, giving both panels a definite height to scroll within
          rather than growing the page. --}}
-    <div class="grid w-full min-h-0 flex-1 grid-cols-1 gap-8 lg:h-full lg:grid-cols-3 lg:grid-rows-1"
-         x-data="{ tab: @js($activeTab ?? 'inprogress') }">
+    <div class="grid w-full min-h-0 flex-1 grid-cols-1 gap-8 lg:h-full lg:grid-cols-[398fr_690fr] lg:grid-rows-1 lg:gap-[13px]"
+         x-data="{ tab: @js($activeTab ?? 'inprogress'), q: '' }">
         {{-- Fixed-height panel; the list scrolls inside it --}}
-        <div class="panel flex min-h-0 flex-col overflow-hidden p-3 lg:col-span-1 lg:h-full">
+        <div class="lookup-panel flex min-h-0 flex-col overflow-hidden p-3 lg:h-full">
             @php
                 // (left tab key, label, count) — supervisor: Pending/In Progress,
                 // staff: In Progress/Completed.
@@ -40,59 +101,127 @@
             @endphp
 
             {{-- Tabs --}}
-            <div class="segchips mb-3 w-full">
+            <div class="lookup-tabs mb-3 w-full">
                 @foreach([$leftTab, $rightTab] as $t)
                     <button type="button" @click="tab = '{{ $t['key'] }}'"
-                            :class="tab === '{{ $t['key'] }}' ? 'on' : ''"
-                            class="flex-1 justify-center">
+                            :class="tab === '{{ $t['key'] }}' ? 'on' : ''">
                         {{ $t['label'] }}
-                        <span class="sp-group-count ml-1.5">{{ $t['count'] }}</span>
+                        <span class="lookup-tab-count">{{ $t['count'] }}</span>
                     </button>
                 @endforeach
             </div>
 
+            {{-- Narrows the list in place. Client-side on purpose: the whole
+                 scoped list is already rendered, so a round trip per keystroke
+                 would fetch what the page is holding. --}}
+            <div class="mb-3 flex items-center gap-2">
+                <label for="lookupSearch" class="sr-only">Search this list</label>
+                <div class="relative min-w-0 flex-1">
+                    <span class="pointer-events-none absolute inset-y-0 left-[16px] flex items-center" aria-hidden="true">
+                        <img src="{{ asset('images/staff/icon-search.svg') }}" alt="" class="h-[24px] w-[24px]">
+                    </span>
+                    <input id="lookupSearch" type="search" x-model="q" placeholder="Search"
+                           class="h-[54px] w-full rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-white/20 pl-[58px] pr-3 text-[18px] font-bold text-ink transition placeholder:text-[rgba(177,177,177,0.9)] focus:border-green focus:bg-white/60 focus:outline-none focus:ring-4 focus:ring-green/15">
+                </div>
+                <button type="button" @click="q = ''"
+                        class="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-paper transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
+                        title="Clear search" aria-label="Clear search">
+                    <img src="{{ asset('images/staff/icon-filter.svg') }}" alt="" class="h-[24px] w-[24px]">
+                </button>
+            </div>
+
             {{-- Two lists; clicking an item opens it in the detail box on the right --}}
             @foreach([['key' => $leftTab['key'], 'list' => $leftList, 'empty' => $supervisorView ? 'No pending requests.' : 'Nothing in progress.'], ['key' => $rightTab['key'], 'list' => $rightList, 'empty' => $supervisorView ? 'No requests in progress.' : 'No completed requests yet.']] as $section)
-                <div x-show="tab === '{{ $section['key'] }}'" @if(! $loop->first) x-cloak @endif class="max-h-[520px] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+                <div x-show="tab === '{{ $section['key'] }}'" @if(! $loop->first) x-cloak @endif
+                     x-data="lookupPager()" x-effect="q; page = 1"
+                     class="flex min-h-0 flex-1 flex-col">
+                <div x-ref="list" class="min-h-0 flex-1 overflow-y-auto">
                     @forelse($section['list'] as $item)
+                        @php
+                            $isOpen = $item->tracking_number === $document->tracking_number;
+                        @endphp
                         <a href="{{ route('track.show', ['trackingNumber' => $item->tracking_number, 'tab' => $section['key']]) }}"
-                           class="flex items-center justify-between rounded-lg border p-3 {{ $item->tracking_number === $document->tracking_number ? 'border-green-deep bg-green-wash' : 'border-hairline bg-paper hover:bg-green-wash/60' }}">
-                            <div class="flex min-w-0 items-center gap-3">
-                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-wash text-green-deep">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="truncate text-[14px] font-semibold text-ink">{{ $item->document_type }}</p>
-                                    <p class="truncate text-[13px] text-ink-soft">{{ $item->citizen_name ?: $item->tracking_number }}</p>
+                           data-search="{{ Str::lower($item->document_type.' '.$item->citizen_name.' '.$item->tracking_number) }}"
+                           x-show="rowVisible($el)"
+                           @class([
+                               'flex items-center gap-[14px] border-b border-[rgba(0,0,0,0.12)] px-[9px] py-[10px] last:border-b-0',
+                               'rounded-[12px] border border-[rgba(0,64,4,0.5)] bg-[rgba(1,114,26,0.14)]' => $isOpen,
+                               'hover:bg-green-wash/50' => ! $isOpen,
+                           ])>
+                            <span class="relative flex h-[60px] w-[60px] shrink-0 items-center justify-center">
+                                <img src="{{ asset('images/staff/row-disc.svg') }}" alt="" class="absolute inset-0 h-full w-full">
+                                <x-request-type-icon :type="$item->document_type" :size="30" class="relative" />
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <p @class([
+                                           'truncate text-[16px]',
+                                           'font-black text-[#004004]' => $isOpen,
+                                           'font-bold text-black' => ! $isOpen,
+                                       ])>{{ $item->document_type }}</p>
+                                    <p class="shrink-0 text-[13px] font-semibold {{ $isOpen ? 'text-[#4a4a4a]' : 'text-[#666]' }}">
+                                        {{ $item->created_at->format('m/d/y') }}
+                                    </p>
                                 </div>
-                            </div>
-                            <div class="ml-2 shrink-0 text-right">
-                                <p class="text-[13px] text-ink-soft">{{ $item->created_at->format('m/d/y') }}</p>
-                                <span class="text-xl text-ink-soft">›</span>
+                                <p class="truncate text-[15px] font-bold {{ $isOpen ? 'text-[#004004]' : 'text-[#666]' }}">
+                                    {{ $item->citizen_name ? 'Requested by '.$item->citizen_name : $item->tracking_number }}
+                                </p>
                             </div>
                         </a>
                     @empty
                         <p class="px-2 py-8 text-center text-sm text-ink-soft">{{ $section['empty'] }}</p>
                     @endforelse
                 </div>
+
+                {{-- Pager (Figma). Hidden on a single page: a lone "1" is noise. --}}
+                <nav x-show="pageCount > 1" x-cloak aria-label="Request pages"
+                     class="mt-[10px] flex items-center justify-center gap-[7px] border-t border-black/20 pt-[14px]">
+                    <button type="button" @click="go(page - 1)" :disabled="page === 1"
+                            class="lookup-page-step" aria-label="Previous page">
+                        <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
+                             class="h-[18px] rotate-180" style="width: 18px; max-width: none;">
+                    </button>
+
+                    <template x-for="(entry, i) in pageList" :key="i">
+                        <span>
+                            <span x-show="entry === 'gap'" class="px-1 text-[20px] font-semibold text-[#666]" aria-hidden="true">…</span>
+                            <button x-show="entry !== 'gap'" type="button" @click="go(entry)"
+                                    :aria-current="entry === page ? 'page' : null"
+                                    class="lookup-page" :class="entry === page ? 'on' : ''"
+                                    x-text="entry"></button>
+                        </span>
+                    </template>
+
+                    <button type="button" @click="go(page + 1)" :disabled="page === pageCount"
+                            class="lookup-page-step" aria-label="Next page">
+                        <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
+                             class="h-[18px]" style="width: 18px; max-width: none;">
+                    </button>
+                </nav>
+                </div>
             @endforeach
         </div>
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="panel p-6 lg:col-span-2 lg:h-full lg:overflow-y-auto">
-            <div class="flex items-start justify-between">
+        <div class="lookup-panel p-[30px] lg:h-full lg:overflow-y-auto">
+            {{-- Type and requester lead; the tracking number is paired with a QR
+                 glyph on the right, since the number and the code on the paper
+                 are the same handle. --}}
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="text-[24px] font-black leading-tight text-green">{{ $document->document_type }}</p>
+                    <p class="text-[18px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }}</p>
+                </div>
                 <div class="flex items-center gap-3">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-green-wash text-green-deep">
-                        <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
+                    <span class="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[10px] border border-green/40 text-green" aria-hidden="true">
+                        <svg class="h-[30px] w-[30px]" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 3h7v7H3V3zm2 2v3h3V5H5zm9-2h7v7h-7V3zm2 2v3h3V5h-3zM3 14h7v7H3v-7zm2 2v3h3v-3H5zm9-2h3v2h-3v-2zm5 0h2v3h-2v-3zm-5 4h2v3h-2v-3zm4 1h4v2h-2v1h-2v-3z"/>
+                        </svg>
                     </span>
                     <div>
-                        <p class="text-lg font-bold text-ink">{{ $document->document_type }}</p>
-                        <p class="text-[13px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }}</p>
+                        <p class="text-[20px] font-black leading-tight text-green">Tracking Number</p>
+                        <span class="mono text-[18px] font-bold text-ink">{{ $document->tracking_number }}</span>
                     </div>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Tracking ID</p>
-                    <span class="id-chip mt-1 text-[15px] font-bold text-green-deep">{{ $document->tracking_number }}</span>
                 </div>
             </div>
 
@@ -113,33 +242,173 @@
                 @endif
             </div>
 
-            <div class="mt-4">
-                <x-routing-stepper :document="$document" :controls="true" />
+            {{-- ── Stage rail (Figma: STAFF LOOK UP) ────────────────────────────
+                 A single 10px track with the travelled part filled, a 40px node
+                 on the current stage and 25px nodes either side. The frame draws
+                 four stages; the app has five, so the rail is built from the real
+                 flow — the treatment is copied, the stage list is not invented. --}}
+            @php
+                // Fully qualified: this @php block sits inside a conditional, and
+                // a `use` statement there is a fatal.
+                $railFlow = \App\Enums\DocumentStatus::flow();
+                $railStage = $document->statusEnum();
+                $railCurrent = $railStage->position();
+                $railCount = count($railFlow);
+                // Fill stops at the centre of the current node.
+                $railFill = $railCount > 1 && $railCurrent > 0
+                    ? (($railCurrent - 1) / ($railCount - 1)) * 100
+                    : 0;
+            @endphp
+
+            <div class="mt-[38px] px-[22px]">
+                <div class="relative h-[40px]">
+                    <div class="absolute left-0 right-0 top-[15px] h-[10px] rounded-[50px] bg-[#d9d9d9]"></div>
+                    <div class="absolute left-0 top-[15px] h-[10px] rounded-[50px] bg-[#01721a]"
+                         style="width: {{ $railFill }}%"></div>
+
+                    @foreach($railFlow as $i => $stage)
+                        @php
+                            $pos = $i + 1;
+                            $isDone = $pos < $railCurrent;
+                            $isNow = $pos === $railCurrent;
+                            $offset = $railCount > 1 ? ($i / ($railCount - 1)) * 100 : 0;
+                        @endphp
+                        <span class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                              style="left: {{ $offset }}%">
+                            {{-- Sized inline: the two sizes come from the frame and
+                                 appear nowhere else, so there is nothing for
+                                 Tailwind's scanner to pick up. max-width:none is
+                                 required — the last node's wrapper sits at
+                                 left:100%, where the available width is zero and
+                                 preflight's `img { max-width: 100% }` collapses
+                                 it to nothing. --}}
+                            <img src="{{ asset('images/staff/node-'.($isNow ? 'current' : ($isDone ? 'done' : 'todo')).'.svg') }}"
+                                 alt="" style="width: {{ $isNow ? 40 : 25 }}px; height: {{ $isNow ? 40 : 25 }}px; max-width: none;">
+                        </span>
+                    @endforeach
+                </div>
+
+                {{-- The end labels anchor to their own edge rather than centring
+                     on the node: centred, the last one runs off the panel. --}}
+                <div class="relative mt-[10px] h-[24px]">
+                    @foreach($railFlow as $i => $stage)
+                        @if($loop->first)
+                            <span class="absolute left-0 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]">{{ $stage->label() }}</span>
+                        @elseif($loop->last)
+                            <span class="absolute right-0 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]">{{ $stage->label() }}</span>
+                        @else
+                            <span class="absolute -translate-x-1/2 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]"
+                                  style="left: {{ ($i / ($railCount - 1)) * 100 }}%">{{ $stage->label() }}</span>
+                        @endif
+                    @endforeach
+                </div>
             </div>
 
-            {{-- Responsible & contact — always visible: who/where handles this
-                 ticket, plus how to reach the requester. --}}
-            @unless($document->isInternal())
-            <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                {{-- Department shows its own code, so there is no separate THED row. --}}
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Department</dt><dd class="text-right font-medium text-ink">{{ $document->department?->name ?: 'Not yet routed' }}@if($document->department?->code)<span class="mono ml-1 text-xs text-ink-soft">· {{ $document->department->code }}</span>@endif</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Staff assigned</dt><dd class="text-right font-medium text-ink">{{ $document->assignedTo?->name ?: 'Not yet assigned' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Submitted by</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_name ?: '—' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Email</dt><dd class="text-right font-medium text-ink break-all">{{ $document->citizen_email ?: '—' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Contact</dt><dd class="text-right font-medium text-ink">{{ $document->citizen_contact ?: '—' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Created</dt><dd class="text-right font-medium text-ink">{{ $document->created_at?->format('M d, Y \a\t h:i A') ?: '—' }}</dd></div>
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">{{ $document->source === 'online' ? 'Entered' : 'Encoded by' }}</dt><dd class="text-right font-medium text-ink">{{ $document->source === 'online' ? 'Online (citizen self-service)' : ($document->creator?->name ?? 'Staff') }}</dd></div>
-                @if($document->purpose)
-                    <div class="flex justify-between gap-3 border-b border-hairline pb-1"><dt class="text-ink-soft">Purpose</dt><dd class="text-right font-medium text-ink">{{ $document->purpose }}</dd></div>
+            {{-- ── Jump buttons (Figma) ─────────────────────────────────────────
+                 The frame's three actions. Each scrolls to the section of this
+                 panel that already owns that job, rather than duplicating it. --}}
+            <div class="mt-[28px] flex flex-wrap gap-[10px]">
+                <a href="#panel-messages" class="lookup-action">
+                    <img src="{{ asset('images/staff/icon-message.svg') }}" alt="" class="h-[28px] w-[28px]">
+                    Messages
+                </a>
+                <a href="#panel-attachments" class="lookup-action">
+                    <img src="{{ asset('images/staff/icon-file.svg') }}" alt="" class="h-[22px] w-[22px]">
+                    View Attachments
+                </a>
+                <a href="#panel-claiming" class="lookup-action">
+                    <img src="{{ asset('images/staff/icon-calendar.svg') }}" alt="" class="h-[22px] w-[22px]">
+                    Set Claiming Date
+                </a>
+            </div>
+
+            {{-- Stage controls (Advance / Move back / Return). The component's own
+                 stage line is off — the rail above already draws it — but the
+                 controls and their stage gates stay exactly as they were. --}}
+            <div class="mt-[18px]">
+                <x-routing-stepper :document="$document" :controls="true" :line="false" />
+            </div>
+
+            {{-- ── Logs (Figma) ─────────────────────────────────────────────────
+                 Newest first, two visible, the rest behind "View More" — the
+                 frame's own rule. Entries come from the status-change activity
+                 log the controller already builds. --}}
+            <div class="mt-[34px]" x-data="{ allLogs: false }">
+                <h2 class="!text-[22px] !font-black !text-[#004004]">Logs</h2>
+
+                @php
+                    $logEntries = $timeline->reverse()->values();
+                @endphp
+
+                @forelse($logEntries as $index => $log)
+                    <div class="mt-[18px] flex items-center gap-[14px]"
+                         @if($index >= 2) x-show="allLogs" x-cloak @endif>
+                        <img src="{{ asset('images/staff/log-bullet.svg') }}" alt="" class="h-[15px] w-[15px] shrink-0">
+                        <span class="shrink-0 text-[16px] font-medium text-[#353535] xl:text-[18px]">{{ $log['event'] }}</span>
+                        <span class="lookup-leader" aria-hidden="true"></span>
+                        <span class="shrink-0 text-[16px] font-bold text-[#686868] xl:text-[18px]">{{ $log['timestamp'] }}</span>
+                    </div>
+                @empty
+                    <p class="mt-[18px] text-[16px] text-ink-soft">Nothing recorded yet.</p>
+                @endforelse
+
+                @if($logEntries->count() > 2)
+                    <button type="button" @click="allLogs = ! allLogs"
+                            class="mt-[20px] flex w-full items-center gap-[18px] text-[16px] font-medium text-black xl:text-[18px]">
+                        <span class="h-[2px] flex-1 bg-[#d9d9d9]"></span>
+                        <span class="flex items-center gap-1 whitespace-nowrap">
+                            <span x-text="allLogs ? 'View Less' : 'View More'">View More</span>
+                            <svg class="h-4 w-4 transition" :class="allLogs ? 'rotate-180' : ''"
+                                 fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/>
+                            </svg>
+                        </span>
+                        <span class="h-[2px] flex-1 bg-[#d9d9d9]"></span>
+                    </button>
                 @endif
-                {{-- Set when advancing; the citizen sees the same date. --}}
-                <div class="flex justify-between gap-3 border-b border-hairline pb-1">
-                    <dt class="text-ink-soft">Claiming date</dt>
-                    <dd class="text-right font-semibold {{ $document->claim_date ? 'text-green-deep' : 'text-ink-soft' }}">
-                        {{ $document->claim_date?->format('l, M d, Y') ?: 'Not set yet' }}
-                    </dd>
-                </div>
-            </dl>
+            </div>
+
+            {{-- ── More Info (Figma) ────────────────────────────────────────
+                 The frame's five rows lead, because they are what a reviewer
+                 reads first. The rows the app carries beyond them (department,
+                 who encoded it, purpose) follow in the same treatment rather
+                 than being dropped. --}}
+            @unless($document->isInternal())
+            <div class="mt-[36px]">
+                <h2 id="panel-claiming" class="!text-[22px] !font-black !text-[#004004] scroll-mt-6">More Info</h2>
+
+                @php
+                    $infoRows = [
+                        ['Request by', $document->citizen_name ?: '—'],
+                        ['Email', $document->citizen_email ?: '—'],
+                        ['Contact No.', $document->citizen_contact ?: '—'],
+                        ['Request Type', $document->document_type ?: '—'],
+                        ['Request Date', $document->created_at?->format('F j, Y') ?: '—'],
+                        ['Department', $document->department
+                            ? $document->department->name.($document->department->code ? ' · '.$document->department->code : '')
+                            : 'Not yet routed'],
+                        ['Staff assigned', $document->assignedTo?->name ?: 'Not yet assigned'],
+                        [$document->source === 'online' ? 'Entered' : 'Encoded by',
+                         $document->source === 'online' ? 'Online (citizen self-service)' : ($document->creator?->name ?? 'Staff')],
+                    ];
+
+                    if ($document->purpose) {
+                        $infoRows[] = ['Purpose', $document->purpose];
+                    }
+
+                    $infoRows[] = ['Claiming date', $document->claim_date?->format('l, M d, Y') ?: 'Not set yet'];
+                @endphp
+
+                <dl class="mt-[16px]">
+                    @foreach($infoRows as [$label, $value])
+                        <div class="flex items-baseline justify-between gap-6 border-b-2 border-[#d9d9d9] py-[13px] last:border-b-0">
+                            <dt class="shrink-0 text-[16px] font-medium text-[#353535] xl:text-[18px]">{{ $label }}</dt>
+                            <dd class="break-all text-right text-[16px] font-bold text-black xl:text-[18px]">{{ $value }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+            </div>
+
             @if($document->description)
                 <p class="mt-3 text-sm text-ink"><span class="text-ink-soft">Details:</span> {{ $document->description }}</p>
             @endif
@@ -367,7 +636,7 @@
             @if($document->requirements->isNotEmpty())
                 @php $canVerify = auth()->check() && $document->canBeAdvancedBy(auth()->user()); @endphp
                 <div class="mt-6">
-                    <p class="text-[14px] font-bold text-ink">Requirements</p>
+                    <p id="panel-attachments" class="scroll-mt-6 text-[14px] font-bold text-ink">Requirements</p>
                     <p class="mt-0.5 text-[12px] text-ink-soft">Review each supporting document. Returning or rejecting one emails the citizen your comment; returned items can be re-uploaded from their tracking page.</p>
                     <ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-[10px] border border-hairline">
                         @foreach($document->requirements as $req)
@@ -534,7 +803,7 @@
 
                 <div class="pb">
                     @if($canPost)
-                        <form method="POST" action="{{ route('documents.comments.store', $document) }}" enctype="multipart/form-data" class="rounded-lg border border-hairline bg-paper p-4">
+                        <form id="panel-messages" method="POST" action="{{ route('documents.comments.store', $document) }}" enctype="multipart/form-data" class="scroll-mt-6 rounded-lg border border-hairline bg-paper p-4">
                             @csrf
                             <textarea name="body" rows="3" required maxlength="5000" placeholder="Write an update, or ask the assignee a question…"
                                       class="w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>

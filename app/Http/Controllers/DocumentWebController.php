@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
 use App\Notifications\DocumentEvent;
+use App\Rules\ContactNumber;
 use App\Services\QrCodeService;
 use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
@@ -35,11 +36,16 @@ class DocumentWebController extends Controller
     {
         $this->ensureCanCreate();
 
+        // Canonical 09XXXXXXXXX whatever separators were typed (see ContactNumber).
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
+
         $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'citizen_name' => ['nullable', 'string'],
             'citizen_email' => ['nullable', 'email', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
             'description' => ['nullable', 'string'],
             'purpose' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
@@ -110,11 +116,15 @@ class DocumentWebController extends Controller
     {
         abort_unless(AssignmentScope::userCanEditDocument($document), 403);
 
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
+
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'citizen_name' => ['nullable', 'string', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
             'purpose' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'remarks' => ['nullable', 'string'],

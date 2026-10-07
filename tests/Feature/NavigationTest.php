@@ -72,7 +72,7 @@ class NavigationTest extends TestCase
             ->assertRedirect(route('track.index', ['find' => 1]));
     }
 
-    public function test_find_mode_renders_look_up_hub_instead_of_redirecting(): void
+    public function test_find_mode_renders_the_look_up_desk_instead_of_redirecting(): void
     {
         $this->seedRolesAndPermissions();
 
@@ -88,6 +88,20 @@ class NavigationTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('track.index', ['find' => 1]))
+            ->assertOk()
+            ->assertSee('Request Type')
+            ->assertSee('Requested by')
+            ->assertSee('View details');
+    }
+
+    public function test_scan_mode_still_reaches_the_qr_hub(): void
+    {
+        // The QR hub did not go away — it moved behind ?scan=1, for when the
+        // paper (and its code) is in hand.
+        $this->seedRolesAndPermissions();
+
+        $this->actingAs($this->userWithRole('staff'))
+            ->get(route('track.index', ['find' => 1, 'scan' => 1]))
             ->assertOk()
             ->assertSee('Look up a document');
     }
@@ -109,7 +123,7 @@ class NavigationTest extends TestCase
         $this->seedRolesAndPermissions();
 
         $this->actingAs($this->userWithRole('staff'))
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('track.index', ['find' => 1, 'scan' => 1]))
             ->assertOk()
             ->assertSee('Upload QR image')
             ->assertSee('drag one onto the button')

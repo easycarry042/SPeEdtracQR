@@ -55,11 +55,21 @@ class BookingController extends Controller
             ? now()->format('Y-m-d')
             : ($byDate->keys()->first() ?? now()->format('Y-m-d'));
 
+        // The screen's two side panels (Figma: STAFF BOOKING): what is happening
+        // today, and what is coming after today. "Upcoming" is independent of
+        // the calendar selection — it is the standing answer to "what's next?".
+        $upcoming = $bookings
+            ->filter(fn (Booking $b) => $b->starts_at->isAfter(now()->endOfDay()))
+            ->take(12)
+            ->values();
+
         return view('bookings.index', [
             'byDate' => $byDate,
             'conflictIds' => array_keys($conflictIds),
             'dateMeta' => $dateMeta,
             'defaultDate' => $defaultDate,
+            'today' => now()->format('Y-m-d'),
+            'upcoming' => $upcoming,
         ]);
     }
 

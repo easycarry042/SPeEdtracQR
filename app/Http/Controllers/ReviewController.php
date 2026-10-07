@@ -12,6 +12,7 @@ use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -319,6 +320,41 @@ class ReviewController extends Controller
      * on the assignment itself and role — not the `advance documents` permission
      * row, which may be absent on a partially-seeded database.
      */
+    /**
+     * Set or move the claiming date without touching the stage.
+     *
+     * The citizen proposes a date on the request form (`needed_by`); this is
+     * how staff commit to one (`claim_date`) or change it afterwards. Until now
+     * the only way to set it was to advance the stage, so a date agreed over the
+     * counter could not be recorded without also moving the work forward.
+     */
+    public function setClaimDate(Request $request, Document $document)
+    {
+        $this->authorizeReview($document);
+
+        $validated = $request->validate([
+            'claim_date' => ['required', 'date', 'after_or_equal:today'],
+        ], [
+            'claim_date.required' => 'Pick the claiming date for the citizen.',
+            'claim_date.after_or_equal' => 'The claiming date cannot be in the past.',
+        ]);
+
+        $claimDate = Carbon::parse($validated['claim_date'])->startOfDay();
+
+        $document->update(['claim_date' => $claimDate]);
+
+        // Recorded as a staff note so the change shows in the feed and in Logs,
+        // rather than the date silently differing from what the citizen was told.
+        $document->comments()->create([
+            'author_id' => auth()->id(),
+            'author_type' => 'staff',
+            'body' => 'Claiming date set to '.$claimDate->format('M d, Y').'.',
+            'visibility' => 'internal',
+        ]);
+
+        return $this->done($document, 'Claiming date set to '.$claimDate->format('M d, Y').'.');
+    }
+
     private function authorizeReview(Document $document): void
     {
         $user = auth()->user();

@@ -63,6 +63,37 @@ class SecurityHeadersTest extends TestCase
     }
 
     /**
+     * Zain and Nunito come from Google Fonts, imported at the top of app.css.
+     * Both halves have to be named: googleapis serves the stylesheet, gstatic
+     * serves the .woff2 files it points at. Drop either and every heading
+     * quietly falls back to a system face with nothing in the UI to say why.
+     */
+    public function test_csp_allows_both_google_fonts_origins(): void
+    {
+        $csp = (string) $this->get(route('welcome'))->headers->get('Content-Security-Policy');
+
+        $styleSrc = $this->directive($csp, 'style-src');
+        $fontSrc = $this->directive($csp, 'font-src');
+
+        $this->assertStringContainsString('https://fonts.googleapis.com', $styleSrc);
+        $this->assertStringContainsString('https://fonts.gstatic.com', $fontSrc);
+    }
+
+    /** Pull a single directive out of the assembled policy. */
+    private function directive(string $csp, string $name): string
+    {
+        foreach (explode(';', $csp) as $part) {
+            $part = trim($part);
+
+            if (str_starts_with($part, $name.' ')) {
+                return $part;
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Live tracking runs over a Reverb WebSocket. connect-src has to name it or
      * Echo is blocked and the citizen page silently stops updating.
      */
