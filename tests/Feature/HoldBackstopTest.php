@@ -57,7 +57,8 @@ class HoldBackstopTest extends TestCase
 
         $this->artisan('documents:check-holds')->assertSuccessful();
 
-        Mail::assertQueued(HoldOverdueMail::class, 1);
+        Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->isEscalation === false
+            && $mail->hasTo($staff->email));
         $this->assertNotNull($doc->fresh()->hold_reminder_sent_at);
     }
 
@@ -86,7 +87,7 @@ class HoldBackstopTest extends TestCase
 
         $this->artisan('documents:check-holds')->assertSuccessful();
 
-        Mail::assertQueued(HoldOverdueMail::class, 1);
+        Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($staff->email));
         $this->assertSame(6, $doc->fresh()->holdOverdueDays());
     }
 
@@ -111,42 +112,115 @@ class HoldBackstopTest extends TestCase
 
         $doc = $this->heldDoc($staff, now()->subDays(5)->toDateString(), now()->subDays(10));
 
+        $toAssignee = fn (HoldOverdueMail $mail): bool => $mail->hasTo($staff->email);
+
         $this->artisan('documents:check-holds')->assertSuccessful();
-        Mail::assertQueued(HoldOverdueMail::class, 1);
+        Mail::assertQueued(HoldOverdueMail::class, $toAssignee);
+        Mail::assertQueuedCount(2); // assignee + the seeded super admin
 
         // Same day: must not re-send.
         $this->artisan('documents:check-holds')->assertSuccessful();
-        Mail::assertQueued(HoldOverdueMail::class, 1);
+        Mail::assertQueuedCount(2);
 
         // Past the re-nag window and still held: chase again.
         $doc->forceFill(['hold_reminder_sent_at' => now()->subDays(8)])->save();
         $this->artisan('documents:check-holds')->assertSuccessful();
-        Mail::assertQueued(HoldOverdueMail::class, 2);
+        Mail::assertQueuedCount(4);
     }
 
-    public function test_stalled_hold_escalates_to_the_department_supervisor(): void
+    public function test_stalled_hold_escalates_to_the_handling_department_supervisor(): void
     {
         Mail::fake();
         $this->seedRolesAndPermissions();
 
-        $staff = User::factory()->create(['email' => 'owner@example.com'])->assignRole('staff');
+        $department = Department::factory()->create();
+
+        $staff = User::factory()->create([
+            'email' => 'owner@example.com',
+            'department_id' => $department->id,
+        ])->assignRole('staff');
+
         $supervisor = User::factory()->create([
             'email' => 'boss@example.com',
+            'department_id' => $department->id,
             'is_active' => true,
         ])->assignRole('Supervisor');
 
         $doc = $this->heldDoc($staff, now()->subDays(3)->toDateString(), now()->subDays(9));
+        $doc->forceFill(['department_id' => $department->id])->save();
 
         $this->artisan('documents:check-holds')->assertSuccessful();
 
-        // One copy to the assignee, one escalation copy to the supervisor.
-        Mail::assertQueued(HoldOverdueMail::class, 2);
+        // A reminder to the assignee, an escalation to the department's supervisor.
         Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->isEscalation === false
             && $mail->hasTo($staff->email));
         Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->isEscalation === true
             && $mail->hasTo($supervisor->email));
 
         $this->assertNotNull($doc->fresh()->hold_reminder_sent_at);
+    }
+
+    /**
+     * Over half of real documents carry no department_id, so the handling office
+     * is taken from the assignee rather than broadcasting to every supervisor in
+     * the city — an automated weekly fan-out like that would get the sweep muted.
+     */
+    public function test_document_without_a_department_escalates_via_the_assignees_department(): void
+    {
+        Mail::fake();
+        $this->seedRolesAndPermissions();
+
+        $ownDept = Department::factory()->create();
+        $otherDept = Department::factory()->create();
+
+        $staff = User::factory()->create([
+            'email' => 'owner3@example.com',
+            'department_id' => $ownDept->id,
+        ])->assignRole('staff');
+
+        $ownBoss = User::factory()->create([
+            'email' => 'ownboss3@example.com',
+            'department_id' => $ownDept->id,
+            'is_active' => true,
+        ])->assignRole('Supervisor');
+
+        $farBoss = User::factory()->create([
+            'email' => 'farboss3@example.com',
+            'department_id' => $otherDept->id,
+            'is_active' => true,
+        ])->assignRole('Supervisor');
+
+        // The document itself has no department — the common real-world case.
+        $doc = $this->heldDoc($staff, now()->subDays(3)->toDateString(), now()->subDays(9));
+        $this->assertNull($doc->department_id);
+
+        $this->artisan('documents:check-holds')->assertSuccessful();
+
+        Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($ownBoss->email));
+        Mail::assertNotQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($farBoss->email));
+    }
+
+    /** With no department anywhere, escalation goes to the super admins only. */
+    public function test_escalation_falls_back_to_super_admins_when_no_department_is_known(): void
+    {
+        Mail::fake();
+        $this->seedRolesAndPermissions();
+
+        $staff = User::factory()->create(['email' => 'owner4@example.com'])->assignRole('staff');
+        $strayBoss = User::factory()->create([
+            'email' => 'strayboss@example.com',
+            'is_active' => true,
+        ])->assignRole('Supervisor');
+
+        $this->heldDoc($staff, now()->subDays(3)->toDateString(), now()->subDays(9));
+
+        $this->artisan('documents:check-holds')->assertSuccessful();
+
+        // The seeded super admin is the authoritative fallback owner.
+        Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->isEscalation === true
+            && $mail->hasTo('admin@speedtraqr.com'));
+        // A department-less Supervisor is NOT a catch-all recipient.
+        Mail::assertNotQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($strayBoss->email));
     }
 
     public function test_escalation_skips_a_supervisor_from_another_department(): void
@@ -179,8 +253,7 @@ class HoldBackstopTest extends TestCase
 
         $this->artisan('documents:check-holds')->assertSuccessful();
 
-        // Assignee + the handling department's supervisor only.
-        Mail::assertQueued(HoldOverdueMail::class, 2);
+        // Assignee + the handling department's supervisor; never another office's.
         Mail::assertQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($ownBoss->email));
         Mail::assertNotQueued(HoldOverdueMail::class, fn (HoldOverdueMail $mail): bool => $mail->hasTo($foreignBoss->email));
     }
@@ -188,10 +261,10 @@ class HoldBackstopTest extends TestCase
     public function test_stall_with_nobody_to_notify_is_logged_not_silently_dropped(): void
     {
         Mail::fake();
-        $this->seedRolesAndPermissions();
-        $creator = User::factory()->create()->assignRole('staff');
+        // Deliberately unseeded: no permissions, so no supervisor or super admin
+        // can be resolved, and the document is unassigned. Nobody to chase.
+        $creator = User::factory()->create();
 
-        // Unassigned and no supervisors exist — there is no mailbox to chase.
         $doc = $this->heldDoc($creator, now()->subDays(6)->toDateString(), now()->subDays(12));
         $doc->forceFill(['assigned_to' => null])->save();
 
@@ -210,11 +283,11 @@ class HoldBackstopTest extends TestCase
     }
 
     /**
-     * Spatie's role() scope throws on an unseeded database. A crashed sweep is
-     * the silent failure this command exists to prevent, so it must still chase
-     * the assignee with no Supervisor role present.
+     * Spatie's permission() scope throws on an unseeded database. A crashed sweep
+     * is the silent failure this command exists to prevent, so it must still
+     * chase the assignee with no roles or permissions seeded at all.
      */
-    public function test_sweep_survives_an_unseeded_database_with_no_supervisor_role(): void
+    public function test_sweep_survives_an_unseeded_database_with_no_permissions(): void
     {
         Mail::fake();
         $staff = User::factory()->create(['email' => 'lonely@example.com']);

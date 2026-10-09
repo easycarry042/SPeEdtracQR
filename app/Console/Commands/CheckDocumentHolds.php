@@ -6,10 +6,11 @@ use App\Enums\DocumentStatus;
 use App\Mail\HoldOverdueMail;
 use App\Models\Document;
 use App\Models\User;
+use App\Notifications\DocumentEvent;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
-use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 
 /**
  * The backstop for paused SLA clocks.
@@ -103,9 +104,15 @@ class CheckDocumentHolds extends Command
     }
 
     /**
-     * Who hears about a stalled hold: the assignee, plus every Supervisor of the
-     * handling department (org-wide Supervisors have no department_id and are
-     * included, since they oversee all offices).
+     * Who hears about a stalled hold: the assignee, plus the supervisors of the
+     * office actually handling it (via the shared DocumentEvent triager logic,
+     * which already folds in super admins).
+     *
+     * Over half of real documents carry no department_id, so the handling office
+     * falls back to the ASSIGNEE's department before anything else. Escalating a
+     * weekly automated email to every supervisor in the city would get the whole
+     * sweep muted, so with no department anywhere we go to the super admins only
+     * — one authoritative owner instead of a broadcast.
      *
      * @return array{assignee: ?string, supervisors: Collection<int, string>}
      */
@@ -113,24 +120,27 @@ class CheckDocumentHolds extends Command
     {
         $assignee = $document->assignedTo?->email;
 
-        // Spatie's role() scope throws RoleDoesNotExist on an unseeded database.
-        // A crashed sweep is the exact silent failure this command exists to
-        // prevent, so fall back to "no escalation" rather than blowing up.
-        if (! Role::where('name', 'Supervisor')->exists()) {
+        // Spatie's permission scopes throw on an unseeded database. A crashed
+        // sweep is the exact silent failure this command exists to prevent, so
+        // fall back to "no escalation" rather than blowing up.
+        if (! Permission::where('name', 'assign documents')->exists()) {
             return ['assignee' => $assignee, 'supervisors' => collect()];
         }
 
-        $supervisors = User::role('Supervisor')
-            ->when($document->department_id, fn ($query) => $query->where(function ($scoped) use ($document) {
-                $scoped->where('department_id', $document->department_id)
-                    ->orWhereNull('department_id');
-            }))
-            ->where('is_active', true)
-            ->whereNotNull('email')
-            ->pluck('email')
-            ->reject(fn (string $email): bool => $email === $assignee)
-            ->unique();
+        $departmentId = $document->department_id ?? $document->assignedTo?->department_id;
 
-        return ['assignee' => $assignee, 'supervisors' => $supervisors];
+        $supervisors = $departmentId
+            ? DocumentEvent::departmentTriagers($departmentId, $document->assigned_to)
+            : User::permission('manage system')->get();
+
+        return [
+            'assignee' => $assignee,
+            'supervisors' => $supervisors
+                ->filter(fn (User $user): bool => (bool) $user->is_active && filled($user->email))
+                ->pluck('email')
+                ->reject(fn (string $email): bool => $email === $assignee)
+                ->unique()
+                ->values(),
+        ];
     }
 }
