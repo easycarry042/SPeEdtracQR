@@ -160,6 +160,9 @@ class DocumentStatusController extends Controller
             'hold_until' => $validated['hold_until'] ?? null,
             'held_at' => now(),
             'held_by' => auth()->id(),
+            // Fresh hold = fresh backstop clock; documents:check-holds re-nags
+            // only once this hold runs past its own deadline.
+            'hold_reminder_sent_at' => null,
         ])->save();
 
         $actor = auth()->user()?->name ?? 'Staff';
@@ -213,6 +216,7 @@ class DocumentStatusController extends Controller
             'blocked_by' => null,
             'held_at' => null,
             'held_by' => null,
+            'hold_reminder_sent_at' => null,
         ])->save();
 
         $actor = auth()->user()?->name ?? 'Staff';

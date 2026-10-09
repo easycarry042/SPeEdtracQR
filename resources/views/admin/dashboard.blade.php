@@ -382,6 +382,40 @@
             </div>
         </div>
 
+        {{-- Stalled holds (full width) — deliberately its own panel: a hold nulls
+             the stage SLA, so these documents can never appear in the at-risk
+             table above. This is the only place they surface on the dashboard. --}}
+        <div class="panel">
+            <div class="ph">
+                <h2>Parked and past due</h2>
+                <span class="sub">{{ $stalledHolds->count() }} stalled hold{{ $stalledHolds->count() === 1 ? '' : 's' }} · SLA paused, so these are invisible to the at-risk list</span>
+            </div>
+            @if ($stalledHolds->isEmpty())
+                <div class="sp-empty">No stalled holds — every parked request is still inside its hold date.</div>
+            @else
+                <div class="table-wrap">
+                    <table class="reg">
+                        <thead>
+                            <tr><th>Tracking</th><th>Type</th><th>Waiting on</th><th>Assignee</th><th>Held since</th><th>Past due</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($stalledHolds as $row)
+                                <tr>
+                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
+                                    <td>{{ $row['document']->document_type }}</td>
+                                    <td class="muted">{{ $row['blocked_by'] ? ucfirst($row['blocked_by']) : '—' }}</td>
+                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
+                                    <td class="muted">{{ $row['held_since']?->format('M d, Y') ?? '—' }}</td>
+                                    <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['days_over'] }}d</td>
+                                    <td><a class="cr-btn cr-btn-sm" href="{{ $row['url'] }}">Open →</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
         {{-- System throughput heatmap (full width) --}}
         <div class="panel">
             <div class="ph"><h2>System throughput</h2><span class="sub">{{ $heatmap['total'] }} processed · last 26 weeks</span></div>

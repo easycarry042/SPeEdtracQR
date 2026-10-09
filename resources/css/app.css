@@ -1423,6 +1423,8 @@ aside.sidebar-pinned {
 .p-hold { background: #fffbeb; color: #92400e; }
 .p-hold::before { background: #d8920f; }
 .hold-note { margin-top: 4px; font-size: 11px; color: #92400e; }
+/* A hold suppresses every SLA signal, so an overrun hold needs its own loud marker. */
+.hold-stalled { font-weight: 700; color: var(--red); }
 
 /* ── Feed: collapsed system-event chunk (one per ticket) ─────────────────── */
 .sp-group-head { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: 0; cursor: pointer; text-align: left; padding: 2px; }

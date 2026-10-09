@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -55,6 +56,7 @@ class Document extends Model
         'blocked_by',
         'held_at',
         'held_by',
+        'hold_reminder_sent_at',
         'claimed_at',
         'claim_date',
         'released_by',
@@ -85,6 +87,7 @@ class Document extends Model
         'needed_by' => 'date',
         'hold_until' => 'date',
         'held_at' => 'datetime',
+        'hold_reminder_sent_at' => 'datetime',
         'claimed_at' => 'datetime',
         // The promised collection day (set when advancing), not the moment of
         // collection — that is `claimed_at`.
@@ -463,6 +466,54 @@ class Document extends Model
 
         // anchor is in the past; order operands so the diff is positive.
         return $anchor->diffInHours(now()) > $sla;
+    }
+
+    /**
+     * When a hold stops being legitimate and becomes a stall.
+     *
+     * A hold deliberately pauses the SLA clock (see DocumentStatus::slaHours()),
+     * so isOverdue() and documents:check-sla both ignore held documents. Without
+     * a second deadline a parked document would be accountable to nothing, so
+     * every hold gets one:
+     *   - with a hold_until: the end of that day (staff named the date);
+     *   - open-ended: held_at + tracking.holds.stale_after_days.
+     *
+     * Returns null when the document is not on hold, or on hold with no anchor
+     * date at all (nothing to measure from).
+     */
+    public function holdDueAt(): ?Carbon
+    {
+        if ($this->statusEnum() !== DocumentStatus::OnHold) {
+            return null;
+        }
+
+        if ($this->hold_until) {
+            return $this->hold_until->copy()->endOfDay();
+        }
+
+        $staleAfter = (int) config('tracking.holds.stale_after_days', 14);
+
+        return $this->held_at?->copy()->addDays($staleAfter);
+    }
+
+    /** True once a hold has run past holdDueAt() — the stall the sweep chases. */
+    public function isHoldOverdue(): bool
+    {
+        $due = $this->holdDueAt();
+
+        return $due instanceof Carbon && $due->isPast();
+    }
+
+    /** Whole days a hold has overrun its deadline (0 when not overdue). */
+    public function holdOverdueDays(): int
+    {
+        $due = $this->holdDueAt();
+
+        if (! $due instanceof Carbon || ! $due->isPast()) {
+            return 0;
+        }
+
+        return (int) $due->diffInDays(now());
     }
 
     /**

@@ -311,6 +311,34 @@ class AdminAnalytics
             ->values();
     }
 
+    /**
+     * Documents parked On Hold past their own hold deadline.
+     *
+     * These never reach atRisk(): a hold sets the stage SLA to null, so
+     * isOverdue() is false by design. Without this list a stalled hold would be
+     * invisible on the command center — the exact blind spot documents:check-holds
+     * emails about.
+     */
+    public function stalledHolds(int $limit = 12): Collection
+    {
+        return $this->scoped()
+            ->with('assignedTo')
+            ->where('status', DocumentStatus::OnHold->value)
+            ->get()
+            ->filter->isHoldOverdue()
+            ->map(fn (Document $doc): array => [
+                'document' => $doc,
+                'assignee' => $doc->assignedTo?->name,
+                'blocked_by' => $doc->blocked_by,
+                'days_over' => $doc->holdOverdueDays(),
+                'held_since' => $doc->held_at,
+                'url' => route('track.show', $doc->tracking_number),
+            ])
+            ->sortByDesc('days_over')
+            ->take($limit)
+            ->values();
+    }
+
     /** Ranked widget: staff with the lowest average processing time (completed in window). */
     public function fastestStaff(int $limit = 5): Collection
     {

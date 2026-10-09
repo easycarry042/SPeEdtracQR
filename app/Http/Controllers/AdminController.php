@@ -57,6 +57,9 @@ class AdminController extends Controller
             'timeByStage' => $analytics->timeByStage(),
             'typeBreakdown' => $analytics->typeBreakdown(),
             'atRisk' => $analytics->atRisk(),
+            // Held past their hold date: invisible to atRisk() because a hold
+            // nulls the stage SLA, so they get their own panel.
+            'stalledHolds' => $analytics->stalledHolds(),
             'fastestStaff' => $analytics->fastestStaff(),
             'heatmap' => $analytics->throughputHeatmap(),
             // Staff the admin can (re)assign an at-risk document to, from the panel.
