@@ -1,4 +1,4 @@
-<x-app-layout title="Booking" fixed-height>
+<x-app-layout fixed-height title="Booking">
     {{-- Booking: a month calendar beside two side cards — what is booked on the
          selected day, and what is coming up. Same card family as the staff
          tables (.bk-card mirrors .st-card); the page fills the window and each

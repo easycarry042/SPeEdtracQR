@@ -70,6 +70,7 @@
                                         <span class="font-bold">On hold</span>
                                         <template x-if="active.blocked_by"><span> · waiting on <span x-text="active.blocked_by"></span></span></template>
                                         <template x-if="active.hold_until"><span> · until <span x-text="active.hold_until"></span></span></template>
+                                        <template x-if="active.hold_overdue_days"><span class="hold-stalled"> · <span x-text="active.hold_overdue_days"></span>d past due</span></template>
                                     </p>
                                     <template x-if="active.hold_reason"><p x-text="active.hold_reason"></p></template>
                                 </div>
