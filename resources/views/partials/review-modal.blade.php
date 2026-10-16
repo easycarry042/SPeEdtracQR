@@ -70,6 +70,7 @@
                                         <span class="font-bold">On hold</span>
                                         <template x-if="active.blocked_by"><span> · waiting on <span x-text="active.blocked_by"></span></span></template>
                                         <template x-if="active.hold_until"><span> · until <span x-text="active.hold_until"></span></span></template>
+                                        <template x-if="active.hold_overdue_days"><span class="hold-stalled"> · <span x-text="active.hold_overdue_days"></span>d past due</span></template>
                                     </p>
                                     <template x-if="active.hold_reason"><p x-text="active.hold_reason"></p></template>
                                 </div>
@@ -177,61 +178,8 @@
                             </section>
                         </template>
 
-<<<<<<< HEAD
                         <template x-if="active && !active.needs_triage && cockpitHint()">
                             <p class="mt-6 text-[length:var(--fs-small)] text-ink-soft" x-text="cockpitHint()"></p>
-=======
-                        {{-- Cockpit: once accepted, the whole status lifecycle is driven here. --}}
-                        <template x-if="active && !active.needs_triage">
-                            <div class="space-y-4">
-                                {{-- Returned side-state banner --}}
-                                <template x-if="prog().isReturned">
-                                    <div class="step-returned" style="width:100%;align-items:flex-start;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="margin-top:1px;flex:none;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
-                                        <div>
-                                            <span>Returned for revision</span>
-                                            <template x-if="active.remarks"><div style="font-weight:400;margin-top:2px;" x-text="active.remarks"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- On-hold side-state banner --}}
-                                <template x-if="prog().isHeld">
-                                    <div class="step-hold" style="width:100%;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6M14 9v6M5 5h14v14H5z"/></svg>
-                                        <div>
-                                            <span style="font-weight:700;">On hold</span>
-                                            <template x-if="active.blocked_by"><span style="opacity:.85;"> · waiting on <span x-text="active.blocked_by"></span></span></template>
-                                            <template x-if="active.hold_until"><span style="opacity:.85;"> · until <span x-text="active.hold_until"></span></span></template>
-                                            <template x-if="active.hold_overdue_days"><span class="hold-stalled"> · <span x-text="active.hold_overdue_days"></span>d past due</span></template>
-                                            <template x-if="active.hold_reason"><div style="font-weight:400;margin-top:2px;" x-text="active.hold_reason"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- Stepper — identical vocabulary to the public/track view --}}
-                                <div>
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Status progress</p>
-                                    <div class="steps" style="margin:10px 2px 4px;">
-                                        <template x-for="(s, i) in flow" :key="s.value">
-                                            <div style="display:contents">
-                                                <div class="stp">
-                                                    <div class="node" :class="nodeClass(i)">
-                                                        <template x-if="isDone(i)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg></template>
-                                                        <template x-if="!isDone(i)"><span x-text="i + 1"></span></template>
-                                                    </div>
-                                                    <div class="cap" :class="isCurrent(i) ? 'cur' : ''" x-text="s.label"></div>
-                                                </div>
-                                                <div class="seg" :class="isDone(i) ? 'done' : ''" x-show="i < flow.length - 1"></div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                <p class="text-sm text-ink-soft" x-text="cockpitHint()"></p>
-
-                            </div>
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
                         </template>
                     @endif
 

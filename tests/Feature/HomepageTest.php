@@ -65,14 +65,6 @@ class HomepageTest extends TestCase
         );
     }
 
-<<<<<<< HEAD
-    public function test_how_it_works_has_no_doodle_backdrop(): void
-    {
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('How It Works')
-            ->assertDontSee('doodle-pattern.jpg', false);
-=======
     public function test_how_it_works_walks_through_the_four_tracking_stages(): void
     {
         // The stages are the spine of the page: a missing one leaves a citizen
@@ -160,7 +152,6 @@ class HomepageTest extends TestCase
         foreach (array_unique($matches[0]) as $path) {
             $this->assertFileExists(public_path($path));
         }
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
     }
 
     public function test_landing_hero_uses_the_city_hall_photo_as_its_backdrop(): void

@@ -10,22 +10,13 @@
     @include('layouts.partials.bfcache-guard')
 </head>
 <body class="relative min-h-screen bg-white antialiased text-ink">
-<<<<<<< HEAD
-=======
     <a href="#main" class="skip-link">Skip to content</a>
-    <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
-         style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
 
     {{-- Same white portal bar as /citizen and /track. Not sticky: this form is
          long enough that fields would scroll through the wordmark. --}}
     @include('layouts.partials.portal-header', ['sticky' => false])
 
-<<<<<<< HEAD
-    <main class="mx-auto w-full max-w-[1091px] px-4 pb-16 pt-[56px] sm:px-6">
-=======
-    <main id="main" class="mx-auto w-full max-w-[1364px] px-4 pb-16 pt-[70px] sm:px-6">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
+    <main id="main" class="mx-auto w-full max-w-[1091px] px-4 pb-16 pt-[56px] sm:px-6">
 
         {{-- Title block: icon, heading, one line of orientation. --}}
         <div class="flex items-start gap-4 sm:gap-[28px]">

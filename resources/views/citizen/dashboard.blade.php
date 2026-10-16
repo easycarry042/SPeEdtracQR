@@ -22,11 +22,7 @@
          order of the journey: you cannot track a document you have not filed yet.
          Each card reads step → icon → what it is → the action → the detail,
          so the button is reachable without finishing the paragraph. --}}
-<<<<<<< HEAD
-    <div class="mt-[77px] flex flex-wrap justify-center gap-[40px]">
-=======
     <div class="mt-[48px] flex flex-col items-center justify-center gap-[40px] lg:flex-row lg:items-center">
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
 
         @foreach ([
             [
@@ -46,27 +42,6 @@
                 'body' => 'Enter your tracking ID or scan a QR code to check the status and location of your document.',
             ],
         ] as $card)
-<<<<<<< HEAD
-            <a href="{{ $card['href'] }}"
-               class="group flex h-[304px] w-full max-w-[272px] flex-col items-center rounded-[16px] border-[0.5px] border-[rgba(0,64,4,0.5)] bg-[rgba(141,255,60,0.2)] px-[28px] pt-[35px] text-center backdrop-blur-[8px] transition hover:-translate-y-1 hover:bg-[rgba(141,255,60,0.32)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
-
-                <img src="{{ asset('images/portal/'.$card['icon']) }}" alt="" class="h-[72px] w-[72px]">
-
-                <h2 class="mt-[19px] font-display text-[20px] font-black text-[#017209]">
-                    {{ $card['title'] }}
-                </h2>
-
-                <span class="mt-[24px] inline-flex h-[33px] w-[105px] items-center justify-center gap-[6px] rounded-[16px] bg-[#01721a] text-[14px] font-bold text-white transition group-hover:bg-[#004004]">
-                    {{ $card['action'] }}
-                    <img src="{{ asset('images/portal/icon-chevron.svg') }}" alt=""
-                         class="h-[12px] w-[12px] brightness-0 invert">
-                </span>
-
-                <p class="mt-[17.5px] text-[14px] leading-snug text-black">
-                    {{ $card['body'] }}
-                </p>
-            </a>
-=======
             {{-- The step label sits outside the card so it reads as a signpost over the
                  pair, and is not mistaken for part of the card's own content. --}}
             <div class="flex w-full max-w-[340px] flex-col items-center">
@@ -115,7 +90,6 @@
                     <path d="M64 4 L89 14 L64 24 Z" fill="#01721a"/>
                 </svg>
             @endif
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
         @endforeach
 
     </div>
