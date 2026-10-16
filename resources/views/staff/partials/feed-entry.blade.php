@@ -1,30 +1,45 @@
-@php $kind = $entry['kind'] ?? 'manual'; @endphp
+@php
+    use App\Support\ActivityNarrative;
+
+    $kind = $entry['kind'] ?? 'manual';
+@endphp
 
 @if($kind === 'system_group')
-    {{-- Collapsed system chunk: one card per ticket, expands to the full timeline. --}}
-    <div class="sp-card auto" x-data="{ open: false }">
-        <button type="button" class="sp-group-head" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'">
-            <span class="sp-sysico" title="System updates">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
-            </span>
-            <span class="sp-group-title">
-                {{ $entry['document']['document_type'] ?? 'Document' }}
-                @if($entry['document'])<span class="code">{{ $entry['document']['tracking_number'] }}</span>@endif
-                <span class="sp-group-count">{{ $entry['count'] }} update{{ $entry['count'] === 1 ? '' : 's' }}</span>
-            </span>
+    {{-- One document's run of updates, drawn as a timeline: a dot per event on
+         a shared rail, the time, then what happened and why. The dot's colour
+         is the whole point — a column of blue is a normal day, and the red one
+         is the entry worth opening. --}}
+    <div class="sp-tl-block" x-data="{ open: false }">
+        <div class="sp-tl-head">
+            <span class="sp-tl-doc">{{ $entry['document']['document_type'] ?? 'Document' }}</span>
+            @if($entry['document'])<span class="code">{{ $entry['document']['tracking_number'] }}</span>@endif
             @if($entry['latest_status'])<x-status-badge :status="$entry['latest_status']" />@endif
-            <span class="sp-group-time">{{ optional($entry['at'])->diffForHumans() }}</span>
-            <svg class="sp-group-chevron" x-bind:style="open ? 'transform:rotate(180deg)' : ''" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
-        </button>
-
-        <div x-show="open" x-cloak class="sp-group-items">
-            @foreach($entry['items'] as $item)
-                <div class="sp-group-item">
-                    <span>{{ $item['body'] }}</span>
-                    <span class="sp-group-time">{{ optional($item['at'])->format('M d, Y h:i A') }}</span>
-                </div>
-            @endforeach
         </div>
+
+        @php
+            $items = collect($entry['items']);
+            // Four is enough to show the shape of the day; the rest stay one
+            // click away rather than burying the next document under them.
+            $head = $items->take(4);
+            $rest = $items->slice(4);
+        @endphp
+
+        <ol class="sp-tl">
+            @foreach($head as $item)
+                @include('staff.partials.timeline-row', ['row' => ActivityNarrative::for($item['body']), 'at' => $item['at']])
+            @endforeach
+
+            @foreach($rest as $item)
+                @include('staff.partials.timeline-row', ['row' => ActivityNarrative::for($item['body']), 'at' => $item['at'], 'folded' => true])
+            @endforeach
+        </ol>
+
+        @if($rest->isNotEmpty())
+            <button type="button" class="sp-tl-more" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'">
+                <span x-show="! open">Show {{ $rest->count() }} earlier update{{ $rest->count() === 1 ? '' : 's' }}</span>
+                <span x-show="open" x-cloak>Show fewer</span>
+            </button>
+        @endif
 
         @if($entry['document'])
             <a href="{{ $entry['document']['url'] }}" class="sp-docchip">
@@ -35,31 +50,24 @@
 @else
     @php
         $isManual = $kind === 'manual';
-        $isCompletion = $kind === 'completion';
-        $typeLabel = $isManual ? ucfirst($entry['type']) : 'Completed';
-    @endphp
-    <div @class(['sp-card', 'manual' => $isManual, 'completion' => $isCompletion])>
-        <div class="sp-card-head">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <span class="sp-avatar sp-avatar-sm">{{ collect(explode(' ', $entry['author']))->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('') }}</span>
-                <span style="font-size:13px;font-weight:700;color:var(--green-deep);">{{ $entry['author'] }}</span>
-                <span class="sp-typetag {{ $isManual ? 'm-'.$entry['type'] : 'm-completed' }}">{{ $typeLabel }}</span>
-            </div>
-            <span style="font-size:12px;color:var(--ink-soft);">{{ optional($entry['at'])->diffForHumans() }}</span>
-        </div>
 
-        @if($isManual)
-            <p class="sp-card-body">{{ $entry['body'] }}</p>
-        @elseif($isCompletion)
-            <p class="sp-card-body">Completed {{ $entry['document']['document_type'] ?? 'a document' }}.</p>
-        @endif
+        // A completion is the one entry everybody scans for, so it is stated
+        // rather than inferred from a status chip.
+        $row = $isManual
+            ? ['tone' => 'note', 'headline' => ucfirst($entry['type']), 'detail' => $entry['body']]
+            : ['tone' => 'green', 'headline' => 'Completed '.($entry['document']['document_type'] ?? 'a document'), 'detail' => null];
+    @endphp
+
+    <div class="sp-tl-block">
+        <ol class="sp-tl">
+            @include('staff.partials.timeline-row', ['row' => $row, 'at' => $entry['at'], 'author' => $entry['author']])
+        </ol>
 
         @if($entry['document'])
             <a href="{{ $entry['document']['url'] }}" class="sp-docchip">
                 <span class="code">{{ $entry['document']['tracking_number'] }}</span>
                 <span style="color:var(--ink-soft);font-size:12px;">{{ $entry['document']['document_type'] }}</span>
                 <x-status-badge :status="$entry['document']['status']" />
-                <x-document-origin :source="$entry['document']['source']" :by="$entry['document']['created_by_name']" :at="$entry['document']['created_at']" />
             </a>
         @endif
     </div>

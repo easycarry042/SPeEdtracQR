@@ -2297,6 +2297,68 @@ a.dm-thumb:hover { border-color: var(--green); }
 /* A hold suppresses every SLA signal, so an overrun hold needs its own loud marker. */
 .hold-stalled { font-weight: 700; color: var(--red); }
 
+/* ── Profile activity: the timeline ──────────────────────────────────────────
+   One block per document (or per standalone entry), and inside it a rail of
+   events. The dot carries the meaning: red is work that came back or ran late,
+   amber is waiting on someone, green finished, blue is routine, grey is a note
+   a person wrote. Someone scanning the column should be able to find the entry
+   that needs them without reading a word.
+   ───────────────────────────────────────────────────────────────────────── */
+.sp-tl-block { background: #fff; border: 1px solid var(--hairline); border-radius: 12px; padding: 14px 16px; }
+.sp-tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.sp-tl-doc { font-size: 13px; font-weight: 700; color: var(--green-deep); }
+
+.sp-tl { list-style: none; margin: 0; padding: 0; }
+
+/* The rail is drawn by each row's left border, so it joins up with no extra
+   element and stops cleanly at the last entry. */
+.sp-tl-row {
+    position: relative;
+    padding: 0 0 16px 20px;
+    border-left: 2px solid var(--hairline);
+}
+.sp-tl-row:last-child { border-left-color: transparent; padding-bottom: 2px; }
+
+.sp-tl-row::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--ink-soft);
+    box-shadow: 0 0 0 3px #fff;
+}
+
+.sp-tl-time { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+.sp-tl-headline { margin: 1px 0 0; font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--ink); }
+.sp-tl-detail { margin: 3px 0 0; font-size: 13px; line-height: 1.5; color: var(--ink-soft); white-space: pre-wrap; }
+.sp-tl-meta { margin: 4px 0 0; font-size: 11.5px; color: var(--ink-soft); }
+
+/* Tone — the dot, and the headline with it so the colour survives being read
+   at a glance on a dense page. Each pairing clears AA on white. */
+.sp-tl-row.t-red::before { background: #b3261e; }
+.sp-tl-row.t-red .sp-tl-headline { color: var(--red); }
+.sp-tl-row.t-amber::before { background: #d8920f; }
+.sp-tl-row.t-amber .sp-tl-headline { color: var(--amber); }
+.sp-tl-row.t-green::before { background: var(--green-bright); }
+.sp-tl-row.t-green .sp-tl-headline { color: #0f5c2e; }
+.sp-tl-row.t-blue::before { background: #2563a8; }
+.sp-tl-row.t-note::before { background: var(--brass); }
+
+.sp-tl-more {
+    margin-top: 2px;
+    background: transparent;
+    border: 0;
+    padding: 2px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    cursor: pointer;
+}
+.sp-tl-more:hover { text-decoration: underline; }
+
 /* ── Feed: collapsed system-event chunk (one per ticket) ─────────────────── */
 .sp-group-head { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: 0; cursor: pointer; text-align: left; padding: 2px; }
 .sp-group-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--green-deep); }
