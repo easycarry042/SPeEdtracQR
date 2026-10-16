@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'Citizen Portal' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -13,13 +14,16 @@
      backdrop in the design, in place of the old green wash. Fixed so the
      pattern holds still while the page scrolls. --}}
 <body class="relative min-h-screen bg-white antialiased text-ink">
+    {{-- First tab stop: jumps the portal header. --}}
+    <a href="#main" class="skip-link">Skip to content</a>
+
     <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
          style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
 
     @include('layouts.partials.portal-header')
 
     {{-- No footer: the doodle runs to the bottom of the page. --}}
-    <main class="mx-auto w-full max-w-[1512px] px-4 py-10 sm:px-6">
+    <main id="main" class="mx-auto w-full max-w-[1512px] px-4 py-10 sm:px-6">
         {{ $slot }}
     </main>
 

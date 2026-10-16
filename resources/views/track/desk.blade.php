@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Look Up">
     {{-- The Look Up desk (Figma: STAFF LOOK UP, frames 1293:1331 + 1294:1680).
          A full-width table of the work in scope, with a modal per row. The older
          two-pane list+detail is still reachable at /track/{trackingNumber} —

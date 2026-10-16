@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Staff">
     <div class="w-full">
         {{-- No page heading here: the layout's title bar already says
              "Staff directory". Search sits alone, right-aligned. --}}

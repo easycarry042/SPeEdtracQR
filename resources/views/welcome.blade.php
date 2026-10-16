@@ -3,11 +3,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <title>SPeED TraQR — Document Tracking System</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
 </head>
 <body class="min-h-screen bg-white antialiased text-ink">
+
+    {{-- First tab stop: jumps the floating nav pill. --}}
+    <a href="#main" class="skip-link">Skip to content</a>
 
     {{-- ─────────────────────────────────────────────────────────────────────
          Floating navigation pill. Per the design it is wider than the page and
@@ -28,6 +32,8 @@
             </ul>
         </nav>
     </header>
+
+    <main id="main">
 
     {{-- ── Hero ─────────────────────────────────────────────────────────────
          City Hall photo occupies everything right of 16.3% of the frame; the
@@ -406,6 +412,8 @@
             </div>
         </div>
     </section>
+
+    </main>
 
     {{-- Footer — #707170 laid down at 10%, as the design's flat plate. --}}
     <footer class="bg-[rgba(112,113,112,0.1)] py-[72px]">

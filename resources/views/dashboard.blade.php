@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Dashboard">
     @if($dept)
         {{-- Department context rides the title row rather than a full-width band:
              it is orientation, not content. --}}
@@ -92,7 +92,7 @@
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
                                             <div class="h-2 w-24 flex-shrink-0 overflow-hidden rounded-full bg-gray-200">
-                                                <div class="h-2 rounded-full {{ $barColor }} transition-all duration-500" style="width:{{ $pct }}%"></div>
+                                                <div class="h-2 rounded-full {{ $barColor }} transition-[width] duration-500" style="width:{{ $pct }}%"></div>
                                             </div>
                                             @if($overdue)
                                                 <span class="text-xs font-semibold text-red-600 whitespace-nowrap">+{{ $overBy }}h over</span>

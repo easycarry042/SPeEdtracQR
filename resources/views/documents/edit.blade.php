@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit Document">
     <x-slot name="header">
         <div>
             <h1 class="text-3xl font-bold tracking-tight text-emerald-950">Edit Document</h1>

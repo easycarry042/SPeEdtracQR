@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Track">
     {{-- Look up hub: find a ticket by tracking number or by its QR code.
          The QR-IMAGE UPLOAD is the primary scan path (works on every device);
          the live camera is offered only when a camera actually exists.

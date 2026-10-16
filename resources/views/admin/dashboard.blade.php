@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Command Center">
     @php
         /* ---------- shared helpers ---------- */
         // Sparkline: array<int|float> -> polyline points in a 0..100 x 0..30 box.

@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Services Report">
     <div class="page-shell page-shell-loose">
 
         {{-- KPI tiles --}}

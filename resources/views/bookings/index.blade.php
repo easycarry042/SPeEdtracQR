@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Booking">
     {{-- Figma: STAFF BOOKING. A month calendar on the left (707 of the frame's
          1512), and two 379-wide side panels — what is booked on the selected day,
          and what is coming up. The layout supplies the sidebar, the "Booking"

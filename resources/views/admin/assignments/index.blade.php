@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Assignments">
     <div class="page-shell page-shell-loose">
 
         @if(session('status'))

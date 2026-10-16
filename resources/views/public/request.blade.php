@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <title>Submit a Request — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
@@ -11,6 +12,7 @@
      the citizen pages use. Fixed, so the pattern holds still while this long
      form scrolls. --}}
 <body class="relative min-h-screen bg-white antialiased text-ink">
+    <a href="#main" class="skip-link">Skip to content</a>
     <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
          style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
 
@@ -18,7 +20,7 @@
          long enough that fields would scroll through the wordmark. --}}
     @include('layouts.partials.portal-header', ['sticky' => false])
 
-    <main class="mx-auto w-full max-w-[1364px] px-4 pb-16 pt-[70px] sm:px-6">
+    <main id="main" class="mx-auto w-full max-w-[1364px] px-4 pb-16 pt-[70px] sm:px-6">
 
         {{-- Title block: icon, heading, one line of orientation. --}}
         <div class="flex items-start gap-4 sm:gap-[35px]">

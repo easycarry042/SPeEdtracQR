@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Internal Request Filed">
     <x-slot name="header">
         <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Request Filed</h1>
     </x-slot>

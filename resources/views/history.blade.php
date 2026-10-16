@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="History">
     {{-- No header slot: the layout's title bar already titles this page. --}}
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">

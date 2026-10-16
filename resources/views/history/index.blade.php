@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="History">
     <div class="page-shell page-shell-loose">
         <form method="GET" id="historyFilterForm"
               x-data="{ filtersOpen: {{ (request()->filled('document_type') || request()->filled('status') || request()->filled('from') || request()->filled('to')) ? 'true' : 'false' }} }"

@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Internal Requests">
     {{-- The layout's title bar already says "Internal Requests", so only the
          action moves up here rather than repeating the heading beneath it. --}}
     @if($canFile)

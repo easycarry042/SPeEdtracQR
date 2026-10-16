@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Internal Request">
     <x-slot name="header">
         <div class="flex flex-wrap items-center gap-3">
             <h1 class="text-2xl font-bold tracking-tight text-green-deep">Internal Request</h1>

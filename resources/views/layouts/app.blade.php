@@ -10,8 +10,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'SPeED TraQR') }}</title>
+    {{-- "Accurate page titles" — the distinguishing part leads, so a row of
+         pinned tabs is still readable once the names are truncated. Pages opt
+         in with <x-app-layout title="Assignments">; the shell name alone is the
+         fallback for any page that has not been given one yet. --}}
+    <title>{{ $attributes->get('title') ? $attributes->get('title').' — ' : '' }}{{ config('app.name', 'SPeED TraQR') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
     {{-- Page-specific assets (e.g. the PDF editor's own bundle). --}}
@@ -74,6 +79,10 @@
              background-attachment: fixed, fixed;
              background-repeat: no-repeat, no-repeat;"
       @endauth>
+    {{-- First tab stop on the page: a keyboard user would otherwise have to
+         walk the whole sidebar and header before reaching the content. Hidden
+         off-screen until it takes focus (see .skip-link). --}}
+    <a href="#main" class="skip-link">Skip to content</a>
     @auth
         {{-- One shell for every signed-in role: a pinned sidebar whose
              link set is chosen in partials/sidebar-links. --}}
@@ -165,7 +174,7 @@
                         </div>
                     @endisset
 
-                    <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
+                    <main id="main" class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
                         <div class="app-frame">
                             {{ $slot }}
                         </div>
@@ -178,7 +187,7 @@
              tracking result). Use the same public portal header as /citizen. --}}
         @include('layouts.partials.public-header')
 
-        <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <main id="main" class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
             {{ $slot }}
         </main>
     @endauth

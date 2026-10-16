@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Audit Log">
     <div class="page-shell page-shell-loose">
 
         {{-- Filters --}}
