@@ -33,11 +33,11 @@ class CitizenPortalCardsTest extends TestCase
         $response->assertSee('href="'.route('citizen.track').'"', false);
         $response->assertSee('href="'.route('public.request.create').'"', false);
 
-        // Two links land on the lookup: the Track card, and the "Scan your QR
-        // code" escape hatch inside Speedy's popover. The bubble itself is a
-        // button, not a link.
+        // Three links land on the lookup: the Track card, the "Scan your QR
+        // code" escape hatch inside Speedy's popover, and the footer's doormat
+        // navigation. The bubble itself is a button, not a link.
         $this->assertSame(
-            2,
+            3,
             substr_count($response->getContent(), 'href="'.route('citizen.track').'"')
         );
     }
@@ -85,11 +85,41 @@ class CitizenPortalCardsTest extends TestCase
         // the header's Back control, which is not one of the choice cards.
         $this->assertSame(
             2,
+<<<<<<< HEAD
             substr_count($response->getContent(), 'h-[304px] w-full max-w-[272px]')
         );
     }
 
     public function test_portal_backdrop_is_plain_white(): void
+=======
+            substr_count($response->getContent(), 'h-[380px] w-full flex-col')
+        );
+    }
+
+    public function test_the_cards_are_numbered_in_the_order_of_the_journey(): void
+    {
+        // Submit is Step 1 and Track is Step 2: there is nothing to track until
+        // a request has been filed, so the cards must not read right-to-left.
+        $response = $this->get(route('citizen.dashboard'))->assertOk();
+
+        $response->assertSeeInOrder(['Step 1', 'Submit a Request', 'Step 2', 'Track a Document']);
+    }
+
+    public function test_a_single_arrow_connects_the_two_steps(): void
+    {
+        $response = $this->get(route('citizen.dashboard'))->assertOk();
+
+        // One connector, drawn only between the pair — a second would appear if
+        // the arrow ever escaped the "not the last card" guard in the loop.
+        $this->assertSame(1, substr_count($response->getContent(), 'data-step-connector'));
+
+        // Decorative: the numbered pills already carry the order in text, so the
+        // arrow must not be announced to a screen reader.
+        $response->assertSee('data-step-connector viewBox="0 0 92 28" fill="none" aria-hidden="true"', false);
+    }
+
+    public function test_portal_backdrop_uses_the_arrow_doodle(): void
+>>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
     {
         $this->get(route('citizen.dashboard'))
             ->assertOk()

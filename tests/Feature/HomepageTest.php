@@ -29,10 +29,16 @@ class HomepageTest extends TestCase
     public function test_landing_header_has_no_call_to_action_buttons(): void
     {
         // The header is branding only — the hero carries the primary actions.
-        $this->get('/')
-            ->assertOk()
-            ->assertDontSee('Submit a Request')
-            ->assertDontSee('Staff Sign In');
+        //
+        // Scoped to the <header> rather than the whole page: both phrases are
+        // legitimate doormat links in the footer, so a page-wide assertion was
+        // measuring the wrong element and failed the moment one was added.
+        $content = $this->get('/')->assertOk()->getContent();
+
+        $header = substr($content, (int) strpos($content, '<header'), (int) strpos($content, '</header>') - (int) strpos($content, '<header'));
+
+        $this->assertStringNotContainsString('Submit a Request', $header);
+        $this->assertStringNotContainsString('Staff Sign In', $header);
     }
 
     public function test_hero_leads_with_one_citizen_button_and_a_staff_text_link(): void

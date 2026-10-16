@@ -453,6 +453,7 @@
 
     </main>
 
+<<<<<<< HEAD
     {{-- Footer — #707170 laid down at 10%, as the design's flat plate. --}}
     <footer class="bg-[rgba(112,113,112,0.1)] py-[72px]">
         <div class="mx-auto max-w-[1512px] px-6 text-center text-[15px] text-[rgba(109,109,109,0.72)] sm:text-[16px]">
@@ -460,6 +461,12 @@
             &copy; {{ date('Y') }} SPeED TraQR — Document Tracking System. All rights reserved.
         </div>
     </footer>
+=======
+    {{-- The design's flat grey plate carried only a copyright line. It is now
+         the shared fat footer, so the landing page ends with the same contact
+         details and doormat navigation as every other page. --}}
+    <x-site-footer />
+>>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
 
     @include('layouts.partials.bfcache-guard')
 

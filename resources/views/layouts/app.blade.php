@@ -69,9 +69,15 @@
     };
 @endphp
 <<<<<<< HEAD
+<<<<<<< HEAD
 <body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else bg-white text-gray-900 @endauth">
 =======
 <body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
+=======
+{{-- The guest branch is a column so a short public page still drops the footer
+     to the bottom of the viewport; the staff shell does its own flex layout. --}}
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else flex flex-col bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
+>>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
       @auth
       {{-- The arrow doodle only: the public pages' colour ramp would fight the
            green sidebar and the white panels this shell is built from. --}}
@@ -187,6 +193,14 @@
                             {{ $slot }}
                         </div>
                     </main>
+
+                    {{-- Staff pages get the footer too, but never a fixed-height
+                         one: those fill the viewport and scroll their own panels
+                         internally, so a footer below the fold could not be
+                         reached and would only steal height from the content. --}}
+                    @unless($fixedHeight)
+                        <x-site-footer />
+                    @endunless
                 </div>
             </div>
         @include('layouts.partials.keyboard-shortcuts')
@@ -195,9 +209,11 @@
              tracking result). Use the same public portal header as /citizen. --}}
         @include('layouts.partials.public-header')
 
-        <main id="main" class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <main id="main" class="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
             {{ $slot }}
         </main>
+
+        <x-site-footer />
     @endauth
 
     @if($fileRequestForm ?? null)

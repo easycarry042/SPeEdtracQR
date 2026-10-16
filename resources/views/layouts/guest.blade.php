@@ -290,6 +290,12 @@
         <main id="main" class="auth-main">
             {{ $slot }}
         </main>
+
+        {{-- Below the fold on purpose: the sign-in card keeps the first
+             viewport to itself, and the footer is there for anyone who
+             scrolls looking for the office rather than a password. --}}
+        <x-site-footer />
+
         @include('layouts.partials.bfcache-guard')
     </body>
 </html>

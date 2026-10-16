@@ -294,6 +294,8 @@
         </form>
     </main>
 
+    <x-site-footer />
+
     {{-- The shared pop-up error report (window.ErrorAlert). --}}
     <x-error-alert />
 
