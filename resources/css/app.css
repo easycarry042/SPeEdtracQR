@@ -13,6 +13,12 @@
    border-hairline, bg-green-deep, …) which map to these vars in tailwind.config.
    ───────────────────────────────────────────────────────────────────────── */
 :root {
+    /* "Set the appropriate color-scheme" — this design system is light-only
+       (see the note below), so say so. Without it a browser in dark mode
+       renders form controls, scrollbars and the autofill tint dark against
+       surfaces that stay white. */
+    color-scheme: light;
+
     /* Base — white = purity */
     --paper: #ffffff;            /* card / panel surface — stays pure white */
     --canvas: #dde8e0;           /* page background — green-grey so white cards clearly lift */
@@ -3004,4 +3010,72 @@ a.dm-thumb:hover { border-color: var(--green); }
 
 @media (prefers-reduced-motion: reduce) {
     .req-check { transition: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Web Interface Guidelines compliance
+   (https://vercel.com/design/guidelines)
+
+   Rules that are the same on every page live here rather than being repeated
+   per component — the per-component reduced-motion blocks above only covered
+   the surfaces someone remembered to write one for.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* "Honor prefers-reduced-motion" — a blanket stop for anything animated,
+   including the Tailwind utilities and third-party markup the per-component
+   rules above cannot see. Not `animation: none`: that cancels the animation
+   before it ever paints, so a surface whose final state is set by its
+   keyframes (a fade-in that ends at opacity 1) would stay invisible. A single
+   near-instant pass lands on the end state and stays there. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* "Mobile input size" — iOS Safari zooms the page whenever a focused control's
+   text is under 16px, then leaves the viewport scaled up. The compact 13px
+   control is deliberate on a desktop toolbar, so it is kept there and only
+   relaxed where the zoom would actually fire. */
+@media (max-width: 639px) {
+    .field input,
+    .field select,
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="datetime-local"],
+    select,
+    textarea {
+        font-size: 16px;
+    }
+}
+
+/* "Headings & skip link" — the first tab stop on every page jumps past the
+   sidebar and header straight to the content. Off-screen until focused. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    padding: 10px 16px;
+    background: var(--green-deep);
+    color: var(--on-green);
+    border-radius: 0 0 8px 0;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.skip-link:focus {
+    left: 0;
+    outline: 3px solid var(--green-bright);
+    outline-offset: 2px;
 }

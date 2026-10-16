@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit & Sign Document">
     @push('head')
         @vite('resources/js/pdf-editor.js')
     @endpush

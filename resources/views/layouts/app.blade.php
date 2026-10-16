@@ -10,8 +10,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'SPeED TraQR') }}</title>
+    {{-- "Accurate page titles" — the distinguishing part leads, so a row of
+         pinned tabs is still readable once the names are truncated. Pages opt
+         in with <x-app-layout title="Assignments">; the shell name alone is the
+         fallback for any page that has not been given one yet. --}}
+    <title>{{ $attributes->get('title') ? $attributes->get('title').' — ' : '' }}{{ config('app.name', 'SPeED TraQR') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
     {{-- Page-specific assets (e.g. the PDF editor's own bundle). --}}
@@ -63,7 +68,25 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
+<<<<<<< HEAD
 <body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else bg-white text-gray-900 @endauth">
+=======
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
+      @auth
+      {{-- The arrow doodle only: the public pages' colour ramp would fight the
+           green sidebar and the white panels this shell is built from. --}}
+      style="background-color: var(--page-wash-base);
+             background-image: var(--page-wash-veil), url('{{ asset('images/doodle-bg.png') }}');
+             background-size: cover, cover;
+             background-position: center, center;
+             background-attachment: fixed, fixed;
+             background-repeat: no-repeat, no-repeat;"
+      @endauth>
+    {{-- First tab stop on the page: a keyboard user would otherwise have to
+         walk the whole sidebar and header before reaching the content. Hidden
+         off-screen until it takes focus (see .skip-link). --}}
+    <a href="#main" class="skip-link">Skip to content</a>
+>>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
     @auth
         {{-- One shell for every signed-in role: a pinned sidebar whose
              link set is chosen in partials/sidebar-links. --}}
@@ -155,7 +178,11 @@
                         @endisset
                     </div>
 
+<<<<<<< HEAD
                     <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}" data-soft-nav="main">
+=======
+                    <main id="main" class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
+>>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
                         <div class="app-frame">
                             {{ $slot }}
                         </div>
@@ -168,7 +195,7 @@
              tracking result). Use the same public portal header as /citizen. --}}
         @include('layouts.partials.public-header')
 
-        <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <main id="main" class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
             {{ $slot }}
         </main>
     @endauth

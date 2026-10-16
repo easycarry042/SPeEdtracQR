@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Profile">
     <div class="page-shell page-shell-loose">
             <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
                 <div class="max-w-xl">

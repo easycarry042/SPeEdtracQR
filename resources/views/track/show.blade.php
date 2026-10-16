@@ -1,4 +1,4 @@
-<x-app-layout fixed-height>
+<x-app-layout title="Tracking" fixed-height>
     @php
         $supervisorView = $supervisorView ?? false;
     @endphp

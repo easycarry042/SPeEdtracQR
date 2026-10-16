@@ -59,12 +59,102 @@ class HomepageTest extends TestCase
         );
     }
 
+<<<<<<< HEAD
     public function test_how_it_works_has_no_doodle_backdrop(): void
     {
         $this->get('/')
             ->assertOk()
             ->assertSee('How It Works')
             ->assertDontSee('doodle-pattern.jpg', false);
+=======
+    public function test_how_it_works_walks_through_the_four_tracking_stages(): void
+    {
+        // The stages are the spine of the page: a missing one leaves a citizen
+        // without the step that tells them when to come collect the document.
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('HOW IT WORKS')
+            ->assertSee('Tracking Flow')
+            ->assertSeeInOrder([
+                'Submit Request',
+                'Document Processing',
+                'Track Progress',
+                'Claim Document',
+            ]);
+    }
+
+    public function test_what_we_do_introduces_the_three_services(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('What We Do')
+            ->assertSeeInOrder([
+                'Citizen Tracking',
+                'QR-Code Verification',
+                'Smart Chatbot Assistance',
+            ]);
+    }
+
+    public function test_key_features_lists_every_tool_with_its_icon(): void
+    {
+        // Each tile's glyph is its own exported file; a missing one renders an
+        // empty frosted square rather than failing loudly in the browser.
+        foreach (['file-text', 'shield', 'search', 'people', 'clock'] as $glyph) {
+            $this->assertFileExists(public_path("images/landing/feat-{$glyph}.svg"));
+        }
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('FEATURES')
+            ->assertSeeInOrder([
+                'Document Routing',
+                'Secure QR Identification',
+                'Accountability Audit',
+                'Role-Based Access',
+                'Real-Time Status',
+            ]);
+    }
+
+    public function test_security_section_names_the_four_safeguards(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('SECURITY')
+            ->assertSee('Data Safe')
+            ->assertSeeInOrder([
+                'Law-Compliant Service',
+                'Staff Logs',
+                'Private Tracking',
+                'Offline Backup',
+            ]);
+    }
+
+    public function test_faq_answers_are_rendered_server_side(): void
+    {
+        // The panels are Alpine accordions, but the copy ships in the HTML so a
+        // reader without JavaScript — and a search crawler — still gets it.
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Frequently Asked')
+            ->assertSee('How can I track the status of my document or request?')
+            ->assertSee('Data Privacy Act of 2012 (RA 10173)')
+            ->assertSee('Ease of Doing Business Act (RA 11032)');
+    }
+
+    public function test_every_landing_image_referenced_by_the_page_exists(): void
+    {
+        // Catches a renamed or un-exported asset before it reaches a reviewer as
+        // a broken image on the municipality's front page.
+        $html = $this->get('/')->assertOk()->getContent();
+
+        preg_match_all('#images/landing/[\w.-]+\.(?:svg|png|jpg)#', $html, $matches);
+
+        $this->assertNotEmpty($matches[0], 'The landing page referenced no images at all.');
+
+        foreach (array_unique($matches[0]) as $path) {
+            $this->assertFileExists(public_path($path));
+        }
+>>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
     }
 
     public function test_landing_hero_uses_the_city_hall_photo_as_its_backdrop(): void

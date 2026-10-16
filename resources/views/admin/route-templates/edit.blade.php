@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit Route Template">
     <x-slot name="header">
         <div class="flex flex-col gap-1">
             <x-breadcrumbs :items="[

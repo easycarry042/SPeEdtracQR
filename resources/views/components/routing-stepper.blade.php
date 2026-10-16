@@ -39,6 +39,8 @@
             <span style="font-weight:700;">On Hold</span>
             @if($document->blocked_by)<span style="opacity:.85;"> · waiting on {{ $document->blocked_by }}</span>@endif
             @if($document->hold_until)<span style="opacity:.85;"> · until {{ $document->hold_until->format('M d, Y') }}</span>@endif
+            {{-- The hold pauses the SLA clock, so nothing else flags the overrun. --}}
+            @if($document->isHoldOverdue())<span class="hold-stalled"> · {{ $document->holdOverdueDays() }}d past due</span>@endif
             @if($document->hold_reason)<div style="font-weight:400;margin-top:2px;">{{ $document->hold_reason }}</div>@endif
         </div>
     </div>

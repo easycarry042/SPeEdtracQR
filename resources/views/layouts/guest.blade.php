@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Pages pass their own name (Login, Register, …); the brand leads so
@@ -286,7 +287,7 @@
         @include('layouts.partials.accessibility-widget')
     </head>
     <body class="auth-page">
-        <main class="auth-main">
+        <main id="main" class="auth-main">
             {{ $slot }}
         </main>
         @include('layouts.partials.bfcache-guard')

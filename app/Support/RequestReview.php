@@ -91,6 +91,9 @@ class RequestReview
             'blocked_by' => $document->blocked_by,
             'hold_reason' => $document->hold_reason,
             'hold_until' => $document->hold_until?->format('M j, Y'),
+            // A hold pauses the SLA clock, so this count is the only thing in the
+            // cockpit that says a parked request has overrun its own deadline.
+            'hold_overdue_days' => $document->isHoldOverdue() ? $document->holdOverdueDays() : null,
             'remarks' => $document->remarks,
             'attachments' => $document->attachments->map(function ($a): array {
                 $ext = strtolower(pathinfo((string) $a->file_path, PATHINFO_EXTENSION));

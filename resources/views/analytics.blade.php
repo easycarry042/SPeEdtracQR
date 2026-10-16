@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Analytics">
     <div class="page-shell page-shell-loose">
         @php
             /* ---------- donut geometry (document type = shares of a whole) ---------- */
