@@ -68,31 +68,13 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<<<<<<< HEAD
-<<<<<<< HEAD
-<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else bg-white text-gray-900 @endauth">
-=======
-<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
-=======
 {{-- The guest branch is a column so a short public page still drops the footer
      to the bottom of the viewport; the staff shell does its own flex layout. --}}
-<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else flex flex-col bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
-      @auth
-      {{-- The arrow doodle only: the public pages' colour ramp would fight the
-           green sidebar and the white panels this shell is built from. --}}
-      style="background-color: var(--page-wash-base);
-             background-image: var(--page-wash-veil), url('{{ asset('images/doodle-bg.png') }}');
-             background-size: cover, cover;
-             background-position: center, center;
-             background-attachment: fixed, fixed;
-             background-repeat: no-repeat, no-repeat;"
-      @endauth>
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else flex flex-col bg-white text-gray-900 @endauth">
     {{-- First tab stop on the page: a keyboard user would otherwise have to
          walk the whole sidebar and header before reaching the content. Hidden
          off-screen until it takes focus (see .skip-link). --}}
     <a href="#main" class="skip-link">Skip to content</a>
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
     @auth
         {{-- One shell for every signed-in role: a pinned sidebar whose
              link set is chosen in partials/sidebar-links. --}}
@@ -184,11 +166,7 @@
                         @endisset
                     </div>
 
-<<<<<<< HEAD
-                    <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}" data-soft-nav="main">
-=======
-                    <main id="main" class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
+                    <main id="main" class="flex-1 pb-10 pt-2 {{ $fixedHeight }}" data-soft-nav="main">
                         <div class="app-frame">
                             {{ $slot }}
                         </div>

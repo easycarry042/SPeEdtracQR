@@ -85,14 +85,7 @@ class CitizenPortalCardsTest extends TestCase
         // the header's Back control, which is not one of the choice cards.
         $this->assertSame(
             2,
-<<<<<<< HEAD
-            substr_count($response->getContent(), 'h-[304px] w-full max-w-[272px]')
-        );
-    }
-
-    public function test_portal_backdrop_is_plain_white(): void
-=======
-            substr_count($response->getContent(), 'h-[380px] w-full flex-col')
+            substr_count($response->getContent(), 'h-[304px] w-full flex-col')
         );
     }
 
@@ -118,8 +111,7 @@ class CitizenPortalCardsTest extends TestCase
         $response->assertSee('data-step-connector viewBox="0 0 92 28" fill="none" aria-hidden="true"', false);
     }
 
-    public function test_portal_backdrop_uses_the_arrow_doodle(): void
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
+    public function test_portal_backdrop_is_plain_white(): void
     {
         $this->get(route('citizen.dashboard'))
             ->assertOk()

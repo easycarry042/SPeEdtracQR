@@ -108,38 +108,6 @@
         </div>
     </section>
 
-<<<<<<< HEAD
-    {{-- ── How it works ───────────────────────────────────────────────────── --}}
-    <section id="how-it-works" class="relative isolate overflow-hidden bg-[#f0f0f0] pb-[94.5px] pt-[45px]">
-
-        <div class="mx-auto max-w-[1209.5px] px-6 sm:px-10">
-            <div class="text-center">
-                <img src="{{ asset('images/landing/how-icon.svg') }}" alt="" aria-hidden="true"
-                     class="mx-auto h-[57.5px] w-[36px] rotate-[2.58deg]">
-                <h2 class="mt-[15px] text-[21px] font-black text-[#004004] sm:text-[24px]">How It Works</h2>
-                <p class="mx-auto mt-[15px] max-w-[390.5px] text-[14px] font-medium leading-snug text-[#353535] sm:text-[16px]">
-                    Every request gets a unique QR-coded tracking number. As staff process it,
-                    each status change is timestamped and recorded so you can see every move.
-                </p>
-            </div>
-
-            <div id="steps" class="mt-[88px] grid grid-cols-1 gap-[49.5px] sm:grid-cols-3">
-                @foreach ([
-                    ['icon' => 'card-submit.svg', 'w' => 'w-[36px]', 'title' => 'Submit',
-                     'body' => 'File your request online with your supporting documents attached. You get a QR-coded tracking number right away.'],
-                    ['icon' => 'card-assigned.svg', 'w' => 'w-[36px]', 'title' => 'Assigned and Processed',
-                     'body' => 'Your request is assigned to a staff member who takes it through each stage, from In Progress to In Review to Approved to Completed. Every change is timestamped.'],
-                    ['icon' => 'card-clock.svg', 'w' => 'w-[37px]', 'title' => 'Track anytime',
-                     'body' => 'Scan your QR code or enter your tracking number to see the current stage, who is handling it, and the full history.'],
-                ] as $step)
-                    <div class="flex min-h-[232px] flex-col items-center rounded-[24px] border-[0.5px] border-[rgba(0,64,4,0.5)] bg-[rgba(141,255,60,0.2)] px-[22.5px] pb-[19px] pt-[18.5px] text-center backdrop-blur-[8px]">
-                        <div class="flex h-[60px] w-[60px] items-center justify-center rounded-[8px] bg-[rgba(139,212,144,0.3)]">
-                            <img src="{{ asset('images/landing/'.$step['icon']) }}" alt=""
-                                 class="h-[36px] {{ $step['w'] }}">
-                        </div>
-                        <h3 class="mt-[23px] text-[18px] font-black leading-tight text-[#245501] sm:text-[21px]">{{ $step['title'] }}</h3>
-                        <p class="mt-[13px] text-[14px] font-medium leading-snug text-[#1e1e1e] sm:text-[14px]">{{ $step['body'] }}</p>
-=======
     {{-- ── What We Do ───────────────────────────────────────────────────────
          Three translucent cards introducing the service. The middle card is
          drawn 24px taller than its neighbours (it starts higher in the frame),
@@ -381,18 +349,12 @@
                             <h3 class="font-display text-[20px] leading-tight text-black sm:text-[22px]">{{ $card['title'] }}</h3>
                             <p class="mt-[6px] text-[17px] leading-snug text-black sm:text-[20px]">{{ $card['body'] }}</p>
                         </div>
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
                     </div>
                 @endforeach
             </div>
         </div>
     </section>
 
-<<<<<<< HEAD
-    {{-- Footer --}}
-    <footer class="border-t border-black/5 bg-[#f0f0f0] py-8">
-        <div class="mx-auto max-w-[1209.5px] px-6 text-center text-[14px] text-[#8a8a8a]">
-=======
     {{-- ── FAQ ──────────────────────────────────────────────────────────────
          The design draws every answer visible, so the panels open by default;
          the chevron is still live so a reader can collapse one they have read.
@@ -453,20 +415,10 @@
 
     </main>
 
-<<<<<<< HEAD
-    {{-- Footer — #707170 laid down at 10%, as the design's flat plate. --}}
-    <footer class="bg-[rgba(112,113,112,0.1)] py-[72px]">
-        <div class="mx-auto max-w-[1512px] px-6 text-center text-[15px] text-[rgba(109,109,109,0.72)] sm:text-[16px]">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
-            &copy; {{ date('Y') }} SPeED TraQR — Document Tracking System. All rights reserved.
-        </div>
-    </footer>
-=======
     {{-- The design's flat grey plate carried only a copyright line. It is now
          the shared fat footer, so the landing page ends with the same contact
          details and doormat navigation as every other page. --}}
     <x-site-footer />
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
 
     @include('layouts.partials.bfcache-guard')
 

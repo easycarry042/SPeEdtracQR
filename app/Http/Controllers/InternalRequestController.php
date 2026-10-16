@@ -92,6 +92,9 @@ class InternalRequestController extends Controller
             'filed' => $filed,
             'closed' => $closed,
             'search' => $search,
+            // Drives the "+" action in the page bar: without a department there
+            // is no office to file on behalf of, so the control is withheld.
+            'canFile' => $user->can('create internal requests') && $department !== null,
         ]);
     }
 

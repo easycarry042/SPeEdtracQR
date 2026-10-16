@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-<x-app-layout fixed-height>
-=======
-<x-app-layout title="Dashboard">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
+<x-app-layout title="Dashboard" fixed-height>
     <div class="page-shell page-shell-loose"
          x-data="reviewPanel(@js([
             'requests' => $requestPayload,

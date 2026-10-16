@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-<x-app-layout fixed-height>
-=======
-<x-app-layout title="Internal Requests">
+<x-app-layout title="Internal Requests" fixed-height>
     {{-- The layout's title bar already says "Internal Requests", so only the
          action moves up here rather than repeating the heading beneath it. --}}
     @if($canFile)
@@ -12,7 +9,6 @@
             </a>
         </x-slot>
     @endif
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
 
     @php
         $tabs = $department

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-<x-app-layout fixed-height>
-=======
-<x-app-layout title="Look Up">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
+<x-app-layout title="Look Up" fixed-height>
     {{-- The Look Up desk (Figma: STAFF LOOK UP, frames 1293:1331 + 1294:1680).
          A full-width table of the work in scope, with a modal per row. The older
          two-pane list+detail is still reachable at /track/{trackingNumber} —

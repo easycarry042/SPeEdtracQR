@@ -10,43 +10,24 @@
     <style>[x-cloak]{display:none!important}</style>
     @include('layouts.partials.accessibility-widget')
 </head>
-<<<<<<< HEAD
-<body class="relative min-h-screen bg-white antialiased text-ink">
-<<<<<<< HEAD
-=======
-=======
-{{-- White paper, with the arrow doodle washed back to 15% — the portal's own
-     backdrop in the design, in place of the old green wash. Fixed so the
-     pattern holds still while the page scrolls. --}}
+{{-- White paper. The redesign dropped the doodle wash from the portal — it is
+     plain white here now, and a test holds that. --}}
 {{-- Column flex, so a short page still pushes the footer to the bottom of the
      viewport instead of leaving it floating mid-screen. --}}
 <body class="relative flex min-h-screen flex-col bg-white antialiased text-ink">
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
     {{-- First tab stop: jumps the portal header. --}}
     <a href="#main" class="skip-link">Skip to content</a>
 
-    <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
-         style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
-
     @include('layouts.partials.portal-header')
 
-<<<<<<< HEAD
-    {{-- No footer: the doodle runs to the bottom of the page. --}}
-<<<<<<< HEAD
-    <main class="mx-auto w-full max-w-[1209.5px] px-4 py-10 sm:px-6">
-=======
-    <main id="main" class="mx-auto w-full max-w-[1512px] px-4 py-10 sm:px-6">
->>>>>>> 445734fe6c2ab99dcac3772ebcf201eb1141dd91
-=======
-    <main id="main" class="mx-auto w-full max-w-[1512px] flex-1 px-4 py-10 sm:px-6">
->>>>>>> 70f29ff6dcc8bd335ec24d7be8feb681edb34c95
+    {{-- 1209.5px is the redesign's frame — the old 1512 scaled to 0.8. --}}
+    <main id="main" class="mx-auto w-full max-w-[1209.5px] flex-1 px-4 py-10 sm:px-6">
         {{ $slot }}
     </main>
 
-    {{-- The doodle used to run all the way down. The footer now closes the page
-         off, and carries the office's contact details for a visitor who got
-         here from a QR code and has no other way back to them. --}}
+    {{-- The footer closes the page off, and carries the office's contact
+         details for a visitor who got here from a QR code and has no other
+         way back to them. --}}
     <x-site-footer />
 
     {{-- Speedy, parked bottom-right. The assistant only ever answers about ONE
