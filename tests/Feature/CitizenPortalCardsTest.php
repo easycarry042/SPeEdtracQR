@@ -85,8 +85,17 @@ class CitizenPortalCardsTest extends TestCase
         // the header's Back control, which is not one of the choice cards.
         $this->assertSame(
             2,
-            substr_count($response->getContent(), 'h-[380px] w-full max-w-[340px]')
+            substr_count($response->getContent(), 'h-[380px] w-full flex-col')
         );
+    }
+
+    public function test_the_cards_are_numbered_in_the_order_of_the_journey(): void
+    {
+        // Submit is Step 1 and Track is Step 2: there is nothing to track until
+        // a request has been filed, so the cards must not read right-to-left.
+        $response = $this->get(route('citizen.dashboard'))->assertOk();
+
+        $response->assertSeeInOrder(['Step 1', 'Submit a Request', 'Step 2', 'Track a Document']);
     }
 
     public function test_portal_backdrop_uses_the_arrow_doodle(): void
