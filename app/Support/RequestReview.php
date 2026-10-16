@@ -39,6 +39,10 @@ class RequestReview
         return [
             'id' => $document->id,
             'tracking_number' => $document->tracking_number,
+            // The request's generated QR, and its print-ready claim slip —
+            // shown from the tracking-number tile in the staff modals.
+            'qr_url' => PublicStorage::url($document->qr_code_path),
+            'slip_url' => route('track.slip', $document->tracking_number),
             'document_type' => $document->document_type,
             // Tracking columns: who/where is responsible for this ticket.
             'thed_id' => $document->department?->code,
@@ -62,6 +66,8 @@ class RequestReview
                 || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
+            // Machine-readable day, for the staff tables' date-range filter.
+            'submitted_on' => $document->created_at?->toDateString(),
             // Look Up desk: the long-form date the More Info table shows.
             'request_date' => $document->created_at?->format('F j, Y'),
             // Two different dates, deliberately. `needed_by` is what the citizen
@@ -70,11 +76,18 @@ class RequestReview
             // adjust into the second.
             'requested_claim_date' => $document->needed_by?->format('F j, Y'),
             'claim_date' => $document->claim_date?->format('F j, Y'),
+            // Machine-readable versions, for marking them on the date picker.
+            'requested_claim_on' => $document->needed_by?->toDateString(),
+            'claim_on' => $document->claim_date?->toDateString(),
             // Citizen messages nobody has read yet — the "waiting on a reply" badge.
             'unread_messages' => $document->allComments()->unreadByStaff()->count(),
             // Cockpit context: lets the in-modal status controls render the hold
             // banner, the returned reason, and restore the stepper position on hold.
             'status_before_hold' => $document->status_before_hold,
+            // Position on the four-stage progress bar (DocumentStatus::railStages()).
+            'rail_stage' => $document->statusEnum()->railStage(
+                DocumentStatus::tryFrom((string) $document->status_before_hold)
+            ),
             'blocked_by' => $document->blocked_by,
             'hold_reason' => $document->hold_reason,
             'hold_until' => $document->hold_until?->format('M j, Y'),

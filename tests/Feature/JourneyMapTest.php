@@ -439,8 +439,8 @@ class JourneyMapTest extends TestCase
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * The internal path: staff draft a request, their own department head
-     * endorses it first, and only then does it travel the route template.
+     * The internal path: staff file a request and it goes straight to the
+     * office they chose — the filing office does not review its own request.
      */
     public function test_journey_internal_request_from_draft_to_endorsement(): void
     {
@@ -462,10 +462,10 @@ class JourneyMapTest extends TestCase
 
         $doc = Document::where('origin', Document::ORIGIN_INTERNAL)->latest('id')->firstOrFail();
 
-        // 2. The first hop is the filing department's own endorsement, so the
-        //    head signs off before it leaves the office.
+        // 2. The first hop is the chosen office, current from the start.
         $firstStep = $doc->requestSteps()->orderBy('step_order')->firstOrFail();
-        $this->assertSame(0, (int) $firstStep->step_order);
+        $this->assertSame($this->department('OM')->id, (int) $firstStep->department_id);
+        $this->assertSame('current', $firstStep->status);
 
         // 3. An internal request is never publicly readable. A guest is bounced
         //    off the public tracking route entirely (the route is guest-redirected
@@ -473,7 +473,7 @@ class JourneyMapTest extends TestCase
         $this->get(route('track.show', $doc->tracking_number))
             ->assertStatus(302);
 
-        // 4. The department head can see it in the internal inbox.
+        // 4. The filing office's head can still see it in the internal inbox.
         $this->actingAs($supervisor)->get(route('requests.index'))->assertOk();
         $this->actingAs($supervisor)->get(route('requests.show', $doc))->assertOk();
     }

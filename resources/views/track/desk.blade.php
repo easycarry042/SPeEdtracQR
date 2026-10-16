@@ -1,123 +1,89 @@
-<x-app-layout>
+<x-app-layout fixed-height>
     {{-- The Look Up desk (Figma: STAFF LOOK UP, frames 1293:1331 + 1294:1680).
          A full-width table of the work in scope, with a modal per row. The older
          two-pane list+detail is still reachable at /track/{trackingNumber} —
          that is where the deeper review tools (requirements, release, the
          authenticity seal) live; this desk is for finding and triaging. --}}
     <div class="page-shell page-shell-loose"
-         x-data="lookupDesk(@js(['pending' => $pendingRows, 'active' => $activeRows, 'flow' => $flow]))"
+         x-data="lookupDesk(@js(['pending' => $pendingRows, 'active' => $activeRows, 'flow' => $flow, 'rail' => $rail]))"
          @keydown.escape.window="close()">
 
-        <div class="lookup-panel flex min-h-[600px] flex-col p-[10px]">
-
-            {{-- Toolbar: queue tabs, search, filter — one row, as drawn. The
-                 track is light and the SELECTED side is filled deep green; the
-                 older Look Up frame had that the other way round. --}}
-            <div class="flex flex-wrap items-center gap-[13px]">
-                <div class="desk-tabs h-[66px] w-full max-w-[435px] shrink-0">
-                    <button type="button" @click="tab = 'pending'" :class="tab === 'pending' ? 'on' : ''">Pending</button>
-                    <button type="button" @click="tab = 'active'" :class="tab === 'active' ? 'on' : ''">In Progress</button>
+        {{-- Same table design as the Dashboard and Internal (.st-* in app.css):
+             queue tabs on the left, search and clear on the right, then a card
+             that fills the page and scrolls its rows under a pinned header. --}}
+        <section class="flex min-h-0 flex-1 flex-col">
+            <div class="st-toolbar mb-4">
+                <div class="st-tabs mr-auto" role="tablist" aria-label="Request queues">
+                    <button type="button" role="tab" @click="tab = 'pending'; page = 1"
+                            :class="tab === 'pending' ? 'on' : ''" :aria-selected="tab === 'pending'">
+                        Pending <span class="st-tab-count" x-text="rows.pending.length"></span>
+                    </button>
+                    <button type="button" role="tab" @click="tab = 'active'; page = 1"
+                            :class="tab === 'active' ? 'on' : ''" :aria-selected="tab === 'active'">
+                        In Progress <span class="st-tab-count" x-text="rows.active.length"></span>
+                    </button>
                 </div>
 
-                <div class="relative min-w-0 flex-1">
-                    <label for="deskSearch" class="sr-only">Search requests</label>
-                    <span class="pointer-events-none absolute inset-y-0 left-[21px] flex items-center" aria-hidden="true">
-                        <img src="{{ asset('images/staff/icon-search.svg') }}" alt=""
-                             style="width:28px; height:28px; max-width:none;">
-                    </span>
-                    <input id="deskSearch" type="search" x-model="q" @input="page = 1" placeholder="Search"
-                           class="h-[67px] w-full rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-white/20 pl-[72px] pr-4 text-[22px] font-bold text-ink transition placeholder:text-[#b1b1b1] focus:border-green focus:bg-white/60 focus:outline-none focus:ring-4 focus:ring-green/15">
+                <label for="deskSearch" class="sr-only">Search requests</label>
+                <div class="st-search">
+                    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                    <input id="deskSearch" type="search" x-model="q" @input="page = 1" placeholder="Search">
                 </div>
 
-                <button type="button" @click="q = ''; page = 1"
-                        class="flex h-[67px] w-[67px] shrink-0 items-center justify-center rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-white transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
-                        title="Clear search" aria-label="Clear search">
-                    <img src="{{ asset('images/staff/icon-filter.svg') }}" alt=""
-                         style="width:28px; height:28px; max-width:none;">
-                </button>
+                @include('partials.staff-table-filter', ['id' => 'deskFilter'])
             </div>
 
-            {{-- Table --}}
-            <div class="mt-[30px] min-h-0 flex-1 overflow-x-auto">
-                <table class="w-full min-w-[820px] text-left">
-                    <thead>
-                        <tr class="border-b border-black/10 text-[20px] font-bold text-[#353535]">
-                            <th class="px-[18px] pb-[18px] font-bold">Request Type</th>
-                            <th class="px-[18px] pb-[18px] font-bold">Date</th>
-                            <th class="px-[18px] pb-[18px] font-bold">Requested by</th>
-                            <th class="px-[18px] pb-[18px] font-bold">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <template x-for="row in pageItems" :key="row.id">
-                            <tr class="border-b border-black/10 transition last:border-0 hover:bg-green-wash/40">
-                                <td class="px-[18px] py-[21px]">
-                                    <div class="flex items-center gap-[26px]">
-                                        <span class="relative flex h-[70px] w-[70px] shrink-0 items-center justify-center" aria-hidden="true">
-                                            <img src="{{ asset('images/staff/row-disc.svg') }}" alt=""
-                                                 style="position:absolute; inset:0; width:70px; height:70px; max-width:none;">
-                                            <img class="relative object-contain"
-                                                 style="width:40px; height:40px; max-width:none;"
-                                                 :src="window.requestTypeIcon(row.document_type)" alt="">
-                                        </span>
-                                        <span class="text-[20px] font-medium text-black" x-text="row.document_type"></span>
-                                    </div>
-                                </td>
-                                <td class="px-[18px] py-[21px] text-[20px] font-semibold text-[#666]" x-text="row.date_short"></td>
-                                <td class="px-[18px] py-[21px] text-[20px] font-medium text-black" x-text="row.citizen_name || '—'"></td>
-                                <td class="px-[18px] py-[21px]">
-                                    <button type="button" @click="open(row)"
-                                            class="inline-flex items-center gap-[10px] text-[20px] font-medium text-[#01721a] transition hover:text-green-deep">
-                                        {{-- This frame exports the eye at 28×28; the dashboard's
-                                             is 24×18. Forcing one into the other's box squashes it
-                                             into a ring, because the export carries
-                                             preserveAspectRatio="none". --}}
-                                        <img src="{{ asset('images/staff/icon-eye-28.svg') }}" alt=""
-                                             style="width:28px; height:28px; max-width:none;">
-                                        View details
-                                    </button>
+            <div class="st-card">
+                <div class="st-scroll">
+                    <table class="st-table">
+                        <thead>
+                            <tr>
+                                <th>Request Type</th>
+                                <th>Tracking ID</th>
+                                <th>Date</th>
+                                <th>Requested by</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="row in pageItems" :key="row.id">
+                                <tr>
+                                    <td>
+                                        <div class="st-type">
+                                            <span class="st-disc" aria-hidden="true">
+                                                <img src="{{ asset('images/staff/row-disc.svg') }}" alt="">
+                                                <img :src="window.requestTypeIcon(row.document_type)" alt="">
+                                            </span>
+                                            <p class="st-name truncate" x-text="row.document_type"></p>
+                                        </div>
+                                    </td>
+                                    <td class="mono" x-text="row.tracking_number"></td>
+                                    <td class="mono" x-text="row.submitted_at"></td>
+                                    <td x-text="row.citizen_name || '—'"></td>
+                                    <td>
+                                        <button type="button" @click="open(row)" class="st-action">
+                                            <img src="{{ asset('images/staff/icon-eye.svg') }}" alt="">
+                                            View details
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+
+                            <tr x-show="pageItems.length === 0" class="st-empty">
+                                <td colspan="5">
+                                    <p class="text-sm font-semibold text-ink"
+                                       x-text="q || filterCount() ? 'No requests match' : 'Nothing in this queue'"></p>
+                                    <p class="mt-1 text-sm text-ink-soft"
+                                       x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : 'Work assigned to you appears here as it arrives.'"></p>
                                 </td>
                             </tr>
-                        </template>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <tr x-show="pageItems.length === 0">
-                            <td colspan="4" class="px-6 py-16 text-center">
-                                <p class="text-[18px] font-semibold text-ink"
-                                   x-text="q ? 'No requests match that search' : 'Nothing in this queue'"></p>
-                                <p class="mt-1 text-[16px] text-ink-soft"
-                                   x-text="q ? 'Try a tracking number, a request type, or the requester name.' : 'Work assigned to you appears here as it arrives.'"></p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                @include('partials.staff-table-pager', ['label' => 'Request pages'])
             </div>
-
-            {{-- Pager --}}
-            <nav x-show="pageCount > 1" x-cloak aria-label="Request pages"
-                 class="mt-[14px] flex items-center justify-end gap-[7px] border-t border-black/20 pt-[16px]">
-                <button type="button" @click="go(page - 1)" :disabled="page === 1"
-                        class="lookup-page-step" aria-label="Previous page">
-                    <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
-                         class="rotate-180" style="width:18px; height:18px; max-width:none;">
-                </button>
-
-                <template x-for="(entry, i) in pageList" :key="i">
-                    <span>
-                        <span x-show="entry === 'gap'" class="px-1 text-[20px] font-semibold text-[#666]" aria-hidden="true">…</span>
-                        <button x-show="entry !== 'gap'" type="button" @click="go(entry)"
-                                :aria-current="entry === page ? 'page' : null"
-                                class="lookup-page" :class="entry === page ? 'on' : ''"
-                                x-text="entry"></button>
-                    </span>
-                </template>
-
-                <button type="button" @click="go(page + 1)" :disabled="page === pageCount"
-                        class="lookup-page-step" aria-label="Next page">
-                    <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
-                         style="width:18px; height:18px; max-width:none;">
-                </button>
-            </nav>
-        </div>
+        </section>
 
         @include('track.partials.desk-modal')
     </div>
@@ -147,13 +113,16 @@
 
         window.lookupDesk = function (cfg) {
             return {
+                ...window.stFilterMixin(),
                 rows: { pending: cfg.pending, active: cfg.active },
                 flow: cfg.flow,
+                rail: cfg.rail,
                 tab: cfg.pending.length > 0 ? 'pending' : 'active',
                 q: '',
                 page: 1,
-                perPage: 5,
+                perPage: 10,
                 selected: null,
+                qrOpen: false,    // the QR viewer over the detail card
                 panel: null,      // 'attachments' | null — rendered inside the detail card
                 side: null,       // 'date' | 'messages' | null — the second card
                 dateValue: '',
@@ -165,28 +134,35 @@
                 busy: false,
                 error: '',
 
+                /** Types across both queues, so switching tab keeps the choice. */
+                typeOptions() {
+                    return this.uniqueTypes(this.rows.pending.concat(this.rows.active).map((r) => r.document_type));
+                },
+
                 get matches() {
                     const needle = this.q.trim().toLowerCase();
                     const list = this.rows[this.tab] || [];
 
-                    if (! needle) {
-                        return list;
-                    }
+                    return list.filter((r) => this.passesFilter(r.document_type, r.submitted_on)
+                        && (! needle || [r.citizen_name, r.tracking_number, r.document_type]
+                            .some((f) => (f || '').toLowerCase().includes(needle))));
+                },
 
-                    return list.filter(function (r) {
-                        return [r.citizen_name, r.tracking_number, r.document_type]
-                            .some(function (f) { return (f || '').toLowerCase().includes(needle); });
-                    });
+                get total() {
+                    return this.matches.length;
                 },
 
                 get pageCount() {
                     return Math.max(1, Math.ceil(this.matches.length / this.perPage));
                 },
 
-                get pageItems() {
-                    const page = Math.min(this.page, this.pageCount);
+                /** Searching can shrink the list out from under the open page. */
+                get current() {
+                    return Math.min(this.page, this.pageCount);
+                },
 
-                    return this.matches.slice((page - 1) * this.perPage, page * this.perPage);
+                get pageItems() {
+                    return this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
                 },
 
                 get pageList() {
@@ -196,8 +172,8 @@
                         return Array.from({ length: last }, function (_, i) { return i + 1; });
                     }
 
-                    if (this.page > 5) {
-                        return [1, 'gap', this.page - 1, this.page, this.page + 1, 'gap', last]
+                    if (this.current > 5) {
+                        return [1, 'gap', this.current - 1, this.current, this.current + 1, 'gap', last]
                             .filter(function (p) { return p === 'gap' || (p >= 1 && p <= last); });
                     }
 
@@ -210,6 +186,7 @@
 
                 open(row) {
                     this.selected = row;
+                    this.qrOpen = false;
                     this.panel = null;
                     this.side = null;
                     this.error = '';
@@ -229,6 +206,13 @@
                 },
 
                 close() {
+                    // Esc steps back one layer: the QR viewer first, then the modal.
+                    if (this.qrOpen) {
+                        this.qrOpen = false;
+
+                        return;
+                    }
+
                     this.selected = null;
                     this.panel = null;
                     this.side = null;
@@ -246,31 +230,34 @@
 
                 allLogs: false,
 
-                /** Stage position of the selected row, 1-based, for the rail. */
+                /**
+                 * Stage of the selected row on the four-stage bar, 1-based. The
+                 * server works it out (DocumentStatus::railStage), so side
+                 * states land where the request actually stands.
+                 */
                 stageIndex() {
-                    if (! this.selected) {
-                        return 0;
-                    }
-
-                    const i = this.flow.findIndex((s) => s.value === this.selected.status);
-
-                    return i === -1 ? 0 : i + 1;
+                    return this.selected ? (this.selected.rail_stage || 1) : 0;
                 },
 
-                railFill() {
-                    const count = this.flow.length;
-
-                    return count > 1 ? ((this.stageIndex() - 1) / (count - 1)) * 100 : 0;
-                },
-
-                nodeArt(position) {
+                /** 'done' | 'current' | 'todo' for the stage at `position`. */
+                stageState(position) {
                     const current = this.stageIndex();
 
-                    if (position === current) {
-                        return 'node-current';
+                    // A completed request has nothing left in progress.
+                    if (position < current || (position === current && this.selected?.status === 'completed')) {
+                        return 'done';
                     }
 
-                    return position < current ? 'node-done' : 'node-todo';
+                    return position === current ? 'current' : 'todo';
+                },
+
+                /** Off-the-line states, named under the bar. */
+                sideState() {
+                    return {
+                        returned: 'Returned for revision',
+                        on_hold: 'On hold',
+                        denied: 'Denied',
+                    }[this.selected?.status] || null;
                 },
 
                 post(url, body) {
@@ -346,6 +333,20 @@
                         .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
                 },
 
+                /** Jump the calendar back to this month. */
+                calendarToToday() {
+                    const now = new Date();
+                    this.calYear = now.getFullYear();
+                    this.calMonth = now.getMonth();
+                },
+
+                /** "Friday, August 7, 2026" for the picked day. */
+                pickedLabel() {
+                    const picked = this.parseDate(this.dateValue + 'T00:00:00');
+
+                    return picked ? picked.toLocaleDateString(undefined, { dateStyle: 'full' }) : '';
+                },
+
                 shiftMonth(delta) {
                     const moved = new Date(this.calYear, this.calMonth + delta, 1);
 
@@ -377,6 +378,7 @@
                                 label: day.toLocaleDateString(undefined, { dateStyle: 'long' }),
                                 inMonth: day.getMonth() === this.calMonth,
                                 sunday: day.getDay() === 0,
+                                today: this.isoOf(day) === today,
                                 // A claiming date in the past is not a commitment
                                 // anyone can keep, so those days are not offerable.
                                 past: this.isoOf(day) < today,

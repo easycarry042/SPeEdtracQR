@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\RequestStep;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
+use App\Support\InternalRequestForm;
 use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -91,7 +92,6 @@ class InternalRequestController extends Controller
             'filed' => $filed,
             'closed' => $closed,
             'search' => $search,
-            'canFile' => $user->can('create internal requests') && $department !== null,
         ]);
     }
 
@@ -99,19 +99,7 @@ class InternalRequestController extends Controller
     {
         $department = $this->requireDepartment();
 
-        // The filer picks the office the paper goes to first; the chain is that
-        // department behind their own endorsement, rather than a preset route.
-        $departments = Department::active()->orderBy('name')->get(['id', 'name', 'code']);
-
-        return view('requests.create', [
-            'department' => $department,
-            'departments' => $departments,
-            'departmentsJson' => $departments->map(fn (Department $d): array => [
-                'id' => $d->id,
-                'name' => $d->name,
-                'code' => $d->code,
-            ])->values(),
-        ]);
+        return view('requests.create', ['department' => $department] + InternalRequestForm::data());
     }
 
     public function store(Request $request)
@@ -151,34 +139,22 @@ class InternalRequestController extends Controller
                 'created_by' => auth()->id(),
             ]);
 
-            // The endorsement chain always opens with the requesting department's
-            // own head: a drafted request must be reviewed and endorsed by the
-            // department supervisor before it is forwarded to the first downstream
-            // office. This first hop sits current immediately; the route template's
-            // offices open, in order, as each earlier hop is approved.
-            $ownEndorsement = [
-                'step_order' => 0,
-                'department_id' => $department->id,
-                'action' => 'Department endorsement',
-                'status' => RequestStep::STATUS_CURRENT,
-                'started_at' => now(),
-            ];
-
-            // One forward hop: the department the filer chose. Further offices
-            // are added by whoever handles it there, rather than presumed here.
-            $forwardStep = [
+            // Filing is the requesting office's sign-off, so the request goes
+            // straight to the department the filer chose: that hop is current
+            // from the start. Further offices are added by whoever handles it
+            // there, rather than presumed here. (step_order 0 was the filing
+            // office's own endorsement hop, which older requests may still have.)
+            $document->requestSteps()->create([
                 'step_order' => 1,
                 'department_id' => $firstDepartment->id,
                 'action' => 'Review and action',
-                'status' => RequestStep::STATUS_PENDING,
-                'started_at' => null,
-            ];
+                'status' => RequestStep::STATUS_CURRENT,
+                'started_at' => now(),
+            ]);
 
-            $document->requestSteps()->createMany([$ownEndorsement, $forwardStep]);
-
-            // The filing office physically holds the paper it just created, so
-            // record custody for this first hop automatically — the supervisor
-            // endorses without a redundant scan (later hops still require one).
+            // The filing office physically holds the paper it just created; the
+            // trail starts with it. The receiving office still scans the folder
+            // to take custody before acting (custody is per department).
             $document->custodyEvents()->create([
                 'user_id' => auth()->id(),
                 'capture_method' => 'manual',
@@ -260,7 +236,7 @@ class InternalRequestController extends Controller
      * Chain + audit view of one internal request, with the action panel for
      * the supervisor whose office currently holds it.
      */
-    public function show(Document $document): Factory|View
+    public function show(Request $request, Document $document): Factory|View
     {
         abort_unless(auth()->check(), 403);
         abort_unless($document->isInternal(), 404);
@@ -269,7 +245,8 @@ class InternalRequestController extends Controller
 
         $currentStep = $document->currentRequestStep();
 
-        return view('requests.show', [
+        // ?modal=1: just the detail, fetched into the modal on the Internal page.
+        return view($request->boolean('modal') ? 'requests.detail-modal' : 'requests.show', [
             'document' => $document,
             'canAct' => $document->canActOnCurrentStep(auth()->user()),
             'currentStep' => $currentStep,

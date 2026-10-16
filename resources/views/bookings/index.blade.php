@@ -1,111 +1,127 @@
-<x-app-layout>
-    {{-- Figma: STAFF BOOKING. A month calendar on the left (707 of the frame's
-         1512), and two 379-wide side panels — what is booked on the selected day,
-         and what is coming up. The layout supplies the sidebar, the "Booking"
-         title and the header controls, so this page is only the two columns. --}}
+<x-app-layout fixed-height>
+    {{-- Booking: a month calendar beside two side cards — what is booked on the
+         selected day, and what is coming up. Same card family as the staff
+         tables (.bk-card mirrors .st-card); the page fills the window and each
+         card scrolls on its own. --}}
     <div class="page-shell"
          x-data="bookingCalendar({ meta: @js($dateMeta), selected: @js($defaultDate), today: @js($today) })">
 
         @if(session('status'))
-            <div class="bk-panel !rounded-[14px] px-4 py-3 text-[13px] font-medium text-green-deep" role="status">{{ session('status') }}</div>
+            <div class="bk-card shrink-0 px-4 py-3 text-[length:var(--fs-small)] font-medium text-green-deep" role="status">{{ session('status') }}</div>
         @endif
         @if(session('error'))
-            <div class="bk-panel !rounded-[14px] px-4 py-3 text-[13px] font-medium text-status-red" style="border-color:var(--red)" role="alert">{{ session('error') }}</div>
+            <div class="bk-card shrink-0 px-4 py-3 text-[length:var(--fs-small)] font-medium text-status-red" style="border-color:var(--red)" role="alert">{{ session('error') }}</div>
         @endif
 
-        <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_379px]">
+        <div class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
 
             {{-- ── Calendar ──────────────────────────────────────────────────── --}}
-            <section class="bk-panel px-4 pb-4 pt-6 sm:px-6 sm:pb-6" aria-label="Reservation calendar">
+            <section class="bk-card min-h-[520px] lg:min-h-0" aria-label="Reservation calendar">
+                <div class="bk-card-head">
+                    {{-- The month title opens a month/year picker, to jump straight
+                         to a month instead of paging to it. --}}
+                    <div class="relative" @click.outside="picker = false" @keydown.escape.window="picker = false">
+                        <h2>
+                            <button type="button" @click="openPicker()"
+                                    class="bk-month bk-month-btn"
+                                    :aria-expanded="picker" aria-haspopup="dialog"
+                                    :aria-label="'Choose month, currently ' + monthLabel">
+                                <span x-text="monthLabel"></span>
+                                <svg class="h-4 w-4 shrink-0 text-ink-soft transition-transform" :class="picker && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                        </h2>
 
-                {{-- Month, with the two arrows the frame places either side of it.
-                     "Today" is kept as a third control — a staff member who has
-                     paged three months out otherwise has to count back — and it
-                     sits in its own column, with a matching spacer opposite, so
-                     the month stays centred in the panel as drawn. --}}
-                <div class="flex items-center justify-between gap-2">
-                    <button type="button" @click="goToday()" class="cr-btn cr-btn-sm shrink-0">Today</button>
-
-                    <div class="flex items-center justify-center gap-4 sm:gap-6">
-                    <button type="button" @click="prev()" aria-label="Previous month"
-                            class="flex h-10 w-10 items-center justify-center rounded-full text-green transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-                    </button>
-
-                    <h2 class="bk-month whitespace-nowrap text-center" x-text="monthLabel"></h2>
-
-                    <button type="button" @click="next()" aria-label="Next month"
-                            class="flex h-10 w-10 items-center justify-center rounded-full text-green transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                    </button>
+                        <div x-show="picker" x-cloak x-transition.opacity.duration.150ms
+                             class="bk-picker" role="dialog" aria-label="Choose month and year">
+                            <div class="flex items-center justify-between">
+                                <button type="button" @click="pickerYear--" aria-label="Previous year" class="bk-picker-step">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                </button>
+                                <label class="sr-only" for="bk-picker-year">Year</label>
+                                <input id="bk-picker-year" type="number" inputmode="numeric" min="1900" max="2999"
+                                       x-model.number="pickerYear" class="bk-picker-year">
+                                <button type="button" @click="pickerYear++" aria-label="Next year" class="bk-picker-step">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
+                            <div class="mt-3 grid grid-cols-3 gap-1.5">
+                                <template x-for="(name, mi) in monthNames" :key="mi">
+                                    <button type="button" @click="jumpTo(pickerYear, mi)" x-text="name"
+                                            class="bk-picker-month"
+                                            :class="{ 'on': mi === view.getMonth() && pickerYear === view.getFullYear() }"
+                                            :aria-pressed="mi === view.getMonth() && pickerYear === view.getFullYear()"></button>
+                                </template>
+                            </div>
+                        </div>
                     </div>
 
-                    {{-- Balances the Today button, aria-hidden because it is
-                         nothing but the space that keeps the month centred. --}}
-                    <span class="hidden w-[74px] shrink-0 sm:block" aria-hidden="true"></span>
+                    {{-- Previous / Today / Next, one joined control. --}}
+                    <div class="bk-nav" role="group" aria-label="Change month">
+                        <button type="button" @click="prev()" aria-label="Previous month"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg></button>
+                        <button type="button" @click="goToday()">Today</button>
+                        <button type="button" @click="next()" aria-label="Next month"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg></button>
+                    </div>
                 </div>
 
-                {{-- Weekday heads. Sunday is red, as drawn. --}}
-                <div class="mt-8 grid grid-cols-7 text-center">
-                    @foreach(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as $index => $dow)
-                        <div @class(['bk-dow pb-4', 'bk-dow-sun' => $index === 0])>{{ $dow }}</div>
+                {{-- Weekday heads. Sunday in red, the non-working day. --}}
+                <div class="bk-dows" aria-hidden="true">
+                    @foreach(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $index => $dow)
+                        <div @class(['bk-dow', 'bk-dow-sun' => $index === 0])>{{ $dow }}</div>
                     @endforeach
                 </div>
 
-                {{-- Weeks. Each row is a hairline apart; the days either side of
-                     the month are shown muted rather than left blank, so the grid
-                     never has holes in it. --}}
-                <template x-for="(week, wi) in weeks" :key="wi">
-                    <div class="bk-week grid grid-cols-7">
-                        <template x-for="(cell, di) in week" :key="cell.iso">
-                            <div>
-                                <button type="button" @click="select(cell.iso)"
-                                        class="bk-day"
-                                        :class="{
-                                            'bk-day-on': cell.iso === selected,
-                                            'bk-day-out': cell.outside,
-                                            'bk-day-sun': di === 0,
-                                            'bk-day-has': cell.meta && !cell.outside
-                                        }"
-                                        :aria-pressed="cell.iso === selected"
-                                        :aria-label="cell.label + (cell.meta && !cell.outside ? ', ' + cell.meta.count + (cell.meta.count === 1 ? ' booking' : ' bookings') + (cell.meta.conflict ? ', with an overlap to resolve' : '') : ', no bookings')">
-                                    <span class="bk-day-n" x-text="cell.day"></span>
+                {{-- Weeks fill the card, sharing its height evenly. Days from the
+                     neighbouring months are shaded rather than left blank. --}}
+                <div class="bk-weeks">
+                    <template x-for="(week, wi) in weeks" :key="wi">
+                        <div class="bk-week">
+                            <template x-for="(cell, di) in week" :key="cell.iso">
+                                <div class="h-full">
+                                    <button type="button" @click="select(cell.iso)"
+                                            class="bk-day"
+                                            :class="{
+                                                'bk-day-on': cell.iso === selected,
+                                                'bk-day-today': cell.iso === today,
+                                                'bk-day-out': cell.outside,
+                                                'bk-day-sun': di === 0
+                                            }"
+                                            :aria-pressed="cell.iso === selected"
+                                            :aria-current="cell.iso === today ? 'date' : null"
+                                            :aria-label="cell.label + (cell.meta && !cell.outside ? ', ' + cell.meta.count + (cell.meta.count === 1 ? ' booking' : ' bookings') + (cell.meta.conflict ? ', with an overlap to resolve' : '') : ', no bookings')">
+                                        <span class="bk-day-n" x-text="cell.day"></span>
 
-                                    {{-- How many reservations, and whether any of
-                                         them clash. Nothing is drawn on an empty
-                                         day: the frame's grid is quiet on purpose.
-                                         Just the dot and the number — a cell is
-                                         only ~100px wide, and the word is carried
-                                         by the button's aria-label instead. --}}
-                                    <template x-if="cell.meta && !cell.outside">
-                                        <span class="bk-count" :class="cell.meta.conflict ? 'is-clash' : ''" x-text="cell.meta.count"></span>
-                                    </template>
-                                </button>
-                            </div>
-                        </template>
-                    </div>
-                </template>
+                                        {{-- How many reservations, red when two overlap. --}}
+                                        <template x-if="cell.meta && !cell.outside">
+                                            <span class="bk-count" :class="cell.meta.conflict ? 'is-clash' : ''"
+                                                  x-text="cell.meta.count + (cell.meta.count === 1 ? ' booking' : ' bookings')"></span>
+                                        </template>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
             </section>
 
-            {{-- ── Side panels ───────────────────────────────────────────────── --}}
-            <div class="flex flex-col gap-5">
+            {{-- ── Side cards ────────────────────────────────────────────────── --}}
+            <div class="flex min-h-0 flex-col gap-5">
 
-                {{-- Booked Today (or the day picked on the calendar) ─────────── --}}
-                <section class="bk-panel flex min-h-[409px] flex-col px-6 py-6" aria-label="Reservations on the selected day">
-                    <h2 class="bk-title" x-text="selected === today ? 'Booked Today' : 'Booked ' + shortLabel"></h2>
+                {{-- Booked today (or on the day picked in the calendar) ─────── --}}
+                <section class="bk-card min-h-[260px] flex-1" aria-label="Reservations on the selected day">
+                    <div class="bk-card-head">
+                        <h2 class="bk-title" x-text="selected === today ? 'Booked today' : 'Booked ' + shortLabel"></h2>
+                        <span class="bk-head-count" x-text="meta[selected] ? meta[selected].count : 0"></span>
+                    </div>
 
-                    <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-                        {{-- Nothing on the day ------------------------------------ --}}
+                    <div class="bk-card-body">
                         <template x-if="!meta[selected]">
                             <div class="bk-empty">
-                                {{-- book-bookmark (Streamline Freehand), redrawn as
-                                     an inline outline so it inherits the muted ink
-                                     and needs no network request. --}}
-                                <svg class="h-[60px] w-[60px]" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                                    <rect x="11" y="8" width="38" height="44" rx="3.5"/>
-                                    <path stroke-linecap="round" d="M18 8v44"/>
-                                    <path stroke-linejoin="round" d="M33 8v20l6.5-5 6.5 5V8"/>
-                                </svg>
+                                <span class="bk-empty-icon">
+                                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect x="4" y="5" width="16" height="15" rx="2.5"/>
+                                        <path stroke-linecap="round" d="M4 10h16M9 3v4M15 3v4"/>
+                                    </svg>
+                                </span>
                                 <p x-text="selected === today ? 'There are no reservations today' : 'There are no reservations on this day'"></p>
                             </div>
                         </template>
@@ -113,24 +129,23 @@
                         {{-- One hidden group per date; Alpine reveals the selected
                              one, so switching days costs no round trip. --}}
                         @foreach($byDate as $date => $dayBookings)
-                            <div x-show="selected === @js($date)" x-cloak class="space-y-3">
+                            <div x-show="selected === @js($date)" x-cloak>
                                 @foreach($dayBookings as $b)
                                     @php $conflict = in_array($b->id, $conflictIds, true); @endphp
-                                    <div x-data="{ resched: false }"
-                                         class="rounded-[15px] border p-3 {{ $conflict ? 'border-status-red bg-status-red-wash/40' : 'border-hairline bg-white/70' }}">
-                                        <p class="text-[14px] font-bold text-ink">{{ $b->resource?->name ?? 'Resource' }}</p>
-                                        <p class="mt-0.5 text-[13px] text-ink">
+                                    <div x-data="{ resched: false }" @class(['bk-item', 'is-clash' => $conflict])>
+                                        <p class="bk-item-title">{{ $b->resource?->name ?? 'Resource' }}</p>
+                                        <p class="bk-item-line">
                                             {{ $b->starts_at->format('g:i A') }} – {{ $b->starts_at->isSameDay($b->ends_at) ? $b->ends_at->format('g:i A') : $b->ends_at->format('M j, g:i A') }}
                                         </p>
-                                        <p class="mt-0.5 text-[12.5px] text-ink-soft">
+                                        <p class="bk-item-meta">
                                             Requested by {{ $b->document?->citizen_name ?: 'Requester' }}
+                                            @if($b->document)
+                                                · <a href="{{ route('track.show', $b->document->tracking_number) }}"
+                                                     class="mono text-green hover:underline">{{ $b->document->tracking_number }}</a>
+                                            @endif
                                         </p>
-                                        @if($b->document)
-                                            <a href="{{ route('track.show', $b->document->tracking_number) }}"
-                                               class="mt-0.5 inline-block font-mono text-[12px] text-green underline">{{ $b->document->tracking_number }}</a>
-                                        @endif
 
-                                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
                                             <span class="pill {{ $b->status === 'approved' ? 'p-green' : 'p-amber' }}">{{ ucfirst($b->status) }}</span>
                                             @if($b->document?->quantity)<span class="pill p-green">Qty: {{ number_format($b->document->quantity) }}</span>@endif
                                             @if($conflict)<span class="pill p-red">Overlaps another booking</span>@endif
@@ -154,14 +169,12 @@
                                               class="mt-3 space-y-2 border-t border-hairline pt-3">
                                             @csrf @method('PATCH')
                                             <div>
-                                                <label class="block text-[10px] font-semibold uppercase tracking-wide text-ink-soft">New start</label>
-                                                <input type="datetime-local" name="starts_at" required value="{{ $b->starts_at->format('Y-m-d\TH:i') }}"
-                                                       class="mt-0.5 w-full rounded-[8px] border border-hairline-strong bg-white px-2 py-2 text-[13px] text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
+                                                <label class="st-filter-label">New start</label>
+                                                <input type="datetime-local" name="starts_at" required value="{{ $b->starts_at->format('Y-m-d\TH:i') }}" class="st-filter-field">
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] font-semibold uppercase tracking-wide text-ink-soft">New end</label>
-                                                <input type="datetime-local" name="ends_at" required value="{{ $b->ends_at->format('Y-m-d\TH:i') }}"
-                                                       class="mt-0.5 w-full rounded-[8px] border border-hairline-strong bg-white px-2 py-2 text-[13px] text-ink focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
+                                                <label class="st-filter-label">New end</label>
+                                                <input type="datetime-local" name="ends_at" required value="{{ $b->ends_at->format('Y-m-d\TH:i') }}" class="st-filter-field">
                                             </div>
                                             <button type="submit" class="cr-btn cr-btn-sm cr-btn-primary">Save</button>
                                         </form>
@@ -173,31 +186,35 @@
                 </section>
 
                 {{-- Upcoming — after today, whatever the calendar is showing ──── --}}
-                <section class="bk-panel flex min-h-[409px] flex-col px-6 py-6" aria-label="Upcoming reservations">
-                    <h2 class="bk-title">Upcoming</h2>
+                <section class="bk-card min-h-[260px] flex-1" aria-label="Upcoming reservations">
+                    <div class="bk-card-head">
+                        <h2 class="bk-title">Upcoming</h2>
+                        <span class="bk-head-count">{{ $upcoming->count() }}</span>
+                    </div>
 
-                    <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div class="bk-card-body">
                         @forelse($upcoming as $b)
-                            {{-- Each row jumps the calendar to that day, so the
-                                 panel above fills in with the day's detail. --}}
-                            <button type="button" @click="select(@js($b->starts_at->format('Y-m-d')))"
-                                    class="w-full rounded-[15px] border border-hairline bg-white/70 p-3 text-left transition hover:border-green focus:outline-none focus-visible:ring-2 focus-visible:ring-green {{ $loop->first ? '' : 'mt-3' }}">
+                            {{-- Each row jumps the calendar to that day, so the card
+                                 above fills in with the day's detail. --}}
+                            <button type="button" @click="select(@js($b->starts_at->format('Y-m-d')))" class="bk-item">
                                 <div class="flex items-start justify-between gap-3">
-                                    <p class="text-[14px] font-bold text-ink">{{ $b->resource?->name ?? 'Resource' }}</p>
-                                    <span class="shrink-0 text-[13px] font-semibold text-ink-soft">{{ $b->starts_at->format('m/d/y') }}</span>
+                                    <p class="bk-item-title">{{ $b->resource?->name ?? 'Resource' }}</p>
+                                    <span class="shrink-0 text-[length:var(--fs-small)] font-semibold text-ink-soft">{{ $b->starts_at->format('M j') }}</span>
                                 </div>
-                                <p class="mt-0.5 text-[13px] text-ink">{{ $b->starts_at->format('g:i A') }} – {{ $b->ends_at->format('g:i A') }}</p>
-                                <p class="mt-0.5 text-[12.5px] text-ink-soft">Requested by {{ $b->document?->citizen_name ?: 'Requester' }}</p>
-                                <span class="pill mt-2 {{ $b->status === 'approved' ? 'p-green' : 'p-amber' }}">{{ ucfirst($b->status) }}</span>
+                                <p class="bk-item-line">{{ $b->starts_at->format('g:i A') }} – {{ $b->ends_at->format('g:i A') }}</p>
+                                <div class="mt-1.5 flex items-center justify-between gap-2">
+                                    <p class="bk-item-meta !mt-0 truncate">Requested by {{ $b->document?->citizen_name ?: 'Requester' }}</p>
+                                    <span class="pill shrink-0 {{ $b->status === 'approved' ? 'p-green' : 'p-amber' }}">{{ ucfirst($b->status) }}</span>
+                                </div>
                             </button>
                         @empty
                             <div class="bk-empty">
-                                {{-- book-flip-page (Streamline Freehand). --}}
-                                <svg class="h-[55px] w-[55px]" viewBox="0 0 55 55" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M27.5 12.5C23 9.2 17.6 7.6 12 8v36c5.6-.4 11 1.2 15.5 4.5 4.5-3.3 9.9-4.9 15.5-4.5V8c-5.6-.4-11 1.2-15.5 4.5z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M27.5 12.5v36"/>
-                                    <path stroke-linecap="round" d="M17.5 18.5h6M17.5 26.5h6M17.5 34.5h6"/>
-                                </svg>
+                                <span class="bk-empty-icon">
+                                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="8.5"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/>
+                                    </svg>
+                                </span>
                                 <p>There are no upcoming reservations</p>
                             </div>
                         @endforelse
@@ -281,6 +298,24 @@
 
                 prev() { this.view = new Date(this.view.getFullYear(), this.view.getMonth() - 1, 1); },
                 next() { this.view = new Date(this.view.getFullYear(), this.view.getMonth() + 1, 1); },
+
+                // Month/year picker behind the month label.
+                picker: false,
+                pickerYear: null,
+                monthNames: Array.from({ length: 12 }, (_, m) =>
+                    new Date(2000, m, 1).toLocaleDateString(undefined, { month: 'short' })),
+
+                openPicker() {
+                    this.pickerYear = this.view.getFullYear();
+                    this.picker = !this.picker;
+                },
+
+                jumpTo(year, month) {
+                    const y = parseInt(year, 10);
+                    if (!Number.isFinite(y) || y < 1900 || y > 2999) { return; }
+                    this.view = new Date(y, month, 1);
+                    this.picker = false;
+                },
 
                 goToday() {
                     const t = new Date();

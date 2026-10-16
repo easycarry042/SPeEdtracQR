@@ -2,12 +2,12 @@
     <x-slot name="title">Track a Document</x-slot>
 
     {{-- Page header (Back lives in the shared public header — no duplicate here). --}}
-    <div class="mb-[34px] text-center">
+    <div class="mb-[27px] text-center">
         {{-- Phone framing a QR code: the two ways in, in one mark. --}}
         <img src="{{ asset('images/portal/icon-scan-phone.svg') }}" alt=""
-             class="mx-auto h-[75px] w-[49px] -rotate-[13.99deg]">
+             class="mx-auto h-[60px] w-[39px] -rotate-[13.99deg]">
 
-        <h1 class="mt-[22px] text-[26px] font-black text-[#004004] sm:text-[30px]">
+        <h1 class="mt-[17.5px] text-[21px] font-black text-[#004004] sm:text-[24px]">
             Track your requests now!
         </h1>
     </div>
@@ -15,12 +15,12 @@
     {{-- Two ways in, side by side: scan the receipt's QR, or type the number
          from it. The rule between them is decorative, so it drops on mobile
          where the columns stack. --}}
-    <div class="mx-auto flex max-w-[1056px] flex-col items-center gap-8 md:flex-row md:items-stretch md:gap-0">
+    <div class="mx-auto flex max-w-[845px] flex-col items-center gap-8 md:flex-row md:items-stretch md:gap-0">
 
         {{-- ── Scan ──────────────────────────────────────────────────────────── --}}
-        <section class="flex w-full max-w-[450px] flex-col md:flex-1">
-            <div class="track-panel flex min-h-[572px] flex-1 flex-col rounded-[20px] p-[12px]">
-                <h2 class="pb-[16px] pt-[8px] text-center text-[22px] font-extrabold text-[#017209]">Scan QR Code to track</h2>
+        <section class="flex w-full max-w-[360px] flex-col md:flex-1">
+            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col rounded-[16px] p-[9.5px]">
+                <h2 class="pb-[13px] pt-[8px] text-center text-[18px] font-extrabold text-[#017209]">Scan QR Code to track</h2>
                 {{-- mb-4 rather than a top margin on the button: the button sinks with
                      mt-auto, which collapses to nothing when the card has no spare
                      height, so the gap has to come from above. --}}
@@ -28,18 +28,18 @@
                      camera stream, which is landscape on nearly every device —
                      left to itself it letterboxes inside this box and leaves a
                      black band underneath. .qr-viewport makes the feed cover. --}}
-                <div class="qr-viewport relative mb-4 overflow-hidden rounded-[20px] bg-[#1e1e1e]">
+                <div class="qr-viewport relative mb-4 overflow-hidden rounded-[16px] bg-[#1e1e1e]">
                     <div id="qr-reader" class="absolute inset-0 h-full w-full"></div>
 
                     {{-- Framing guide. Stays up while the camera runs — the
                          library's own shaded viewfinder is hidden in CSS. --}}
                     <div id="scanFrame" class="pointer-events-none absolute inset-0 flex items-center justify-center">
                         {{-- Four thick rounded corner brackets, as drawn. --}}
-                        <div class="relative h-[250px] w-[250px]">
-                            <span class="absolute left-0 top-0 h-[84px] w-[84px] rounded-tl-[16px] border-l-[11px] border-t-[11px] border-white"></span>
-                            <span class="absolute right-0 top-0 h-[84px] w-[84px] rounded-tr-[16px] border-r-[11px] border-t-[11px] border-white"></span>
-                            <span class="absolute bottom-0 left-0 h-[84px] w-[84px] rounded-bl-[16px] border-b-[11px] border-l-[11px] border-white"></span>
-                            <span class="absolute bottom-0 right-0 h-[84px] w-[84px] rounded-br-[16px] border-b-[11px] border-r-[11px] border-white"></span>
+                        <div class="relative h-[200px] w-[200px]">
+                            <span class="absolute left-0 top-0 h-[67px] w-[67px] rounded-tl-[13px] border-l-[9px] border-t-[9px] border-white"></span>
+                            <span class="absolute right-0 top-0 h-[67px] w-[67px] rounded-tr-[13px] border-r-[9px] border-t-[9px] border-white"></span>
+                            <span class="absolute bottom-0 left-0 h-[67px] w-[67px] rounded-bl-[13px] border-b-[9px] border-l-[9px] border-white"></span>
+                            <span class="absolute bottom-0 right-0 h-[67px] w-[67px] rounded-br-[13px] border-b-[9px] border-r-[9px] border-white"></span>
                         </div>
                     </div>
                 </div>
@@ -49,14 +49,14 @@
                 </p>
 
                 <button id="startCameraBtn" type="button"
-                        class="track-cta mt-auto inline-flex w-full items-center justify-center gap-[10px] rounded-[40px] bg-[#01721a] text-[20px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
+                        class="track-cta mt-auto inline-flex w-full items-center justify-center gap-[8px] rounded-[32px] bg-[#01721a] text-[16px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
                     <img src="{{ asset('images/portal/icon-camera.svg') }}" alt=""
-                         class="h-[26px] w-[26px] brightness-0 invert">
+                         class="h-[21px] w-[21px] brightness-0 invert">
                     Start Camera
                 </button>
 
                 <button id="stopCameraBtn" type="button"
-                        class="track-cta mt-auto hidden w-full items-center justify-center gap-[10px] rounded-[40px] border border-[rgba(0,64,4,0.5)] bg-white text-[20px] font-black text-[#004004] transition hover:bg-[rgba(141,255,60,0.2)]">
+                        class="track-cta mt-auto hidden w-full items-center justify-center gap-[8px] rounded-[32px] border border-[rgba(0,64,4,0.5)] bg-white text-[16px] font-black text-[#004004] transition hover:bg-[rgba(141,255,60,0.2)]">
                     <svg class="h-5 w-5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <rect x="6" y="6" width="12" height="12" rx="2"/>
                     </svg>
@@ -86,21 +86,21 @@
 
         {{-- Rule between the two routes in — decorative, so it sits between the
              panels and disappears when they stack. --}}
-        <div class="mx-[38px] hidden w-[2px] self-stretch bg-black/20 md:my-[88px] md:block" aria-hidden="true"></div>
+        <div class="mx-[30.5px] hidden w-[2px] self-stretch bg-black/20 md:my-[70.5px] md:block" aria-hidden="true"></div>
 
         {{-- ── Type the number ───────────────────────────────────────────────── --}}
-        <section class="flex w-full max-w-[450px] flex-col md:flex-1">
-            <div class="track-panel flex min-h-[572px] flex-1 flex-col rounded-[20px] px-[25px] pb-[12px] pt-[12px]">
-                <h2 class="pb-[16px] pt-[8px] text-center text-[22px] font-extrabold text-[#017209]">Enter Tracking Number</h2>
+        <section class="flex w-full max-w-[360px] flex-col md:flex-1">
+            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col rounded-[16px] px-[20px] pb-[9.5px] pt-[9.5px]">
+                <h2 class="pb-[13px] pt-[8px] text-center text-[18px] font-extrabold text-[#017209]">Enter Tracking Number</h2>
 
                 {{-- Stand-in for the printed number on the receipt. --}}
                 <img src="{{ asset('images/portal/illus-tracking-id.svg') }}" alt=""
-                     class="mx-auto mt-[35px] h-[100px] w-[100px]">
+                     class="mx-auto mt-[28px] h-[80px] w-[80px]">
 
-                <div class="mt-[45px] flex items-start gap-[16px]">
+                <div class="mt-[36px] flex items-start gap-[13px]">
                     <img src="{{ asset('images/portal/icon-info.svg') }}" alt=""
-                         class="mt-[3px] h-[30px] w-[31px] shrink-0">
-                    <p class="text-[18px] font-medium leading-snug text-[#33a64c]">
+                         class="mt-[3px] h-[24px] w-[25px] shrink-0">
+                    <p class="text-[14px] font-medium leading-snug text-[#33a64c]">
                         Your tracking ID is printed on the document receipt issued when the document was submitted.
                     </p>
                 </div>
@@ -116,7 +116,7 @@
                            autocomplete="off"
                            required
                            @if(! empty($trackingError)) aria-invalid="true" aria-describedby="tracking-error" @endif
-                           class="h-[70px] w-full rounded-[20px] border {{ ! empty($trackingError) ? 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-400/30' : 'border-transparent bg-[rgba(1,114,26,0.3)] focus:border-[#01721a] focus:ring-[#8dff3c]/40' }} px-[36px] font-mono text-[18px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:text-[20px] placeholder:font-semibold placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] transition focus:bg-white/70 focus:outline-none focus:ring-4">
+                           class="h-[56px] w-full rounded-[16px] border {{ ! empty($trackingError) ? 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-400/30' : 'border-transparent bg-[rgba(1,114,26,0.3)] focus:border-[#01721a] focus:ring-[#8dff3c]/40' }} px-[29px] font-mono text-[14px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:text-[16px] placeholder:font-semibold placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] transition focus:bg-white/70 focus:outline-none focus:ring-4">
 
                     @if(! empty($trackingError))
                         <div id="tracking-error" role="alert"
@@ -132,9 +132,9 @@
                     @endif
 
                     <button type="submit"
-                            class="track-cta inline-flex w-full items-center justify-center gap-[10px] rounded-[60px] bg-[#01721a] text-[20px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
+                            class="track-cta inline-flex w-full items-center justify-center gap-[8px] rounded-[48px] bg-[#01721a] text-[16px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
                         <img src="{{ asset('images/portal/icon-search.svg') }}" alt=""
-                             class="h-[23px] w-[23px] brightness-0 invert">
+                             class="h-[18.5px] w-[18.5px] brightness-0 invert">
                         Search
                     </button>
                 </form>

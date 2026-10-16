@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -88,7 +89,7 @@ class SecurityHeaders
             foreach (['script-src', 'style-src', 'font-src', 'img-src'] as $directive) {
                 $directives[$directive] = array_values(array_unique(array_merge(
                     $directives[$directive] ?? ["'self'"],
-                    self::VITE_DEV_ORIGINS,
+                    $this->viteDevOrigins(),
                 )));
             }
         }
@@ -145,13 +146,38 @@ class SecurityHeaders
 
         // Vite's dev server holds an HMR socket open when `npm run dev` is used.
         if (app()->environment('local')) {
-            $sources[] = 'ws://localhost:5173';
-            $sources[] = 'http://localhost:5173';
-            $sources[] = 'ws://127.0.0.1:5173';
-            $sources[] = 'http://127.0.0.1:5173';
+            foreach ($this->viteDevOrigins() as $origin) {
+                $sources[] = $origin;
+                $sources[] = preg_replace('#^http#', 'ws', $origin);
+            }
         }
 
         return $sources;
+    }
+
+    /**
+     * The fixed dev origins plus whatever origin the running dev server
+     * actually advertised in the hot file. Reading the hot file means the
+     * policy always matches the asset URLs Laravel prints, even if Vite binds
+     * an address nobody anticipated (e.g. IPv6 http://[::1]:5173).
+     *
+     * @return array<int, string>
+     */
+    private function viteDevOrigins(): array
+    {
+        $origins = self::VITE_DEV_ORIGINS;
+
+        $hotFile = Vite::hotFile();
+
+        if (is_file($hotFile)) {
+            $url = parse_url(trim((string) file_get_contents($hotFile)));
+
+            if (isset($url['scheme'], $url['host'])) {
+                $origins[] = $url['scheme'].'://'.$url['host'].(isset($url['port']) ? ':'.$url['port'] : '');
+            }
+        }
+
+        return array_values(array_unique($origins));
     }
 
     private function hsts(): string

@@ -6,8 +6,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The split-card login: brand on the left, credentials on the right, over the
- * same arrow-doodle wash as the landing page and citizen portal.
+ * The split-card login: brand on the left, credentials on the right, on a
+ * plain white page
  */
 class LoginPageDesignTest extends TestCase
 {
@@ -17,7 +17,7 @@ class LoginPageDesignTest extends TestCase
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('images/landing/speed-icon.png', false)
+            ->assertSee('images/staff/logo-white.png', false)
             ->assertSee('Secure document tracking and QR verification.')
             ->assertSee('Welcome')
             ->assertSee('Input your credentials to continue');
@@ -51,11 +51,20 @@ class LoginPageDesignTest extends TestCase
             ->assertSee('<title>SPeED TraQR — Forgot Password</title>', false);
     }
 
-    public function test_login_backdrop_uses_the_arrow_doodle(): void
+    public function test_login_backdrop_is_plain_white(): void
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('images/landing/doodle-pattern.jpg', false);
+            ->assertDontSee('doodle-pattern.jpg', false)
+            ->assertDontSee('radial-gradient', false);
+    }
+
+    public function test_login_links_back_to_the_homepage(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('href="'.route('welcome').'" class="auth-home-link"', false)
+            ->assertSee('Back to Homepage');
     }
 
     public function test_password_stays_masked_until_the_reveal_is_used(): void

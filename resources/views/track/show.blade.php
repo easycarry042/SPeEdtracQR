@@ -83,7 +83,7 @@
     {{-- lg:h-full + lg:grid-rows-1: the grid takes the height the fixed-height
          shell hands it, giving both panels a definite height to scroll within
          rather than growing the page. --}}
-    <div class="grid w-full min-h-0 flex-1 grid-cols-1 gap-8 lg:h-full lg:grid-cols-[398fr_690fr] lg:grid-rows-1 lg:gap-[13px]"
+    <div class="grid w-full min-h-0 flex-1 grid-cols-1 gap-8 lg:h-full lg:grid-cols-[398fr_690fr] lg:grid-rows-1 lg:gap-[10.5px]"
          x-data="{ tab: @js($activeTab ?? 'inprogress'), q: '' }">
         {{-- Fixed-height panel; the list scrolls inside it --}}
         <div class="lookup-panel flex min-h-0 flex-col overflow-hidden p-3 lg:h-full">
@@ -117,16 +117,16 @@
             <div class="mb-3 flex items-center gap-2">
                 <label for="lookupSearch" class="sr-only">Search this list</label>
                 <div class="relative min-w-0 flex-1">
-                    <span class="pointer-events-none absolute inset-y-0 left-[16px] flex items-center" aria-hidden="true">
-                        <img src="{{ asset('images/staff/icon-search.svg') }}" alt="" class="h-[24px] w-[24px]">
+                    <span class="pointer-events-none absolute inset-y-0 left-[13px] flex items-center" aria-hidden="true">
+                        <img src="{{ asset('images/staff/icon-search.svg') }}" alt="" class="h-[19px] w-[19px]">
                     </span>
                     <input id="lookupSearch" type="search" x-model="q" placeholder="Search"
-                           class="h-[54px] w-full rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-white/20 pl-[58px] pr-3 text-[18px] font-bold text-ink transition placeholder:text-[rgba(177,177,177,0.9)] focus:border-green focus:bg-white/60 focus:outline-none focus:ring-4 focus:ring-green/15">
+                           class="h-[43px] w-full rounded-[12px] border border-[rgba(0,64,4,0.5)] bg-white/20 pl-[46.5px] pr-3 text-[14px] font-bold text-ink transition placeholder:text-[rgba(177,177,177,0.9)] focus:border-green focus:bg-white/60 focus:outline-none focus:ring-4 focus:ring-green/15">
                 </div>
                 <button type="button" @click="q = ''"
-                        class="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[15px] border border-[rgba(0,64,4,0.5)] bg-paper transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
+                        class="flex h-[43px] w-[43px] shrink-0 items-center justify-center rounded-[12px] border border-[rgba(0,64,4,0.5)] bg-paper transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
                         title="Clear search" aria-label="Clear search">
-                    <img src="{{ asset('images/staff/icon-filter.svg') }}" alt="" class="h-[24px] w-[24px]">
+                    <img src="{{ asset('images/staff/icon-filter.svg') }}" alt="" class="h-[19px] w-[19px]">
                 </button>
             </div>
 
@@ -144,18 +144,18 @@
                            data-search="{{ Str::lower($item->document_type.' '.$item->citizen_name.' '.$item->tracking_number) }}"
                            x-show="rowVisible($el)"
                            @class([
-                               'flex items-center gap-[14px] border-b border-[rgba(0,0,0,0.12)] px-[9px] py-[10px] last:border-b-0',
-                               'rounded-[12px] border border-[rgba(0,64,4,0.5)] bg-[rgba(1,114,26,0.14)]' => $isOpen,
+                               'flex items-center gap-[11px] border-b border-[rgba(0,0,0,0.12)] px-[7px] py-[8px] last:border-b-0',
+                               'rounded-[9.5px] border border-[rgba(0,64,4,0.5)] bg-[rgba(1,114,26,0.14)]' => $isOpen,
                                'hover:bg-green-wash/50' => ! $isOpen,
                            ])>
-                            <span class="relative flex h-[60px] w-[60px] shrink-0 items-center justify-center">
+                            <span class="relative flex h-[48px] w-[48px] shrink-0 items-center justify-center">
                                 <img src="{{ asset('images/staff/row-disc.svg') }}" alt="" class="absolute inset-0 h-full w-full">
                                 <x-request-type-icon :type="$item->document_type" :size="30" class="relative" />
                             </span>
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-baseline justify-between gap-2">
                                     <p @class([
-                                           'truncate text-[16px]',
+                                           'truncate text-[14px]',
                                            'font-black text-[#004004]' => $isOpen,
                                            'font-bold text-black' => ! $isOpen,
                                        ])>{{ $item->document_type }}</p>
@@ -163,7 +163,7 @@
                                         {{ $item->created_at->format('m/d/y') }}
                                     </p>
                                 </div>
-                                <p class="truncate text-[15px] font-bold {{ $isOpen ? 'text-[#004004]' : 'text-[#666]' }}">
+                                <p class="truncate text-[14px] font-bold {{ $isOpen ? 'text-[#004004]' : 'text-[#666]' }}">
                                     {{ $item->citizen_name ? 'Requested by '.$item->citizen_name : $item->tracking_number }}
                                 </p>
                             </div>
@@ -175,16 +175,16 @@
 
                 {{-- Pager (Figma). Hidden on a single page: a lone "1" is noise. --}}
                 <nav x-show="pageCount > 1" x-cloak aria-label="Request pages"
-                     class="mt-[10px] flex items-center justify-center gap-[7px] border-t border-black/20 pt-[14px]">
+                     class="mt-[8px] flex items-center justify-center gap-[7px] border-t border-black/20 pt-[11px]">
                     <button type="button" @click="go(page - 1)" :disabled="page === 1"
                             class="lookup-page-step" aria-label="Previous page">
                         <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
-                             class="h-[18px] rotate-180" style="width: 18px; max-width: none;">
+                             class="h-[14.5px] rotate-180" style="width: 14.5px; max-width: none;">
                     </button>
 
                     <template x-for="(entry, i) in pageList" :key="i">
                         <span>
-                            <span x-show="entry === 'gap'" class="px-1 text-[20px] font-semibold text-[#666]" aria-hidden="true">…</span>
+                            <span x-show="entry === 'gap'" class="px-1 text-[16px] font-semibold text-[#666]" aria-hidden="true">…</span>
                             <button x-show="entry !== 'gap'" type="button" @click="go(entry)"
                                     :aria-current="entry === page ? 'page' : null"
                                     class="lookup-page" :class="entry === page ? 'on' : ''"
@@ -195,7 +195,7 @@
                     <button type="button" @click="go(page + 1)" :disabled="page === pageCount"
                             class="lookup-page-step" aria-label="Next page">
                         <img src="{{ asset('images/staff/icon-angle-right.svg') }}" alt=""
-                             class="h-[18px]" style="width: 18px; max-width: none;">
+                             class="h-[14.5px]" style="width: 14.5px; max-width: none;">
                     </button>
                 </nav>
                 </div>
@@ -203,24 +203,24 @@
         </div>
 
         {{-- Fixed-height panel; the document details scroll inside it --}}
-        <div class="lookup-panel p-[30px] lg:h-full lg:overflow-y-auto">
+        <div class="lookup-panel p-[24px] lg:h-full lg:overflow-y-auto">
             {{-- Type and requester lead; the tracking number is paired with a QR
                  glyph on the right, since the number and the code on the paper
                  are the same handle. --}}
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="min-w-0">
-                    <p class="text-[24px] font-black leading-tight text-green">{{ $document->document_type }}</p>
-                    <p class="text-[18px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }}</p>
+                    <p class="text-[19px] font-black leading-tight text-green">{{ $document->document_type }}</p>
+                    <p class="text-[14px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[10px] border border-green/40 text-green" aria-hidden="true">
-                        <svg class="h-[30px] w-[30px]" viewBox="0 0 24 24" fill="currentColor">
+                    <span class="flex h-[41.5px] w-[41.5px] shrink-0 items-center justify-center rounded-[8px] border border-green/40 text-green" aria-hidden="true">
+                        <svg class="h-[24px] w-[24px]" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M3 3h7v7H3V3zm2 2v3h3V5H5zm9-2h7v7h-7V3zm2 2v3h3V5h-3zM3 14h7v7H3v-7zm2 2v3h3v-3H5zm9-2h3v2h-3v-2zm5 0h2v3h-2v-3zm-5 4h2v3h-2v-3zm4 1h4v2h-2v1h-2v-3z"/>
                         </svg>
                     </span>
                     <div>
-                        <p class="text-[20px] font-black leading-tight text-green">Tracking Number</p>
-                        <span class="mono text-[18px] font-bold text-ink">{{ $document->tracking_number }}</span>
+                        <p class="text-[16px] font-black leading-tight text-green">Tracking Number</p>
+                        <span class="mono text-[14px] font-bold text-ink">{{ $document->tracking_number }}</span>
                     </div>
                 </div>
             </div>
@@ -260,10 +260,10 @@
                     : 0;
             @endphp
 
-            <div class="mt-[38px] px-[22px]">
-                <div class="relative h-[40px]">
-                    <div class="absolute left-0 right-0 top-[15px] h-[10px] rounded-[50px] bg-[#d9d9d9]"></div>
-                    <div class="absolute left-0 top-[15px] h-[10px] rounded-[50px] bg-[#01721a]"
+            <div class="mt-[30.5px] px-[17.5px]">
+                <div class="relative h-[32px]">
+                    <div class="absolute left-0 right-0 top-[12px] h-[8px] rounded-[40px] bg-[#d9d9d9]"></div>
+                    <div class="absolute left-0 top-[12px] h-[8px] rounded-[40px] bg-[#01721a]"
                          style="width: {{ $railFill }}%"></div>
 
                     @foreach($railFlow as $i => $stage)
@@ -290,14 +290,14 @@
 
                 {{-- The end labels anchor to their own edge rather than centring
                      on the node: centred, the last one runs off the panel. --}}
-                <div class="relative mt-[10px] h-[24px]">
+                <div class="relative mt-[8px] h-[19px]">
                     @foreach($railFlow as $i => $stage)
                         @if($loop->first)
-                            <span class="absolute left-0 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]">{{ $stage->label() }}</span>
+                            <span class="absolute left-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage->label() }}</span>
                         @elseif($loop->last)
-                            <span class="absolute right-0 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]">{{ $stage->label() }}</span>
+                            <span class="absolute right-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage->label() }}</span>
                         @else
-                            <span class="absolute -translate-x-1/2 whitespace-nowrap text-[15px] font-medium text-black xl:text-[18px]"
+                            <span class="absolute -translate-x-1/2 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]"
                                   style="left: {{ ($i / ($railCount - 1)) * 100 }}%">{{ $stage->label() }}</span>
                         @endif
                     @endforeach
@@ -307,17 +307,17 @@
             {{-- ── Jump buttons (Figma) ─────────────────────────────────────────
                  The frame's three actions. Each scrolls to the section of this
                  panel that already owns that job, rather than duplicating it. --}}
-            <div class="mt-[28px] flex flex-wrap gap-[10px]">
+            <div class="mt-[22.5px] flex flex-wrap gap-[8px]">
                 <a href="#panel-messages" class="lookup-action">
-                    <img src="{{ asset('images/staff/icon-message.svg') }}" alt="" class="h-[28px] w-[28px]">
+                    <img src="{{ asset('images/staff/icon-message.svg') }}" alt="" class="h-[22.5px] w-[22.5px]">
                     Messages
                 </a>
                 <a href="#panel-attachments" class="lookup-action">
-                    <img src="{{ asset('images/staff/icon-file.svg') }}" alt="" class="h-[22px] w-[22px]">
+                    <img src="{{ asset('images/staff/icon-file.svg') }}" alt="" class="h-[17.5px] w-[17.5px]">
                     View Attachments
                 </a>
                 <a href="#panel-claiming" class="lookup-action">
-                    <img src="{{ asset('images/staff/icon-calendar.svg') }}" alt="" class="h-[22px] w-[22px]">
+                    <img src="{{ asset('images/staff/icon-calendar.svg') }}" alt="" class="h-[17.5px] w-[17.5px]">
                     Set Claiming Date
                 </a>
             </div>
@@ -325,7 +325,7 @@
             {{-- Stage controls (Advance / Move back / Return). The component's own
                  stage line is off — the rail above already draws it — but the
                  controls and their stage gates stay exactly as they were. --}}
-            <div class="mt-[18px]">
+            <div class="mt-[14.5px]">
                 <x-routing-stepper :document="$document" :controls="true" :line="false" />
             </div>
 
@@ -333,28 +333,28 @@
                  Newest first, two visible, the rest behind "View More" — the
                  frame's own rule. Entries come from the status-change activity
                  log the controller already builds. --}}
-            <div class="mt-[34px]" x-data="{ allLogs: false }">
-                <h2 class="!text-[22px] !font-black !text-[#004004]">Logs</h2>
+            <div class="mt-[27px]" x-data="{ allLogs: false }">
+                <h2 class="!text-[18px] !font-black !text-[#004004]">Logs</h2>
 
                 @php
                     $logEntries = $timeline->reverse()->values();
                 @endphp
 
                 @forelse($logEntries as $index => $log)
-                    <div class="mt-[18px] flex items-center gap-[14px]"
+                    <div class="mt-[14.5px] flex items-center gap-[11px]"
                          @if($index >= 2) x-show="allLogs" x-cloak @endif>
-                        <img src="{{ asset('images/staff/log-bullet.svg') }}" alt="" class="h-[15px] w-[15px] shrink-0">
-                        <span class="shrink-0 text-[16px] font-medium text-[#353535] xl:text-[18px]">{{ $log['event'] }}</span>
+                        <img src="{{ asset('images/staff/log-bullet.svg') }}" alt="" class="h-[12px] w-[12px] shrink-0">
+                        <span class="shrink-0 text-[14px] font-medium text-[#353535] xl:text-[14px]">{{ $log['event'] }}</span>
                         <span class="lookup-leader" aria-hidden="true"></span>
-                        <span class="shrink-0 text-[16px] font-bold text-[#686868] xl:text-[18px]">{{ $log['timestamp'] }}</span>
+                        <span class="shrink-0 text-[14px] font-bold text-[#686868] xl:text-[14px]">{{ $log['timestamp'] }}</span>
                     </div>
                 @empty
-                    <p class="mt-[18px] text-[16px] text-ink-soft">Nothing recorded yet.</p>
+                    <p class="mt-[14.5px] text-[14px] text-ink-soft">Nothing recorded yet.</p>
                 @endforelse
 
                 @if($logEntries->count() > 2)
                     <button type="button" @click="allLogs = ! allLogs"
-                            class="mt-[20px] flex w-full items-center gap-[18px] text-[16px] font-medium text-black xl:text-[18px]">
+                            class="mt-[16px] flex w-full items-center gap-[14.5px] text-[14px] font-medium text-black xl:text-[14px]">
                         <span class="h-[2px] flex-1 bg-[#d9d9d9]"></span>
                         <span class="flex items-center gap-1 whitespace-nowrap">
                             <span x-text="allLogs ? 'View Less' : 'View More'">View More</span>
@@ -374,8 +374,8 @@
                  who encoded it, purpose) follow in the same treatment rather
                  than being dropped. --}}
             @unless($document->isInternal())
-            <div class="mt-[36px]">
-                <h2 id="panel-claiming" class="!text-[22px] !font-black !text-[#004004] scroll-mt-6">More Info</h2>
+            <div class="mt-[29px]">
+                <h2 id="panel-claiming" class="!text-[18px] !font-black !text-[#004004] scroll-mt-6">More Info</h2>
 
                 @php
                     $infoRows = [
@@ -399,11 +399,11 @@
                     $infoRows[] = ['Claiming date', $document->claim_date?->format('l, M d, Y') ?: 'Not set yet'];
                 @endphp
 
-                <dl class="mt-[16px]">
+                <dl class="mt-[13px]">
                     @foreach($infoRows as [$label, $value])
-                        <div class="flex items-baseline justify-between gap-6 border-b-2 border-[#d9d9d9] py-[13px] last:border-b-0">
-                            <dt class="shrink-0 text-[16px] font-medium text-[#353535] xl:text-[18px]">{{ $label }}</dt>
-                            <dd class="break-all text-right text-[16px] font-bold text-black xl:text-[18px]">{{ $value }}</dd>
+                        <div class="flex items-baseline justify-between gap-6 border-b-2 border-[#d9d9d9] py-[10.5px] last:border-b-0">
+                            <dt class="shrink-0 text-[14px] font-medium text-[#353535] xl:text-[14px]">{{ $label }}</dt>
+                            <dd class="break-all text-right text-[14px] font-bold text-black xl:text-[14px]">{{ $value }}</dd>
                         </div>
                     @endforeach
                 </dl>
@@ -465,7 +465,7 @@
 
             {{-- ── Pending review + assign (supervisor) — inline, no modal ───────── --}}
             @if($isPendingReview)
-                <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
+                <div class="mt-5 rounded-[8px] border border-hairline-strong bg-green-wash/40 p-5"
                      x-data="{
                         staffId: '',
                         submitting: false,
@@ -573,7 +573,7 @@
 
             {{-- ── Final approve (assigned staff) — only at Approved stage ─────── --}}
             @if($isStaffApprovable)
-                <div class="mt-5 rounded-[10px] border border-hairline-strong bg-green-wash/40 p-5"
+                <div class="mt-5 rounded-[8px] border border-hairline-strong bg-green-wash/40 p-5"
                      x-data="{
                         submitting: false,
                         islandError: '',
@@ -638,7 +638,7 @@
                 <div class="mt-6">
                     <p id="panel-attachments" class="scroll-mt-6 text-[14px] font-bold text-ink">Requirements</p>
                     <p class="mt-0.5 text-[12px] text-ink-soft">Review each supporting document. Returning or rejecting one emails the citizen your comment; returned items can be re-uploaded from their tracking page.</p>
-                    <ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-[10px] border border-hairline">
+                    <ul class="mt-2 divide-y divide-hairline overflow-hidden rounded-[8px] border border-hairline">
                         @foreach($document->requirements as $req)
                             @php
                                 $badge = match($req->review_status) {
@@ -750,7 +750,7 @@
 
             {{-- Predictive insights (self-hosted analytics) --}}
             @if(!empty($anomaly))
-                <div class="mt-6 rounded-[10px] border {{ $anomaly['severity'] === 'high' ? 'border-status-red-wash bg-status-red-wash text-status-red' : 'border-status-amber-wash bg-status-amber-wash text-status-amber' }} p-4">
+                <div class="mt-6 rounded-[8px] border {{ $anomaly['severity'] === 'high' ? 'border-status-red-wash bg-status-red-wash text-status-red' : 'border-status-amber-wash bg-status-amber-wash text-status-amber' }} p-4">
                     <div class="flex items-start gap-3">
                         <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -1077,7 +1077,7 @@
                 <button type="button" @click="close()" class="cr-btn cr-btn-sm" aria-label="Close scanner">Close</button>
             </div>
 
-            <div id="lookupScanRegion" class="mt-4 min-h-[220px] overflow-hidden rounded-xl border-2 border-dashed border-green/40 bg-green-wash/40"></div>
+            <div id="lookupScanRegion" class="mt-4 min-h-[176px] overflow-hidden rounded-xl border-2 border-dashed border-green/40 bg-green-wash/40"></div>
 
             <p x-show="error" x-text="error" x-cloak class="mt-3 text-[13px] text-status-red"></p>
 

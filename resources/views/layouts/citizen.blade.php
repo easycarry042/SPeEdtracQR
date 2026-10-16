@@ -9,17 +9,12 @@
     <style>[x-cloak]{display:none!important}</style>
     @include('layouts.partials.accessibility-widget')
 </head>
-{{-- White paper, with the arrow doodle washed back to 15% — the portal's own
-     backdrop in the design, in place of the old green wash. Fixed so the
-     pattern holds still while the page scrolls. --}}
 <body class="relative min-h-screen bg-white antialiased text-ink">
-    <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
-         style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
 
     @include('layouts.partials.portal-header')
 
     {{-- No footer: the doodle runs to the bottom of the page. --}}
-    <main class="mx-auto w-full max-w-[1512px] px-4 py-10 sm:px-6">
+    <main class="mx-auto w-full max-w-[1209.5px] px-4 py-10 sm:px-6">
         {{ $slot }}
     </main>
 
@@ -31,11 +26,11 @@
     @unless($attributes->has('hide-speedy'))
         <div class="fixed bottom-6 right-6 z-40" x-data="{ open: false }" @keydown.escape.window="open = false">
             <div x-show="open" x-cloak x-transition.origin.bottom.right
-                 class="mb-3 w-[calc(100vw-3rem)] max-w-[330px] rounded-[20px] border border-[rgba(0,64,4,0.5)] bg-white p-5 shadow-[0_18px_40px_-20px_rgba(0,64,4,0.55)]"
+                 class="mb-3 w-[calc(100vw-3rem)] max-w-[264px] rounded-[16px] border border-[rgba(0,64,4,0.5)] bg-white p-5 shadow-[0_14.5px_32px_-16px_rgba(0,64,4,0.55)]"
                  role="dialog" aria-label="Ask Speedy">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="font-display text-[20px] font-black text-[#017209]">Hi, I'm Speedy</p>
+                        <p class="font-display text-[16px] font-black text-[#017209]">Hi, I'm Speedy</p>
                         <p class="mt-1 text-[14px] leading-snug text-ink-soft">
                             I answer questions about one request at a time. Which one is it?
                         </p>
@@ -52,9 +47,9 @@
                     <label for="speedyTracking" class="sr-only">Tracking number</label>
                     <input id="speedyTracking" name="tracking" required autocomplete="off"
                            placeholder="SPD-XXXXXXXX-XXXXXX"
-                           class="h-[48px] w-full rounded-[12px] border border-transparent bg-[rgba(1,114,26,0.18)] px-4 font-mono text-[14px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] focus:border-[#01721a] focus:outline-none focus:ring-4 focus:ring-[#8dff3c]/40">
+                           class="h-[38.5px] w-full rounded-[9.5px] border border-transparent bg-[rgba(1,114,26,0.18)] px-4 font-mono text-[14px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] focus:border-[#01721a] focus:outline-none focus:ring-4 focus:ring-[#8dff3c]/40">
                     <button type="submit"
-                            class="h-[48px] w-full rounded-[12px] bg-[#01721a] text-[15px] font-bold text-white transition hover:bg-[#004004]">
+                            class="h-[38.5px] w-full rounded-[9.5px] bg-[#01721a] text-[14px] font-bold text-white transition hover:bg-[#004004]">
                         Open my request
                     </button>
                 </form>
@@ -66,10 +61,10 @@
             </div>
 
             <button type="button" @click="open = ! open" :aria-expanded="open"
-                    class="group ml-auto flex h-[86px] w-[86px] items-center justify-center rounded-full bg-[#135226] shadow-[0_10px_30px_-10px_rgba(0,64,4,0.7)] transition hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c] sm:h-[110px] sm:w-[110px]"
+                    class="group ml-auto flex h-[69px] w-[69px] items-center justify-center rounded-full bg-[#135226] shadow-[0_8px_24px_-8px_rgba(0,64,4,0.7)] transition hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c] sm:h-[88px] sm:w-[88px]"
                     aria-label="Ask Speedy about your request">
                 <img src="{{ asset('images/portal/speedy.png') }}" alt=""
-                     class="h-[60px] w-[74px] object-contain sm:h-[77px] sm:w-[95px]">
+                     class="h-[48px] w-[59px] object-contain sm:h-[61.5px] sm:w-[76px]">
             </button>
         </div>
     @endunless

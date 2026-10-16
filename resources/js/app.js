@@ -3,6 +3,9 @@ import './echo';
 
 import Alpine from 'alpinejs';
 
+// Sidebar links swap only the main area instead of reloading the page.
+import './soft-nav';
+
 // QR scanning library, bundled rather than pulled from a CDN so the scanner also
 // works on an offline/locked-down office LAN. Exposed globally for the Blade
 // scan helpers (see partials/qr-scan-helpers.blade.php).

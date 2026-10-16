@@ -108,6 +108,7 @@ class TrackController extends Controller
             'flow' => collect(DocumentStatus::flow())
                 ->map(fn (DocumentStatus $s): array => ['value' => $s->value, 'label' => $s->label()])
                 ->values()->all(),
+            'rail' => collect(DocumentStatus::railStages())->pluck('label')->all(),
         ]);
     }
 

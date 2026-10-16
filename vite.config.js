@@ -17,4 +17,15 @@ export default defineConfig({
             refresh: true,
         }),
     ],
+    // Pin the dev server to one address. Left to itself, Vite binds whatever
+    // "localhost" resolves to — on Windows that is often IPv6, so the hot file
+    // says http://[::1]:5173, which the CSP (SecurityHeaders) does not expect,
+    // and the whole site renders as unstyled HTML. strictPort makes a busy
+    // port fail loudly instead of drifting to 5174 for the same reason.
+    server: {
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: true,
+        hmr: { host: '127.0.0.1' },
+    },
 });

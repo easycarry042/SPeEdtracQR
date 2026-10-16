@@ -19,17 +19,17 @@
     // the loose freehand line is what keeps these tiles from reading as generic
     // dashboard chrome.
     $arts = [
-        'hourglass' => ['file' => 'stat-pending.svg', 'class' => 'h-[83px] w-[70px]'],
-        'clock' => ['file' => 'stat-in-progress.svg', 'class' => 'h-[80px] w-[80px]'],
-        'check' => ['file' => 'stat-completed.svg', 'class' => 'h-[80px] w-[80px]'],
+        'hourglass' => ['file' => 'stat-pending.svg', 'class' => 'h-[66.5px] w-[56px]'],
+        'clock' => ['file' => 'stat-in-progress.svg', 'class' => 'h-[64px] w-[64px]'],
+        'check' => ['file' => 'stat-completed.svg', 'class' => 'h-[64px] w-[64px]'],
     ];
     $art = $arts[$icon] ?? $arts['clock'];
 @endphp
 
-<div {{ $attributes->merge(['class' => 'relative isolate flex min-h-[140px] items-center overflow-hidden rounded-[16px] bg-gradient-to-r '.$gradient.' px-[27px] py-[27px] text-white shadow-md xl:min-h-[174px]']) }}>
+<div {{ $attributes->merge(['class' => 'relative isolate flex min-h-[112px] items-center overflow-hidden rounded-[13px] bg-gradient-to-r '.$gradient.' px-[21.5px] py-[21.5px] text-white shadow-md xl:min-h-[139px]']) }}>
     <div class="min-w-0 flex-1">
-        <p class="text-[20px] font-extrabold uppercase tracking-wide xl:text-[24px]">{{ $label }}</p>
-        <p class="mt-[6px] text-[52px] font-extrabold leading-none xl:text-[72px]">{{ $value }}</p>
+        <p class="text-[16px] font-extrabold uppercase tracking-wide xl:text-[19px]">{{ $label }}</p>
+        <p class="mt-[6px] text-[42px] font-extrabold leading-none xl:text-[58px]">{{ $value }}</p>
     </div>
 
     {{-- Decorative only: the label and number already say everything. --}}

@@ -85,14 +85,14 @@ class CitizenPortalCardsTest extends TestCase
         // the header's Back control, which is not one of the choice cards.
         $this->assertSame(
             2,
-            substr_count($response->getContent(), 'h-[380px] w-full max-w-[340px]')
+            substr_count($response->getContent(), 'h-[304px] w-full max-w-[272px]')
         );
     }
 
-    public function test_portal_backdrop_uses_the_arrow_doodle(): void
+    public function test_portal_backdrop_is_plain_white(): void
     {
         $this->get(route('citizen.dashboard'))
             ->assertOk()
-            ->assertSee('images/landing/doodle-pattern.jpg', false);
+            ->assertDontSee('doodle-pattern.jpg', false);
     }
 }

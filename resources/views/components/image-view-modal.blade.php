@@ -5,7 +5,7 @@
     <div class="absolute inset-0 bg-black/85"></div>
 
     <div id="lightboxStage" class="absolute inset-0 flex items-center justify-center overflow-hidden">
-        <img id="lightboxImage" src="" alt="Document attachment" class="max-h-[88vh] max-w-[92vw] rounded-lg shadow-2xl" draggable="false">
+        <img id="lightboxImage" src="" alt="Document attachment" class="max-h-[calc(88vh/var(--ui-zoom))] max-w-[calc(92vw/var(--ui-zoom))] rounded-lg shadow-2xl" draggable="false">
     </div>
 
     <div class="absolute right-4 top-4 z-10 flex items-center gap-2">
@@ -120,8 +120,12 @@
 
         stage.addEventListener('pointermove', function (e) {
             if (!dragging) return;
-            tx = startTx + (e.clientX - startX);
-            ty = startTy + (e.clientY - startY);
+            // Mouse deltas are on-screen px; the translate is CSS px, which the
+            // auto-fit zoom (app.css) shrinks — divide it out so the image
+            // stays under the cursor.
+            const zoom = stage.currentCSSZoom || 1;
+            tx = startTx + (e.clientX - startX) / zoom;
+            ty = startTy + (e.clientY - startY) / zoom;
             if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) > 4) moved = true;
             apply();
         });

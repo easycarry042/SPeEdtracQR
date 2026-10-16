@@ -80,30 +80,8 @@
         radial-gradient(at 42% 32%, rgba(22, 122, 58, .40) 0, transparent 45%),
         radial-gradient(at 62% 76%, rgba(199, 154, 62, .26) 0, transparent 42%);
 
-    /* Public wash — deep green into light yellow-green across the top, easing
-       to a faint tint at the bottom so the arrow doodle keeps showing through.
-       Each layout supplies the doodle URL itself, via asset(), so the path
-       survives a subdirectory install; only the colour lives here. */
+    /* Signed-in page background — a plain near-white, no pattern or wash. */
     --page-wash-base: #f6faf7;
-
-    /* Holds the doodle at 20%: a background layer can't take an opacity of its
-       own, so 80% of the base colour sits on top of it instead. Signed-in pages
-       use this alone — the doodle without the colour. */
-    --page-wash-veil: linear-gradient(rgba(246, 250, 247, .80), rgba(246, 250, 247, .80));
-
-    /* Public pages add the colour ramp above the veil. It expands to two
-       layers, which is why those layouts' background-size / position lists are
-       shorter than the layer count — CSS repeats them. */
-    --page-wash:
-        linear-gradient(
-            to bottom,
-            rgba(19, 106, 51, .80) 0%,
-            rgba(94, 170, 79, .64) 16%,
-            rgba(190, 224, 110, .56) 32%,
-            rgba(214, 238, 178, .34) 56%,
-            rgba(233, 245, 218, .22) 100%
-        ),
-        var(--page-wash-veil);
 
     --glass-bg: rgba(255, 255, 255, .46);
     --glass-blur: blur(34px) saturate(190%);
@@ -117,7 +95,57 @@
     --shadow-1: 0 1px 1px rgba(15, 77, 40, .05);              /* resting button */
     --shadow-2: 0 4px 14px -6px rgba(15, 77, 40, .22);        /* hover lift */
     --shadow-pop: 0 10px 30px -10px rgba(15, 77, 40, .28);    /* menus / popovers */
+
+    /* Type scale for the staff screens. Every table, tab, field, nav label
+       and calendar draws from these six, so the same kind of text is the
+       same size on every page. */
+    --fs-caption: 13px;   /* counts, badges, the line under a name */
+    --fs-small: 14px;     /* secondary text, pills, field labels, pager */
+    --fs-label: 15px;     /* column and weekday heads, tabs */
+    --fs-body: 16px;      /* table cells, names, inputs, nav, day numbers */
+    --fs-heading: 19px;   /* panel titles */
+    --fs-title: 22px;     /* month title */
+
+    /* Auto-fit zoom — see the block below. 1 = the Figma size. */
+    --ui-zoom: 1;
 }
+
+/* ── Auto-fit to smaller screens ─────────────────────────────────────────────
+   Every screen is drawn in fixed px from 1512×982 Figma frames (~860px of
+   usable height once the browser chrome is gone). On a smaller desktop — a
+   1366×768 laptop leaves ~1366×657 — that reads as "zoomed in" and pages run
+   off the bottom. So the whole UI is scaled down proportionally with CSS
+   zoom, picking the step that fits both the width and the height, floored at
+   80% to keep text legible. It works like the browser's own Ctrl − zoom:
+   media queries and layout see the extra room, so nothing reflows oddly.
+
+   Rules that come with it:
+   - Screen only: a printed slip or QR sticker must keep its real size.
+   - Not below 1024px wide: tablets and phones use the responsive layouts.
+   - Under zoom, Npx of CSS covers N × zoom px on screen — and so does Nvh.
+     Full-height rules divide it back out: calc(100vh / var(--ui-zoom)).
+     Tailwind's h-screen / min-h-screen / max-h-screen already do (see
+     tailwind.config.js). JS that turns mouse deltas into CSS px divides by
+     element.currentCSSZoom; ratios against getBoundingClientRect() need
+     nothing, since both sides are on-screen px.
+   ───────────────────────────────────────────────────────────────────────── */
+@media screen and (min-width: 1024px) and (max-width: 1480px),
+       screen and (min-width: 1024px) and (max-height: 840px) {
+    :root { --ui-zoom: .95; }
+}
+@media screen and (min-width: 1024px) and (max-width: 1400px),
+       screen and (min-width: 1024px) and (max-height: 790px) {
+    :root { --ui-zoom: .9; }
+}
+@media screen and (min-width: 1024px) and (max-width: 1320px),
+       screen and (min-width: 1024px) and (max-height: 745px) {
+    :root { --ui-zoom: .85; }
+}
+@media screen and (min-width: 1024px) and (max-width: 1240px),
+       screen and (min-width: 1024px) and (max-height: 700px) {
+    :root { --ui-zoom: .8; }
+}
+html { zoom: var(--ui-zoom); }
 
 @layer base {
     body {
@@ -194,7 +222,7 @@
 
     /* DASHBOARD */
     .nav-bar {
-        @apply bg-green-deep rounded-r-[1rem];
+        @apply bg-green-deep;
     }
 
     .nav-icon {
@@ -233,7 +261,7 @@
 .tile .bar.red { background: var(--red); }
 
 /* Status pills (with leading dot — state only, never decorative) */
-.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; font-weight: 500; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; font-weight: 500; }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
 .p-green { background: var(--green-wash); color: #0f5c2e; } .p-green::before { background: var(--green-bright); }
 .p-amber { background: var(--amber-wash); color: var(--amber); } .p-amber::before { background: #d8920f; }
@@ -524,8 +552,8 @@
 /* Queue tabs at panel scale (Figma: STAFF LOOK UP / STAFF INTERNAL). The track
    is deep green and the SELECTED side is the translucent white panel inside it
    — the inverse of .segchips, which sits on white. */
-.segchips-lg { display: flex; width: 100%; padding: 5px; border-radius: 12px; }
-.segchips-lg button { flex: 1; justify-content: center; white-space: nowrap; font-size: 16px; font-weight: 600; padding: 11px 14px; border-radius: 9px; }
+.segchips-lg { display: flex; width: 100%; padding: 5px; border-radius: 9.5px; }
+.segchips-lg button { flex: 1; justify-content: center; white-space: nowrap; font-size: 14px; font-weight: 600; padding: 9px 11px; border-radius: 7px; }
 .segchips-lg .on { background: var(--green-deep); color: #fff; font-weight: 700; }
 .segchips-lg .on .sp-group-count { background: rgba(255, 255, 255, .22); color: #fff; }
 
@@ -536,9 +564,9 @@
 .lookup-panel {
     background: rgba(223, 223, 223, .2);
     border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 20px;
-    -webkit-backdrop-filter: blur(15px);
-    backdrop-filter: blur(15px);
+    border-radius: 16px;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
 }
 
 /* No backdrop-filter: fall back to a near-opaque panel so the doodle never
@@ -554,14 +582,14 @@
 .lookup-action {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
-    min-height: 46px;
-    padding: 0 18px;
+    gap: 9.5px;
+    min-height: 37px;
+    padding: 0 14.5px;
     border: 1px solid #004004;
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(1, 114, 9, .3);
     color: #000;
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 500;
     text-decoration: none;
     transition: background var(--dur-base) var(--ease-out);
@@ -574,17 +602,17 @@
     box-shadow: var(--focus-ring);
 }
 
-@media (min-width: 1280px) { .lookup-action { font-size: 20px; } }
+@media (min-width: 1280px) { .lookup-action { font-size: 16px; } }
 
 /* Dotted leader between a log entry and its time, as the frame draws it. The
    design set it as a literal run of dots; a repeating gradient keeps it filling
    whatever width is left instead of overflowing on a narrow panel. */
 .lookup-leader {
     flex: 1 1 auto;
-    min-width: 20px;
-    height: 18px;
-    background-image: radial-gradient(circle, #686868 1.2px, transparent 1.3px);
-    background-size: 7px 18px;
+    min-width: 16px;
+    height: 14.5px;
+    background-image: radial-gradient(circle, #686868 1px, transparent 1.5px);
+    background-size: 7px 14.5px;
     background-repeat: repeat-x;
     background-position: center;
 }
@@ -595,10 +623,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 60px;
+    width: 24px;
+    height: 24px;
+    border: 0.5px solid rgba(0, 64, 4, .5);
+    border-radius: 48px;
     background: rgba(141, 255, 60, .2);
     transition: background var(--dur-fast) var(--ease-out);
 }
@@ -610,13 +638,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 30px;
-    height: 30px;
+    min-width: 24px;
+    height: 24px;
     padding: 0 6px;
-    border: .5px solid transparent;
+    border: 0.5px solid transparent;
     border-radius: 5px;
     color: #666;
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -633,18 +661,18 @@
    Messages). */
 .desk-tile {
     display: flex;
-    width: 102px;
-    min-height: 94px;
+    width: 81.5px;
+    min-height: 75px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 10px 6px;
+    padding: 8px 6px;
     border: 1px solid #004004;
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(1, 114, 9, .2);
     color: #000;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.15;
     text-align: center;
@@ -665,43 +693,107 @@
    A soft all-round shadow, no ring: the frame separates them from the doodle
    backdrop with depth rather than a border. Sized down below `sm` so three
    controls still fit a phone. */
+/* Header controls: one family. Every icon button (file a request, scan,
+   notifications) is the same 44px rounded square with a 20px line icon, and
+   the account chip matches their height, border and corners — so the row
+   reads as one toolbar rather than a set of unrelated discs. */
 .header-disc,
 .header-chip {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
     flex: none;
     position: relative;
-    border-radius: 60px;
-    background: #fff;
-    box-shadow: 0 0 10px rgba(0, 0, 0, .25);
+    align-items: center;
+    height: 50px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .06);
     color: var(--green-deep);
-    transition: background var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+    transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 
-.header-disc { width: 52px; height: 52px; }
+.header-disc { width: 50px; justify-content: center; }
+
+/* Labelled header action (File Request, Scan QR Code): the disc's height,
+   border and corners, with the name beside the icon. Icon-only on phones. */
+.header-action {
+    display: inline-flex; flex: none; align-items: center; gap: 8px;
+    height: 50px; padding: 0 16px 0 13px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .06);
+    font-size: var(--fs-small); font-weight: 700; white-space: nowrap;
+    color: var(--green-deep);
+    transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.header-action svg { width: 21px; height: 21px; flex: none; }
+.header-action:hover { background: var(--green-wash); border-color: #b4c6bb; }
+.header-action:active { transform: scale(.97); }
+.header-action:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (max-width: 767px) {
+    .header-action { width: 50px; justify-content: center; padding: 0; }
+    .header-action span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.header-disc svg { width: 23px; height: 23px; }
 
 .header-chip {
-    gap: 12px;
-    padding: 3px 14px 3px 3px;
-    min-height: 52px;
-}
-
-@media (min-width: 640px) {
-    .header-disc { width: 66px; height: 66px; }
-    .header-chip { min-height: 66px; padding-right: 18px; }
+    gap: 11px;
+    max-width: 20rem;
+    padding: 0 12px 0 6px;
 }
 
 .header-disc:hover,
-.header-chip:hover { background: var(--green-wash); }
+.header-chip:hover { background: var(--green-wash); border-color: #b4c6bb; }
 
-.header-disc:active { transform: scale(.95); }
+.header-disc:active { transform: scale(.96); }
 
 .header-disc:focus-visible,
 .header-chip:focus-visible {
     outline: none;
-    box-shadow: 0 0 10px rgba(0, 0, 0, .25), var(--focus-ring);
+    box-shadow: var(--focus-ring);
 }
+
+/* Unread count, pinned to the button's corner with a ring that separates it
+   from the border underneath. */
+.header-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 5px;
+    border: 2px solid var(--paper);
+    border-radius: 9999px;
+    background: #d92d20;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    color: #fff;
+}
+
+.header-avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--green-deep);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: #fff;
+}
+
+.header-who { min-width: 0; text-align: left; line-height: 1.2; }
+.header-who-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-body); font-weight: 700; color: var(--ink); }
+.header-who-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
+
+.header-caret { width: 18px; height: 18px; flex: none; color: var(--ink-soft); transition: transform var(--dur-base) var(--ease-out); }
+.header-chip[aria-expanded="true"] .header-caret { transform: rotate(180deg); }
 
 /* Look Up's claiming-date calendar (Figma: STAFF LOOK UP 1321:1370). Month
    arrows, then day cells: Sundays red as the frame draws them, neighbouring
@@ -710,9 +802,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 60px;
+    width: 29px;
+    height: 29px;
+    border-radius: 48px;
     transition: background var(--dur-fast) var(--ease-out);
 }
 
@@ -728,12 +820,12 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 102px;
-    min-height: 58px;
+    max-width: 81.5px;
+    min-height: 46.5px;
     border: 2px solid transparent;
-    border-radius: 15px;
+    border-radius: 12px;
     color: #000;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 500;
     transition: background var(--dur-fast) var(--ease-out);
 }
@@ -764,10 +856,10 @@
    speaks in green on the left; staff answer in grey on the right, carrying the
    read receipt — which is the frame's arrangement, not the usual one. */
 .desk-bubble {
-    padding: 15px 23px;
-    border-radius: 100px;
+    padding: 12px 18.5px;
+    border-radius: 80px;
     color: #000;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 500;
     /* Long messages and pasted links must wrap inside the pill rather than
        stretch it past the panel. */
@@ -780,14 +872,14 @@
 .desk-composer {
     flex: 1 1 auto;
     min-width: 0;
-    height: 62px;
-    padding: 0 22px;
+    height: 49.5px;
+    padding: 0 17.5px;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     background: #eaeaea;
     box-shadow: inset 0 0 5px rgba(0, 0, 0, .25);
     color: #000;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 500;
 }
 
@@ -807,10 +899,10 @@
     gap: 6px;
     padding: 5px;
     border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 15px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 .desk-tabs button {
@@ -818,13 +910,13 @@
     flex: 1;
     align-items: center;
     justify-content: center;
-    min-height: 56px;
-    padding: 0 16px;
-    border: .5px solid transparent;
-    border-radius: 12px;
+    min-height: 45px;
+    padding: 0 13px;
+    border: 0.5px solid transparent;
+    border-radius: 9.5px;
     background: transparent;
     color: #135226;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 500;
     white-space: nowrap;
     transition: background var(--dur-base) var(--ease-out);
@@ -843,11 +935,11 @@
     display: flex;
     gap: 4px;
     padding: 5px;
-    border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 15px;
+    border: 0.5px solid rgba(0, 64, 4, .5);
+    border-radius: 12px;
     background: rgba(19, 82, 38, .95);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 .lookup-tabs button {
@@ -856,13 +948,13 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
-    min-height: 45px;
-    padding: 0 12px;
-    border: .5px solid transparent;
-    border-radius: 12px;
+    min-height: 36px;
+    padding: 0 9.5px;
+    border: 0.5px solid transparent;
+    border-radius: 9.5px;
     background: transparent;
     color: #fff;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
     transition: background var(--dur-base) var(--ease-out);
@@ -880,9 +972,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 20px;
+    min-width: 16px;
     padding: 0 6px;
-    border-radius: 999px;
+    border-radius: 799px;
     background: rgba(255, 255, 255, .22);
     font-size: 12px;
     font-weight: 700;
@@ -934,16 +1026,105 @@
    Tailwind utilities it overrides, so no !important needed — which also means
    the width has to be set here rather than with a `w-*` class on the element. */
 aside.sidebar-pinned {
-    width: 290px;
+    width: 232px;
+    /* The one left edge: brand, section label, every nav icon and the
+       Accessibility row all start here. Rows sit inside the nav's 10px gutter,
+       so their own padding is the inset minus that gutter. */
+    --sb-inset: 20px;
+    --sb-gutter: 10px;
 }
 
-/* 371px is the width the design draws. Held back until there is room for it:
+/* 297px is the design width (scaled to 80%). Held back until there is room for it:
    below this the rail would eat a quarter of a laptop screen. */
 @media (min-width: 1280px) {
     aside.sidebar-pinned {
-        width: 371px;
+        width: 297px;
+        --sb-inset: 26px;
     }
 }
+
+.sb-brand {
+    display: flex; flex-shrink: 0; align-items: center; gap: 10px;
+    padding: 30px var(--sb-inset) 26px;
+    font-size: 17px;
+    border-radius: 10px;
+}
+.sb-brand-mark { width: 36px; height: 36px; flex: none; object-fit: contain; }
+@media (min-width: 1280px) {
+    .sb-brand { font-size: 20px; }
+    .sb-brand-mark { width: 42px; height: 42px; }
+}
+
+/* Section label: a quiet small-caps marker, not a heading. */
+.sb-section {
+    flex-shrink: 0;
+    padding: 0 var(--sb-inset) 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: rgba(255, 255, 255, .55);
+}
+
+.sb-nav {
+    display: flex; flex: 1 1 auto; flex-direction: column; gap: 4px;
+    overflow-x: hidden; overflow-y: auto;
+    padding: 2px var(--sb-gutter);
+}
+
+.sb-row {
+    position: relative;
+    display: flex; width: 100%; align-items: center; gap: 14px;
+    height: 48px;
+    padding: 0 calc(var(--sb-inset) - var(--sb-gutter));
+    border: 1px solid transparent;
+    border-radius: 10px;
+    font-size: var(--fs-body); font-weight: 600; text-align: left;
+    color: #d6d6d6;
+    transition: background-color .2s, color .2s;
+}
+@media (min-width: 1280px) { .sb-row { font-size: 17px; } }
+.sb-row:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+
+/* Current page: lighter panel plus a brass marker flush to the sidebar edge. */
+.sb-row.is-active {
+    border-color: rgba(0, 64, 4, .5);
+    background: rgba(255, 255, 255, .18);
+    box-shadow: inset 0 0 8px 2px rgba(0, 64, 4, .15);
+    font-weight: 800;
+    color: #fff;
+}
+.sb-row.is-active::before {
+    content: '';
+    position: absolute; top: 50%; left: calc(-1 * var(--sb-gutter) - 1px);
+    width: 6px; height: 30px;
+    transform: translateY(-50%);
+    border-radius: 0 6px 6px 0;
+    background: #f8bf38;
+}
+
+.sb-glyph { display: flex; width: 22px; height: 22px; flex: none; align-items: center; justify-content: center; }
+.sb-icon { width: 22px; height: 22px; flex: none; max-width: none; }
+
+.sb-foot {
+    flex-shrink: 0;
+    padding: 10px var(--sb-gutter) 14px;
+    border-top: 1px solid rgba(255, 255, 255, .1);
+}
+.sb-row-accent { font-weight: 800; color: #feba1b; }
+.sb-row-accent:hover { color: #ffd166; }
+.sb-row-accent:focus-visible,
+.sb-brand:focus-visible { outline: none; box-shadow: 0 0 0 2px #f8bf38; }
+
+/* Soft navigation: a thin progress bar while the next page loads. */
+.soft-nav-bar {
+    position: fixed; top: 0; left: 0; z-index: 100;
+    height: 3px; width: 0;
+    background: var(--green-bright);
+    box-shadow: 0 0 8px rgba(42, 157, 79, .6);
+    opacity: 0;
+    transition: width .25s ease, opacity .2s ease;
+    pointer-events: none;
+}
+.soft-nav-bar.is-loading { opacity: 1; width: 70%; transition: width 6s cubic-bezier(.1, .8, .2, 1), opacity .1s; }
+.soft-nav-bar.is-done { opacity: 0; width: 100%; transition: width .15s ease, opacity .3s ease .1s; }
 
 
 /* ── Frosted civic surfaces (see the --civic-mesh / --glass-* tokens) ───── */
@@ -978,151 +1159,832 @@ aside.sidebar-pinned {
    camera feed and a form rather than being the thing you click. */
 .track-panel {
     background: rgba(223, 223, 223, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(0, 64, 4, .5);
 }
 
 /* The one call-to-action size shared by Start Camera and Search, so the two
    panels' buttons line up across the rule between them. */
 .track-cta {
-    height: 80px;
+    height: 64px;
 }
 
 /* ── Booking screen (Figma: STAFF BOOKING) ───────────────────────────────────
    The same near-clear grey glass as .track-panel, at the 35px radius the frame
    draws, and a month grid whose only chrome is a hairline between the weeks. */
-.bk-panel {
-    background: rgba(223, 223, 223, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: 0.5px solid rgba(0, 64, 4, .5);
-    border-radius: 35px;
+/* ── Booking ──────────────────────────────────────────────────────────────
+   Same family as the staff tables: white cards with a header bar, hairline
+   grid lines, and the type scale. */
+.bk-card {
+    display: flex; min-height: 0; flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .05);
 }
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .bk-panel { background: rgba(246, 250, 247, .94); }
+.bk-card-head {
+    display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--hairline);
 }
-
-/* Panel titles: Zain 22, the frame's heading size for a side panel. */
-.bk-title {
-    font-family: theme('fontFamily.display');
-    font-size: 22px;
-    line-height: 37px;
-    font-weight: 700;
+.bk-title { font-size: var(--fs-body); font-weight: 700; color: var(--green-deep); }
+.bk-head-count {
+    min-width: 24px; padding: 0 8px;
+    border-radius: 9999px;
+    background: var(--green-wash);
+    font-size: var(--fs-small); font-weight: 700; line-height: 24px; text-align: center;
     color: var(--green-deep);
 }
+.bk-card-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; }
 
+/* Month title: opens the month/year picker. Left-aligned, so the controls on
+   the right never move whatever the month is called. */
 .bk-month {
-    font-size: 30px;
-    line-height: 41px;
+    font-size: var(--fs-title);
+    line-height: 28px;
     font-weight: 700;
     color: var(--green-deep);
 }
+.bk-month-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: -8px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    transition: background-color .15s ease;
+}
+.bk-month-btn:hover { background: var(--green-wash); }
+.bk-month-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-.bk-dow {
-    font-size: 20px;
-    line-height: 27px;
-    font-weight: 600;
+/* ‹ Today › as one joined control. */
+.bk-nav {
+    display: inline-flex; flex-shrink: 0; align-items: stretch;
+    height: 40px;
+    overflow: hidden;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .04);
+}
+.bk-nav button {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 40px; padding: 0 14px;
+    font-size: var(--fs-small); font-weight: 600;
     color: var(--green-deep);
+    transition: background-color .15s;
 }
+.bk-nav button + button { border-left: 1px solid var(--hairline-strong); }
+.bk-nav button:hover { background: var(--green-wash); }
+.bk-nav button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--green); }
+.bk-nav svg { width: 18px; height: 18px; }
 
-/* Sunday is the one coloured column head in the frame — it reads as the
-   non-working day rather than as an error, so it is a deep red, not the
-   status red used for problems. */
-.bk-dow-sun,
-.bk-day-sun .bk-day-n { color: #a50003; }
-
-.bk-week { border-top: 1px solid rgba(0, 0, 0, .2); }
-
-.bk-day {
-    display: flex;
-    width: 100%;
-    min-height: 104px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+/* Month/year picker that drops from the title. */
+.bk-picker {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    width: 16rem;
     padding: 12px;
-    border: 2px solid transparent;
-    border-radius: 15px;
-    text-align: left;
-    transition: background-color .15s ease, border-color .15s ease;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 14px;
+    background: var(--paper);
+    box-shadow: var(--shadow-pop);
 }
-
-@media (min-width: 1280px) {
-    .bk-day { min-height: 139px; padding: 16px 12px; }
+.bk-picker-step {
+    display: flex; height: 32px; width: 32px; align-items: center; justify-content: center;
+    border-radius: 9999px;
+    color: var(--green);
 }
-
-.bk-day:hover { background: rgba(1, 114, 26, .07); }
-
-.bk-day:focus-visible {
-    outline: none;
-    border-color: var(--green);
-    box-shadow: 0 0 0 3px rgba(1, 114, 26, .25);
+.bk-picker-step:hover { background: var(--green-wash); }
+.bk-picker-step:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bk-picker-year {
+    width: 6rem;
+    padding: 4px 8px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 8px;
+    text-align: center;
+    font-size: var(--fs-body);
+    font-weight: 700;
+    color: var(--green-deep);
+    -moz-appearance: textfield;
 }
-
-.bk-day-n {
-    font-size: 22px;
-    line-height: 30px;
-    font-weight: 500;
-    color: #000;
-}
-
-/* Days spilling in from the neighbouring month stay legible but recede. */
-.bk-day-out .bk-day-n { color: rgba(0, 64, 4, .5); }
-.bk-day-sun.bk-day-out .bk-day-n { color: rgba(165, 0, 3, .5); }
-
-/* A day that holds reservations carries the office green, as the frame draws
-   the 11th and the 19th. */
-.bk-day-has .bk-day-n { color: var(--green-deep); font-weight: 700; }
-
-.bk-day-on {
-    background: rgba(0, 166, 11, .2);
-    border-color: rgba(0, 64, 4, .5);
-}
-
-/* How many reservations a day holds, red when two of them overlap — the one
-   thing on this screen that needs resolving. */
-.bk-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
+.bk-picker-year::-webkit-inner-spin-button,
+.bk-picker-year::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.bk-picker-year:focus { outline: none; border-color: var(--green); box-shadow: var(--focus-ring); }
+.bk-picker-month {
+    padding: 8px 0;
+    border-radius: 8px;
+    font-size: var(--fs-small);
     font-weight: 600;
+    color: var(--ink);
+    transition: background-color .15s ease;
+}
+.bk-picker-month:hover { background: var(--green-wash); }
+.bk-picker-month:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bk-picker-month.on { background: var(--green); color: #fff; }
+
+/* The grid. Weekday heads on a tinted band; every day is a cell bounded by
+   hairlines, so the month reads as a table rather than floating numbers. */
+.bk-dows {
+    display: grid; flex-shrink: 0; grid-template-columns: repeat(7, minmax(0, 1fr));
+    border-bottom: 1px solid var(--hairline);
+    background: #f7faf8;
+}
+.bk-dow {
+    padding: 10px 12px;
+    font-size: var(--fs-small);
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
     color: var(--ink-soft);
 }
+.bk-dow-sun { color: #a50003; }
 
-.bk-count::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--green);
+.bk-weeks { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+.bk-week { display: grid; flex: 1 1 0; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--hairline); }
+.bk-week:last-child { border-bottom: 0; }
+
+.bk-day {
+    position: relative;
+    display: flex; width: 100%; height: 100%;
+    min-height: 64px;
+    flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 4px;
+    padding: 8px 10px;
+    border-right: 1px solid var(--hairline);
+    text-align: left;
+    transition: background-color .15s ease;
 }
+.bk-week > :last-child .bk-day { border-right: 0; }
+.bk-day:hover { background: #f6faf7; }
+.bk-day:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--green); }
 
-.bk-count.is-clash { color: var(--red); }
+/* Day number in a fixed circle, so today's fill sits the same as every other. */
+.bk-day-n {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    margin: -4px 0 0 -4px;
+    border-radius: 9999px;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    color: var(--ink);
+}
+.bk-day-sun .bk-day-n { color: #a50003; }
+
+/* Neighbouring months: shaded and muted, still clickable. */
+.bk-day-out { background: #fafcfb; }
+.bk-day-out .bk-day-n { color: #a7b4ac; font-weight: 500; }
+.bk-day-sun.bk-day-out .bk-day-n { color: rgba(165, 0, 3, .4); }
+
+.bk-day-today .bk-day-n { background: var(--green-deep); color: #fff; }
+
+/* The day whose bookings the side card is showing. */
+.bk-day-on, .bk-day-on:hover { background: var(--green-wash); box-shadow: inset 0 0 0 2px var(--green); }
+
+/* Booking count, red when two of the day's bookings overlap. */
+.bk-count {
+    display: inline-flex; align-items: center; gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    background: #e3f1e7;
+    font-size: var(--fs-caption);
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--green-deep);
+}
+.bk-count::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 9999px; background: var(--green); }
+.bk-count.is-clash { background: var(--red-wash); color: var(--red); }
 .bk-count.is-clash::before { background: var(--red); }
 
-/* Empty panels: the frame centres a line-art book over one muted sentence. */
+/* Side-card lists: rows divided by hairlines, not boxes inside boxes. */
+.bk-item { display: block; width: 100%; padding: 14px 20px; border-bottom: 1px solid var(--hairline); text-align: left; }
+.bk-item:last-child { border-bottom: 0; }
+.bk-item.is-clash { background: rgba(251, 233, 233, .45); }
+button.bk-item { transition: background-color .15s; }
+button.bk-item:hover { background: #f6faf7; }
+button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--green); }
+.bk-item-title { font-size: var(--fs-body); font-weight: 700; color: var(--ink); }
+.bk-item-line { margin-top: 2px; font-size: var(--fs-small); color: var(--ink); }
+.bk-item-meta { margin-top: 2px; font-size: var(--fs-caption); color: var(--ink-soft); }
+
+/* Empty cards: a soft icon disc over one muted sentence. */
 .bk-empty {
-    display: flex;
-    height: 100%;
-    min-height: 260px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 26px;
+    display: flex; height: 100%; min-height: 180px;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 24px;
     text-align: center;
 }
+.bk-empty-icon {
+    display: flex; width: 52px; height: 52px; align-items: center; justify-content: center;
+    border-radius: 9999px;
+    background: var(--green-wash);
+    color: var(--green-deep);
+}
+.bk-empty-icon svg { width: 26px; height: 26px; }
+.bk-empty p { font-size: var(--fs-small); font-weight: 500; color: var(--ink-soft); }
 
-.bk-empty p {
-    font-size: 18px;
-    line-height: 25px;
-    font-weight: 500;
-    color: rgba(0, 0, 0, .5);
+/* ── Look Up detail modal ─────────────────────────────────────────────────
+   The prototype's layout (completion action, title + tracking number, the
+   four-stage bar, claiming date + three actions, logs, more info), finished
+   in the same card family as the tables. */
+.dm-card {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 24px 60px -18px rgba(0, 64, 4, .45);
+}
+.dm-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px 12px 24px;
+    border-bottom: 1px solid var(--hairline);
+}
+.dm-close {
+    display: flex; width: 36px; height: 36px; align-items: center; justify-content: center;
+    border-radius: 10px;
+    color: var(--ink-soft);
+    transition: background-color .15s, color .15s;
+}
+.dm-close svg { width: 20px; height: 20px; }
+.dm-close:hover { background: var(--green-wash); color: var(--ink); }
+.dm-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* One fixed size for the modal's cards: the window's height less the overlay's
+   margins, capped so it does not sprawl on a tall screen. The header and footer
+   stay put; only the body between them scrolls. */
+.dm-fixed { height: min(calc(100vh / var(--ui-zoom) - 54px), 820px); flex-shrink: 0; }
+
+/* The modals read at arm's length over a busy page, so their text runs one
+   step up the type scale. Everything inside draws from these variables, so
+   the whole card scales together; the rest of the app is untouched. */
+.dm-fixed {
+    --fs-caption: 14px;
+    --fs-small: 15.5px;
+    --fs-label: 16.5px;
+    --fs-body: 17.5px;
+    --fs-heading: 22px;
+    --fs-title: 24px;
+}
+.dm-fixed .pill { font-size: 13.5px; padding: 4px 11px; }
+.dm-fixed .cr-btn { font-size: var(--fs-small); }
+.dm-head, .dm-foot { flex-shrink: 0; }
+/* A modal that sizes to its content (the filing form), still capped at the
+   window so a long Review step scrolls inside. */
+/* The filing form: one fixed size on every step, shorter than the review
+   modals; the Details step's upload area grows to fill it. */
+.dm-fixed.dm-fit { height: min(calc(100vh / var(--ui-zoom) - 54px), 660px); }
+
+.dm-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 20px; }
+.dm-title { font-size: var(--fs-heading); font-weight: 800; line-height: 1.2; color: var(--green-deep); }
+.dm-subtitle { margin-top: 2px; font-size: var(--fs-body); font-weight: 500; color: var(--ink); }
+.dm-card { position: relative; }
+
+/* QR button beside the tracking number: opens the request's generated QR. */
+.dm-qr-btn {
+    position: relative;
+    display: flex; width: 50px; height: 50px; flex: none; align-items: center; justify-content: center;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--green-deep);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .06);
+    transition: background-color .15s, border-color .15s, transform .15s;
+}
+.dm-qr-btn > svg { width: 28px; height: 28px; }
+.dm-qr-btn:hover { border-color: var(--green); background: var(--green-wash); }
+.dm-qr-btn:active { transform: scale(.96); }
+.dm-qr-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A small magnifier badge says "this opens". */
+.dm-qr-zoom {
+    position: absolute; right: -6px; bottom: -6px;
+    display: flex; width: 20px; height: 20px; align-items: center; justify-content: center;
+    border: 2px solid var(--paper);
+    border-radius: 9999px;
+    background: var(--green-deep);
+    color: #fff;
+}
+.dm-qr-zoom svg { width: 10px; height: 10px; }
+
+/* The viewer covers the card it was opened from. */
+.dm-qr-layer {
+    position: absolute; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    border-radius: 16px;
+    background: rgba(246, 250, 247, .78);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+}
+.dm-qr-panel {
+    width: 100%; max-width: 22rem;
+    padding: 16px 20px 20px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: var(--shadow-pop);
+}
+.dm-qr-frame {
+    margin: 12px auto 0;
+    width: 15rem; max-width: 100%; aspect-ratio: 1 / 1;
+    padding: 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    background: #fff;
+}
+.dm-qr-frame img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.dm-qr-missing { margin-top: 12px; padding: 24px 12px; border-radius: 12px; background: #fafcfb; text-align: center; font-size: var(--fs-small); color: var(--ink-soft); }
+
+/* Stepper: dots joined by a line; each segment is green once the stage it
+   leads into has been reached. */
+.dm-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 26px; }
+.dm-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.dm-step-line {
+    position: absolute; top: 11.5px; right: 50%; width: 100%; height: 3px;
+    border-radius: 3px;
+    background: #dfe6e2;
+}
+.dm-step.is-done .dm-step-line, .dm-step.is-current .dm-step-line { background: var(--green); }
+.dm-step-dot {
+    position: relative; z-index: 1;
+    display: flex; width: 26px; height: 26px; align-items: center; justify-content: center;
+    border: 2px solid #cdd9d2;
+    border-radius: 9999px;
+    background: var(--paper);
+    color: #fff;
+}
+.dm-step-dot svg { width: 13px; height: 13px; }
+.dm-step.is-done .dm-step-dot { border-color: var(--green); background: var(--green); }
+.dm-step.is-current .dm-step-dot { border: 3px solid var(--green); box-shadow: 0 0 0 4px rgba(22, 122, 58, .15); }
+.dm-step.is-current .dm-step-dot::after { content: ''; width: 9px; height: 9px; border-radius: 9999px; background: var(--green); }
+.dm-step-label { font-size: var(--fs-small); font-weight: 500; color: var(--ink-soft); }
+.dm-step.is-done .dm-step-label { color: var(--ink); }
+.dm-step.is-current .dm-step-label { font-weight: 700; color: var(--green-deep); }
+.dm-side-state {
+    width: fit-content; margin: 12px auto 0; padding: 3px 12px;
+    border-radius: 9999px;
+    background: var(--amber-wash);
+    font-size: var(--fs-caption); font-weight: 700;
+    color: var(--amber);
 }
 
-.bk-empty svg { color: rgba(0, 0, 0, .42); }
+/* Claiming date + actions */
+.dm-date {
+    display: flex; min-height: 76px; flex: 1 1 10rem; flex-direction: column; justify-content: center;
+    padding: 10px 16px;
+    border: 1px solid #ecd59a;
+    border-radius: 12px;
+    background: #fdf6e3;
+}
+.dm-date-label { font-size: var(--fs-small); font-weight: 500; color: #7a5a12; }
+.dm-date-value { margin-top: 2px; font-size: var(--fs-body); font-weight: 700; color: #6a4c0c; }
+.dm-tile {
+    display: flex; width: 100px; min-height: 80px; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 6px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    font-size: var(--fs-caption); font-weight: 600; line-height: 1.15; text-align: center;
+    color: var(--green-deep);
+    transition: background-color .15s, border-color .15s;
+}
+.dm-tile svg { width: 22px; height: 22px; }
+.dm-tile:hover { background: var(--green-wash); border-color: #b4c6bb; }
+.dm-tile.on { border-color: var(--green); background: var(--green-wash); box-shadow: inset 0 0 0 1px var(--green); }
+.dm-tile:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dm-tile-badge {
+    position: absolute; top: -7px; right: -7px;
+    min-width: 20px; height: 20px; padding: 0 5px;
+    border: 2px solid var(--paper); border-radius: 9999px;
+    background: #d92d20;
+    font-size: 11px; font-weight: 700; line-height: 16px;
+    color: #fff;
+}
+.dm-panel { margin-top: 10px; padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 12px; background: #fafcfb; }
+
+/* Sections */
+.dm-section { font-size: var(--fs-body) !important; font-weight: 800 !important; color: var(--green-deep) !important; }
+.dm-logs { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.dm-log { display: flex; align-items: center; gap: 10px; }
+.dm-log-dot { width: 9px; height: 9px; flex: none; border-radius: 9999px; background: #f2b632; box-shadow: 0 0 0 3px rgba(242, 182, 50, .2); }
+.dm-log-event { flex-shrink: 0; font-size: var(--fs-small); font-weight: 500; color: var(--ink); }
+.dm-log-time { flex-shrink: 0; font-size: var(--fs-small); font-weight: 600; color: var(--ink-soft); }
+.dm-more {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 10px;
+    font-size: var(--fs-small); font-weight: 600;
+    color: var(--green);
+}
+.dm-more:hover { color: var(--green-deep); text-decoration: underline; }
+
+.dm-info { margin-top: 6px; }
+.dm-info-row { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.dm-info-row:last-child { border-bottom: 0; }
+.dm-info-row dt { flex-shrink: 0; font-size: var(--fs-small); color: var(--ink-soft); }
+.dm-info-row dd { overflow-wrap: anywhere; text-align: right; font-size: var(--fs-small); font-weight: 700; color: var(--ink); }
+
+.dm-foot { padding: 12px 24px 16px; border-top: 1px solid var(--hairline); background: #fafcfb; }
+
+/* Claiming-date picker in the Look Up modal: the Booking calendar's header
+   and weekday band, with round day buttons for picking a single date. */
+.dp-context { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 24px; border-bottom: 1px solid var(--hairline); background: #fafcfb; }
+.dp-context-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--ink-soft); }
+.dp-context-item strong { font-weight: 700; color: var(--ink); }
+.dp-key { width: 10px; height: 10px; flex: none; border-radius: 9999px; }
+.dp-key-requested { background: #e0a526; }
+.dp-key-set { border: 2px solid var(--green); }
+
+.dp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px; }
+.dp-month { font-size: var(--fs-title); font-weight: 700; color: var(--green-deep); }
+
+.dp-dows {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    padding: 8px 16px;
+    border-block: 1px solid var(--hairline);
+    background: #f7faf8;
+}
+.dp-dows span { text-align: center; font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.dp-dows span.is-sunday { color: #a50003; }
+
+.dp-grid { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 10px 16px; }
+.dp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.dp-cell { display: flex; justify-content: center; padding: 4px 0; }
+
+.dp-day {
+    position: relative;
+    display: flex; width: 44px; height: 44px; align-items: center; justify-content: center;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    font-size: var(--fs-body); font-weight: 600;
+    color: var(--ink);
+    transition: background-color .15s, color .15s, border-color .15s;
+}
+.dp-day:hover:enabled { background: var(--green-wash); }
+.dp-day:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dp-day.is-sunday { color: #a50003; }
+.dp-day.is-outside { color: #a7b4ac; font-weight: 500; }
+.dp-day:disabled { color: #c3ccc7; font-weight: 400; cursor: not-allowed; }
+
+/* Today: an underline dot, so it never competes with the picked fill. */
+.dp-day.is-today::after {
+    content: ''; position: absolute; bottom: 5px; left: 50%;
+    width: 5px; height: 5px; transform: translateX(-50%);
+    border-radius: 9999px; background: var(--green);
+}
+/* The citizen's own request, and the date already committed to. */
+.dp-day.is-requested { background: #fdf3dc; color: #7a5a12; }
+.dp-day.is-requested:disabled { background: #fbf6ea; color: #c9b27a; }
+.dp-day.is-set { border-color: var(--green); }
+
+.dp-day.is-picked, .dp-day.is-picked:hover:enabled {
+    border-color: var(--green-deep);
+    background: var(--green-deep);
+    color: #fff;
+    box-shadow: 0 4px 10px -4px rgba(15, 77, 40, .5);
+}
+.dp-day.is-picked.is-today::after { background: #fff; }
+
+.dp-foot { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px 14px; border-top: 1px solid var(--hairline); background: #fafcfb; }
+.dp-picked { min-width: 0; font-size: var(--fs-small); color: var(--ink-soft); }
+.dp-foot .cr-btn { height: 40px; padding: 0 18px; border-radius: 10px; font-size: var(--fs-small); font-weight: 600; }
+.dp-picked strong { font-weight: 700; color: var(--green-deep); }
+
+/* Review modal (dashboards): the Look Up card, plus what review needs. The
+   card lets the footer's "More" menu escape; the body still scrolls. */
+.dm-card-review { overflow: visible; }
+.dm-card-review .dm-head { border-radius: 16px 16px 0 0; }
+.dm-card-review .dm-foot { border-radius: 0 0 16px 16px; }
+.dm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.dm-actions .cr-btn { height: 44px; padding: 0 20px; border-radius: 10px; font-size: var(--fs-small); font-weight: 600; }
+.dm-actions .cr-btn svg { width: 15px; height: 15px; }
+
+.dm-chip-info { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; background: #e7f0fb; font-size: var(--fs-caption); font-weight: 700; color: #1d4e89; }
+
+.dm-callout { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 12px; font-size: var(--fs-small); }
+.dm-callout svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.dm-callout-amber { border: 1px solid #ecd59a; background: #fdf6e3; color: #6a4c0c; }
+
+.dm-note { margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: #fafcfb; font-size: var(--fs-small); color: var(--ink); }
+.dm-note-label { margin-bottom: 2px; font-size: var(--fs-caption); font-weight: 700; color: var(--ink-soft); }
+
+.dm-files { margin-top: 10px; border: 1px solid var(--hairline); border-radius: 12px; }
+.dm-file { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--hairline); }
+.dm-file:last-child { border-bottom: 0; }
+.dm-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+.dm-file-meta { font-size: var(--fs-caption); color: var(--ink-soft); }
+.dm-file-open { flex-shrink: 0; font-size: var(--fs-small); font-weight: 700; color: var(--green); }
+.dm-file-open:hover { text-decoration: underline; }
+
+.dm-thumb {
+    display: flex; width: 44px; height: 44px; flex: none; align-items: center; justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: var(--green-wash);
+    transition: border-color .15s;
+}
+.dm-thumb-lg { width: 64px; height: 64px; }
+.dm-thumb img { width: 100%; height: 100%; object-fit: cover; }
+a.dm-thumb:hover { border-color: var(--green); }
+.dm-thumb.is-missing { background: #f1f4f2; color: var(--ink-soft); }
+.dm-thumb.is-missing svg { width: 18px; height: 18px; }
+.dm-thumb-doc { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--green); }
+.dm-thumb-doc svg { width: 18px; height: 18px; }
+.dm-thumb-doc.is-pdf { color: var(--red); }
+
+.dm-panel-strong { padding: 14px 16px; border: 1px solid var(--hairline-strong); border-radius: 12px; background: #f6faf7; }
+/* Internal request filing form (requests/partials/file-form), in a .dm-card. */
+/* Step pills in the header: ① Details — ② Review. */
+.ff-steps { display: flex; align-items: center; gap: 8px; }
+.ff-step {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 36px; padding: 0 14px 0 6px;
+    border-radius: 9999px;
+    background: #eef2ef;
+    font-size: var(--fs-small); font-weight: 600;
+    color: var(--ink-soft);
+    transition: background-color .15s, color .15s;
+}
+.ff-step-n { display: flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 9999px; background: #fff; font-size: 12.5px; font-weight: 700; }
+.ff-step-n svg { width: 13px; height: 13px; }
+.ff-step.is-current { background: var(--green); color: #fff; }
+.ff-step.is-current .ff-step-n { background: rgba(255, 255, 255, .22); }
+.ff-step.is-done { background: var(--green-wash); color: var(--green-deep); cursor: pointer; }
+.ff-step.is-done .ff-step-n { background: var(--green); color: #fff; }
+.ff-step:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ff-step-line { width: 22px; height: 2px; border-radius: 2px; background: var(--hairline-strong); }
+.ff-step-line.is-done { background: var(--green); }
+@media (max-width: 639px) { .ff-step > span:last-child { display: none; } .ff-step { padding: 0 6px; } }
+
+.ff-hint { margin-top: 6px; font-size: var(--fs-caption); color: var(--ink-soft); }
+
+/* Route card: your office → the next department. */
+.ff-route {
+    margin-top: 8px; padding: 18px 20px 14px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 14px;
+    background: #f7f7f7;
+    transition: border-color .2s, background-color .2s;
+}
+.ff-route.is-set { border-color: rgba(22, 122, 58, .45); background: #f4faf6; }
+.ff-route-track { display: flex; align-items: center; padding: 0 22%; }
+.ff-route-node { width: 34px; height: 34px; flex: none; border-radius: 9999px; }
+.ff-route-node.is-own { border: 8px solid var(--green); background: #fff; }
+.ff-route-node.is-next { border: 2px dashed var(--green); background: #d9d9d9; box-shadow: inset 0 0 0 4px #fff; transition: all .2s; }
+.ff-route.is-set .ff-route-node.is-next { border: 8px solid var(--green); background: #fff; box-shadow: none; }
+.ff-route-line { height: 8px; flex: 1; background: #d9d9d9; transition: background-color .2s; }
+.ff-route.is-set .ff-route-line { background: var(--green); }
+.ff-route-labels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; text-align: center; font-size: var(--fs-small); }
+.ff-route-labels .is-own { color: var(--ink); }
+.ff-route-labels .is-next { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+.ff-route.is-set .ff-route-labels .is-next { color: var(--ink); font-weight: 600; }
+
+/* Upload area: tall, dashed, green; takes clicks and drops. */
+.ff-upload {
+    display: flex; min-height: 300px; flex: 1; margin-top: 8px; cursor: pointer;
+    flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    padding: 20px;
+    border: 1.5px dashed rgba(22, 122, 58, .55);
+    border-radius: 14px;
+    background: #f1fbf1;
+    text-align: center;
+    transition: border-color .15s, background-color .15s;
+}
+.ff-upload:hover, .ff-upload.is-over { border-color: var(--green); background: #e6f6e8; }
+.ff-upload:focus-within { box-shadow: var(--focus-ring); }
+.ff-upload.has-file { border-style: solid; }
+.ff-upload-icon { width: 34px; height: 34px; margin-bottom: 6px; color: var(--green); }
+.ff-upload-title { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+.ff-upload-hint { font-size: var(--fs-caption); color: var(--ink-soft); }
+
+/* Review step: department codes in the chain line. */
+.ff-code { margin-left: 4px; padding: 2px 8px; border-radius: 9999px; background: #eef2ef; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.ff-code.is-own { margin-left: 0; background: var(--green-wash); color: var(--green-deep); }
+
+/* Review: the scan with its draggable QR, filling the right column. */
+.ff-stage {
+    display: flex; min-height: 240px; flex: 1; margin-top: 8px;
+    align-items: center; justify-content: center;
+    padding: 12px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 14px;
+    background: #f4f7f5;
+}
+.ff-page-btn { display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--paper); font-weight: 700; color: var(--green-deep); }
+.ff-page-btn:disabled { opacity: .4; }
+.ff-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--green-wash); font-size: var(--fs-caption); color: var(--green-deep); }
+.ff-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+
+.ff-qr-box { position: absolute; cursor: move; border: 2px solid var(--green); border-radius: 3px; background: rgba(255, 255, 255, .85); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+
+/* Internal request page: the modal card, in the page flow. */
+.dm-page-card { overflow: visible; }
+.dm-page-card .dm-body { overflow: visible; }
+/* In the page flow the card can be taller than the window, so the QR viewer
+   covers the window instead of centring on the card. */
+.dm-page-card .dm-qr-layer { position: fixed; z-index: 60; border-radius: 0; background: rgba(0, 0, 0, .4); }
+.dm-callout-green { border: 1px solid rgba(22, 122, 58, .25); background: var(--green-wash); color: var(--green-deep); }
+.dm-callout-muted { border: 1px solid var(--hairline); background: #fafcfb; color: var(--ink-soft); }
+.dm-decision-tabs { height: 42px; }
+.dm-decision-tabs button { min-width: 0 !important; padding: 0 8px !important; }
+.dm-decision label, .dm-decision .text-\[13px\] { font-size: var(--fs-small); }
+.dm-decision select, .dm-decision textarea { border-radius: 10px; font-size: var(--fs-small); }
+.dm-decision button[type=submit] { height: 46px; border-radius: 12px; font-size: var(--fs-small); }
+
+/* Internal request detail inside the modal: the request card scrolls on its
+   own; the decision card sits beside it. */
+.dm-in-modal { max-height: min(calc(100vh / var(--ui-zoom) - 54px), 860px); overflow: hidden; }
+.dm-in-modal .dm-body { min-height: 0; overflow-y: auto; }
+.dm-in-modal.lg\:sticky { position: static; }
+
+/* ── Staff data table ─────────────────────────────────────────────────────
+   One design for every staff work list (Dashboard, Look Up, Internal): a
+   white card that fills the page (<x-app-layout fixed-height>), a header row
+   pinned while the rows scroll inside it, and a pager that is always there.
+   Pager markup: partials/staff-table-pager. */
+.st-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
+
+/* Segmented tabs: one quiet track, the chosen queue lifted on a deep-green
+   pill. Every segment is the same width, so nothing shifts when it is picked. */
+.st-tabs {
+    display: inline-flex; flex-shrink: 0; align-items: stretch; gap: 4px;
+    height: 46px; padding: 4px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--green-wash);
+}
+.st-tabs button {
+    display: inline-flex; flex: 1 1 0; align-items: center; justify-content: center; gap: 8px;
+    min-width: 8.5rem; padding: 0 18px;
+    border-radius: 8px;
+    font-size: var(--fs-body); font-weight: 600; white-space: nowrap;
+    color: var(--ink-soft);
+    transition: background-color .15s, color .15s, box-shadow .15s;
+}
+.st-tabs button:hover:not(.on) { background: rgba(255, 255, 255, .7); color: var(--green-deep); }
+.st-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.st-tabs button.on {
+    background: var(--green-deep);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .25), 0 2px 6px -2px rgba(15, 77, 40, .3);
+}
+.st-tab-count {
+    min-width: 22px; padding: 0 7px;
+    border-radius: 9999px;
+    background: rgba(15, 77, 40, .1);
+    font-size: var(--fs-small); font-weight: 700; line-height: 22px; text-align: center;
+    color: var(--green-deep);
+}
+.st-tabs button.on .st-tab-count { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* Search: the same 40px height and 12px corners as the tabs and the button
+   beside it, so the toolbar reads as one row of controls. */
+.st-search { position: relative; width: 100%; max-width: 25rem; }
+.st-search > svg {
+    position: absolute; left: 15px; top: 50%;
+    width: 20px; height: 20px; transform: translateY(-50%);
+    color: var(--ink-soft); pointer-events: none;
+    transition: color .15s;
+}
+.st-search:focus-within > svg { color: var(--green); }
+.st-search input {
+    height: 46px; width: 100%;
+    padding: 0 16px 0 44px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    font-size: var(--fs-body);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .04);
+    transition: border-color .15s, box-shadow .15s;
+}
+.st-search input::placeholder { color: #8a988f; }
+.st-search input:hover { border-color: #b4c6bb; }
+.st-search input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 122, 58, .15); }
+
+.st-tool-btn {
+    display: flex; height: 46px; width: 46px; flex-shrink: 0;
+    align-items: center; justify-content: center;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--green-deep);
+    box-shadow: 0 1px 2px rgba(15, 77, 40, .04);
+    transition: background-color .15s, border-color .15s;
+}
+.st-tool-btn:hover { background: var(--green-wash); border-color: #b4c6bb; }
+.st-tool-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.st-tool-btn img { width: 22px; height: 22px; }
+.st-tool-btn { position: relative; }
+.st-tool-btn.is-active { border-color: var(--green); background: var(--green-wash); }
+.st-filter-badge {
+    position: absolute; top: -6px; right: -6px;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    border: 2px solid var(--paper); border-radius: 9999px;
+    background: var(--green-deep);
+    font-size: 10.5px; font-weight: 700; line-height: 14px; text-align: center;
+    color: #fff;
+}
+
+/* Filter panel, dropped from the filter button. */
+.st-filter-pop {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 30;
+    width: 20rem; padding: 16px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 14px;
+    background: var(--paper);
+    box-shadow: var(--shadow-pop);
+}
+.st-filter-title { margin-bottom: 12px; font-size: 17px; font-weight: 700; color: var(--green-deep); }
+.st-filter-label { display: block; margin-bottom: 6px; font-size: var(--fs-small); font-weight: 700; letter-spacing: .02em; color: var(--ink); }
+.st-filter-sub { display: block; margin-bottom: 4px; font-size: var(--fs-caption); color: var(--ink-soft); }
+.st-filter-field {
+    width: 100%; height: 38px; padding: 0 10px;
+    border: 1px solid var(--hairline-strong); border-radius: 10px;
+    background-color: var(--paper);
+    font-size: var(--fs-label); color: var(--ink);
+}
+.st-filter-field:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 122, 58, .15); }
+.st-filter-chip {
+    padding: 4px 10px;
+    border: 1px solid var(--hairline-strong); border-radius: 9999px;
+    font-size: var(--fs-caption); font-weight: 600; color: var(--green-deep);
+    transition: background-color .15s;
+}
+.st-filter-chip:hover { background: var(--green-wash); }
+.st-filter-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.st-card {
+    display: flex; flex: 1 1 auto; flex-direction: column;
+    min-height: 320px;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .05);
+}
+@media (min-width: 1024px) { .st-card { min-height: 0; } }
+
+.st-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; }
+
+.st-table { width: 100%; min-width: 576px; text-align: left; }
+.st-table th {
+    position: sticky; top: 0; z-index: 10;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--paper);
+    font-size: var(--fs-label); font-weight: 700; white-space: nowrap;
+    color: var(--green-deep);
+}
+.st-table tbody tr { border-bottom: 1px solid rgba(230, 236, 232, .7); transition: background-color .15s; }
+.st-table tbody tr:last-child { border-bottom: 0; }
+.st-table tbody tr:hover { background: rgba(238, 245, 240, .6); }
+.st-table td { padding: 16px 24px; font-size: var(--fs-body); color: var(--ink-soft); vertical-align: middle; }
+.st-table tr.st-empty:hover { background: transparent; }
+.st-table tr.st-empty td { padding: 40px 24px; text-align: center; }
+
+/* First column: request-type disc beside the name. */
+.st-type { display: flex; align-items: center; gap: 12px; }
+.st-disc { position: relative; display: flex; height: 48px; width: 48px; flex-shrink: 0; align-items: center; justify-content: center; }
+.st-disc > img:first-child { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+.st-disc > img + img { position: relative; width: 24px; height: 24px; object-fit: contain; }
+.st-name { font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
+.st-sub { margin-top: 2px; font-size: var(--fs-caption); color: var(--ink-soft); }
+
+.st-action {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: var(--fs-body); font-weight: 600; white-space: nowrap;
+    color: var(--green);
+    transition: color .15s;
+}
+.st-action:hover { color: var(--green-deep); }
+.st-action img { height: 24px; width: 19px; max-width: none; }
+
+.st-pager {
+    display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: 6px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--hairline);
+}
+.st-pager-info { margin-right: auto; font-size: var(--fs-small); color: var(--ink-soft); }
+.st-page-step {
+    display: flex; height: 28px; width: 28px; align-items: center; justify-content: center;
+    border: 1px solid rgba(22, 122, 58, .4); border-radius: 9999px;
+    background: #eaf4ee; color: var(--green-deep);
+    transition: background-color .15s;
+}
+.st-page-step:hover:enabled { background: #cfe6d8; }
+.st-page-step:disabled { opacity: .4; }
+.st-page {
+    height: 28px; min-width: 28px; padding: 0 8px;
+    border: 1px solid transparent; border-radius: 8px;
+    font-size: var(--fs-small); font-weight: 700; color: var(--ink-soft);
+    transition: background-color .15s;
+}
+.st-page:hover { background: var(--green-wash); }
+.st-page.on { border-color: rgba(22, 122, 58, .5); background: #eaf4ee; color: var(--green-deep); }
+.st-page-step:focus-visible, .st-page:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Camera viewport ──────────────────────────────────────────────────────
    html5-qrcode injects a <video> at the stream's own dimensions, which are
@@ -1198,6 +2060,9 @@ aside.sidebar-pinned {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Focused after a soft navigation so screen readers announce the new page;
+   that focus is programmatic, not a keyboard stop, so no ring. */
+.layout-title:focus { outline: none; }
 @media (min-width: 640px) { .layout-title { font-size: 2rem; } }
 @media (min-width: 1024px) { .layout-title { font-size: 2.5rem; } }
 
@@ -1234,7 +2099,7 @@ aside.sidebar-pinned {
 }
 
 /* ── Top navbar (staff / supervisor) ───────────────────────────────────── */
-.topnav-shell { display: flex; min-height: 100vh; flex-direction: column; }
+.topnav-shell { display: flex; min-height: calc(100vh / var(--ui-zoom)); flex-direction: column; }
 .topnav-bar {
     position: sticky; top: 0; z-index: 50;
     background: var(--green-deep);
@@ -1368,14 +2233,14 @@ aside.sidebar-pinned {
        stray partial, a tall dialog) can reintroduce a page scrollbar. */
     html.app-fixed-height,
     body.app-fixed-height {
-        height: 100dvh;
+        height: calc(100dvh / var(--ui-zoom));
         min-height: 0;
         overflow: hidden;
     }
 
     .app-fixed-height .topnav-shell,
     .app-fixed-height .admin-shell {
-        height: 100dvh;
+        height: calc(100dvh / var(--ui-zoom));
         min-height: 0;
         overflow: hidden;
     }
@@ -1591,7 +2456,7 @@ aside.sidebar-pinned {
 .kbd-help { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .kbd-help.hidden { display: none; }
 .kbd-help-backdrop { position: absolute; inset: 0; background: rgba(22,33,27,.45); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
-.kbd-help-card { position: relative; width: 100%; max-width: 34rem; max-height: 85vh; overflow-y: auto; background: var(--paper); border: 1px solid var(--hairline-strong); border-radius: 14px; box-shadow: 0 24px 60px -12px rgba(15,77,40,.4); }
+.kbd-help-card { position: relative; width: 100%; max-width: 34rem; max-height: calc(85vh / var(--ui-zoom)); overflow-y: auto; background: var(--paper); border: 1px solid var(--hairline-strong); border-radius: 14px; box-shadow: 0 24px 60px -12px rgba(15,77,40,.4); }
 .kbd-help-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
 .kbd-help-head h2 { font-size: 15px; font-weight: 600; color: var(--green-deep); margin: 0; }
 .kbd-help-body { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 16px; }
@@ -1864,10 +2729,10 @@ aside.sidebar-pinned {
    view, and the exact rgba values come straight from the design. */
 .req-shell {
     background: rgba(223, 223, 223, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 20px;
+    border-radius: 16px;
 }
 
 /* Label sits on its own row with the live character count pushed to the far
@@ -1894,12 +2759,12 @@ aside.sidebar-pinned {
    bare input and a wrapper full of parts read as the same control. */
 .req-field {
     width: 100%;
-    min-height: 60px;
+    min-height: 48px;
     background: rgba(168, 168, 168, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 10px;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(0, 64, 4, .5);
+    border-radius: 8px;
     padding: .85rem 1.4rem;
     color: #10231a;
     font-size: 1.05rem;
@@ -1974,13 +2839,13 @@ aside.sidebar-pinned {
     display: inline-flex;
     align-items: center;
     gap: .7rem;
-    min-height: 50px;
+    min-height: 40px;
     padding: 0 1.1rem;
     background: rgba(141, 255, 60, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 10px;
+    border-radius: 8px;
     color: #000;
     font-size: 1.05rem;
     font-weight: 500;
@@ -2042,10 +2907,10 @@ aside.sidebar-pinned {
    step rounder than a field. */
 .req-note {
     background: rgba(55, 131, 0, .2);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: .5px solid rgba(0, 64, 4, .5);
-    border-radius: 10px;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(0, 64, 4, .5);
+    border-radius: 8px;
 
     /* backdrop-filter creates a stacking context, which traps anything
        positioned inside this panel. The time picker's popover lives in the
@@ -2075,7 +2940,7 @@ aside.sidebar-pinned {
     flex: none;
     width: 1.9rem;
     height: 1.9rem;
-    border-radius: 999px;
+    border-radius: 799px;
     border: 1px solid rgba(0, 64, 4, .5);
     background-color: rgba(141, 255, 60, .2);
     background-image: none;
@@ -2101,12 +2966,12 @@ aside.sidebar-pinned {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 60px;
+    min-height: 48px;
     background: #01721a;
     color: #fff;
     font-weight: 700;
     font-size: 1.05rem;
-    border-radius: 50px;
+    border-radius: 40px;
     padding: 1rem 2.5rem;
     transition: background-color .15s ease-in-out;
 }
@@ -2120,11 +2985,11 @@ aside.sidebar-pinned {
 
 @media (min-width: 640px) {
     .req-label { font-size: 1.375rem; }
-    .req-field { min-height: 70px; padding: 1.1rem 1.5rem; font-size: 1.25rem; }
+    .req-field { min-height: 56px; padding: 1.1rem 1.5rem; font-size: 1.25rem; }
     .req-affix { padding-block: 0; }
     .req-affix > input { padding-block: 1.1rem; font-size: 1.25rem; }
     .req-count { font-size: 1.25rem; }
-    .req-submit { min-height: 70px; font-size: 1.25rem; }
+    .req-submit { min-height: 56px; font-size: 1.25rem; }
     .req-check { width: 1.93rem; height: 1.93rem; }
 }
 

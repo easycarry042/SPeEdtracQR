@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -97,10 +98,12 @@ class LookUpDeskTest extends TestCase
             ->assertSee('Mark as Completed')
             ->assertSee('Requested Claiming Date')
             ->assertSee('Adjust Date')
-            ->assertSee('aria-label="View Attachments"', false)
+            ->assertSee('<span>View Attachments</span>', false)
             ->assertSee('Messages')
             ->assertSee('Tracking Number')
-            ->assertSeeInOrder(['Logs', 'More Info']);
+            ->assertSeeInOrder(['Logs', 'More Info'])
+            // No link out to the request's own page from the modal.
+            ->assertDontSee('Open the full record');
     }
 
     public function test_the_desk_only_shows_work_the_viewer_may_see(): void
@@ -207,10 +210,112 @@ class LookUpDeskTest extends TestCase
         $this->actingAs($staff)
             ->get(route('track.index'))
             ->assertOk()
-            ->assertSee('aria-label="Scan a QR code"', false)
+            ->assertSee('<span>Scan QR Code</span>', false)
             ->assertSee(route('track.index', ['scan' => 1]), false)
-            ->assertSee('images/staff/icon-scan.svg', false)
-            ->assertSee('images/staff/icon-bell.svg', false);
+            ->assertSee('aria-label="Notifications', false)
+            ->assertSee('class="header-disc"', false)
+            ->assertSee('class="header-chip"', false);
+    }
+
+    public function test_the_detail_modal_draws_the_four_stage_progress_bar(): void
+    {
+        $staff = $this->staff();
+        $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'approved']);
+
+        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+
+        // The prototype's four stages, not the five statuses.
+        $response->assertViewHas('rail', ['Pending', 'In review', 'Processing', 'Completed']);
+        $response->assertSee('<ol class="dm-steps" aria-label="Progress">', false);
+
+        // Approved sits on "Processing", the third stage.
+        $this->assertSame(3, $response->viewData('activeRows')[0]['rail_stage']);
+    }
+
+    public function test_the_date_picker_marks_the_requested_and_current_claiming_dates(): void
+    {
+        $staff = $this->staff();
+        $this->makeDocument([
+            'assigned_to' => $staff->id,
+            'status' => 'in_progress',
+            'needed_by' => '2026-11-05',
+            'claim_date' => '2026-11-07',
+        ]);
+
+        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+
+        // Machine-readable days, so the picker can mark them on the grid.
+        $row = $response->viewData('activeRows')[0];
+        $this->assertSame('2026-11-05', $row['requested_claim_on']);
+        $this->assertSame('2026-11-07', $row['claim_on']);
+
+        $response->assertSee("'is-requested': cell.iso === selected?.requested_claim_on", false);
+        $response->assertSee("'is-set': cell.iso === selected?.claim_on", false);
+        $response->assertSee('<div class="dp-grid" role="grid" aria-label="Claiming date">', false);
+    }
+
+    public function test_the_tracking_number_tile_opens_the_requests_qr_code(): void
+    {
+        $staff = $this->staff();
+        $document = $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'in_progress']);
+        $document->update(['qr_code_path' => 'qrcodes/'.$document->tracking_number.'.png']);
+
+        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+
+        // The row carries the generated QR and the print-ready claim slip.
+        $row = $response->viewData('activeRows')[0];
+        $this->assertSame('/storage/qrcodes/'.$document->tracking_number.'.png', $row['qr_url']);
+        $this->assertSame(route('track.slip', $document->tracking_number), $row['slip_url']);
+
+        // The tile is a button that opens the viewer, and the footer has no Cancel.
+        $response->assertSee('@click="qrOpen = true" class="dm-qr-btn"', false)
+            ->assertSee('class="dm-qr-layer"', false)
+            ->assertSee('Print slip')
+            ->assertDontSee('<button type="button" @click="close()" class="cr-btn">Cancel</button>', false);
+    }
+
+    public function test_file_request_and_scan_are_labelled_header_buttons_on_every_page(): void
+    {
+        $this->seedRolesAndPermissions();
+        // Filing needs an office to file from, so the button only shows with one.
+        $department = Department::factory()->create();
+        $supervisor = User::factory()->create(['department_id' => $department->id])->assignRole('Supervisor');
+
+        foreach (['dashboard', 'track.index', 'requests.index', 'staff.index'] as $route) {
+            $this->actingAs($supervisor)
+                ->get(route($route))
+                ->assertOk()
+                ->assertSee('<span>File Request</span>', false)
+                ->assertSee('<span>Scan QR Code</span>', false)
+                // The filing form rides along, ready to open in place.
+                ->assertSee('aria-label="File internal request"', false);
+        }
+    }
+
+    public function test_file_request_is_hidden_without_an_office_to_file_from(): void
+    {
+        $this->actingAs($this->staff())
+            ->get(route('track.index'))
+            ->assertOk()
+            ->assertDontSee('<span>File Request</span>', false)
+            ->assertSee('<span>Scan QR Code</span>', false);
+    }
+
+    public function test_the_scan_disc_opens_a_camera_modal_instead_of_leaving_the_page(): void
+    {
+        // The disc used to navigate to the upload-only hub. It now opens the
+        // live camera in a modal over the current page; the href stays as the
+        // no-JavaScript fallback.
+        $this->actingAs($this->staff())
+            ->get(route('staff.dashboard'))
+            ->assertOk()
+            ->assertSee('x-data="headerQrScanner"', false)
+            ->assertSee('@click.prevent="open()"', false)
+            ->assertSee('role="dialog" aria-modal="true" aria-labelledby="headerScanTitle"', false)
+            ->assertSee('id="headerScanReader"', false)
+            ->assertSee("window.SpeedQr.start('headerScanReader'", false)
+            // The shared scanner rules (accepted codes, camera lifecycle) are on the page.
+            ->assertSee('window.SpeedQr = (function ()', false);
     }
 
     public function test_the_modal_carries_both_side_panels(): void

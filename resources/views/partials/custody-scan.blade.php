@@ -34,6 +34,7 @@
         {{-- Auto-submitted when the scanned QR matches this document. --}}
         <form x-ref="scanForm" method="POST" action="{{ route('documents.custody.store', $document) }}" class="hidden">
             @csrf
+            @if($inModal ?? false)<input type="hidden" name="from" value="internal">@endif
             <input type="hidden" name="capture_method" value="scan">
             <input type="hidden" name="scanned_value" x-ref="scannedValue">
         </form>
@@ -47,6 +48,7 @@
             <button type="button" class="cs-manual-link" @click="openManual()">QR torn or unreadable? Record manually</button>
             <form x-show="manualOpen" x-cloak method="POST" action="{{ route('documents.custody.store', $document) }}" class="cs-manual-form">
                 @csrf
+                @if($inModal ?? false)<input type="hidden" name="from" value="internal">@endif
                 <input type="hidden" name="capture_method" value="manual">
                 <label>Why can't the QR be scanned? (required)
                     <textarea name="override_reason" rows="2" maxlength="500" required

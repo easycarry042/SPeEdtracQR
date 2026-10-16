@@ -129,6 +129,11 @@ class DocumentCustodyController extends Controller
             return response()->json(['message' => $message]);
         }
 
+        // Taken from the Internal page's modal: go back there, modal reopened.
+        if ($request->input('from') === 'internal' && $request->route('document')) {
+            return to_route('requests.index', ['open' => $request->route('document')->id])->with('status', $message);
+        }
+
         return back()->with('status', $message);
     }
 }

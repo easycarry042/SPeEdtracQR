@@ -12,7 +12,7 @@
 
      z-[120] so it clears the create-document modal at z-[100]. --}}
 <div id="formErrorAlert" class="pointer-events-none fixed inset-x-0 top-4 z-[120] hidden justify-center px-4 sm:top-6" role="alert" aria-live="assertive">
-    <div id="formErrorCard" class="pointer-events-auto w-full max-w-[560px] rounded-2xl border-2 border-[#c2410c] bg-white p-4 shadow-2xl sm:p-5">
+    <div id="formErrorCard" class="pointer-events-auto w-full max-w-[448px] rounded-2xl border-2 border-[#c2410c] bg-white p-4 shadow-2xl sm:p-5">
         <div class="flex items-start gap-3">
             <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(234,82,0,.12)] text-[#c2410c]">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -20,8 +20,8 @@
                 </svg>
             </span>
             <div class="min-w-0 flex-1">
-                <p id="formErrorTitle" class="font-display text-[17px] font-black text-[#7c2d12] sm:text-[19px]">We can't submit this yet</p>
-                <ul id="formErrorList" class="mt-1.5 space-y-1 text-sm text-[#7c2d12] sm:text-[15px]"></ul>
+                <p id="formErrorTitle" class="font-display text-[14px] font-black text-[#7c2d12] sm:text-[15px]">We can't submit this yet</p>
+                <ul id="formErrorList" class="mt-1.5 space-y-1 text-sm text-[#7c2d12] sm:text-[14px]"></ul>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <button type="button" id="formErrorGo" class="rounded-full bg-[#c2410c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9a3412] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#ea5200]/40">
                         Take me there

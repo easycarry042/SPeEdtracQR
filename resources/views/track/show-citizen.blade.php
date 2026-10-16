@@ -78,7 +78,7 @@
                 @endphp
 
                 @if($showsDecision && ($decisionActor || filled($document->remarks)))
-                    <div class="mt-4 rounded-[10px] border {{ $isDenied ? 'border-status-red/30 bg-red-50/60' : 'border-hairline bg-green-wash/40' }} p-4">
+                    <div class="mt-4 rounded-[8px] border {{ $isDenied ? 'border-status-red/30 bg-red-50/60' : 'border-hairline bg-green-wash/40' }} p-4">
                         <p class="text-xs font-semibold uppercase tracking-wide {{ $isDenied ? 'text-status-red' : 'text-ink-soft' }}">
                             {{ $isDenied ? 'Reason for denial' : 'Message from staff' }}
                         </p>
@@ -159,7 +159,7 @@
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
                     </span>
                     <div>
-                        <p class="text-[15px] font-bold text-ink">{{ $document->document_type }}</p>
+                        <p class="text-[14px] font-bold text-ink">{{ $document->document_type }}</p>
                         <p class="text-[12.5px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }} &middot; submitted {{ $document->created_at->format('M d, Y') }}</p>
                     </div>
                 </div>
@@ -280,7 +280,7 @@
                                 <label for="citizenDetail" class="sr-only">Email or mobile number on this request</label>
                                 <input id="citizenDetail" type="text" name="detail" required autocomplete="off"
                                        placeholder="Email or mobile number on this request"
-                                       class="min-w-[240px] flex-1 rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
+                                       class="min-w-[192px] flex-1 rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
                                 <button type="submit" class="cr-btn cr-btn-sm">Confirm</button>
                             </div>
                             @error('detail')<p class="text-sm font-semibold text-status-red">{{ $message }}</p>@enderror
@@ -330,7 +330,7 @@
                                 <label for="reupload-{{ $req->id }}" class="sr-only">Re-upload {{ $req->label }}</label>
                                 <input id="reupload-{{ $req->id }}" type="file" name="file" accept="{{ \App\Support\UploadRules::accept() }}" required
                                        class="block text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
-                                <button type="submit" class="cr-btn cr-btn-primary min-h-[44px]">Re-upload</button>
+                                <button type="submit" class="cr-btn cr-btn-primary min-h-[35px]">Re-upload</button>
                             </form>
                         @endif
                     </div>

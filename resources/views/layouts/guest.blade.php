@@ -14,320 +14,273 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
-            :root {
-                /* Civic Record — white = purity, deep green = authority. */
-                --page-bg: #f3f8f5;
-                --card-bg: #ffffff;
-                --text-main: #0f4d28;
-                --text-sub: #51625a;
-                --input-bg: #ffffff;
-                --input-border: #cdd9d2;
-                --accent: #167a3a;
-                --accent-hover: #0f4d28;
-                --brass: #c79a3e;
-            }
-
             * { box-sizing: border-box; }
 
             body.auth-page {
                 margin: 0;
-                min-height: 100vh;
+                min-height: calc(100vh / var(--ui-zoom));
                 font-family: Nunito, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-                color: #1f2937;
-
-                /* The frame's two "welcome light" glows over the arrow doodle at
-                   15%. They are single-stop radial gradients in the file, so CSS
-                   reproduces them exactly and scales to any viewport — a pair of
-                   fixed 1156px SVGs would not. */
-                background-color: #ffffff;
-                background-image:
-                    radial-gradient(circle 578px at 26.9% 71px, rgba(132, 255, 94, .5), rgba(104, 244, 61, 0) 100%),
-                    radial-gradient(circle 578px at 73.1% -88px, rgba(1, 114, 26, .5), rgba(1, 114, 26, 0) 100%),
-                    linear-gradient(rgba(255, 255, 255, .85), rgba(255, 255, 255, .85)),
-                    url('{{ asset('images/landing/doodle-pattern.jpg') }}');
-                background-size: cover, cover, cover, cover;
-                background-position: center, center, center, center;
-                background-attachment: fixed, fixed, fixed, fixed;
-                background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+                color: var(--ink);
+                /* Plain, quiet canvas — no glows behind the card. */
+                background: #f5f8f6;
             }
 
             main.auth-main {
-                min-height: 100vh;
                 display: flex;
+                min-height: calc(100vh / var(--ui-zoom));
                 align-items: center;
                 justify-content: center;
-                padding: 24px;
+                padding: 32px 20px;
             }
 
-            /* Frosted glass: the mesh behind shows through, blurred, so the
-               card reads as a pane over the gradient rather than a flat block.
-               Alpha stays high enough (.72) to keep form text legible. */
-            /* Glass treatment comes from .glass-panel in app.css (background,
-               blur, lit rim, shadow, and the no-backdrop-filter fallback). */
-            .auth-card {
-                width: min(1100px, 100%);
-                border-radius: 50px;
-                overflow: hidden;
-                /* Lime glass over the glows, rather than the neutral white pane —
-                   the card belongs to the same family as the portal's cards. */
-                background: rgba(141, 255, 60, .2);
-                border: .5px solid rgba(0, 64, 4, .5);
-                box-shadow: none;
-            }
+            /* Card + the link above it share one column, so "Back to Homepage"
+               lines up with the card's left edge at every width. */
+            .auth-shell { width: min(1000px, 100%); }
 
-            .auth-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                /* Holds the card at the height it had before the guest button
-                   and reset row were removed, so the brand half keeps its
-                   proportions. Only while side-by-side — the stacked layout
-                   below 900px sizes to its content. */
-                min-height: 700px;
-            }
-
-            .auth-left {
-                padding: 32px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                /* A hairline rule, not a panel edge: the two halves are one
-                   card split down the middle. */
-                border-right: 2px solid rgba(0, 0, 0, .2);
-                background: transparent;
-            }
-
-            .auth-brand {
-                text-align: center;
-            }
-
-            .brand-badge {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 20px;
-                border-radius: 50%;
-                border: 2px solid var(--brass);
-            }
-
-            /* Wordmark: "SPeED" in Zain, "TraQR" in Nunito. */
-            .brand-title {
-                margin: 0;
-                font-size: 45px;
-                font-weight: 600;
-                line-height: 1;
-                color: var(--text-main);
-                font-family: Zain, Nunito, ui-sans-serif, system-ui, sans-serif;
-            }
-
-            .brand-title span {
-                color: var(--accent);
-                font-family: Nunito, ui-sans-serif, system-ui, sans-serif;
-            }
-
-            .brand-subtitle {
-                margin-top: 10px;
-                color: #1e1e1e;
-                font-size: 18px;
-                font-weight: 500;
-            }
-
-            .auth-right {
-                /* 56px gutters hold the fields at the frame's 450px width inside
-                   the card's right half, instead of running edge to edge. */
-                padding: 28px 56px;
-                /* Centred in the taller cell, rather than sitting at the top
-                   with the reclaimed space dangling below the Login button. */
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-            }
-
-            .auth-heading {
-                margin: 0;
-                font-size: 40px;
-                line-height: 1;
-                font-weight: 800;
-                color: #004004;
-            }
-
-            .auth-subheading {
-                margin-top: 16px;
-                font-size: 20px;
-                color: #1e1e1e;
-                font-weight: 600;
-            }
-
-            .auth-form {
-                margin-top: 20px;
-            }
-
-            .form-group { margin-bottom: 22px; }
-
-            .form-label {
-                display: block;
-                font-size: 20px;
-                font-weight: 600;
-                color: #004004;
-                margin-bottom: 8px;
-                letter-spacing: .01em;
-            }
-
-            /* Pill fields tinted to the card, with no hard border — the fill is
-               what marks the input, so the rows read as one soft stack. */
-            .form-input {
-                width: 100%;
-                min-height: 80px;
-                border-radius: 60px;
-                border: 1px solid transparent;
-                background: rgba(1, 114, 26, .3);
-                padding: 13px 34px;
-                font-size: 20px;
-                font-weight: 600;
-                color: #004004;
-                outline: none;
-                transition: background .15s, border-color .15s, box-shadow .15s;
-            }
-
-            .form-input::placeholder {
-                color: rgba(0, 64, 4, .5);
-                font-weight: 600;
-            }
-
-            .form-input:focus {
-                background: rgba(255, 255, 255, .72);
-                border-color: var(--accent);
-                box-shadow: 0 0 0 3px rgba(22, 122, 58, .22);
-            }
-
-            /* Fields with a leading glyph. The icon is decorative — the label
-               above already names the field — so it stays out of the a11y tree. */
-            .field-shell { position: relative; }
-
-            .field-icon {
-                position: absolute;
-                left: 34px;
-                top: 50%;
-                transform: translateY(-50%);
-                display: flex;
-                color: var(--text-main);
-                pointer-events: none;
-            }
-
-            .form-input-with-icon {
-                padding-left: 92px;
-            }
-
-            /* Clears the reveal icon parked at the field's right edge. */
-            .form-input-with-toggle {
-                padding-right: 72px;
-            }
-
-            /* Replaces the margin the show-password / reset row used to add. */
-            .auth-button-spaced {
-                margin-top: 41px;
-            }
-
-            .auth-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 14px;
-                margin: 10px 0 14px;
-            }
-
-            .checkbox-wrap {
+            .auth-home-link {
                 display: inline-flex;
                 align-items: center;
                 gap: 8px;
-                color: var(--text-main);
-                font-size: 30px;
-            }
-
-            .checkbox-wrap input { width: 20px; height: 20px; }
-
-            .auth-link {
-                color: var(--text-main);
-                font-size: 30px;
+                margin-bottom: 14px;
+                padding: 6px 10px 6px 6px;
+                border-radius: 10px;
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--green-deep);
                 text-decoration: none;
+                transition: background-color .15s;
+            }
+            .auth-home-link svg { width: 18px; height: 18px; }
+            .auth-home-link:hover { background: rgba(22, 122, 58, .08); }
+            .auth-home-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+            .auth-card {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                min-height: 560px;
+                overflow: hidden;
+                border: 1px solid var(--hairline);
+                border-radius: 24px;
+                background: #fff;
+                box-shadow: 0 30px 70px -30px rgba(15, 77, 40, .35), 0 2px 6px rgba(15, 77, 40, .05);
             }
 
-            .auth-link:hover { text-decoration: underline; }
+            /* Brand half: deep municipal green, the mark on a soft white disc. */
+            .auth-left {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                gap: 32px;
+                padding: 44px 44px 36px;
+                overflow: hidden;
+                color: #eaf6ee;
+                background: linear-gradient(155deg, #167a3a 0%, #0f4d28 45%, #0b3a1e 100%);
+            }
+            /* Faint QR-grid texture, so the panel is not a flat slab. */
+            .auth-left::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
+                background-size: 28px 28px;
+                mask-image: linear-gradient(to bottom, transparent, #000 40%, #000 70%, transparent);
+                pointer-events: none;
+            }
+            .auth-left > * { position: relative; z-index: 1; }
+
+            .auth-seals { display: flex; justify-content: center; gap: 12px; }
+            .auth-seals img {
+                width: 58px; height: 58px; object-fit: contain;
+                padding: 3px;
+                border-radius: 9999px;
+                background: #fff;
+                box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .4);
+            }
+
+            .auth-brand { display: flex; flex-direction: column; align-items: center; text-align: center; }
+            /* The white mark in flight: streaks (after the reference drawing —
+               scattered lengths in lime and greens) stream back off the arrow
+               on their own speeds, while the arrow surges and lifts. */
+            .auth-logo-stage {
+                position: relative;
+                /* The arrow sits at the right of the stage with the trail to its
+                   left; nudged right so the pair is centred in the panel. */
+                left: 20px;
+                display: flex; width: 360px; height: 190px;
+                align-items: center; justify-content: flex-end;
+                padding-right: 30px;
+            }
+            /* Only transform and opacity are animated, on their own layers, so
+               the motion is composited — no per-frame repaint, no stutter. */
+            .auth-logo-fly {
+                position: relative; z-index: 1;
+                display: block;
+                will-change: transform;
+                animation: auth-fly 3.6s ease-in-out infinite;
+            }
+            .auth-logo {
+                display: block;
+                width: 185px; height: 185px; object-fit: contain;
+                filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .35));
+            }
+            /* The glow at the surge: a blurred copy fading in and out. */
+            .auth-logo-fly::after {
+                content: '';
+                position: absolute; inset: 18%;
+                border-radius: 50%;
+                background: rgba(183, 228, 196, .45);
+                filter: blur(22px);
+                opacity: 0;
+                will-change: opacity;
+                animation: auth-glow 3.6s ease-in-out infinite;
+                z-index: -1;
+            }
+            .auth-trail {
+                position: absolute; top: 14%; bottom: 14%; left: 0;
+                width: 47%;
+                -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 14%, #000 100%);
+                mask-image: linear-gradient(to right, transparent 0%, #000 14%, #000 100%);
+            }
+            .auth-trail i {
+                position: absolute; top: var(--t); right: 0;
+                display: block; width: var(--w); height: 5px;
+                border-radius: 9999px;
+                background: var(--c);
+                box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent);
+                will-change: transform, opacity;
+                animation: auth-streak var(--d) cubic-bezier(.3, 0, .7, 1) var(--l) infinite;
+            }
+
+            /* Arrow: a forward surge with a slight lift, then settles — a
+               little tilt sells the speed. */
+            @keyframes auth-fly {
+                0%, 100% { transform: translate3d(-6px, 3px, 0) rotate(.6deg); }
+                50%      { transform: translate3d(12px, -5px, 0) rotate(-1.6deg); }
+            }
+            @keyframes auth-glow {
+                0%, 100% { opacity: 0; }
+                50%      { opacity: 1; }
+            }
+            /* Each streak shoots out from behind the arrow and fades away. */
+            @keyframes auth-streak {
+                0%   { transform: translate3d(10%, 0, 0) scaleX(.3); opacity: 0; }
+                15%  { opacity: 1; }
+                70%  { opacity: .85; }
+                100% { transform: translate3d(-90%, 0, 0) scaleX(1); opacity: 0; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .auth-logo-fly, .auth-logo-fly::after, .auth-trail i { animation: none; }
+                .auth-trail i { transform: translateX(-20%); opacity: .8; }
+            }
+
+            .brand-title {
+                margin: 18px 0 0;
+                font-family: Zain, Nunito, ui-sans-serif, system-ui, sans-serif;
+                font-size: 40px;
+                font-weight: 800;
+                line-height: 1;
+                color: #fff;
+            }
+            .brand-title span { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-weight: 500; color: #b7e4c4; }
+            .brand-subtitle { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: rgba(234, 246, 238, .8); }
+
+            .auth-foot { margin: 0; text-align: center; font-size: 13px; color: rgba(234, 246, 238, .6); }
+
+            /* Form half */
+            .auth-right {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                padding: 48px 56px;
+            }
+            .auth-heading {
+                margin: 0;
+                font-family: Zain, Nunito, ui-sans-serif, system-ui, sans-serif;
+                font-size: 34px;
+                font-weight: 800;
+                line-height: 1.1;
+                color: var(--green-deep);
+                text-align: left;
+                text-transform: none;
+                letter-spacing: -.01em;
+            }
+            .auth-subheading { margin: 8px 0 0; text-align: left; font-size: 16px; color: var(--ink-soft); }
+
+            .auth-status { margin-top: 16px; padding: 10px 14px; border-radius: 10px; background: var(--green-wash); font-size: 14px; color: var(--green-deep); }
+            .auth-form { margin-top: 28px; }
+            .form-group { margin-bottom: 18px; }
+            .form-label { display: block; margin-bottom: 8px; font-size: 15px; font-weight: 700; color: var(--ink); }
+            .form-error { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--red); }
+
+            .field-shell { position: relative; }
+            .field-icon {
+                position: absolute;
+                top: 50%;
+                left: 16px;
+                display: flex;
+                transform: translateY(-50%);
+                color: var(--ink-soft);
+                pointer-events: none;
+                transition: color .15s;
+            }
+            .auth-card .field-icon svg { width: 20px !important; height: 20px !important; max-width: none; }
+            .field-shell:focus-within .field-icon { color: var(--green); }
+
+            .form-input {
+                width: 100%;
+                height: 52px;
+                padding: 0 16px;
+                border: 1px solid var(--hairline-strong);
+                border-radius: 12px;
+                background: #fff;
+                font-size: 16px;
+                color: var(--ink);
+                outline: none;
+                box-shadow: 0 1px 2px rgba(15, 77, 40, .04);
+                transition: border-color .15s, box-shadow .15s;
+            }
+            .form-input::placeholder { color: #93a39a; }
+            .form-input:hover { border-color: #b4c6bb; }
+            .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(22, 122, 58, .14); }
+            .form-input-with-icon { padding-left: 48px; }
+            .form-input-with-toggle { padding-right: 48px; }
 
             .auth-button {
-                width: 100%;
-                min-height: 80px;
-                border: 0;
-                border-radius: 60px;
-                background: #01721a;
-                color: #fff;
-                padding: 15px 16px;
-                font-size: 20px;
-                font-weight: 900;
-                cursor: pointer;
-                box-shadow: none;
-                transition: background 0.15s;
-            }
-
-            .auth-button:hover { background: #004004; }
-
-            .switch-link {
-                display: inline-block;
-                margin-top: 16px;
-                color: var(--text-sub);
-                font-size: 22px;
-                text-decoration: none;
-            }
-
-            .switch-link:hover { text-decoration: underline; }
-
-            .auth-divider {
                 display: flex;
-                align-items: center;
-                gap: 12px;
-                margin: 12px 0 10px;
-                color: var(--text-sub);
-                font-size: 14px;
-            }
-
-            .auth-divider::before,
-            .auth-divider::after {
-                content: '';
-                flex: 1;
-                height: 1px;
-                background: #e6ece8;
-            }
-
-            .citizen-button {
-                display: block;
                 width: 100%;
-                border: 1px solid var(--accent);
-                border-radius: 7px;
-                background: transparent;
-                color: var(--accent);
-                padding: 10px 16px;
+                height: 52px;
+                margin-top: 26px;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                border: 0;
+                border-radius: 12px;
+                background: var(--green);
                 font-size: 16px;
-                font-weight: 600;
-                text-align: center;
-                text-decoration: none;
-                cursor: pointer;
-                transition: background 0.15s, color 0.15s;
-            }
-
-            .citizen-button:hover {
-                background: var(--accent);
+                font-weight: 800;
                 color: #fff;
+                cursor: pointer;
+                box-shadow: 0 10px 22px -12px rgba(22, 122, 58, .8);
+                transition: background-color .15s, transform .1s;
             }
+            .auth-button svg { width: 18px; height: 18px; transition: transform .15s; }
+            .auth-button:hover { background: var(--green-deep); }
+            .auth-button:hover svg { transform: translateX(2px); }
+            .auth-button:active { transform: scale(.99); }
+            .auth-button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-            @media (max-width: 900px) {
-                .auth-grid { grid-template-columns: 1fr; min-height: 0; }
-                .auth-left {
-                    border-right: 0;
-                    border-bottom: 1px solid #d8e8c0;
-                    padding: 30px 22px;
-                }
-                .auth-right { padding: 26px 20px; }
-                .auth-heading { font-size: 42px; }
-                .auth-subheading { font-size: 28px; }
-                .form-label, .form-input, .checkbox-wrap, .auth-link, .auth-button { font-size: 22px; }
+
+            @media (max-width: 860px) {
+                .auth-card { grid-template-columns: 1fr; min-height: 0; }
+                .auth-left { gap: 18px; padding: 28px; }
+                .auth-foot { display: none; }
+                .auth-logo-stage { left: 34px; width: 240px; height: 110px; padding-right: 16px; }
+                .auth-logo { width: 120px; height: 120px; }
+                .brand-title { margin-top: 18px; font-size: 30px; }
+                .auth-right { padding: 32px 24px; }
             }
         </style>
         @include('layouts.partials.accessibility-widget')

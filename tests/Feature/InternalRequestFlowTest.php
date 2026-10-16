@@ -341,6 +341,47 @@ class InternalRequestFlowTest extends TestCase
         $this->assertNull($document->requestSteps->first()->signature_path);
     }
 
+    public function test_the_detail_renders_without_the_app_shell_for_the_internal_modal(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+
+        $this->actingAs($mayorSupervisor)
+            ->get(route('requests.show', ['document' => $document, 'modal' => 1]))
+            ->assertOk()
+            ->assertSee($document->tracking_number)
+            ->assertSee('Your office holds this request')
+            // The modal's close, and the forms say where to come back to.
+            ->assertSee("\$dispatch('close-internal-request')", false)
+            ->assertSee('<input type="hidden" name="from" value="internal">', false)
+            // No app shell: no sidebar, no layout.
+            ->assertDontSee('<aside', false)
+            ->assertDontSee('<html', false);
+    }
+
+    public function test_a_decision_taken_in_the_modal_returns_to_internal_with_it_reopened(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.return', $document), [
+                'document_scan' => $document->tracking_number,
+                'remarks' => 'Attach three price quotations first.',
+                'from' => 'internal',
+            ])
+            ->assertRedirect(route('requests.index', ['open' => $document->id]));
+
+        $this->actingAs($mayorSupervisor)
+            ->get(route('requests.index', ['open' => $document->id]))
+            ->assertOk()
+            ->assertSee('internalRequestModal(', false)
+            // @js escapes slashes: the URL reads \/requests\/{id} in the page.
+            ->assertSee('\/requests\/'.$document->id, false);
+    }
+
     public function test_returning_a_hop_sends_the_request_back_for_revision(): void
     {
         $document = $this->makeRequest();

@@ -45,19 +45,62 @@ class BookingPageDesignTest extends TestCase
         ]);
     }
 
+    /**
+     * The month label is a fixed-width button (so the arrows never shift as the
+     * month name changes length) that opens a month/year picker.
+     */
+    public function test_the_month_label_opens_a_month_and_year_picker(): void
+    {
+        $this->actingAs($this->staff())->get(route('bookings.index'))
+            ->assertOk()
+            ->assertSee('class="bk-month bk-month-btn"', false)
+            ->assertSee('@click="openPicker()"', false)
+            ->assertSee('role="dialog" aria-label="Choose month and year"', false)
+            ->assertSee('x-model.number="pickerYear"', false)
+            ->assertSee('@click="jumpTo(pickerYear, mi)"', false);
+    }
+
+    /**
+     * The app runs on Philippine time, so "today" turns over at local midnight.
+     * On UTC it turned over at 08:00 and the calendar marked yesterday as today.
+     */
+    public function test_today_follows_philippine_time_not_utc(): void
+    {
+        // 02:00 on the 16th in Manila is still 18:00 on the 15th in UTC.
+        Carbon::setTestNow(Carbon::parse('2026-10-15 18:00:00', 'UTC'));
+
+        try {
+            $this->assertSame('Asia/Manila', config('app.timezone'));
+
+            $this->actingAs($this->staff())->get(route('bookings.index'))
+                ->assertOk()
+                ->assertSee("today: '2026-10-16'", false);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_the_screen_is_a_calendar_beside_the_two_side_panels(): void
     {
         $response = $this->actingAs($this->staff())->get(route('bookings.index'))->assertOk();
 
-        // The frame's 707 + 379 split.
-        $response->assertSee('xl:grid-cols-[minmax(0,1fr)_379px]', false);
-        $response->assertSee('bk-panel', false);
-        $response->assertSee('Booked Today');
+        // Calendar beside a 340px column of two cards, filling the window.
+        $response->assertSee('class="app-fixed-height', false);
+        $response->assertSee('lg:grid-cols-[minmax(0,1fr)_340px]', false);
+        $response->assertSee('class="bk-card min-h-[520px] lg:min-h-0" aria-label="Reservation calendar"', false);
+        $response->assertSee('Booked today');
         $response->assertSee('Upcoming');
+
+        // Previous / Today / Next as one joined control.
+        $response->assertSee('class="bk-nav" role="group" aria-label="Change month"', false);
+
+        // Today is marked on the grid, for sight and for screen readers.
+        $response->assertSee("'bk-day-today': cell.iso === today", false);
+        $response->assertSee(":aria-current=\"cell.iso === today ? 'date' : null\"", false);
 
         // Sunday is the one coloured column head.
         $response->assertSee('bk-dow-sun', false);
-        foreach (['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as $dow) {
+        foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $dow) {
             $response->assertSee('>'.$dow.'</div>', false);
         }
     }

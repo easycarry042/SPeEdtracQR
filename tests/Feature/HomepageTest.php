@@ -59,14 +59,12 @@ class HomepageTest extends TestCase
         );
     }
 
-    public function test_how_it_works_is_papered_with_the_arrow_doodle(): void
+    public function test_how_it_works_has_no_doodle_backdrop(): void
     {
-        $this->assertFileExists(public_path('images/landing/doodle-pattern.jpg'));
-
         $this->get('/')
             ->assertOk()
             ->assertSee('How It Works')
-            ->assertSee('images/landing/doodle-pattern.jpg', false);
+            ->assertDontSee('doodle-pattern.jpg', false);
     }
 
     public function test_landing_hero_uses_the_city_hall_photo_as_its_backdrop(): void

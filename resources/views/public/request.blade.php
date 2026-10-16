@@ -6,27 +6,23 @@
     <title>Submit a Request — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
+    @include('layouts.partials.bfcache-guard')
 </head>
-{{-- White paper under the arrow doodle at 15%, the same backdrop the rest of
-     the citizen pages use. Fixed, so the pattern holds still while this long
-     form scrolls. --}}
 <body class="relative min-h-screen bg-white antialiased text-ink">
-    <div class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-15"
-         style="background-image: url('{{ asset('images/landing/doodle-pattern.jpg') }}');"></div>
 
     {{-- Same white portal bar as /citizen and /track. Not sticky: this form is
          long enough that fields would scroll through the wordmark. --}}
     @include('layouts.partials.portal-header', ['sticky' => false])
 
-    <main class="mx-auto w-full max-w-[1364px] px-4 pb-16 pt-[70px] sm:px-6">
+    <main class="mx-auto w-full max-w-[1091px] px-4 pb-16 pt-[56px] sm:px-6">
 
         {{-- Title block: icon, heading, one line of orientation. --}}
-        <div class="flex items-start gap-4 sm:gap-[35px]">
+        <div class="flex items-start gap-4 sm:gap-[28px]">
             <img src="{{ asset('images/icon-submit-request.svg') }}" alt=""
                  class="h-14 w-14 shrink-0 sm:h-20 sm:w-20" aria-hidden="true">
             <div class="min-w-0">
-                <h1 class="font-display text-[26px] font-black tracking-tight text-[#07491b] sm:text-[30px]">Submit a request</h1>
-                <p class="mt-1 max-w-[1100px] text-[17px] font-medium text-black sm:mt-2 sm:text-[22px]">
+                <h1 class="font-display text-[21px] font-black tracking-tight text-[#07491b] sm:text-[24px]">Submit a request</h1>
+                <p class="mt-1 max-w-[880px] text-[14px] font-medium text-black sm:mt-2 sm:text-[18px]">
                     Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.
                 </p>
             </div>
@@ -48,7 +44,7 @@
         {{-- Two columns, as drawn: what you are asking for on the left, who is
              asking on the right. They stack on narrow screens. --}}
         <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data"
-              class="req-shell mt-[30px] p-6 sm:p-[50px]" novalidate>
+              class="req-shell mt-[24px] p-6 sm:p-[40px]" novalidate>
             @csrf
 
             {{-- Honeypot: must stay empty. Hidden from real users, and kept
@@ -56,12 +52,12 @@
                  stack it took the first slot and pushed "Request category" a
                  gap lower than "Name" beside it, so the two columns started at
                  different heights. --}}
-            <div style="position:absolute;left:-9999px;" aria-hidden="true">
+            <div style="position:absolute;left:-7999px;" aria-hidden="true">
                 <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
             </div>
 
-            <div class="grid grid-cols-1 gap-x-[74px] gap-y-[30px] lg:grid-cols-2">
-            <div class="space-y-[30px]">
+            <div class="grid grid-cols-1 gap-x-[59px] gap-y-[24px] lg:grid-cols-2">
+            <div class="space-y-[24px]">
 
             @php
                 $groupedTypes = $requestTypes->groupBy('kind');
@@ -116,10 +112,10 @@
             @if($popularTypes->isNotEmpty())
                 <div>
                     <p class="req-label">Mostly Requested</p>
-                    <div class="mt-3 flex flex-wrap gap-[18px]">
+                    <div class="mt-3 flex flex-wrap gap-[14.5px]">
                         @foreach($popularTypes as $popular)
                             <button type="button" class="req-chip" data-pick-type="{{ $popular->name }}">
-                                <svg class="h-[22px] w-[22px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="#01721a" stroke-width="2.5" aria-hidden="true">
+                                <svg class="h-[17.5px] w-[17.5px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="#01721a" stroke-width="2.5" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M9 7h8v8"/>
                                 </svg>
                                 {{ $popular->name }}
@@ -230,7 +226,7 @@
 
             </div>{{-- /left column --}}
 
-            <div class="space-y-[30px]">
+            <div class="space-y-[24px]">
 
             <div>
                 <div class="req-label-row">
@@ -271,15 +267,15 @@
 
             {{-- Privacy notice — RA 10173 consent, which the server requires. --}}
             <div class="req-note p-5">
-                <p class="req-note-title text-center text-[20px] sm:text-[22px]">Privacy Notice</p>
+                <p class="req-note-title text-center text-[16px] sm:text-[18px]">Privacy Notice</p>
                 <label class="mt-3 flex items-start gap-4 text-left">
                     <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="req-check mt-0.5">
-                    <span class="req-note-body text-[17px] leading-[22px] sm:text-[20px]">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
+                    <span class="req-note-body text-[14px] leading-[18px] sm:text-[16px]">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
                 </label>
             </div>
 
             <div class="flex justify-center pt-1">
-                <button type="submit" class="req-submit w-full sm:w-[230px]">Submit Request</button>
+                <button type="submit" class="req-submit w-full sm:w-[184px]">Submit Request</button>
             </div>
 
             </div>{{-- /right column --}}

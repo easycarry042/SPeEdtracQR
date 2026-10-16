@@ -38,9 +38,7 @@ class InternalRequestScanOverrideTest extends TestCase
     }
 
     /**
-     * File an internal request so it sits on the filing office's own hop, and
-     * give the filer a registered e-signature — approving is blocked without
-     * one, which would otherwise mask what these tests are checking.
+     * File an internal request from the given office; it goes straight to OM.
      */
     private function fileRequest(User $filer): Document
     {
@@ -60,10 +58,31 @@ class InternalRequestScanOverrideTest extends TestCase
         return Document::where('origin', Document::ORIGIN_INTERNAL)->latest('id')->firstOrFail();
     }
 
+    /**
+     * The office the request was routed to (OM): a supervisor there with a
+     * registered e-signature, who has scanned the folder in — the state in
+     * which the decision's own QR confirmation is what is being tested.
+     */
+    private function receivingSupervisor(Document $doc): User
+    {
+        $actor = User::factory()
+            ->create(['department_id' => Department::where('code', 'OM')->firstOrFail()->id])
+            ->assignRole('Supervisor');
+
+        $signature = 'signatures/user-'.$actor->id.'.png';
+        Storage::disk('local')->put($signature, 'fake-png-bytes');
+        $actor->forceFill(['signature_path' => $signature])->save();
+
+        $doc->custodyEvents()->create(['user_id' => $actor->id, 'capture_method' => 'scan']);
+
+        return $actor;
+    }
+
     public function test_a_decision_is_refused_with_neither_a_scan_nor_a_reason(): void
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), ['document_scan' => ''])
@@ -76,9 +95,11 @@ class InternalRequestScanOverrideTest extends TestCase
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), [
+                'next_department_id' => Department::where('code', 'TRSM')->firstOrFail()->id,
                 'document_scan' => url('/track/'.strtolower($doc->tracking_number)),
             ])
             ->assertSessionHasNoErrors();
@@ -91,9 +112,11 @@ class InternalRequestScanOverrideTest extends TestCase
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), [
+                'next_department_id' => Department::where('code', 'TRSM')->firstOrFail()->id,
                 'document_scan' => url('/track/INT-20260101-OTHERX'),
             ])
             ->assertSessionHasErrors('document_scan');
@@ -107,9 +130,11 @@ class InternalRequestScanOverrideTest extends TestCase
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), [
+                'next_department_id' => Department::where('code', 'TRSM')->firstOrFail()->id,
                 'document_scan' => '',
                 'scan_override_reason' => 'No camera on the counter terminal; tracking number checked by hand.',
             ])
@@ -123,9 +148,11 @@ class InternalRequestScanOverrideTest extends TestCase
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), [
+                'next_department_id' => Department::where('code', 'TRSM')->firstOrFail()->id,
                 'document_scan' => '',
                 'scan_override_reason' => 'no cam',
             ])
@@ -140,10 +167,12 @@ class InternalRequestScanOverrideTest extends TestCase
     {
         $supervisor = $this->supervisor();
         $doc = $this->fileRequest($supervisor);
+        $supervisor = $this->receivingSupervisor($doc);
         $reason = 'Sticker torn off the folder cover; verified the number by hand.';
 
         $this->actingAs($supervisor)
             ->post(route('requests.steps.approve', $doc), [
+                'next_department_id' => Department::where('code', 'TRSM')->firstOrFail()->id,
                 'document_scan' => '',
                 'scan_override_reason' => $reason,
             ])

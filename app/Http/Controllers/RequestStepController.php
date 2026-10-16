@@ -333,6 +333,11 @@ class RequestStepController extends Controller
 
     private function respond(Document $document, string $message)
     {
+        // Decided from the Internal page's modal: go back there, modal reopened.
+        if (request()->input('from') === 'internal') {
+            return to_route('requests.index', ['open' => $document->id])->with('status', $message);
+        }
+
         return to_route('requests.show', $document)->with('status', $message);
     }
 }

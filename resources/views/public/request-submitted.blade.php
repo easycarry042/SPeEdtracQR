@@ -6,6 +6,7 @@
     <title>Request Submitted — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
+    @include('layouts.partials.bfcache-guard')
 </head>
 <body class="min-h-screen bg-[#f1f2f1] antialiased text-gray-900">
 

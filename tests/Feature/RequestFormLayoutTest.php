@@ -77,7 +77,7 @@ class RequestFormLayoutTest extends TestCase
         $content = $this->get(route('public.request.create'))->assertOk()->getContent();
 
         $honeypot = strpos($content, 'name="website"');
-        $columns = strpos($content, 'gap-x-[74px]');
+        $columns = strpos($content, 'gap-x-[59px]');
 
         $this->assertNotFalse($honeypot);
         $this->assertNotFalse($columns);

@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -47,6 +50,7 @@ class AuthenticatedSessionController extends Controller
     private function redirectByRole($user): RedirectResponse
     {
         $this->forgetNonLandingIntendedUrl();
+        $this->forgetIntendedUrlTheUserCannotOpen($user);
 
         if ($user->can('manage system')) {
             return redirect()->intended(route('admin.dashboard', absolute: false));
@@ -76,6 +80,53 @@ class AuthenticatedSessionController extends Controller
 
         if (Str::is(self::NON_LANDING_PATHS, $path)) {
             session()->forget('url.intended');
+        }
+    }
+
+    /**
+     * Drop the stored intended URL when the person who just signed in is not
+     * allowed to open it. The intended URL belongs to the browser, not to an
+     * account: a staff member whose session lapsed on /bookings leaves it
+     * behind, and a supervisor signing in next on the same machine was sent
+     * there — straight into a 403. Checked against the route's own
+     * `permission:` / `role:` middleware, so it stays in step with routes/web.php.
+     */
+    private function forgetIntendedUrlTheUserCannotOpen(User $user): void
+    {
+        $intended = session('url.intended');
+
+        if (! is_string($intended)) {
+            return;
+        }
+
+        try {
+            $route = Route::getRoutes()->match(Request::create($intended, 'GET'));
+        } catch (Throwable) {
+            // Not a page of ours (or no longer exists): not worth landing on.
+            session()->forget('url.intended');
+
+            return;
+        }
+
+        foreach ($route->gatherMiddleware() as $middleware) {
+            if (! is_string($middleware) || ! str_contains($middleware, ':')) {
+                continue;
+            }
+
+            [$name, $arguments] = explode(':', $middleware, 2);
+            $values = preg_split('/[,|]/', $arguments) ?: [];
+
+            $allowed = match ($name) {
+                'permission' => $user->hasAnyPermission($values),
+                'role' => $user->hasAnyRole($values),
+                default => true,
+            };
+
+            if (! $allowed) {
+                session()->forget('url.intended');
+
+                return;
+            }
         }
     }
 

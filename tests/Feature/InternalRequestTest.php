@@ -50,10 +50,40 @@ class InternalRequestTest extends TestCase
 
         $this->actingAs($supervisor)->get(route('requests.create'))
             ->assertOk()
-            ->assertSee('File Internal Request')
+            ->assertSee('File a Request')
             ->assertSee('Tourism Office')
             // Departments, not route templates, drive the first hop now.
-            ->assertSee('First department route');
+            ->assertSee('First Department Route');
+    }
+
+    public function test_the_internal_page_files_requests_in_a_modal(): void
+    {
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)->get(route('requests.index'))
+            ->assertOk()
+            // The header's "File Request" opens the modal; its href still reaches the form without JS.
+            ->assertSee('@click.prevent="$dispatch(\'open-file-request\')"', false)
+            ->assertSee('aria-label="File internal request"', false)
+            ->assertSee('File a Request')
+            ->assertSee('First Department Route')
+            ->assertSee('action="'.route('requests.store').'"', false)
+            // Closed until asked for.
+            ->assertSee('x-data="{ open: false }"', false);
+    }
+
+    public function test_the_filing_modal_reopens_with_its_errors_after_a_failed_submit(): void
+    {
+        $supervisor = $this->tourismSupervisor();
+
+        $this->actingAs($supervisor)
+            ->from(route('requests.index'))
+            ->post(route('requests.store'), ['purpose' => ''])
+            ->assertRedirect(route('requests.index'));
+
+        $this->actingAs($supervisor)->get(route('requests.index'))
+            ->assertOk()
+            ->assertSee('x-data="{ open: true }"', false);
     }
 
     public function test_staff_with_a_department_can_open_the_draft_wizard(): void
@@ -67,7 +97,7 @@ class InternalRequestTest extends TestCase
 
         $this->actingAs($staff)->get(route('requests.create'))
             ->assertOk()
-            ->assertSee('File Internal Request');
+            ->assertSee('File a Request');
     }
 
     public function test_staff_without_a_department_cannot_draft(): void
@@ -110,19 +140,12 @@ class InternalRequestTest extends TestCase
         $this->assertSame($supervisor->department_id, $document->requesting_department_id);
         $this->assertNotNull($document->qr_code_path);
 
-        // Two hops now: the filer's own endorsement, then the chosen office.
-        $this->assertSame(
-            ['Department endorsement', 'Review and action'],
-            $document->requestSteps->pluck('action')->all(),
-        );
-        $this->assertSame(
-            [$supervisor->department_id, $target->id],
-            $document->requestSteps->pluck('department_id')->all(),
-        );
-
-        // The chain opens at the requesting department's endorsement; the rest waits.
+        // One hop: filing is the requesting office's sign-off, so the request
+        // goes straight to the chosen office, which holds it from the start.
+        $this->assertSame(['Review and action'], $document->requestSteps->pluck('action')->all());
+        $this->assertSame([$target->id], $document->requestSteps->pluck('department_id')->all());
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
-        $this->assertSame(RequestStep::STATUS_PENDING, $document->requestSteps->last()->status);
+        $this->assertNotNull($document->requestSteps->first()->started_at);
     }
 
     public function test_filing_requires_a_first_department_and_a_scanned_document(): void
@@ -160,7 +183,7 @@ class InternalRequestTest extends TestCase
             $response->assertSee($department->name);
         }
 
-        $response->assertSee('First department route');
+        $response->assertSee('First Department Route');
     }
 
     public function test_uploaded_paper_scan_is_stored_and_a_qr_stamped_copy_is_archived(): void
@@ -433,7 +456,7 @@ class InternalRequestTest extends TestCase
         $this->actingAs($supervisor)->get(route('requests.created', $external))->assertNotFound();
     }
 
-    public function test_a_freshly_filed_request_awaits_its_own_department_endorsement(): void
+    public function test_a_freshly_filed_request_goes_straight_to_the_chosen_office(): void
     {
         Storage::fake('local');
         Storage::fake('public');
@@ -448,15 +471,17 @@ class InternalRequestTest extends TestCase
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
         $first = $document->requestSteps->first();
 
-        $this->assertSame(0, $first->step_order);
-        $this->assertSame($supervisor->department_id, $first->department_id);
-        $this->assertSame('Awaiting endorsement', $document->internalStatusLabel());
+        // No review by the filing office itself.
+        $this->assertNotSame($supervisor->department_id, $first->department_id);
+        $this->assertSame('Under review', $document->internalStatusLabel());
         $this->assertSame('amber', $document->internalStatusBand());
-        // The filing office physically holds the paper, so custody is auto-recorded.
-        $this->assertTrue($document->currentStepHasCustody());
+        // The filer's custody record starts the trail, but the receiving office
+        // must still scan the folder in before it can act.
+        $this->assertSame(1, $document->custodyEvents()->count());
+        $this->assertFalse($document->currentStepHasCustody());
     }
 
-    public function test_staff_draft_is_endorsed_by_the_department_head_then_forwards(): void
+    public function test_a_staff_member_can_file_and_it_routes_straight_out(): void
     {
         Storage::fake('local');
         Storage::fake('public');
@@ -480,18 +505,12 @@ class InternalRequestTest extends TestCase
 
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
         $this->assertSame($staff->id, $document->created_by);
-        $this->assertSame('Awaiting endorsement', $document->internalStatusLabel());
 
-        // Only the department head can endorse; doing so forwards it to the next office.
-        $this->actingAs($head)->post(route('requests.steps.approve', $document), [
-            'document_scan' => $document->tracking_number,
-        ])->assertRedirect(route('requests.show', $document));
-
-        $document->refresh();
-        $steps = $document->requestSteps;
-        $this->assertSame(RequestStep::STATUS_APPROVED, $steps[0]->status);
-        $this->assertSame(RequestStep::STATUS_CURRENT, $steps[1]->status);
+        // No endorsement by the filing office: the receiving office holds it,
+        // and the filing office's head cannot act on it.
         $this->assertSame('Under review', $document->internalStatusLabel());
+        $this->assertNotSame($tourism->id, $document->currentRequestStep()->department_id);
+        $this->assertFalse($document->canActOnCurrentStep($head));
     }
 
     public function test_internal_requests_do_not_appear_on_the_assignment_desk(): void

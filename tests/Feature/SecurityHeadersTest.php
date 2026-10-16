@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Vite;
 use Tests\TestCase;
 
 /**
@@ -147,6 +148,36 @@ class SecurityHeadersTest extends TestCase
 
             $this->assertStringContainsString('http://127.0.0.1:5173', (string) $line, "{$directive} must allow the Vite dev server in local.");
         }
+    }
+
+    /**
+     * On Windows Vite often binds IPv6 and writes http://[::1]:5173 to the hot
+     * file. The asset tags use that origin, so the CSP must too — otherwise
+     * the site renders unstyled, which is the regression of 2026-10-15.
+     */
+    public function test_local_csp_allows_the_origin_named_in_the_hot_file(): void
+    {
+        app()->detectEnvironment(fn () => 'local');
+
+        $hotFile = tempnam(sys_get_temp_dir(), 'hot');
+        file_put_contents($hotFile, 'http://[::1]:5173');
+        Vite::useHotFile($hotFile);
+
+        try {
+            $csp = (string) $this->get(route('welcome'))->headers->get('Content-Security-Policy');
+        } finally {
+            @unlink($hotFile);
+        }
+
+        foreach (['script-src', 'style-src'] as $directive) {
+            $line = collect(explode(';', $csp))
+                ->map(fn ($p) => trim($p))
+                ->first(fn ($p) => str_starts_with($p, $directive.' '));
+
+            $this->assertStringContainsString('http://[::1]:5173', (string) $line, "{$directive} must allow the hot file's origin.");
+        }
+
+        $this->assertStringContainsString('ws://[::1]:5173', $csp);
     }
 
     /** The dev server does not exist in production; naming it there would widen the policy for nothing. */

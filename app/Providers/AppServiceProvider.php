@@ -8,11 +8,14 @@ use App\Support\Ai\LlmProvider;
 use App\Support\Ai\NullProvider;
 use App\Support\Ai\OllamaProvider;
 use App\Support\DocumentFormOptions;
+use App\Support\InternalRequestForm;
+use App\Support\StaleViteHotFile;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Health\Checks\Checks\DatabaseCheck;
 use Spatie\Health\Checks\Checks\DebugModeCheck;
@@ -41,6 +44,15 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // A leftover public/hot from a dev server that was killed rather than
+        // stopped would point every page at a dead port and render the site
+        // unstyled. Local-only: production never runs a dev server, and the
+        // probe is a sub-millisecond loopback connect.
+        if ($this->app->environment('local') && ! $this->app->runningInConsole()
+            && StaleViteHotFile::isStale(Vite::hotFile())) {
+            Vite::useHotFile(storage_path('framework/vite-hot-disabled'));
+        }
+
         Event::listen(Login::class, LogUserLogin::class);
         Event::listen(Logout::class, LogUserLogout::class);
 
@@ -78,6 +90,11 @@ class AppServiceProvider extends ServiceProvider
             if ($canCreateDocuments) {
                 $view->with('createModalCategories', DocumentFormOptions::categoryOptions());
             }
+
+            // "File Request" lives in the header, so its form rides every page.
+            $view->with('fileRequestForm', InternalRequestForm::canFile($user)
+                ? ['department' => $user->department] + InternalRequestForm::data()
+                : null);
         });
     }
 }

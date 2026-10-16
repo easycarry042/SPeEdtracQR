@@ -63,40 +63,32 @@
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth text-ink @else bg-gradient-to-br from-emerald-50 to-teal-100 text-gray-900 @endauth"
-      @auth
-      {{-- The arrow doodle only: the public pages' colour ramp would fight the
-           green sidebar and the white panels this shell is built from. --}}
-      style="background-color: var(--page-wash-base);
-             background-image: var(--page-wash-veil), url('{{ asset('images/doodle-bg.png') }}');
-             background-size: cover, cover;
-             background-position: center, center;
-             background-attachment: fixed, fixed;
-             background-repeat: no-repeat, no-repeat;"
-      @endauth>
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else bg-white text-gray-900 @endauth">
     @auth
         {{-- One shell for every signed-in role: a pinned sidebar whose
              link set is chosen in partials/sidebar-links. --}}
-            <div class="admin-shell flex min-h-screen"
+            <div class="admin-shell flex min-h-screen" data-soft-nav-root
                  :class="mobileNav ? 'mobile-nav-open' : ''"
                  x-data="{ mobileNav: false }">
                 <div x-show="mobileNav" x-cloak @click="mobileNav = false" class="sidebar-backdrop lg:hidden"></div>
                 {{-- Fixed, always-expanded sidebar (no hover-collapse animation on navigate).
                      The mobile drawer still slides in via .mobile-nav-open. --}}
                 <aside @click="if ($event.target.closest('a')) mobileNav = false"
-                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-[290px] shrink-0 flex-col overflow-hidden nav-bar xl:w-[371px]">
-                    {{-- Brand: the white mark on deep green, no strapline — the
-                         page bar below already names where you are. --}}
-                    <div class="nav-brand flex shrink-0 items-center gap-[11px] pb-[26px] pl-[25px] pt-[45px] xl:pl-[53px]">
-                        <img src="{{ asset('images/staff/logo-white.png') }}" alt="" class="h-[46px] w-[46px] shrink-0 object-contain xl:h-[57px] xl:w-[57px]">
-                        <p class="nav-text truncate whitespace-nowrap text-[21px] tracking-tight text-white xl:text-[25px]">
+                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-[232px] shrink-0 flex-col overflow-hidden nav-bar xl:w-[297px]">
+                    {{-- Brand: the white mark on deep green, linking home. Brand,
+                         section label, nav icons and the Accessibility row all
+                         share one left edge (.sb-inset). --}}
+                    <a href="{{ $homeRoute }}" data-soft-nav-link
+                       class="sb-brand nav-brand" aria-label="{{ config('app.name', 'SPeED TraQR') }} home">
+                        <img src="{{ asset('images/staff/logo-white.png') }}" alt="" class="sb-brand-mark">
+                        <span class="nav-text truncate whitespace-nowrap tracking-tight text-white">
                             <span class="font-display font-black text-[#f9fff9]">SPeED</span> <span class="font-sans font-medium">TraQR</span>
-                        </p>
-                    </div>
+                        </span>
+                    </a>
 
-                    <p class="px-[18px] pb-[14px] text-[17px] font-semibold text-white/75 xl:px-[25px] xl:text-[20px]">Main Menu</p>
+                    <p class="sb-section" id="sb-menu-label">Menu</p>
 
-                    <nav class="nav-scroll flex flex-1 flex-col gap-0 overflow-y-auto overflow-x-hidden px-[14px] py-1">
+                    <nav class="nav-scroll sb-nav" aria-labelledby="sb-menu-label" data-soft-nav="links">
                         @include('layouts.partials.sidebar-links')
                     </nav>
 
@@ -104,14 +96,12 @@
                          screen edge where it is easy to miss, so the sidebar gives
                          it a named row. Hidden when the widget is switched off. --}}
                     @if(config('app.accessibility_widget', true))
-                        <div class="shrink-0 border-t border-white/10 py-[22px] pl-[18px] xl:pl-[36px]">
+                        <div class="sb-foot">
                             <button type="button"
                                     onclick="document.querySelector('.asw-menu-btn')?.click()"
-                                    class="flex w-full items-center gap-[18px] rounded-xl py-1 text-left transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass">
-                                <span class="flex h-[28px] w-[28px] shrink-0 items-center justify-center">
-                                    <img src="{{ asset('images/staff/nav-accessibility.svg') }}" alt="" class="h-[28px] w-[28px]">
-                                </span>
-                                <span class="nav-text whitespace-nowrap text-[17px] font-extrabold text-[#feba1b] xl:text-[20px]">Accessibility</span>
+                                    class="sb-row sb-row-accent">
+                                <img src="{{ asset('images/staff/nav-accessibility.svg') }}" alt="" class="sb-icon">
+                                <span class="nav-text whitespace-nowrap">Accessibility</span>
                             </button>
                         </div>
                     @endif
@@ -135,37 +125,37 @@
                             {{-- City and Tourism Office seals lead the page bar; they
                                  are branding, so the title carries the alt text. --}}
                             <span class="hidden shrink-0 items-center gap-[5px] sm:flex">
-                                <img src="{{ asset('images/staff/seal-1.png') }}" alt="" class="h-[50px] w-[50px] object-contain">
-                                <img src="{{ asset('images/staff/seal-2.png') }}" alt="" class="h-[53px] w-[53px] object-contain">
+                                <img src="{{ asset('images/staff/seal-1.png') }}" alt="" class="h-[40px] w-[40px] object-contain">
+                                <img src="{{ asset('images/staff/seal-2.png') }}" alt="" class="h-[42.5px] w-[42.5px] object-contain">
                             </span>
                             <img src="{{ asset('images/staff/title-divider.svg') }}" alt="" aria-hidden="true"
-                                 class="hidden h-[50px] w-[5px] shrink-0 sm:block">
+                                 class="hidden h-[40px] w-[5px] shrink-0 sm:block">
                             {{-- No role badge here: the identity chip on the right
                                  already names the role and the desk. --}}
-                            <h1 class="layout-title">{{ $pageTitle }}</h1>
+                            <h1 class="layout-title" data-soft-nav="title" tabindex="-1">{{ $pageTitle }}</h1>
                         </div>
                         <div class="flex items-center gap-3">
                             {{-- Same slot as the topnav shell, so a page's title-row
                                  action is not lost for sidebar users (super admins). --}}
-                            @isset($pageActions)
-                                <div class="flex min-w-0 shrink items-center gap-3">
-                                    {{ $pageActions }}
-                                </div>
-                            @endisset
+                            {{-- Always rendered (empty when unset), so soft navigation
+                                 has a place to swap a page's actions in and out. --}}
+                            <div class="flex min-w-0 shrink items-center gap-3 empty:hidden" data-soft-nav="actions">@isset($pageActions){{ $pageActions }}@endisset</div>
                             @include('layouts.partials.header-actions')
                         </div>
                         </div>
                     </header>
 
-                    @isset($header)
-                        <div class="border-b border-transparent">
-                            <div class="app-frame pb-2 pt-4">
-                                {{ $header }}
+                    <div data-soft-nav="header">
+                        @isset($header)
+                            <div class="border-b border-transparent">
+                                <div class="app-frame pb-2 pt-4">
+                                    {{ $header }}
+                                </div>
                             </div>
-                        </div>
-                    @endisset
+                        @endisset
+                    </div>
 
-                    <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}">
+                    <main class="flex-1 pb-10 pt-2 {{ $fixedHeight }}" data-soft-nav="main">
                         <div class="app-frame">
                             {{ $slot }}
                         </div>
@@ -182,6 +172,22 @@
             {{ $slot }}
         </main>
     @endauth
+
+    @if($fileRequestForm ?? null)
+        {{-- Internal-request filing form, opened by the header's "File Request"
+             button on any page. Reopens by itself when filing failed
+             validation, so the errors are not lost behind a closed modal. --}}
+        <div x-data="{ open: @js($errors->hasAny(['first_department_id', 'purpose', 'paper_scan', 'qr_x', 'qr_y', 'qr_size', 'qr_page'])) }"
+             @open-file-request.window="open = true" @close-file-request.window="open = false">
+            <div x-show="open" x-cloak x-transition.opacity.duration.150ms
+                 class="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-[27px]"
+                 @click.self="open = false" role="dialog" aria-modal="true" aria-label="File internal request">
+                <div class="dm-card dm-fixed dm-fit mx-auto w-full max-w-[940px]">
+                    @include('requests.partials.file-form', $fileRequestForm + ['inModal' => true])
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if($showCreateDocumentModal ?? false)
         @include('documents.partials.create-modal')

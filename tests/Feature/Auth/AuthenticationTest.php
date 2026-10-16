@@ -64,6 +64,37 @@ class AuthenticationTest extends TestCase
         ])->assertRedirect('/documents/create');
     }
 
+    public function test_a_page_left_behind_by_another_account_is_not_followed_if_off_limits(): void
+    {
+        $this->seedRolesAndPermissions();
+        $supervisor = User::factory()->create()->assignRole('Supervisor');
+        $this->assertFalse($supervisor->can('manage bookings'));
+
+        // A staff session lapsed on Booking, leaving /bookings as the intended
+        // URL. A supervisor signing in next must land on their own dashboard,
+        // not on a page they are refused (403).
+        $this->get('/bookings')->assertRedirect(route('login'));
+
+        $this->post('/login', [
+            'email' => $supervisor->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_a_page_left_behind_is_still_followed_when_the_new_account_may_open_it(): void
+    {
+        $this->seedRolesAndPermissions();
+        $staff = User::factory()->create()->assignRole('staff');
+        $this->assertTrue($staff->can('manage bookings'));
+
+        $this->get('/bookings')->assertRedirect(route('login'));
+
+        $this->post('/login', [
+            'email' => $staff->email,
+            'password' => 'password',
+        ])->assertRedirect('/bookings');
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password(): void
     {
         $user = User::factory()->create();

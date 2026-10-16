@@ -41,6 +41,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // If the proxy ever runs on a different host, name that host here.
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
 
+        // A signed-in user who reaches a guest-only page (/login, typically via
+        // the Back button) goes through the role-aware /home, which lands them
+        // on THEIR workspace. Laravel's default is the route named 'dashboard'
+        // — the supervisor dashboard — which bounces plain staff elsewhere.
+        $middleware->redirectUsersTo('/home');
+
         $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->appendToGroup('web', PreventBackHistory::class);
         $middleware->appendToGroup('web', SecurityHeaders::class);

@@ -86,12 +86,16 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | Philippine time: "today" on the calendar, desk and SLA timers must turn
+    | over at local midnight, not 08:00 when UTC does. Every timestamp the
+    | system recorded before the switch was converted from UTC by the
+    | 2026_10_15_180106_convert_system_timestamps_to_manila_time migration.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------
