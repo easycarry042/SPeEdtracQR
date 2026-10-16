@@ -1992,6 +1992,30 @@ a.dm-thumb:hover { border-color: var(--green); }
 .st-page.on { border-color: rgba(22, 122, 58, .5); background: #eaf4ee; color: var(--green-deep); }
 .st-page-step:focus-visible, .st-page:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* Heading over an .st-card. The page bar carries the page's only <h1>; these
+   name the sections beneath it, in the same display face one step down. */
+.st-section-title {
+    font-family: theme('fontFamily.display');
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: #07491b;
+    margin: 0;
+}
+@media (min-width: 640px) { .st-section-title { font-size: 1.75rem; } }
+
+/* "Show all" under a table that reveals its own overflow instead of paging. */
+.st-page-more {
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: var(--fs-small);
+    font-weight: 700;
+    color: var(--green-deep);
+    transition: background-color .15s;
+}
+.st-page-more:hover { background: var(--green-wash); }
+.st-page-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 /* ── Camera viewport ──────────────────────────────────────────────────────
    html5-qrcode injects a <video> at the stream's own dimensions, which are
    landscape on essentially every device. Inside a square box that letterboxes:

@@ -1,17 +1,22 @@
 @props([
     'label' => '',
     'value' => 0,
-    'tone' => 'mid',   // deep | mid | bright — darkest tile first, lightest last
-    'icon' => 'clock', // hourglass | clock | check
+    'tone' => 'mid',   // deep | mid | bright | brightest | amber
+    'icon' => 'clock', // hourglass | clock | check | none
 ])
 
 @php
     // Left-to-right gradients, as the frame draws them: the darkest tile carries
-    // the oldest work, the lightest the finished work.
+    // the oldest work, the lightest the finished work. The supervisor's row runs
+    // to four tiles, so it uses the whole ramp; the staff row uses the first three.
     $tones = [
         'deep' => 'from-[#0a3a1e] to-[#2f7a3a]',
         'mid' => 'from-[#0f7233] to-[#2a9d4f]',
         'bright' => 'from-[#20a04a] to-[#3fc267]',
+        'brightest' => 'from-[#0ab329] to-[#459955]',
+        // Risk is the one count that must not read as more green: amber is what
+        // the rest of the system uses for "watch this".
+        'amber' => 'from-[#8a5a08] to-[#c08a1e]',
     ];
     $gradient = $tones[$tone] ?? $tones['mid'];
 
@@ -23,7 +28,9 @@
         'clock' => ['file' => 'stat-in-progress.svg', 'class' => 'h-[64px] w-[64px]'],
         'check' => ['file' => 'stat-completed.svg', 'class' => 'h-[64px] w-[64px]'],
     ];
-    $art = $arts[$icon] ?? $arts['clock'];
+    // icon="none" for a count the design has no drawing for — better an honest
+    // blank than one of the three reused on two tiles in the same row.
+    $art = $icon === 'none' ? null : ($arts[$icon] ?? $arts['clock']);
 @endphp
 
 <div {{ $attributes->merge(['class' => 'relative isolate flex min-h-[112px] items-center overflow-hidden rounded-[13px] bg-gradient-to-r '.$gradient.' px-[21.5px] py-[21.5px] text-white shadow-md xl:min-h-[139px]']) }}>
@@ -33,6 +40,8 @@
     </div>
 
     {{-- Decorative only: the label and number already say everything. --}}
-    <img src="{{ asset('images/staff/'.$art['file']) }}" alt="" aria-hidden="true"
-         class="pointer-events-none ml-4 shrink-0 opacity-70 {{ $art['class'] }}">
+    @if($art)
+        <img src="{{ asset('images/staff/'.$art['file']) }}" alt="" aria-hidden="true"
+             class="pointer-events-none ml-4 shrink-0 opacity-70 {{ $art['class'] }}">
+    @endif
 </div>
