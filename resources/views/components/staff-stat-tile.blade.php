@@ -3,6 +3,7 @@
     'value' => 0,
     'tone' => 'mid',   // deep | mid | bright | brightest | amber
     'icon' => 'clock', // hourglass | clock | check | none
+    'note' => null,    // optional line under the number (the admin row's deltas)
 ])
 
 @php
@@ -37,6 +38,12 @@
     <div class="min-w-0 flex-1">
         <p class="text-[16px] font-extrabold uppercase tracking-wide xl:text-[19px]">{{ $label }}</p>
         <p class="mt-[6px] text-[42px] font-extrabold leading-none xl:text-[58px]">{{ $value }}</p>
+
+        @if($note)
+            {{-- The command centre's period-over-period change. White at 80% on
+                 every tone in the ramp still clears AA. --}}
+            <p class="mt-[7px] text-[12.5px] font-semibold text-white/80">{{ $note }}</p>
+        @endif
     </div>
 
     {{-- Decorative only: the label and number already say everything. --}}

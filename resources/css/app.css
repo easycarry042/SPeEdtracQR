@@ -2479,6 +2479,9 @@ a.dm-thumb:hover { border-color: var(--green); }
 
 /* KPI vitals row */
 .an-kpis { display: grid; gap: 12px; grid-template-columns: repeat(6, 1fr); }
+/* The two rate KPIs sit under the gradient counts — two columns, not six, so
+   they read as a footnote to the row above rather than a second headline. */
+.an-kpis-rates { grid-template-columns: repeat(2, 1fr); max-width: 520px; }
 .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi-head .k { font-size: 11.5px; color: var(--ink-soft); }
 .delta { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }

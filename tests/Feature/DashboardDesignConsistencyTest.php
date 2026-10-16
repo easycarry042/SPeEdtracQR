@@ -30,6 +30,10 @@ class DashboardDesignConsistencyTest extends TestCase
     }
 
     /**
+     * The two that carry a request queue. The command centre's tables are
+     * analytics registers (.reg), not the queue table, so it is held only to
+     * the headline row below.
+     *
      * @return array<string, array{string, string}>
      */
     public static function dashboards(): array
@@ -38,6 +42,16 @@ class DashboardDesignConsistencyTest extends TestCase
             'staff' => ['staff', 'staff.dashboard'],
             'supervisor' => ['Supervisor', 'dashboard'],
         ];
+    }
+
+    /**
+     * Every dashboard in the system, one per role.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function allDashboards(): array
+    {
+        return static::dashboards() + ['super admin' => ['super_admin', 'admin.dashboard']];
     }
 
     #[DataProvider('dashboards')]
@@ -53,22 +67,23 @@ class DashboardDesignConsistencyTest extends TestCase
         }
     }
 
-    #[DataProvider('dashboards')]
-    public function test_both_dashboards_lead_with_the_gradient_stat_tiles(string $role, string $route): void
+    #[DataProvider('allDashboards')]
+    public function test_every_dashboard_leads_with_the_gradient_stat_tiles(string $role, string $route): void
     {
         $html = $this->actingAs($this->userWith($role))
             ->get(route($route))
             ->assertOk()
             ->getContent();
 
-        // The tile component's gradient wrapper — the supervisor used to draw
-        // its own <x-stat-card>, a flat white panel that matched nothing.
+        // The tile component's gradient wrapper. The supervisor used to draw
+        // its own <x-stat-card> (a flat white panel), and the command centre a
+        // row of six small .tile boxes — neither matched the staff screen.
         $this->assertStringContainsString('bg-gradient-to-r', $html);
         $this->assertStringNotContainsString('x-stat-card', $html);
     }
 
-    #[DataProvider('dashboards')]
-    public function test_neither_dashboard_falls_back_to_the_old_emerald_palette(string $role, string $route): void
+    #[DataProvider('allDashboards')]
+    public function test_no_dashboard_falls_back_to_the_old_emerald_palette(string $role, string $route): void
     {
         $html = $this->actingAs($this->userWith($role))
             ->get(route($route))

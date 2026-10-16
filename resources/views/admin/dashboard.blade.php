@@ -114,19 +114,41 @@
             </form>
         </div>
 
-        {{-- ── Region B: KPI vitals ────────────────────────────────────────── --}}
-        <div class="an-kpis">
+        {{-- ── Region B: KPI vitals ─────────────────────────────────────────
+             The four counts lead on the same gradient tiles the staff and
+             supervisor dashboards use, so all three read as one product. Their
+             period-over-period change rides under the number, where the small
+             tiles used to put it beside the label.
+
+             The two rates keep the compact tile: a percentage and an average
+             are read against their own pill, not against each other, and a
+             58px numeral would claim more of the page than they are worth.
+             ───────────────────────────────────────────────────────────────── --}}
+        @php
+            $delta = fn (string $key) => ! empty($kpis[$key]['delta']) ? $fmtDelta($kpis[$key]['delta']) : null;
+        @endphp
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <x-staff-stat-tile label="Total Documents" :value="number_format($kpis['total']['value'])"
+                               tone="deep" icon="none" :note="$delta('total')" />
+            <x-staff-stat-tile label="In Progress" :value="number_format($kpis['active']['value'])"
+                               tone="mid" icon="clock" :note="$delta('active')" />
+            <x-staff-stat-tile label="Completed" :value="number_format($kpis['completed']['value'])"
+                               tone="brightest" icon="check" :note="$delta('completed')" />
+            <x-staff-stat-tile label="At Risk" :value="number_format($kpis['at_risk']['value'])"
+                               :tone="$kpis['at_risk']['pill'] === 'watch' ? 'amber' : 'bright'"
+                               icon="hourglass"
+                               :note="$kpis['at_risk']['pill'] === 'watch' ? 'Watch' : 'Clear'" />
+        </div>
+
+        <div class="an-kpis an-kpis-rates">
             @php
-                $kpiDefs = [
-                    ['key' => 'total', 'label' => 'Total Documents', 'fmt' => fn ($v) => number_format($v), 'spark' => 'green'],
-                    ['key' => 'completed', 'label' => 'Completed', 'fmt' => fn ($v) => number_format($v), 'spark' => 'green'],
-                    ['key' => 'active', 'label' => 'Active / In-Progress', 'fmt' => fn ($v) => number_format($v), 'spark' => 'brass'],
-                    ['key' => 'at_risk', 'label' => 'At-Risk / Breached', 'fmt' => fn ($v) => number_format($v)],
+                $rateDefs = [
                     ['key' => 'avg_processing', 'label' => 'Avg. Processing', 'fmt' => fn ($v) => $v !== null ? $v.'d' : '—'],
                     ['key' => 'on_time', 'label' => 'On-Time Rate', 'fmt' => fn ($v) => $v !== null ? $v.'%' : '—'],
                 ];
             @endphp
-            @foreach ($kpiDefs as $def)
+            @foreach ($rateDefs as $def)
                 @php $k = $kpis[$def['key']]; @endphp
                 <div class="tile">
                     <div class="kpi-head">
@@ -137,17 +159,10 @@
                     </div>
                     <div class="v mono">{{ $def['fmt']($k['value']) }}</div>
 
-                    @if (! empty($def['spark']) && ! empty($k['spark']) && array_sum($k['spark']) > 0)
-                        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-                            <polyline points="{{ $spark($k['spark']) }}" fill="none"
-                                      stroke="{{ $def['spark'] === 'brass' ? '#c79a3e' : '#2a9d4f' }}" stroke-width="1.6"/>
-                        </svg>
-                    @elseif ($def['key'] === 'at_risk')
-                        <span class="pill {{ $k['pill'] === 'watch' ? 'p-amber' : 'p-green' }}" style="margin-top:8px;">{{ $k['pill'] === 'watch' ? 'WATCH' : 'CLEAR' }}</span>
-                    @elseif ($def['key'] === 'on_time')
+                    @if ($def['key'] === 'on_time')
                         <span class="pill p-{{ $k['pill'] === 'healthy' ? 'green' : ($k['pill'] === 'breach' ? 'red' : ($k['pill'] === 'muted' ? 'muted' : 'amber')) }}" style="margin-top:8px;">{{ ['healthy' => 'HEALTHY', 'watch' => 'WATCH', 'breach' => 'AT RISK', 'muted' => 'NO DATA'][$k['pill']] }}</span>
                     @else
-                        <div class="bar {{ $def['key'] === 'avg_processing' ? 'brass' : '' }}" style="margin-top:9px;"></div>
+                        <div class="bar brass" style="margin-top:9px;"></div>
                     @endif
                 </div>
             @endforeach
