@@ -67,5 +67,7 @@
             <a href="{{ url('/') }}" class="font-semibold text-emerald-800 hover:underline">Back to home</a>
         </p>
     </main>
+
+    <x-site-footer />
 </body>
 </html>

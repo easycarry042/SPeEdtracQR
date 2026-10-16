@@ -13,7 +13,9 @@
 {{-- White paper, with the arrow doodle washed back to 15% — the portal's own
      backdrop in the design, in place of the old green wash. Fixed so the
      pattern holds still while the page scrolls. --}}
-<body class="relative min-h-screen bg-white antialiased text-ink">
+{{-- Column flex, so a short page still pushes the footer to the bottom of the
+     viewport instead of leaving it floating mid-screen. --}}
+<body class="relative flex min-h-screen flex-col bg-white antialiased text-ink">
     {{-- First tab stop: jumps the portal header. --}}
     <a href="#main" class="skip-link">Skip to content</a>
 
@@ -22,10 +24,14 @@
 
     @include('layouts.partials.portal-header')
 
-    {{-- No footer: the doodle runs to the bottom of the page. --}}
-    <main id="main" class="mx-auto w-full max-w-[1512px] px-4 py-10 sm:px-6">
+    <main id="main" class="mx-auto w-full max-w-[1512px] flex-1 px-4 py-10 sm:px-6">
         {{ $slot }}
     </main>
+
+    {{-- The doodle used to run all the way down. The footer now closes the page
+         off, and carries the office's contact details for a visitor who got
+         here from a QR code and has no other way back to them. --}}
+    <x-site-footer />
 
     {{-- Speedy, parked bottom-right. The assistant only ever answers about ONE
          request, so the bubble can't open a chat on its own — it asks which
