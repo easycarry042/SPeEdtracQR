@@ -1,273 +1,175 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="motion-safe:scroll-smooth">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
-    <title>SPeED TraQR — Document Tracking System</title>
+    <meta name="description" content="File a request with the City Government of San Pedro, Laguna online and track it from filing to pickup with a QR-coded tracking number.">
+    <title>SPeED TraQR — Track Your City Hall Requests | City of San Pedro</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.accessibility-widget')
 </head>
 <body class="min-h-screen bg-white antialiased text-ink">
+@php
+    /* The page's two audiences each get exactly one way in: citizens the two
+       hero actions (repeated once at the end), staff a quiet header link. */
+    $submitUrl = route('public.request.create');
+    $trackUrl = route('citizen.track');
 
-    {{-- First tab stop: jumps the floating nav pill. --}}
+    $btnPrimary = 'inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-full bg-[#01721a] px-6 text-[16px] font-bold text-white shadow-[0_1px_2px_rgba(0,64,4,0.3),0_8px_20px_-8px_rgba(1,114,26,0.7)] transition-colors hover:bg-[#004004] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
+    $btnSecondary = 'inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-full border border-[rgba(0,64,4,0.35)] bg-white px-6 text-[16px] font-bold text-[#004004] transition-colors hover:bg-[#eef8ea] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
+    $navLink = 'inline-flex h-11 touch-manipulation items-center rounded-full px-3.5 text-[15px] font-semibold text-[#3a4a3f] transition-colors hover:bg-[#eef8ea] hover:text-[#004004] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
+@endphp
+
+    {{-- First tab stop: jumps the header. --}}
     <a href="#main" class="skip-link">Skip to content</a>
 
-    {{-- ─────────────────────────────────────────────────────────────────────
-         Floating navigation pill. Per the design it is wider than the page and
-         bleeds past both edges (‑20px each side of a 1512 frame), so it reads as
-         a capsule laid over the hero rather than a bar attached to it.
+    {{-- ── Header ───────────────────────────────────────────────────────────
+         Owner first: the City seal leads, so a visitor knows whose service
+         this is before they read the product name. Sticky on a frosted white
+         surface, so the section links stay in reach on a long page; every
+         section they target sets scroll-margin to clear it.
          ───────────────────────────────────────────────────────────────────── --}}
-    <header class="absolute inset-x-0 top-[4px] z-50 px-0">
-        <nav class="-mx-5 flex h-[46.5px] w-[calc(100%+40px)] items-center justify-end rounded-[160px] bg-white px-[7%] shadow-[0_14.5px_31px_-23px_rgba(0,0,0,0.67)] sm:h-[57.5px]"
-             aria-label="Primary">
-            <ul class="flex items-center gap-7 text-[13px] font-bold sm:gap-[37px] sm:text-[14px]">
-                {{-- The active item is the solid grey; the rest sit back at 72%
-                     opacity, exactly as the design distinguishes them. --}}
-                <li><a href="#top" class="text-[#969696] transition hover:text-[#01721a]">Home</a></li>
-                <li><a href="#features" class="text-[rgba(109,109,109,0.72)] transition hover:text-[#01721a]">Features</a></li>
-                <li><a href="#how-it-works" class="whitespace-nowrap text-[rgba(109,109,109,0.72)] transition hover:text-[#01721a]">How It Works</a></li>
-                <li><a href="#security" class="text-[rgba(109,109,109,0.72)] transition hover:text-[#01721a]">Security</a></li>
-                <li><a href="#faq" class="text-[rgba(109,109,109,0.72)] transition hover:text-[#01721a]">FAQ</a></li>
-            </ul>
-        </nav>
+    <header class="sticky top-0 z-50 border-b border-[rgba(0,64,4,0.08)] bg-white/90 backdrop-blur-md">
+        <div class="mx-auto flex h-16 max-w-[1209.5px] items-center justify-between gap-4 px-4 sm:h-[72px] sm:px-6 lg:px-8">
+            <a href="#top" class="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-[#01721a] sm:gap-3">
+                <img src="{{ asset('images/staff/seal-2.png') }}" alt="City of San Pedro seal"
+                     width="44" height="44" class="h-10 w-10 shrink-0 sm:h-11 sm:w-11">
+                <span class="hidden h-9 w-px shrink-0 bg-[rgba(0,64,4,0.15)] sm:block" aria-hidden="true"></span>
+                <img src="{{ asset('images/landing/speed-icon.png') }}" alt=""
+                     width="36" height="36" class="hidden h-9 w-9 shrink-0 object-contain sm:block">
+                <span class="flex min-w-0 flex-col">
+                    <span class="text-[19px] leading-none sm:text-[22px]" translate="no">
+                        <span class="font-display font-black text-[#004004]">SPeED</span>
+                        <span class="font-sans font-bold text-[#017209]">TraQR</span>
+                    </span>
+                    <span class="mt-1 truncate text-[12px] font-semibold leading-none text-[#4b5a50] sm:text-[13px]">City of San Pedro, Laguna</span>
+                </span>
+            </a>
+
+            <nav aria-label="Primary" class="flex shrink-0 items-center gap-1">
+                {{-- Section links only fit from tablet up; below that the page is
+                     one short scroll and the hero already holds both actions. --}}
+                <ul class="hidden items-center gap-0.5 md:flex">
+                    <li><a href="#how-it-works" class="{{ $navLink }}">How it works</a></li>
+                    <li><a href="#features" class="{{ $navLink }}">Features</a></li>
+                    <li><a href="#faq" class="{{ $navLink }}">FAQ</a></li>
+                </ul>
+                <span class="mx-2 hidden h-6 w-px bg-[rgba(0,64,4,0.15)] md:block" aria-hidden="true"></span>
+                {{-- Staff are the minority audience: a quiet outlined link, never
+                     a filled button competing with the citizen actions. --}}
+                <a href="{{ route('login') }}"
+                   class="inline-flex h-11 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-full border border-[rgba(0,64,4,0.25)] px-4 text-[14px] font-bold text-[#004004] transition-colors hover:bg-[#eef8ea] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]">
+                    Staff sign in
+                </a>
+            </nav>
+        </div>
     </header>
 
     <main id="main">
 
     {{-- ── Hero ─────────────────────────────────────────────────────────────
-         City Hall photo occupies everything right of 16.3% of the frame; the
-         exported vignette feathers all four of its edges into white so the copy
-         on the left sits on clean paper with no hard photo edge.
+         City Hall photo on the right, feathered into white by the exported
+         vignette, so the copy on the left sits on clean paper. On phones the
+         photo moves under the actions instead of behind the text, where it
+         only cost contrast.
          ───────────────────────────────────────────────────────────────────── --}}
-    <section id="top" class="relative isolate flex min-h-[calc(100svh/var(--ui-zoom))] items-center overflow-hidden bg-white">
-        <div class="pointer-events-none absolute inset-y-0 left-0 right-0 -z-10 opacity-40 lg:left-[16.3%] lg:opacity-100">
-            {{-- The photo sits 36px in from the vignette's left edge, as in the
-                 design: the feather has to start before the photo does or its
-                 raw edge shows as a hard vertical seam. The offset lives on this
-                 wrapper, not the <img> — an image sized with `width:auto` takes
-                 its natural aspect ratio instead of filling, which left the
-                 photo ending mid-screen on a wide monitor. --}}
-            {{-- 2.84% = the design's 36px inside a 1268px vignette. Kept as a
-                 ratio, not a fixed 36px: the feather scales with the box, so a
-                 fixed inset leaves the photo's raw edge outside it on a wide
-                 monitor. --}}
-            <div class="absolute inset-y-0 right-0 left-0 lg:left-[2.84%]">
-                <img src="{{ asset('images/landing/hero-cityhall.jpg') }}"
-                     alt="San Pedro City Hall, Laguna"
-                     fetchpriority="high"
+    <section id="top" class="relative isolate overflow-hidden bg-white">
+        <div class="pointer-events-none absolute inset-y-0 left-[36%] right-0 -z-10 hidden lg:block" aria-hidden="true">
+            {{-- 2.84% = the design's 36px inside a 1268px vignette: the feather
+                 has to start before the photo does or its raw edge shows. --}}
+            <div class="absolute inset-y-0 left-[2.84%] right-0">
+                <img src="{{ asset('images/landing/hero-cityhall.jpg') }}" alt=""
+                     width="2000" height="1500" fetchpriority="high"
                      class="absolute inset-0 h-full w-full object-cover">
             </div>
-            {{-- preserveAspectRatio is stripped by the export, so the SVG
-                 stretches to the photo box and keeps the feather aligned. --}}
-            <img src="{{ asset('images/landing/hero-gradient.svg') }}" alt="" aria-hidden="true"
+            <img src="{{ asset('images/landing/hero-gradient.svg') }}" alt=""
                  class="absolute inset-0 h-full w-full">
+            {{-- The vignette's top feather starts a few pixels in, which left a
+                 raw strip of sky under the header; this closes it. --}}
+            <div class="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white via-white/70 to-transparent"></div>
         </div>
 
-        <div class="relative mx-auto w-full max-w-[1209.5px] px-6 py-28 sm:px-10 lg:px-[6.4%]">
-            {{-- Mark + wordmark lockup introduces the page above the headline. --}}
-            <div class="flex items-center gap-[7px]">
-                <img src="{{ asset('images/landing/speed-icon.png') }}" alt=""
-                     class="h-[41.5px] w-[41.5px] shrink-0 object-contain sm:h-[56px] sm:w-[56px]">
-                <p class="text-[19px] leading-none sm:text-[24px]">
-                    <span class="font-display font-black text-[#004004]">SPeED</span>
-                    <span class="font-sans font-bold text-[#017209]">TraQR</span>
+        <div class="mx-auto flex max-w-[1209.5px] flex-col px-4 pb-14 pt-12 sm:px-6 sm:pt-16 lg:min-h-[min(calc(100svh/var(--ui-zoom)-72px),720px)] lg:justify-center lg:px-8 lg:py-20">
+            <div class="max-w-[560px]">
+                <p class="inline-flex items-center gap-2 rounded-full bg-[#eef8ea] px-3.5 py-1.5 text-[13px] font-bold text-[#004004]">
+                    <span class="h-2 w-2 rounded-full bg-[#01721a]" aria-hidden="true"></span>
+                    City Government of San Pedro, Laguna
                 </p>
+
+                <h1 class="mt-5 font-display text-[38px] font-black leading-[1.05] tracking-tight sm:text-[50px] lg:text-[58px]">
+                    <span class="block text-[#004004]">Your requests,</span>
+                    <span class="block text-[#01721a]">tracked in real time.</span>
+                </h1>
+
+                <p class="mt-5 max-w-[440px] text-pretty text-[17px] font-medium leading-relaxed text-[#353535] sm:text-[18px]">
+                    File a request online, get a QR-coded tracking number by email, and follow it
+                    from filing to pickup. No account needed.
+                </p>
+
+                <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                    <a href="{{ $submitUrl }}" class="{{ $btnPrimary }}">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5M12 11v6M9 14h6"/>
+                        </svg>
+                        Submit a request
+                    </a>
+                    <a href="{{ $trackUrl }}" class="{{ $btnSecondary }}">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="3.5" width="6" height="6" rx="1"/>
+                            <rect x="14.5" y="3.5" width="6" height="6" rx="1"/>
+                            <rect x="3.5" y="14.5" width="6" height="6" rx="1"/>
+                            <path stroke-linecap="round" d="M14.5 14.5h2m4 0h-2m0 0v2m0 4h-6v-2"/>
+                        </svg>
+                        Track a request
+                    </a>
+                </div>
             </div>
 
-            {{-- Two fixed lines, as drawn — the break is part of the design, so
-                 neither line is allowed to re-wrap on its own. --}}
-            <h1 class="mt-[27px] font-display text-[26px] font-black leading-[1.125] sm:text-[32px]">
-                <span class="block whitespace-nowrap text-[#004004]">Your requests,</span>
-                <span class="block whitespace-nowrap text-[#01721a]">tracked in real time.</span>
-            </h1>
-
-            <p class="mt-[22.5px] max-w-[367px] text-[14px] font-medium leading-snug text-black sm:text-[16px]">
-                Submit a request online, get a QR-coded tracking number, and follow
-                every update from filing to release anytime.
-            </p>
-
-            {{-- Staff get a quiet text link; citizens get the one primary button. --}}
-            <p class="mt-[19px] text-[14px] font-medium text-[#01721a] sm:text-[18px]">
-                Are you a municipal staff?
-                <a href="{{ route('login') }}" class="font-bold underline underline-offset-2 transition hover:text-[#004004]">Click here</a>
-            </p>
-
-            {{-- Double ring: the filled capsule sits inside a 3px outline of the
-                 same green, with the lime glow the design puts behind it. --}}
-            <div class="mt-[24px]">
-                <a href="{{ route('citizen.dashboard') }}"
-                   class="group inline-flex rounded-[32px] p-[3px] ring-1 ring-[#01721a] transition active:scale-[.98]">
-                    <span class="inline-flex h-[51px] w-[202.5px] items-center justify-center gap-[9px] rounded-[32px] bg-[#01721a] text-[16px] font-medium text-white shadow-[0_0_24px_5px_rgba(104,244,61,0.8)] transition group-hover:bg-[#004004]">
-                        <img src="{{ asset('images/landing/icon-citizen.svg') }}" alt=""
-                             class="h-[16px] w-[12px] shrink-0 brightness-0 invert">
-                        Citizen Portal
-                    </span>
-                </a>
-            </div>
+            <img src="{{ asset('images/landing/hero-cityhall.jpg') }}" alt="San Pedro City Hall, Laguna"
+                 width="2000" height="1500" loading="lazy"
+                 class="mt-10 aspect-[16/10] w-full rounded-[20px] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.08),0_12px_32px_-16px_rgba(0,64,4,0.45)] lg:hidden">
         </div>
     </section>
 
-    {{-- ── What We Do ───────────────────────────────────────────────────────
-         Three translucent cards introducing the service. The middle card is
-         drawn 24px taller than its neighbours (it starts higher in the frame),
-         which is why the row is bottom-aligned rather than stretched.
+    {{-- ── How it works ─────────────────────────────────────────────────────
+         The spine of the page, so it comes straight after the hero. Four
+         stages on one rule: a single 3px line behind the tiles rather than
+         three segments, so it cannot drift when the columns resize. (The old
+         green bloom behind the row was clipped flat by the section edge.)
          ───────────────────────────────────────────────────────────────────── --}}
-    <section id="features" class="relative bg-white px-6 pb-[70px] pt-[86px] sm:px-10">
-        <div class="mx-auto max-w-[1512px]">
-            <p class="text-center text-[18px] font-bold text-[#004004] sm:text-[22px]">What We Do</p>
-
-            <h2 class="mt-[6px] text-center font-display text-[26px] font-black leading-tight sm:text-[36px]">
-                <span class="text-[#1a1b1a]">Fast, Transparent &amp; Reliable </span>
-                <span class="text-[#01721a]">Document Tracking</span>
-            </h2>
-
-            <p class="mx-auto mt-[10px] max-w-[760px] text-center text-[17px] font-medium leading-snug text-[#353535] sm:text-[20px]">
-                Streamlining public services for the City Government of San Pedro through
-                integrated QR technology.
-            </p>
-
-            {{-- items-end, not items-stretch: the design staggers the middle card
-                 upward, so the three share a baseline rather than a top edge. --}}
-            <div class="mx-auto mt-[62px] grid max-w-[1140px] grid-cols-1 items-end gap-6 sm:grid-cols-3">
-                {{-- Card 1 — its icon is two layered glyphs (a map pin with a
-                     crosshair overlapping its lower right), so it keeps the 79×60
-                     box the design groups them in. --}}
-                <div class="flex min-h-[340px] flex-col rounded-[22px] bg-[rgba(255,255,255,0.76)] p-[40px] shadow-[0_4px_17px_0_rgba(0,0,0,0.25)] ring-1 ring-black/[0.04] sm:min-h-[366px]">
-                    <div class="relative h-[60px] w-[79px] shrink-0">
-                        <img src="{{ asset('images/landing/wwd-pin.svg') }}" alt="" aria-hidden="true"
-                             class="absolute left-0 top-0 h-[60px] w-[60px]">
-                        <img src="{{ asset('images/landing/wwd-crosshair.svg') }}" alt="" aria-hidden="true"
-                             class="absolute left-[31px] top-[11px] h-[48px] w-[48px]">
-                    </div>
-                    <h3 class="mt-[30px] font-display text-[25px] font-black leading-none text-black">Citizen Tracking</h3>
-                    <p class="mt-[14px] text-[18px] font-medium leading-snug text-[#353535] sm:text-[22px]">
-                        Monitor the real-time status and location of your requests and
-                        documents using a unique Tracking ID/QR code—no account needed.
-                    </p>
-                </div>
-
-                {{-- Card 2 --}}
-                <div class="flex min-h-[340px] flex-col rounded-[22px] bg-[rgba(255,255,255,0.76)] p-[40px] shadow-[0_4px_17px_0_rgba(0,0,0,0.25)] ring-1 ring-black/[0.04] sm:min-h-[390px]">
-                    <img src="{{ asset('images/landing/wwd-qr.svg') }}" alt="" aria-hidden="true"
-                         class="h-[60px] w-[60px] shrink-0">
-                    <h3 class="mt-[30px] font-display text-[25px] font-black leading-none text-black">QR-Code Verification</h3>
-                    <p class="mt-[14px] text-[18px] font-medium leading-snug text-[#353535] sm:text-[22px]">
-                        Instant scanning for city staff and officials to route, update, and
-                        process incoming and outgoing files seamlessly.
-                    </p>
-                </div>
-
-                {{-- Card 3 --}}
-                <div class="flex min-h-[340px] flex-col rounded-[22px] bg-[rgba(255,255,255,0.76)] p-[40px] shadow-[0_4px_17px_0_rgba(0,0,0,0.25)] ring-1 ring-black/[0.04] sm:min-h-[366px]">
-                    <img src="{{ asset('images/landing/wwd-chat.svg') }}" alt="" aria-hidden="true"
-                         class="h-[57.5px] w-[60px] shrink-0">
-                    <h3 class="mt-[30px] font-display text-[25px] font-black leading-none text-black">Smart Chatbot Assistance</h3>
-                    <p class="mt-[14px] text-[18px] font-medium leading-snug text-[#353535] sm:text-[22px]">
-                        Get 24/7 assistance on document requirements, city service procedures,
-                        and tracking guidance through our smart chatbot.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    {{-- ── Key Features ─────────────────────────────────────────────────────
-         Sits on the green→white wash the design lays across the full bleed. The
-         copy occupies the right half of the 1512 frame; the left half carries
-         the service illustration.
-         ───────────────────────────────────────────────────────────────────── --}}
-    <section class="relative isolate overflow-hidden bg-white px-6 py-[72px] sm:px-10">
-        {{-- band-gradient.svg exports with preserveAspectRatio="none", so it
-             stretches edge-to-edge instead of tiling. --}}
-        <img src="{{ asset('images/landing/band-gradient.svg') }}" alt="" aria-hidden="true"
-             class="pointer-events-none absolute inset-0 -z-10 h-full w-full">
-
-        <div class="mx-auto grid max-w-[1512px] grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-6">
-            {{-- Illustration holds the left half of the band. --}}
-            <div class="order-2 flex justify-center lg:order-1">
-                <img src="{{ asset('images/landing/features-person.png') }}" alt=""
-                     loading="lazy"
-                     class="w-full max-w-[560px] object-contain">
-            </div>
-
-            <div class="order-1 lg:order-2">
-                <p class="text-[20px] font-bold text-[#004004] sm:text-[25px]">FEATURES</p>
-
-                <h2 class="mt-[8px] font-display text-[32px] font-black leading-none sm:text-[45px]">
-                    <span class="text-[#1a1b1a]">Key </span><span class="text-[#01721a]">Features</span>
+    <section id="how-it-works" class="relative isolate scroll-mt-20 bg-white px-4 py-20 sm:px-6 lg:py-24">
+        <div class="mx-auto max-w-[1209.5px]">
+            <div class="mx-auto max-w-[640px] text-center">
+                <h2 class="font-display text-[32px] font-black leading-tight text-[#1a1b1a] sm:text-[42px]">
+                    How it <span class="text-[#01721a]">works</span>
                 </h2>
-
-                <p class="mt-[18px] max-w-[623px] text-[20px] font-bold leading-snug text-[#353535] sm:text-[30px]">
-                    Integrated Tools for efficient document processing and tracking.
+                <p class="mt-3 text-balance text-[17px] font-medium leading-relaxed text-[#4b5a50] sm:text-[19px]">
+                    Four steps from filing your request to picking it up.
                 </p>
-
-                {{-- Two columns of 80px frosted tiles; the fifth item opens a third
-                     row on its own, exactly as the design leaves it. --}}
-                <ul class="mt-[46px] grid grid-cols-1 gap-x-[21px] gap-y-[22px] sm:grid-cols-2">
-                    @foreach ([
-                        ['icon' => 'feat-file-text.svg', 'label' => 'Document Routing'],
-                        ['icon' => 'feat-shield.svg',    'label' => 'Secure QR Identification'],
-                        ['icon' => 'feat-search.svg',    'label' => 'Accountability Audit'],
-                        ['icon' => 'feat-people.svg',    'label' => 'Role-Based Access'],
-                        ['icon' => 'feat-clock.svg',     'label' => 'Real-Time Status'],
-                    ] as $feature)
-                        <li class="flex items-center gap-[15px]">
-                            <span class="flex h-[80px] w-[80px] shrink-0 items-center justify-center rounded-[15px] bg-[rgba(255,255,255,0.2)] shadow-[0_0_4px_1px_rgba(0,0,0,0.25)] backdrop-blur-[25px]">
-                                <img src="{{ asset('images/landing/'.$feature['icon']) }}" alt="" aria-hidden="true"
-                                     class="h-[42px] w-[42px] object-contain">
-                            </span>
-                            <span class="text-[18px] font-medium leading-tight text-[#353535] sm:text-[22px]">{{ $feature['label'] }}</span>
-                        </li>
-                    @endforeach
-                </ul>
             </div>
-        </div>
-    </section>
 
-    {{-- ── How It Works ─────────────────────────────────────────────────────
-         Four stages on one rule. The connector is a single 3px line behind the
-         tiles rather than three separate segments, so it cannot drift out of
-         alignment when the columns resize.
-         ───────────────────────────────────────────────────────────────────── --}}
-    <section id="how-it-works" class="relative isolate overflow-hidden bg-white px-6 pb-[96px] pt-[86px] sm:px-10">
-        {{-- Soft green bloom the design floats behind the middle of the row. --}}
-        <img src="{{ asset('images/landing/steps-glow.svg') }}" alt="" aria-hidden="true"
-             class="pointer-events-none absolute left-1/2 top-[270px] -z-10 hidden h-[544px] w-[567px] -translate-x-1/2 lg:block">
+            <div class="relative mx-auto mt-14 max-w-[1140px]">
+                {{-- Starts and ends at the centre of the outer columns (1/8 and
+                     7/8 of the row), so no stub pokes out past the end tiles. --}}
+                <div class="pointer-events-none absolute left-[12.5%] right-[12.5%] top-[57px] hidden h-[3px] bg-[#017209] lg:block" aria-hidden="true"></div>
 
-        <div class="mx-auto max-w-[1512px]">
-            <p class="text-center text-[20px] font-bold text-[#004004] sm:text-[25px]">HOW IT WORKS</p>
-
-            <h2 class="mt-[8px] text-center font-display text-[32px] font-black leading-none sm:text-[45px]">
-                <span class="text-[#01721a]">4-Step</span><span class="text-[#1a1b1a]"> Tracking Flow</span>
-            </h2>
-
-            <p class="mx-auto mt-[22px] max-w-[1031px] text-center text-[20px] font-bold leading-snug text-[#353535] sm:text-[30px]">
-                A quick guide on how documents are submitted, processed, and tracked.
-            </p>
-
-            <div class="relative mx-auto mt-[72px] max-w-[1250px]">
-                {{-- The rule spans only the inner three gaps: it starts and ends at
-                     the centre of the outer columns (1/8 and 7/8 of the row) so no
-                     stub pokes out past the first and last tile. --}}
-                <div class="pointer-events-none absolute left-[12.5%] right-[12.5%] top-[57px] hidden h-[3px] bg-[#017209] sm:block" aria-hidden="true"></div>
-
-                <div class="grid grid-cols-1 gap-x-6 gap-y-[56px] sm:grid-cols-2 lg:grid-cols-4">
+                <ol class="grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
                     @foreach ([
-                        ['icon' => 'step-1.svg', 'num' => 'step-num-1.svg', 'w' => 'w-[36px]', 'title' => 'Submit Request',
-                         'body' => 'Fill out the request form and receive your unique Tracking ID.'],
-                        ['icon' => 'step-2.svg', 'num' => 'step-num-2.svg', 'w' => 'w-[48px]', 'title' => 'Document Processing',
-                         'body' => 'LGU staff log and route your paper across departments in real time.'],
-                        ['icon' => 'step-3.svg', 'num' => 'step-num-3.svg', 'w' => 'w-[48px]', 'title' => 'Track Progress',
-                         'body' => 'Check live status updates anytime using the Public Tracking Module or AI Chatbot.'],
-                        ['icon' => 'step-4.svg', 'num' => 'step-num-4.svg', 'w' => 'w-[48px]', 'title' => 'Claim Document',
-                         'body' => 'Once the status shows "Ready for Release," proceed to City Hall to collect your document.'],
-                    ] as $step)
-                        <div class="relative flex flex-col items-center text-center">
+                        ['icon' => 'step-1.svg', 'num' => 'step-num-1.svg', 'w' => 'w-[36px]', 'title' => 'Submit a request',
+                         'body' => 'Fill out the online form. Your tracking number and QR code arrive by email.'],
+                        ['icon' => 'step-2.svg', 'num' => 'step-num-2.svg', 'w' => 'w-[48px]', 'title' => 'City Hall processes it',
+                         'body' => 'Staff scan your request in and out at every office it passes through.'],
+                        ['icon' => 'step-3.svg', 'num' => 'step-num-3.svg', 'w' => 'w-[48px]', 'title' => 'Track its progress',
+                         'body' => 'Check the status and current office anytime with your tracking number or QR code.'],
+                        ['icon' => 'step-4.svg', 'num' => 'step-num-4.svg', 'w' => 'w-[48px]', 'title' => 'Claim your document',
+                         'body' => 'When the status says “Ready for pickup”, bring your QR code to City Hall.'],
+                    ] as $i => $step)
+                        <li class="relative flex flex-col items-center text-center">
                             {{-- The pale green plate is 20px larger than the white
-                                 tile on every side; the number rides its top-right
-                                 corner as a badge. --}}
-                            <div class="relative flex h-[117px] w-[119px] shrink-0 items-center justify-center rounded-[10px] bg-[rgba(1,114,9,0.15)]">
+                                 tile on every side; the number rides its corner. --}}
+                            <div class="relative flex h-[117px] w-[119px] shrink-0 items-center justify-center rounded-[10px] bg-[#d9eadb]">
                                 <div class="flex h-[95px] w-[98px] items-center justify-center rounded-[20px] border border-[#01721a] bg-white">
                                     <img src="{{ asset('images/landing/'.$step['icon']) }}" alt="" aria-hidden="true"
                                          class="h-[48px] {{ $step['w'] }} object-contain">
@@ -276,148 +178,132 @@
                                      class="absolute -top-[6px] right-[-16px] h-[44px] w-[39px] object-contain">
                             </div>
 
-                            <h3 class="mt-[34px] text-[22px] font-black leading-tight text-[#353535] sm:text-[25px]">{{ $step['title'] }}</h3>
-                            <p class="mt-[12px] max-w-[273px] text-[18px] leading-snug text-black sm:text-[22px]">{{ $step['body'] }}</p>
-                        </div>
+                            <h3 class="mt-7 text-[20px] font-black leading-tight text-[#1a1b1a]">
+                                <span class="sr-only">Step {{ $i + 1 }}: </span>{{ $step['title'] }}
+                            </h3>
+                            <p class="mt-2 max-w-[260px] text-[16px] leading-relaxed text-[#4b5a50]">{{ $step['body'] }}</p>
+                        </li>
                     @endforeach
-                </div>
+                </ol>
             </div>
         </div>
     </section>
 
-    {{-- ── Security ─────────────────────────────────────────────────────────
-         Same wash as the Key Features band. Copy on the left, four cards on the
-         right stepped 64px in and out so they read as a staggered column.
+    {{-- ── Features ─────────────────────────────────────────────────────────
+         One grid in place of the old "What We Do", "Key Features" and
+         "Security" sections, which described the same five ideas three times.
+         Each card states one thing the system actually does, in a citizen's
+         terms; the icons are inline so they share one stroke and colour.
          ───────────────────────────────────────────────────────────────────── --}}
-    <section id="security" class="relative isolate overflow-hidden bg-white px-6 py-[80px] sm:px-10">
-        <img src="{{ asset('images/landing/band-gradient.svg') }}" alt="" aria-hidden="true"
-             class="pointer-events-none absolute inset-0 -z-10 h-full w-full">
-
-        <div class="mx-auto grid max-w-[1512px] grid-cols-1 items-center gap-12 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-10">
-            <div>
-                <p class="text-[20px] font-bold text-[#004004] sm:text-[25px]">SECURITY</p>
-
-                <h2 class="mt-[8px] font-display text-[32px] font-black leading-none sm:text-[45px]">
-                    <span class="text-[#1a1b1a]">How We Keep Your </span><span class="text-[#01721a]">Data Safe</span>
+    <section id="features" class="relative isolate scroll-mt-20 overflow-hidden bg-[#f5faf3] px-4 py-20 sm:px-6 lg:py-24">
+        <div class="mx-auto max-w-[1209.5px]">
+            <div class="mx-auto max-w-[680px] text-center">
+                <h2 class="font-display text-[32px] font-black leading-tight text-[#1a1b1a] sm:text-[42px]">
+                    Fast, transparent &amp; <span class="text-[#01721a]">private</span>
                 </h2>
-
-                <p class="mt-[36px] max-w-[590px] text-[20px] font-bold leading-snug text-[#353535] sm:text-[30px]">
-                    SPeED TraQR is built to protect official City Hall records and keep your
-                    personal information private.
+                <p class="mt-3 text-balance text-[17px] font-medium leading-relaxed text-[#4b5a50] sm:text-[19px]">
+                    One system follows your request from the counter where it is filed to the
+                    desk that releases it.
                 </p>
             </div>
 
-            {{-- Each card is offset by its own margin rather than a grid column,
-                 which keeps the 64px stagger on desktop and collapses cleanly to a
-                 plain stack on narrow screens. --}}
-            <div class="flex flex-col gap-[21px]">
-                {{-- `box` is the icon frame the design draws the glyph layers
-                     inside; each layer keeps its own exported size and offset, so
-                     a two-part glyph (the scales) stays assembled. --}}
-                @foreach ([
-                    ['glow' => 'sec-glow.svg',   'box' => 38, 'offset' => '',
-                     'layers' => [
-                         ['src' => 'sec-law-a.svg', 'l' => -0.53, 't' => 1.08, 'w' => 33.01, 'h' => 33.84],
-                         ['src' => 'sec-law-b.svg', 'l' => 21.47, 't' => 7.95, 'w' => 16.53, 'h' => 18.66],
-                     ],
-                     'title' => 'Law-Compliant Service', 'body' => 'Follows government rules for safe document handling.'],
-                    ['glow' => 'sec-glow-2.svg', 'box' => 32, 'offset' => 'lg:ml-[64px]',
-                     'layers' => [['src' => 'sec-logs.svg', 'l' => 0.66, 't' => 0, 'w' => 30.61, 'h' => 32.04]],
-                     'title' => 'Staff Logs', 'body' => 'Records every staff action for complete accountability.'],
-                    ['glow' => 'sec-glow-3.svg', 'box' => 40, 'offset' => '',
-                     'layers' => [['src' => 'sec-eye-off.svg', 'l' => 0, 't' => 3.57, 'w' => 40.06, 'h' => 32.92]],
-                     'title' => 'Private Tracking', 'body' => 'Shows status updates while keeping personal details hidden.'],
-                    ['glow' => 'sec-glow-4.svg', 'box' => 40, 'offset' => 'lg:ml-[64px]',
-                     'layers' => [['src' => 'sec-wifi.svg', 'l' => 0, 't' => 3, 'w' => 40.02, 'h' => 34]],
-                     'title' => 'Offline Backup', 'body' => 'Saves tracking data even when the internet is down.'],
-                ] as $card)
-                    <div class="flex w-full items-center gap-[27px] rounded-[15px] bg-white px-[8px] py-[18px] shadow-[0_0_4px_0_rgba(0,0,0,0.25)] lg:h-[127px] lg:w-[427px] lg:py-0 {{ $card['offset'] }}">
-                        {{-- The icon sits on an 87px blue bloom, so the glyph needs
-                             to be centred on the bloom, not on the padding box. --}}
-                        <div class="relative flex h-[87px] w-[87px] shrink-0 items-center justify-center">
-                            <img src="{{ asset('images/landing/'.$card['glow']) }}" alt="" aria-hidden="true"
-                                 class="absolute inset-0 h-[87px] w-[87px]">
-                            <span class="relative block" style="width:{{ $card['box'] }}px;height:{{ $card['box'] }}px">
-                                @foreach ($card['layers'] as $layer)
-                                    <img src="{{ asset('images/landing/'.$layer['src']) }}" alt="" aria-hidden="true"
-                                         class="absolute max-w-none"
-                                         style="left:{{ $layer['l'] }}px;top:{{ $layer['t'] }}px;width:{{ $layer['w'] }}px;height:{{ $layer['h'] }}px">
-                                @endforeach
-                            </span>
-                        </div>
-                        <div class="min-w-0">
-                            <h3 class="font-display text-[20px] leading-tight text-black sm:text-[22px]">{{ $card['title'] }}</h3>
-                            <p class="mt-[6px] text-[17px] leading-snug text-black sm:text-[20px]">{{ $card['body'] }}</p>
-                        </div>
-                    </div>
+            @php
+                $features = [
+                    ['title' => 'Real-time status',
+                     'body' => 'See which office has your request and what happens next, from filing to pickup.',
+                     'icon' => '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>'],
+                    ['title' => 'QR codes only City Hall can read',
+                     'body' => 'Your slip’s QR code is signed. Ordinary scanner apps can’t open it, so it can’t be faked or misused.',
+                     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/>'],
+                    ['title' => 'Routed office to office',
+                     'body' => 'Staff scan your paper in and out at every department, so its trail is always current.',
+                     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M4 7h11m0 0-3-3m3 3-3 3M20 17H9m0 0 3-3m-3 3 3 3"/>'],
+                    ['title' => 'Processing-time targets',
+                     'body' => 'Every office works to a set processing time under RA&nbsp;11032, and late requests are flagged to staff.',
+                     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/>'],
+                    ['title' => 'Your details stay private',
+                     'body' => 'The public tracking page shows status and location only. Personal details and files stay hidden, per RA&nbsp;10173.',
+                     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.2 2.3-2.4 3.5M6.6 6.6C4.5 8 3 10 2 12c1 2.5 5 7 10 7 1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'],
+                    ['title' => 'Every action on record',
+                     'body' => 'Each scan, update and release is logged with the staff member who made it.',
+                     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 12h6M9 16h4"/>'],
+                ];
+            @endphp
+
+            <ul class="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($features as $feature)
+                    <li class="rounded-[20px] border border-[rgba(0,64,4,0.08)] bg-white p-7 shadow-[0_1px_2px_rgba(0,64,4,0.06),0_8px_24px_-12px_rgba(0,64,4,0.18)]">
+                        <span class="flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#eef8ea] text-[#01721a]">
+                            <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">{!! $feature['icon'] !!}</svg>
+                        </span>
+                        <h3 class="mt-5 font-display text-[21px] font-black leading-snug text-[#1a1b1a]">{{ $feature['title'] }}</h3>
+                        <p class="mt-2 text-[16px] leading-relaxed text-[#4b5a50]">{!! $feature['body'] !!}</p>
+                    </li>
                 @endforeach
-            </div>
+            </ul>
         </div>
     </section>
 
     {{-- ── FAQ ──────────────────────────────────────────────────────────────
-         The design draws every answer visible, so the panels open by default;
-         the chevron is still live so a reader can collapse one they have read.
+         Native <details>: keyboard-operable, searchable with find-in-page, and
+         the answers are in the HTML for readers without JavaScript. Closed by
+         default — six open answers made the questions a wall to scan.
          ───────────────────────────────────────────────────────────────────── --}}
-    <section id="faq" class="relative isolate overflow-hidden bg-white px-6 pb-[110px] pt-[90px] sm:px-10">
-        {{-- Two oversized lime blooms, bled off the left and right edges. --}}
-        <img src="{{ asset('images/landing/faq-glow.svg') }}" alt="" aria-hidden="true"
-             class="pointer-events-none absolute left-[-175px] top-[36px] -z-10 hidden h-[1217px] w-[1217px] max-w-none lg:block">
-        <img src="{{ asset('images/landing/faq-glow.svg') }}" alt="" aria-hidden="true"
-             class="pointer-events-none absolute left-[460px] top-[503px] -z-10 hidden h-[1217px] w-[1217px] max-w-none lg:block">
-
-        <div class="mx-auto max-w-[1512px]">
-            <p class="text-center text-[20px] font-bold text-[#004004] sm:text-[25px]">FAQ</p>
-
-            <h2 class="mt-[6px] text-center font-display text-[32px] font-black leading-none sm:text-[45px]">
-                <span class="text-black">Frequently Asked </span><span class="text-[#01721a]">Questions</span>
+    {{-- No bottom padding: the footer brings its own 120px of air. --}}
+    <section id="faq" class="relative isolate scroll-mt-20 bg-white px-4 pt-20 sm:px-6 lg:pt-24">
+        <div class="mx-auto max-w-[820px]">
+            <h2 class="text-center font-display text-[32px] font-black leading-tight text-[#1a1b1a] sm:text-[42px]">
+                Frequently asked <span class="text-[#01721a]">questions</span>
             </h2>
 
-            <div class="mx-auto mt-[58px] flex max-w-[952px] flex-col gap-[17px]">
-                @foreach ([
+            @php
+                $faqs = [
                     ['q' => 'How can I track the status of my document or request?',
-                     'a' => 'Simply enter your unique Tracking ID or scan the assigned QR code on the Public Tracking Module on our homepage. No user account or registration is required.'],
+                     'a' => 'Open the <a href="'.e($trackUrl).'" class="font-bold text-[#01721a] underline underline-offset-2 hover:text-[#004004]">Track page</a> and enter your tracking number, or scan the QR code from your confirmation email or printed slip.'],
                     ['q' => 'Do I need an account to use SPeED TraQR?',
-                     'a' => 'Simply enter your unique Tracking ID or scan the assigned QR code on the Public Tracking Module on our homepage. No user account or registration is required.'],
+                     'a' => 'No. Anyone can file and track a request without signing up. Keep your tracking number: it is how you follow your request and claim it.'],
                     ['q' => 'Is my personal information safe when I track a document publicly?',
-                     'a' => 'Yes. In compliance with the Data Privacy Act of 2012 (RA 10173), the Public Tracking Module only displays the document’s current status, location, and routing history. Personal details and attached files remain strictly confidential and hidden from public view.'],
-                    ['q' => 'What should I do if I lose my Tracking ID or QR Code?',
-                     'a' => 'You can consult our integrated AI Chatbot on the landing page for guidance, or visit the specific City Hall office where you submitted your document to retrieve your tracking information.'],
+                     'a' => 'Yes. In compliance with the Data Privacy Act of 2012 (RA&nbsp;10173), the public tracking page only shows the document’s current status, location and routing history. Personal details and attached files stay confidential.'],
+                    ['q' => 'What should I do if I lose my tracking number or QR code?',
+                     'a' => 'Look for the confirmation email we sent when you filed. It has both your tracking number and your QR code. If you can’t find it, visit the City Hall office where you filed your request.'],
                     ['q' => 'What types of documents can be tracked through SPeED TraQR?',
-                     'a' => 'The system tracks official documents, citizen service requests, permits, endorsements, and internal office communications routed across departments within the City Government of San Pedro.'],
+                     'a' => 'Official documents, citizen service requests, permits, endorsements and internal office communications routed across departments of the City Government of San Pedro.'],
                     ['q' => 'How does the system estimate when my document will be ready?',
-                     'a' => 'SPeED TraQR uses system-calculated processing metrics based on standard Service Level Agreements (SLA) under the Ease of Doing Business Act (RA 11032) to give you an estimated completion timeframe.'],
-                ] as $i => $faq)
-                    <div x-data="{ open: true }"
-                         class="overflow-hidden rounded-[10px] border border-[rgba(252,252,252,0.54)] bg-[rgba(255,255,255,0.6)] shadow-[0_0_4px_0_rgba(0,0,0,0.6)] backdrop-blur-[25px]">
-                        <button type="button"
-                                x-on:click="open = !open"
-                                x-bind:aria-expanded="open ? 'true' : 'false'"
-                                aria-controls="faq-panel-{{ $i }}"
-                                class="flex w-full items-start gap-6 px-[39px] py-[23px] text-left">
-                            <span class="min-w-0 flex-1 font-display text-[22px] font-bold leading-tight text-[#005606] sm:text-[30px]">{{ $faq['q'] }}</span>
-                            {{-- The exported chevron points right; rotating it a
-                                 quarter turn is what marks the panel as open. --}}
-                            <img src="{{ asset('images/landing/faq-chevron.svg') }}" alt="" aria-hidden="true"
-                                 class="mt-[6px] h-[23px] w-[12px] shrink-0 transition-transform duration-200"
-                                 x-bind:class="open ? 'rotate-90' : ''">
-                        </button>
-                        {{-- x-show + a fade, not x-collapse: the collapse plugin
-                             isn't among this project's dependencies. --}}
-                        <div id="faq-panel-{{ $i }}" x-show="open" x-transition.opacity.duration.200ms>
-                            <p class="px-[39px] pb-[26px] text-[18px] font-medium leading-snug text-black sm:text-[24px]">{{ $faq['a'] }}</p>
-                        </div>
-                    </div>
+                     'a' => 'It looks at how long similar requests took to finish. Until there is enough history, it uses the standard processing times set under the Ease of Doing Business Act (RA&nbsp;11032).'],
+                ];
+            @endphp
+
+            <div class="mt-10 flex flex-col gap-3">
+                @foreach ($faqs as $faq)
+                    <details class="group rounded-[16px] border border-[rgba(0,64,4,0.12)] bg-white shadow-[0_1px_2px_rgba(0,64,4,0.05)] open:border-[rgba(1,114,26,0.4)] open:bg-[#fbfdfa]">
+                        <summary class="flex cursor-pointer touch-manipulation list-none items-start justify-between gap-6 rounded-[16px] px-6 py-5 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a] [&::-webkit-details-marker]:hidden">
+                            <span class="font-display text-[19px] font-bold leading-snug text-[#004004] sm:text-[21px]">{{ $faq['q'] }}</span>
+                            <svg class="mt-1 h-5 w-5 shrink-0 text-[#01721a] transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/>
+                            </svg>
+                        </summary>
+                        <p class="px-6 pb-6 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">{!! $faq['a'] !!}</p>
+                    </details>
                 @endforeach
+            </div>
+
+            {{-- The page ends on a next step, not on the last answer: the footer
+                 no longer carries navigation. --}}
+            <div class="mt-16 rounded-[24px] bg-[#eef8ea] px-6 py-10 text-center sm:px-10">
+                <h2 class="font-display text-[26px] font-black leading-tight text-[#004004] sm:text-[30px]">Ready to file a request?</h2>
+                <p class="mx-auto mt-2 max-w-[460px] text-balance text-[16px] leading-relaxed text-[#4b5a50]">
+                    It takes a few minutes. You’ll get your tracking number by email right away.
+                </p>
+                <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                    <a href="{{ $submitUrl }}" class="{{ $btnPrimary }}">Submit a request</a>
+                    <a href="{{ $trackUrl }}" class="{{ $btnSecondary }}">Track a request</a>
+                </div>
             </div>
         </div>
     </section>
 
     </main>
 
-    {{-- The design's flat grey plate carried only a copyright line. It is now
-         the shared fat footer, so the landing page ends with the same contact
-         details and doormat navigation as every other page. --}}
     <x-site-footer />
 
     @include('layouts.partials.bfcache-guard')

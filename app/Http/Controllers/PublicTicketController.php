@@ -10,6 +10,7 @@ use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
 use App\Rules\ContactNumber;
 use App\Services\QrCodeService;
+use App\Support\CitizenReceipt;
 use App\Support\DocumentFormOptions;
 use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
@@ -31,8 +32,11 @@ class PublicTicketController extends Controller
 {
     public function __construct(private QrCodeService $qrCodeService) {}
 
-    public function create(): Factory|View
+    public function create(Request $request): Factory|View
     {
+        // Starting a new request means the previous receipt is done with.
+        CitizenReceipt::forget($request);
+
         // Both kinds: document types carry requirements, booking types carry
         // a resource + date/time. The form branches on kind client-side.
         $requestTypes = RequestType::query()
@@ -198,8 +202,7 @@ class PublicTicketController extends Controller
             'created_by' => null, // submitted by a citizen, not a staff user
         ]);
 
-        $trackingUrl = url('/track/'.$trackingNumber);
-        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber, $trackingUrl);
+        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber);
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
@@ -261,34 +264,28 @@ class PublicTicketController extends Controller
         // The tracking number goes through the session rather than the URL: a
         // guessable /request/submitted/{tracking} would let anyone open someone
         // else's receipt, QR and all.
-        return to_route('public.request.submitted')
-            ->with('submitted_tracking', $document->tracking_number);
+        CitizenReceipt::remember($request, $document);
+
+        return to_route('public.request.submitted');
     }
 
     /**
-     * The receipt: QR code and tracking number, shown once after filing.
+     * The receipt: QR code and tracking number, shown after filing.
      *
-     * Reached only by redirect from `store`. The tracking number is re-flashed
-     * on each view so the citizen can refresh or reopen it while they save the
-     * QR, but it does not survive navigating away — on a shared counter
-     * terminal the next person must not find the previous citizen's receipt
-     * sitting there.
+     * Reached by redirect from `store`, and reopenable (refresh, or Back from
+     * the slip or tracking page) until CitizenReceipt forgets it — after a short
+     * while, or as soon as anyone starts over, so on a shared counter terminal
+     * the next person never finds the previous citizen's receipt sitting there.
      */
     public function submitted(Request $request): RedirectResponse|View
     {
-        $tracking = $request->session()->get('submitted_tracking');
+        $tracking = CitizenReceipt::trackingNumber($request);
 
-        if (! $tracking) {
-            return to_route('public.request.create');
-        }
-
-        $document = Document::where('tracking_number', $tracking)->first();
+        $document = $tracking ? Document::where('tracking_number', $tracking)->first() : null;
 
         if (! $document) {
             return to_route('public.request.create');
         }
-
-        $request->session()->keep('submitted_tracking');
 
         return view('public.request-submitted', ['document' => $document]);
     }

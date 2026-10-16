@@ -12,18 +12,17 @@
 
     <header class="border-b border-emerald-200/60 bg-[#f1f2f1]/90">
         <div class="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-            <a href="{{ url('/') }}" class="flex items-center gap-3">
+            <a href="{{ \App\Support\CitizenView::homeUrl() }}" class="flex items-center gap-3">
                 <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-xl">
                 <span class="text-lg font-extrabold tracking-tight text-emerald-950"><span class="font-display">SPeED</span> <span class="font-sans text-emerald-700">TraQR</span></span>
             </a>
-            <a href="{{ route('track.index') }}" class="text-sm font-semibold text-emerald-800 hover:underline">Track a request</a>
+            <a href="{{ route('citizen.track') }}" class="text-sm font-semibold text-emerald-800 hover:underline">Track a request</a>
         </div>
     </header>
 
     <main class="mx-auto max-w-2xl px-6 py-10">
         @php
-            $trackUrl = url('/track/'.$document->tracking_number);
-            $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(240)->margin(1)->errorCorrection('M')->generate($trackUrl);
+            $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(240)->margin(1)->errorCorrection('M')->generate(\App\Support\TrackingQr::payload($document->tracking_number));
             $qrPng = $document->qr_code_path ? \App\Support\PublicStorage::url($document->qr_code_path) : null;
         @endphp
 
@@ -32,7 +31,7 @@
                 <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             </div>
             <h1 class="mt-4 text-2xl font-extrabold tracking-tight text-emerald-950">Request submitted</h1>
-            <p class="mt-2 text-sm text-gray-600">Save your QR code and tracking number below. You'll use these to follow your request.</p>
+            <p class="mt-2 text-sm text-gray-600">Save your QR code and tracking number below. To follow your request, scan the code on this site's Track a request page — your phone's camera app won't open it.</p>
 
             <div class="mx-auto mt-6 flex h-60 w-60 items-center justify-center rounded-xl border border-gray-200 bg-white p-3 shadow-inner [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
                 {!! $qrSvg !!}
@@ -50,12 +49,12 @@
                         Download QR Code
                     </a>
                 @endif
-                <a href="{{ route('track.slip', $document->tracking_number) }}"
+                <a href="{{ route('track.slip', ['trackingNumber' => $document->tracking_number, 'from' => 'receipt']) }}"
                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>
                     Print slip
                 </a>
-                <a href="{{ route('track.show', $document->tracking_number) }}"
+                <a href="{{ $document->citizenTrackingUrl() }}"
                    class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
                     Track this document
                 </a>
@@ -65,7 +64,7 @@
         <p class="mt-6 text-center text-sm text-gray-500">
             <a href="{{ route('public.request.create') }}" class="font-semibold text-emerald-800 hover:underline">Submit another request</a>
             <span class="mx-2 text-gray-300">·</span>
-            <a href="{{ url('/') }}" class="font-semibold text-emerald-800 hover:underline">Back to home</a>
+            <a href="{{ \App\Support\CitizenView::homeUrl() }}" class="font-semibold text-emerald-800 hover:underline">Back to home</a>
         </p>
     </main>
 

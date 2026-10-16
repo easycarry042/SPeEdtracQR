@@ -272,7 +272,7 @@
                 <p class="req-note-title text-center text-[16px] sm:text-[18px]">Privacy Notice</p>
                 <label class="mt-3 flex items-start gap-4 text-left">
                     <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="req-check mt-0.5">
-                    <span class="req-note-body text-[14px] leading-[18px] sm:text-[16px]">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected.</span>
+                    <span class="req-note-body text-[14px] leading-[18px] sm:text-[16px]">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected. <a href="{{ route('privacy') }}" target="_blank" rel="noopener" class="font-bold underline underline-offset-2">Read the full privacy notice</a> (opens in a new tab).</span>
                 </label>
             </div>
 

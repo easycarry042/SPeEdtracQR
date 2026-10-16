@@ -9,9 +9,10 @@ import './soft-nav';
 // QR scanning library, bundled rather than pulled from a CDN so the scanner also
 // works on an offline/locked-down office LAN. Exposed globally for the Blade
 // scan helpers (see partials/qr-scan-helpers.blade.php).
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 window.Html5Qrcode = Html5Qrcode;
+window.Html5QrcodeSupportedFormats = Html5QrcodeSupportedFormats;
 
 window.Alpine = Alpine;
 

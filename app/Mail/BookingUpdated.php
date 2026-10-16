@@ -56,7 +56,7 @@ class BookingUpdated extends Mailable implements ShouldQueue
                 'startsAt' => $this->booking->starts_at,
                 'endsAt' => $this->booking->ends_at,
                 'citizenName' => $document?->citizen_name,
-                'trackingUrl' => $document ? url('/track/'.$document->tracking_number) : url('/'),
+                'trackingUrl' => $document ? $document->citizenTrackingUrl() : url('/'),
             ],
         );
     }

@@ -74,8 +74,7 @@ class DocumentWebController extends Controller
             'remarks' => $request->remarks,
         ]);
 
-        $trackingUrl = url("/track/{$trackingNumber}");
-        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber, $trackingUrl);
+        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber);
 
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
@@ -139,9 +138,8 @@ class DocumentWebController extends Controller
     public function printSticker(Document $document): Factory|View
     {
         $this->authorizeDocumentView();
-        $trackingUrl = url('/track/'.$document->tracking_number);
 
-        return view('documents.qr-sticker', ['document' => $document, 'trackingUrl' => $trackingUrl]);
+        return view('documents.qr-sticker', ['document' => $document]);
     }
 
     public function complete(string $trackingNumber)

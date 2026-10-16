@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\CitizenView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,7 +20,8 @@ class CitizenPortalHeaderTest extends TestCase
         $this->get(route('citizen.dashboard'))
             ->assertOk()
             ->assertSee('Back to Homepage')
-            ->assertSee('href="'.route('welcome').'"', false);
+            // Citizen-flagged, so a staff login on a shared PC cannot divert it.
+            ->assertSee('href="'.e(CitizenView::homeUrl()).'"', false);
     }
 
     public function test_citizen_portal_header_drops_the_track_and_staff_login_buttons(): void

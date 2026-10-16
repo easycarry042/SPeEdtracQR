@@ -33,11 +33,11 @@ class CitizenPortalCardsTest extends TestCase
         $response->assertSee('href="'.route('citizen.track').'"', false);
         $response->assertSee('href="'.route('public.request.create').'"', false);
 
-        // Three links land on the lookup: the Track card, the "Scan your QR
-        // code" escape hatch inside Speedy's popover, and the footer's doormat
-        // navigation. The bubble itself is a button, not a link.
+        // Two links land on the lookup: the Track card and the "Scan your QR
+        // code" escape hatch inside Speedy's popover (the footer no longer
+        // carries navigation). The bubble itself is a button, not a link.
         $this->assertSame(
-            3,
+            2,
             substr_count($response->getContent(), 'href="'.route('citizen.track').'"')
         );
     }

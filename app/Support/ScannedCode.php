@@ -9,8 +9,10 @@ use Illuminate\Support\Str;
 /**
  * Server-side authority on what counts as one of OUR QR codes.
  *
- * A scan is accepted only when the decoded payload is either a bare tracking
+ * A scan is accepted only when the decoded payload is a signed request QR
+ * (App\Support\TrackingQr — what every new code carries), a bare tracking
  * number we issue, or one of our own tracking/verification URLs on this host.
+ * The last two keep stickers printed before signed QRs were introduced working.
  * Everything else — a Wi-Fi code, a payment code, a link to another site, or
  * arbitrary text that happens to contain something tracking-number-shaped — is
  * rejected, so a code this office never printed can never drive an action.
@@ -38,6 +40,10 @@ class ScannedCode
 
         if ($payload === '') {
             return null;
+        }
+
+        if (str_starts_with(strtoupper($payload), TrackingQr::PREFIX)) {
+            return TrackingQr::trackingNumber($payload);
         }
 
         if (preg_match(self::TRACKING_PATTERN, $payload) === 1) {

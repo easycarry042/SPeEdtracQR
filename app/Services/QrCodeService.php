@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Support\TrackingQr;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder;
 use Illuminate\Support\Facades\Log;
@@ -41,14 +42,18 @@ class QrCodeService
         return $trackingNumber;
     }
 
-    public function generateAndStore(string $trackingNumber, string $trackingUrl): array
+    /**
+     * Render and store the request's QR. It encodes a signed TrackingQr payload,
+     * not the tracking URL, so only this application's scanners can use it.
+     */
+    public function generateAndStore(string $trackingNumber): array
     {
         try {
             if (! extension_loaded('gd')) {
                 throw new \RuntimeException('GD extension is required for QR generation.');
             }
 
-            $binaryPng = $this->renderPngWithGd($trackingUrl);
+            $binaryPng = $this->renderPngWithGd(TrackingQr::payload($trackingNumber));
 
             $relativePath = "qrcodes/{$trackingNumber}.png";
             Storage::disk('public')->put($relativePath, $binaryPng);
@@ -88,7 +93,7 @@ class QrCodeService
      * html5-qrcode simply fail to lock onto a printed sticker, which is why
      * scanning "didn't read" in the field. Error correction is raised to Q
      * (~25%) so a folder sticker still decodes once it is scuffed or smudged
-     * from handling — the payload is a short URL, so there is capacity to spare.
+     * from handling — the payload is short, so there is capacity to spare.
      */
     private function renderPngWithGd(string $content, int $targetSize = 500, int $marginModules = 4): string
     {

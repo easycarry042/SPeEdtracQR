@@ -108,12 +108,18 @@ class NavigationTest extends TestCase
 
     public function test_unknown_tracking_number_soft_fails_without_a_404(): void
     {
-        // A guest scanning a bogus/forged code is soft-redirected, never 404'd.
+        // A guest scanning a bogus/forged code is soft-redirected, never 404'd —
+        // to the public Track page, which says it was not found. (The staff Look
+        // up hub sends guests on to the homepage, which lost that message.)
         $this->get(route('track.show', 'SPD-20260101-ZZZZZZ'))
-            ->assertRedirect(route('track.index', ['find' => 1]));
+            ->assertRedirect(route('citizen.track', ['tracking' => 'SPD-20260101-ZZZZZZ']));
 
-        // The public no longer has a standalone Look up hub — guests are sent to
-        // the homepage, where the inline search lives.
+        $this->get(route('citizen.track', ['tracking' => 'SPD-20260101-ZZZZZZ']))
+            ->assertOk()
+            ->assertSee('No document found for SPD-20260101-ZZZZZZ');
+
+        // The public has no standalone Look up hub — guests are sent to the
+        // homepage, where the inline search lives.
         $this->get(route('track.index', ['find' => 1]))
             ->assertRedirect(route('welcome'));
     }

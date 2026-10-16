@@ -26,7 +26,7 @@
                     Sign in
                 </a>
             @endauth
-            <a href="{{ url('/') }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
+            <a href="{{ \App\Support\CitizenView::homeUrl() }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
                 Back to home
             </a>
         </div>

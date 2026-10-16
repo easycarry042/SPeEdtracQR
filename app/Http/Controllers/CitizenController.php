@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Support\CitizenReceipt;
+use App\Support\CitizenView;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -19,8 +21,12 @@ class CitizenController extends Controller
     private const TRACKING_NUMBER_PATTERN = '/^(SPD|INT)-\d{8}-[0-9A-Z]{6}$/';
 
     /** Citizen portal homepage — two option cards. */
-    public function index(): Factory|View
+    public function index(Request $request): Factory|View
     {
+        // The portal home is where the next citizen starts, so the previous
+        // citizen's receipt must not be reopenable from here on.
+        CitizenReceipt::forget($request);
+
         return view('citizen.dashboard');
     }
 
@@ -52,7 +58,7 @@ class CitizenController extends Controller
             ]);
         }
 
-        return to_route('track.show', ['trackingNumber' => $trackingNumber]);
+        return to_route('track.show', ['trackingNumber' => $trackingNumber] + CitizenView::QUERY);
     }
 
     /**

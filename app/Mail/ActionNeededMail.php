@@ -38,7 +38,7 @@ class ActionNeededMail extends Mailable implements ShouldQueue
             with: [
                 'reason' => $this->document->hold_reason,
                 'holdUntil' => $this->document->hold_until,
-                'trackingUrl' => url('/track/'.$this->document->tracking_number),
+                'trackingUrl' => $this->document->citizenTrackingUrl(),
             ],
         );
     }

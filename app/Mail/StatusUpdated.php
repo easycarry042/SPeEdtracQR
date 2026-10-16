@@ -39,7 +39,7 @@ class StatusUpdated extends Mailable implements ShouldQueue
             view: 'emails.status-updated',
             with: [
                 'stageLabel' => $this->document->statusEnum()->label(),
-                'trackingUrl' => url('/track/'.$this->document->tracking_number),
+                'trackingUrl' => $this->document->citizenTrackingUrl(),
             ],
         );
     }

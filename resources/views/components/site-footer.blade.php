@@ -1,35 +1,17 @@
-{{-- Shared "fat" footer — the last thing on every page that scrolls.
+{{-- Shared footer — the last thing on every page that scrolls.
 
-     Four labelled columns rather than one long link list: a visitor who has
-     scrolled this far is either lost or finished, and both need the same
-     things to hand — who runs this, how to reach them, and the one or two
-     pages they actually came for.
+     Who runs this, the privacy notice, how to reach them, and the legal
+     line. No navigation columns:
+     every page already carries its own way forward (the landing page's hero
+     and closing actions, the portal's cards, the staff sidebar), so a doormat
+     here only repeated those links a second time.
 
      The plate is the brand's dark green so it reads as the end of the page on
      every backdrop it sits on: the landing page's white paper, the citizen
-     portal's doodle wash, and the staff workspace's light chrome.
+     portal, and the staff workspace's light chrome.
 
      `office hours` below is the ordinary LGU schedule, not a value read from
      the system — correct it here if San Pedro's windows differ. --}}
-@php
-    $home = route('welcome');
-
-    /** Doormat navigation: label => href. Anchors resolve against the landing page. */
-    $citizenLinks = [
-        'Submit a Request' => route('public.request.create'),
-        'Track a Document' => route('citizen.track'),
-        'Citizen Portal' => route('citizen.dashboard'),
-        'How It Works' => $home.'#how-it-works',
-        'Frequently Asked Questions' => $home.'#faq',
-    ];
-
-    $systemLinks = [
-        'Features' => $home.'#features',
-        'Security & Data Privacy' => $home.'#security',
-        'Home' => $home,
-        'Staff Sign In' => route('login'),
-    ];
-@endphp
 
 {{-- The plate needs air above it — the page's content should finish and settle
      before the dark green starts, rather than butting straight into it. The
@@ -37,19 +19,19 @@
      stays here too: a short page still drops the footer to the bottom. --}}
 <div class="mt-auto pt-[120px]">
 <footer class="bg-[#004004] text-white">
-    <div class="mx-auto w-full max-w-[1512px] px-6 py-[56px] sm:px-10 lg:py-[64px]">
+    <div class="mx-auto w-full max-w-[1512px] px-6 py-[48px] sm:px-10 lg:py-[56px]">
 
-        <div class="grid gap-x-10 gap-y-[44px] md:grid-cols-2 lg:grid-cols-[1.7fr_1fr_1fr_1.15fr]">
+        <div class="grid gap-x-12 gap-y-[40px] md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr]">
 
             {{-- Brand: what this is and who it belongs to, for anyone who
                  landed deep in the site from a QR code or an emailed link. --}}
-            <div class="max-w-[420px]">
+            <div class="max-w-[520px]">
                 <div class="flex items-center gap-[13px]">
                     {{-- The white mark, not the landing page's green one: the
                          green icon all but disappears on this plate. --}}
                     <img src="{{ asset('images/staff/logo-white.png') }}" alt=""
-                         class="h-[46px] w-[46px] shrink-0 object-contain">
-                    <span class="text-[26px] leading-none">
+                         width="46" height="46" class="h-[46px] w-[46px] shrink-0 object-contain">
+                    <span class="text-[26px] leading-none" translate="no">
                         <span class="font-display font-black text-white">SPeED</span>
                         <span class="font-sans font-bold text-[#8dff3c]">TraQR</span>
                     </span>
@@ -61,32 +43,29 @@
                     is filed to the desk that releases it.
                 </p>
 
-                <p class="mt-[16px] text-[14px] font-semibold text-[#8dff3c]">
+                {{-- The owner's seal, on a white disc so its rim reads on the
+                     dark plate. --}}
+                <p class="mt-[18px] flex items-center gap-[10px] text-[14px] font-semibold text-[#8dff3c]">
+                    <img src="{{ asset('images/staff/seal-2.png') }}" alt=""
+                         width="32" height="32" class="h-8 w-8 shrink-0 rounded-full bg-white">
                     San Pedro City Hall, Laguna
                 </p>
             </div>
 
-            {{-- Doormat navigation, capped at five so the column stays scannable. --}}
+            {{-- Privacy: the one page every form's consent box points to, so it
+                 has to be reachable from anywhere, not only from the form. --}}
             <div>
-                <h2 class="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">For Citizens</h2>
-                <ul class="mt-[18px] space-y-[11px]">
-                    @foreach ($citizenLinks as $label => $href)
-                        <li>
-                            <a href="{{ $href }}" class="footer-link">{{ $label }}</a>
-                        </li>
-                    @endforeach
-                </ul>
-            </div>
-
-            <div>
-                <h2 class="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">The System</h2>
-                <ul class="mt-[18px] space-y-[11px]">
-                    @foreach ($systemLinks as $label => $href)
-                        <li>
-                            <a href="{{ $href }}" class="footer-link">{{ $label }}</a>
-                        </li>
-                    @endforeach
-                </ul>
+                <h2 class="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">Your Privacy</h2>
+                <p class="mt-[18px] max-w-[300px] text-[15px] leading-relaxed text-white/75">
+                    Your personal details are used only to process your request and stay hidden
+                    from public tracking.
+                </p>
+                <a href="{{ route('privacy') }}" class="footer-link mt-[12px] inline-flex items-center gap-[6px] text-[15px] font-semibold">
+                    Read the privacy notice
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/>
+                    </svg>
+                </a>
             </div>
 
             {{-- Contact. The email is a real mailbox, so it is a mailto rather
@@ -108,21 +87,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
                         </svg>
                         <span>
-                            Monday to Friday, 8:00 AM – 5:00 PM
-                            <span class="mt-[3px] block text-[13px] text-white/55">Excluding public holidays</span>
-                        </span>
-                    </li>
-
-                    <li class="flex items-start gap-[10px]">
-                        <svg class="mt-[3px] h-[17px] w-[17px] shrink-0 text-[#8dff3c]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="4" y="4" width="6" height="6" rx="1"/>
-                            <rect x="14" y="4" width="6" height="6" rx="1"/>
-                            <rect x="4" y="14" width="6" height="6" rx="1"/>
-                            <path stroke-linecap="round" d="M14 14h2m4 0h-2m0 0v2m0 4h-6v-2"/>
-                        </svg>
-                        <span>
-                            Keep your tracking number
-                            <span class="mt-[3px] block text-[13px] text-white/55">It is the only way to claim a document.</span>
+                            Monday to Friday, 8:00&nbsp;AM – 5:00&nbsp;PM
+                            <span class="mt-[3px] block text-[13px] text-white/60">Excluding public holidays</span>
                         </span>
                     </li>
                 </ul>
@@ -132,11 +98,11 @@
         {{-- Legal bar: the copyright line, and the two statutes the system's
              behaviour is actually built on — the SLA clock and what the public
              tracking page is allowed to show. --}}
-        <div class="mt-[44px] flex flex-col gap-[14px] border-t border-white/15 pt-[24px] text-[13.5px] text-white/60 lg:flex-row lg:items-center lg:justify-between">
+        <div class="mt-[40px] flex flex-col gap-[14px] border-t border-white/15 pt-[24px] text-[13.5px] text-white/60 lg:flex-row lg:items-center lg:justify-between">
             <p>&copy; {{ date('Y') }} {{ config('app.name', 'SPeED TraQR') }} — Document Tracking System. All rights reserved.</p>
             <p class="lg:text-right">
-                Processing times follow RA 11032 (Ease of Doing Business Act).
-                Personal data is handled under RA 10173 (Data Privacy Act of 2012).
+                Processing times follow RA&nbsp;11032 (Ease of Doing Business Act).
+                Personal data is handled under RA&nbsp;10173 (Data Privacy Act of 2012).
             </p>
         </div>
     </div>

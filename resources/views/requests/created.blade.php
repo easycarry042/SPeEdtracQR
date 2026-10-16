@@ -4,8 +4,7 @@
     </x-slot>
 
     @php
-        $trackUrl = url('/track/'.$document->tracking_number);
-        $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate($trackUrl);
+        $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate(\App\Support\TrackingQr::payload($document->tracking_number));
         $stampedCopy = $document->attachments->first(fn ($a) => str_contains($a->file_path, '-qr-stamped.'));
         $originalScan = $document->attachments->first(fn ($a) => ! str_contains($a->file_path, '-qr-stamped.'));
 

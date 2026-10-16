@@ -17,16 +17,48 @@
         /** Paths of ours that a QR may legitimately point at. */
         const OUR_PATHS = /^\/(track|verify)\/((?:SPD|INT)-\d{8}-[0-9A-Z]{6})(?:\/|$)/i;
 
+        /** Signed request QRs (see App\Support\TrackingQr) — never a URL. */
+        const SIGNED_PREFIX = 'SPDQR1:';
+        const SIGNATURE_BYTES = 8;
+        const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+        /**
+         * The tracking number inside a signed request QR, or null. Only the
+         * server holds the key, so the signature is checked there (custody
+         * scans post the raw payload); a forged code here can at most open a
+         * tracking page anyone could type the number into anyway.
+         */
+        function decodeSigned(raw) {
+            const body = raw.slice(SIGNED_PREFIX.length);
+            if (!/^[A-Z2-7]+$/.test(body)) return null;
+
+            let bits = '';
+            for (const ch of body) bits += BASE32.indexOf(ch).toString(2).padStart(5, '0');
+
+            let bytes = '';
+            for (let i = 0; i + 8 <= bits.length; i += 8) {
+                bytes += String.fromCharCode(parseInt(bits.slice(i, i + 8), 2));
+            }
+
+            const tracking = bytes.slice(0, -SIGNATURE_BYTES);
+
+            return bytes.length > SIGNATURE_BYTES && TRACKING_RE.test(tracking) ? tracking : null;
+        }
+
         /**
          * Extract a tracking number, but ONLY from a code this system issued:
-         * either one of our own tracking URLs (same origin) or a bare tracking
-         * number. A foreign QR — a Wi-Fi code, a payment code, a link to another
-         * site, or text that merely mentions a tracking number — returns null so
-         * callers reject it instead of acting on someone else's code.
+         * a signed request QR (what every new code carries), one of our own
+         * tracking URLs (same origin), or a bare tracking number — the last two
+         * keep stickers printed before signed QRs working. A foreign QR — a
+         * Wi-Fi code, a payment code, a link to another site, or text that
+         * merely mentions a tracking number — returns null so callers reject it
+         * instead of acting on someone else's code.
          */
         function extractTracking(text) {
             const raw = (text || '').trim();
             if (!raw) return null;
+
+            if (raw.toUpperCase().startsWith(SIGNED_PREFIX)) return decodeSigned(raw.toUpperCase());
 
             // A bare tracking number (typed in, or a code encoding just the number).
             if (TRACKING_RE.test(raw)) return raw.toUpperCase();
@@ -117,12 +149,38 @@
             return { width: side, height: side };
         }
 
+        /**
+         * Ask for HD frames. Without this the browser hands over its default
+         * (often 640x480), and a fixed-focus laptop webcam then sees a QR held
+         * at arm's length as too few pixels to decode.
+         */
+        const HD = { width: { ideal: 1280 }, height: { ideal: 720 } };
+
+        function scanConfig(camera) {
+            return { fps: 10, qrbox, videoConstraints: Object.assign({}, camera, HD) };
+        }
+
+        /**
+         * QR only, and the browser's native BarcodeDetector where it exists
+         * (Chrome/Edge): it reads blurry, low-contrast webcam frames far more
+         * reliably than the bundled JavaScript decoder, which stays the fallback.
+         */
+        function scannerOptions() {
+            const formats = window.Html5QrcodeSupportedFormats;
+
+            return {
+                verbose: false,
+                formatsToSupport: formats ? [formats.QR_CODE] : undefined,
+                useBarCodeDetectorIfSupported: true,
+            };
+        }
+
         /** Prefer the rear camera; fall back to whatever this machine has. */
         function launch(elementId, onDecode) {
-            scanner = new Html5Qrcode(elementId);
+            scanner = new Html5Qrcode(elementId, scannerOptions());
 
             return scanner
-                .start({ facingMode: 'environment' }, { fps: 10, qrbox }, onDecode, () => {})
+                .start({ facingMode: 'environment' }, scanConfig({ facingMode: 'environment' }), onDecode, () => {})
                 .catch((error) => {
                     // Desktops with only a built-in webcam reject "environment"
                     // outright (OverconstrainedError), so retry by device id.
@@ -131,7 +189,9 @@
                             throw error;
                         }
 
-                        return scanner.start({ deviceId: { exact: cameras[0].id } }, { fps: 10, qrbox }, onDecode, () => {});
+                        const camera = { deviceId: { exact: cameras[0].id } };
+
+                        return scanner.start(camera, scanConfig(camera), onDecode, () => {});
                     });
                 });
         }

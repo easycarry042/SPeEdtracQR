@@ -3095,6 +3095,30 @@ a.dm-thumb:hover { border-color: var(--green); }
     text-underline-offset: 3px;
 }
 
+/* "Privacy notice" — long-form prose on resources/views/privacy.blade.php.
+   One rule set instead of classes on every <p> and <li>. */
+.privacy-body section { margin-top: 2.5rem; }
+.privacy-body h2 {
+    font-family: theme('fontFamily.display');
+    font-size: 1.6rem;
+    font-weight: 900;
+    line-height: 1.2;
+    color: #004004;
+    text-wrap: balance;
+}
+.privacy-body p { margin-top: 0.85rem; text-wrap: pretty; }
+.privacy-body ul { margin-top: 0.85rem; padding-left: 1.25rem; list-style: disc; }
+.privacy-body li { margin-top: 0.4rem; }
+.privacy-body li::marker { color: #01721a; }
+.privacy-body a {
+    font-weight: 700;
+    color: #01721a;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.privacy-body a:hover { color: #004004; }
+.privacy-body a:focus-visible { outline: 2px solid #01721a; outline-offset: 2px; border-radius: 2px; }
+
 .footer-link:focus-visible {
     outline: 3px solid #8dff3c;
     outline-offset: 3px;

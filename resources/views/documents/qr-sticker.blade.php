@@ -1,6 +1,5 @@
 @php
-    $trackUrl = $trackingUrl ?? url('/track/'.$document->tracking_number);
-    $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(200)->margin(0)->errorCorrection('M')->generate($trackUrl);
+    $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(200)->margin(0)->errorCorrection('M')->generate(\App\Support\TrackingQr::payload($document->tracking_number));
 @endphp
 <!DOCTYPE html>
 <html lang="en">

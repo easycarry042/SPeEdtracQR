@@ -23,7 +23,7 @@
              quiet enough not to compete with the lockup. --}}
         <div class="flex items-center gap-1.5 sm:gap-3">
             @if(request()->routeIs('citizen.dashboard'))
-                <a href="{{ route('welcome') }}"
+                <a href="{{ \App\Support\CitizenView::homeUrl() }}"
                    class="inline-flex items-center gap-1.5 rounded-full border border-[rgba(0,64,4,0.35)] px-4 py-2 text-[14px] font-bold text-[#01721a] transition hover:bg-[rgba(141,255,60,0.2)]">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-8 9 8M5 10v10h14V10"/>

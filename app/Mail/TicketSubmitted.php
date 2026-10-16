@@ -34,7 +34,7 @@ class TicketSubmitted extends Mailable implements ShouldQueue
         return new Content(
             view: 'emails.ticket-submitted',
             with: [
-                'trackingUrl' => url('/track/'.$this->document->tracking_number),
+                'trackingUrl' => $this->document->citizenTrackingUrl(),
             ],
         );
     }

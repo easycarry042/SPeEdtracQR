@@ -69,6 +69,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Request QR Signing Key
+    |--------------------------------------------------------------------------
+    |
+    | Signs the payload in every request QR (App\Support\TrackingQr) so only
+    | codes this office printed are accepted. Falls back to APP_KEY. Set it in
+    | production BEFORE printing stickers: changing it later invalidates every
+    | QR already printed, so it must stay fixed even if APP_KEY is rotated.
+    |
+    */
+
+    'qr_signing_key' => env('QR_SIGNING_KEY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

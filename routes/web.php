@@ -40,6 +40,9 @@ use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
 use App\Http\Controllers\VerificationController;
+use App\Support\CitizenReceipt;
+use App\Support\CitizenView;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
@@ -48,17 +51,26 @@ use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 | Root — the public landing page is the homepage for GUESTS only.
 | Authenticated users are sent to their role workspace via 'home', so they
 | never land back on the public site (e.g. via the browser Back button) while
-| signed in. To reach the public landing they must log out first.
+| signed in. The exception is a citizen-facing link (?view=citizen, see
+| App\Support\CitizenView): on a shared counter PC a citizen pressing "Back to
+| home" must reach the public site, not the signed-in staff member's desk.
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    if (auth()->check()) {
+Route::get('/', function (Request $request) {
+    if (! CitizenView::requested()) {
         return redirect()->route('home');
     }
 
+    // Starting over: the previous citizen's receipt must not be reopenable.
+    CitizenReceipt::forget($request);
+
     return view('welcome');
 })->name('welcome');
+
+// The RA 10173 notice the request form's consent checkbox refers to. Public
+// for everyone, signed in or not.
+Route::view('/privacy', 'privacy')->name('privacy');
 
 Route::get('/home', function () {
     $user = auth()->user();

@@ -17,14 +17,13 @@
 </head>
 <body class="min-h-screen bg-[#f1f2f1] py-10 antialiased text-gray-900">
     @php
-        $trackUrl = url('/track/'.$document->tracking_number);
-        $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate($trackUrl);
+        $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate(\App\Support\TrackingQr::payload($document->tracking_number));
         $isInternal = $document->isInternal();
     @endphp
 
     {{-- Screen-only action bar --}}
     <div class="no-print mx-auto mb-6 flex max-w-xl items-center justify-between px-6">
-        <a href="{{ url()->previous() }}" class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline">
+        <a href="{{ $backUrl }}" class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 hover:underline">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
             Back
         </a>
@@ -80,8 +79,8 @@
         {{-- Instructions footer --}}
         <div class="border-t border-gray-200 bg-[#f8faf8] px-8 py-5 text-center">
             <p class="text-xs text-gray-600">
-                Present this slip at the counter. Scan the QR code or enter the tracking number at
-                <span class="font-semibold text-emerald-800">{{ url('/track') }}</span> to follow this request.
+                Present this slip at the counter. To follow this request, go to
+                <span class="font-semibold text-emerald-800">{{ route('citizen.track') }}</span> and scan the QR code or enter the tracking number there.
             </p>
         </div>
     </div>
