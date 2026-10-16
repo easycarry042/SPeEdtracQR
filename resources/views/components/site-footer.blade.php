@@ -35,7 +35,7 @@
      before the dark green starts, rather than butting straight into it. The
      gap lives on this wrapper so it reads as page background, and mt-auto
      stays here too: a short page still drops the footer to the bottom. --}}
-<div class="mt-auto pt-[56px]">
+<div class="mt-auto pt-[120px]">
 <footer class="bg-[#004004] text-white">
     <div class="mx-auto w-full max-w-[1512px] px-6 py-[56px] sm:px-10 lg:py-[64px]">
 
