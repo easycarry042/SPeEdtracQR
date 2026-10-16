@@ -98,6 +98,19 @@ class CitizenPortalCardsTest extends TestCase
         $response->assertSeeInOrder(['Step 1', 'Submit a Request', 'Step 2', 'Track a Document']);
     }
 
+    public function test_a_single_arrow_connects_the_two_steps(): void
+    {
+        $response = $this->get(route('citizen.dashboard'))->assertOk();
+
+        // One connector, drawn only between the pair — a second would appear if
+        // the arrow ever escaped the "not the last card" guard in the loop.
+        $this->assertSame(1, substr_count($response->getContent(), 'data-step-connector'));
+
+        // Decorative: the numbered pills already carry the order in text, so the
+        // arrow must not be announced to a screen reader.
+        $response->assertSee('data-step-connector viewBox="0 0 92 28" fill="none" aria-hidden="true"', false);
+    }
+
     public function test_portal_backdrop_uses_the_arrow_doodle(): void
     {
         $this->get(route('citizen.dashboard'))

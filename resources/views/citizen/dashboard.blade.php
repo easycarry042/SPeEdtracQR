@@ -22,7 +22,7 @@
          order of the journey: you cannot track a document you have not filed yet.
          Each card reads step → icon → what it is → the action → the detail,
          so the button is reachable without finishing the paragraph. --}}
-    <div class="mt-[80px] flex flex-wrap items-stretch justify-center gap-[50px]">
+    <div class="mt-[48px] flex flex-col items-center justify-center gap-[40px] lg:flex-row lg:items-center">
 
         @foreach ([
             [
@@ -45,9 +45,15 @@
             {{-- The step label sits outside the card so it reads as a signpost over the
                  pair, and is not mistaken for part of the card's own content. --}}
             <div class="flex w-full max-w-[340px] flex-col items-center">
-                <p class="mb-[14px] font-display text-[17px] font-black uppercase tracking-[0.12em] text-[#004004]">
-                    {{ $card['step'] }}
-                </p>
+                {{-- Solid pill rather than plain text: at this size the label has to
+                     hold its own against the doodle backdrop, and the lime dot ties
+                     it to the card's own call to action. --}}
+                <span class="mb-[26px] inline-flex items-center gap-[11px] rounded-full bg-[#01721a] px-[22px] py-[10px] shadow-[0_6px_16px_rgba(0,64,4,0.22)]">
+                    <span class="h-[9px] w-[9px] shrink-0 rounded-full bg-[#8dff3c]" aria-hidden="true"></span>
+                    <span class="font-display text-[14px] font-black uppercase tracking-[0.22em] text-white">
+                        {{ $card['step'] }}
+                    </span>
+                </span>
 
                 <a href="{{ $card['href'] }}"
                    class="group flex h-[380px] w-full flex-col items-center rounded-[20px] border-[0.5px] border-[rgba(0,64,4,0.5)] bg-[rgba(141,255,60,0.2)] px-[35px] pt-[44px] text-center backdrop-blur-[10px] transition hover:-translate-y-1 hover:bg-[rgba(141,255,60,0.32)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
@@ -69,6 +75,21 @@
                     </p>
                 </a>
             </div>
+
+            @if (! $loop->last)
+                {{-- The connector carries the eye from step 1 to step 2. Decorative,
+                     so it is hidden from assistive tech — the numbered pills already
+                     state the order in text. It turns to point down once the cards
+                     stack, and the vertical margin then pays back the height the
+                     rotation borrows from the gap. --}}
+                <svg data-step-connector viewBox="0 0 92 28" fill="none" aria-hidden="true"
+                     class="my-[20px] h-[28px] w-[92px] shrink-0 rotate-90 lg:my-0 lg:mt-[64px] lg:rotate-0">
+                    {{-- Lengthening dashes into a solid head: the same arrow motif the
+                         doodle backdrop is drawn from, so the connector belongs here. --}}
+                    <path d="M3 14h7M20 14h12M42 14h14" stroke="#429e00" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M64 4 L89 14 L64 24 Z" fill="#01721a"/>
+                </svg>
+            @endif
         @endforeach
 
     </div>
