@@ -172,13 +172,13 @@
                         </div>
                     </main>
 
-                    {{-- Staff pages get the footer too, but never a fixed-height
-                         one: those fill the viewport and scroll their own panels
-                         internally, so a footer below the fold could not be
-                         reached and would only steal height from the content. --}}
-                    @unless($fixedHeight)
-                        <x-site-footer />
-                    @endunless
+                    {{-- No site footer inside the signed-in shell. The fat footer
+                         is wayfinding for visitors — contact details, doormat
+                         links, the legal line — and staff, supervisors and super
+                         admins already have all of it in the sidebar. On a work
+                         queue it is 120px of padding plus a dark plate between
+                         the user and the bottom of their list. It still closes
+                         every public page, including the guest branch below. --}}
                 </div>
             </div>
         @include('layouts.partials.keyboard-shortcuts')

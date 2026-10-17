@@ -2016,6 +2016,49 @@ a.dm-thumb:hover { border-color: var(--green); }
 .st-page-more:hover { background: var(--green-wash); }
 .st-page-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* ── Command-centre panels ────────────────────────────────────────────────
+   The super admin frame draws its three lower cards softer than the .st-card
+   queues: a wider corner, an off-white fill and a thin green edge, so a page
+   that is mostly read rather than worked sits back from the tile row above it.
+   ───────────────────────────────────────────────────────────────────────── */
+.cc-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(0, 64, 4, .32);
+    border-radius: 28px;
+    background: #f8f8f8;
+}
+@media (min-width: 1280px) { .cc-panel { border-radius: 35px; } }
+
+/* Panel heading. One step under .st-section-title, in the frame's leaf green. */
+.cc-panel-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: #245501;
+}
+.cc-panel-sub { margin-top: 2px; font-size: var(--fs-caption); color: var(--ink-soft); }
+.cc-panel-head { padding: 22px 28px 0; }
+.cc-panel-body { padding: 18px 28px 24px; }
+
+/* Department volume: label · track · percentage, on one 8px rule. */
+.cc-bars { display: flex; flex-direction: column; gap: 14px; }
+.cc-bar-row { display: grid; grid-template-columns: minmax(96px, 150px) 1fr auto; align-items: center; gap: 14px; }
+.cc-bar-label { font-size: var(--fs-small); color: var(--ink); overflow-wrap: anywhere; }
+.cc-bar-row.is-busiest .cc-bar-label { font-weight: 700; color: #004004; }
+.cc-bar-track { height: 8px; border-radius: 5px; background: rgba(205, 217, 210, .8); overflow: hidden; }
+.cc-bar-fill { height: 100%; border-radius: 5px; background: rgba(9, 107, 7, .8); transition: width .5s; }
+.cc-bar-value { min-width: 42px; text-align: right; font-size: var(--fs-small); font-weight: 700; color: var(--ink); }
+
+/* Status donut + its legend. */
+.cc-donut { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.cc-legend { display: flex; flex-direction: column; gap: 18px; }
+.cc-legend-row { display: flex; align-items: center; gap: 14px; font-size: var(--fs-body); color: var(--ink); }
+.cc-legend-dot { width: 17px; height: 17px; border-radius: 9999px; flex: none; }
+.cc-legend-value { margin-left: auto; padding-left: 12px; font-weight: 700; color: var(--green-deep); }
+
 /* ── Camera viewport ──────────────────────────────────────────────────────
    html5-qrcode injects a <video> at the stream's own dimensions, which are
    landscape on essentially every device. Inside a square box that letterboxes:
@@ -2479,9 +2522,9 @@ a.dm-thumb:hover { border-color: var(--green); }
 
 /* KPI vitals row */
 .an-kpis { display: grid; gap: 12px; grid-template-columns: repeat(6, 1fr); }
-/* The two rate KPIs sit under the gradient counts — two columns, not six, so
+/* The rate KPIs sit under the gradient counts — three columns, not six, so
    they read as a footnote to the row above rather than a second headline. */
-.an-kpis-rates { grid-template-columns: repeat(2, 1fr); max-width: 520px; }
+.an-kpis-rates { grid-template-columns: repeat(3, 1fr); max-width: 660px; }
 .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi-head .k { font-size: 11.5px; color: var(--ink-soft); }
 .delta { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }

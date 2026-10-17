@@ -50,6 +50,10 @@ class AdminController extends Controller
             'documentTypes' => $documentTypes,
             'updatedAt' => Date::now(),
             'kpis' => $analytics->kpis(),
+            // The three panels the frame draws under the tile row.
+            'departmentVolume' => $analytics->departmentVolume(),
+            'statusSummary' => $analytics->statusSummary(),
+            'recentActivity' => $analytics->recentActivity(),
             'throughput' => $analytics->throughput(),
             'statusDistribution' => $analytics->statusDistribution(),
             'staffWorkload' => $analytics->staffWorkload(),

@@ -11,13 +11,13 @@
      with the form; the clock manipulates it. Alpine drives the geometry. --}}
 <div x-data="timeClock('{{ $value !== '' ? $value : '' }}', '{{ $default }}')" class="relative">
     <label class="mb-1 block text-xs font-semibold text-gray-700">{{ $label }}</label>
-    <div class="flex items-center gap-2">
+    <div class="mt-2 flex items-center gap-2">
         <input type="time" name="{{ $name }}" @if($required) required @endif
                :value="value"
                @input="parse($event.target.value)"
-               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30">
+               class="req-field min-w-0 flex-1">
         <button type="button" @click="toggle()" aria-label="Open clock"
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:h-14 sm:w-14">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/></svg>
         </button>
     </div>
@@ -167,8 +167,6 @@ document.addEventListener('alpine:init', () => {
             } else {
                 const twelve = Math.round(deg / 30) % 12; // 0..11, where 0 == 12 o'clock
                 this.h = (this.pm ? 12 : 0) + twelve;
-                // After choosing the hour, jump to minutes for a natural flow.
-                this.unit = 'minute';
             }
         },
     }));

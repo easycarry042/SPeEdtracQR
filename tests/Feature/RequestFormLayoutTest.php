@@ -83,4 +83,16 @@ class RequestFormLayoutTest extends TestCase
         $this->assertNotFalse($columns);
         $this->assertLessThan($columns, $honeypot, 'The honeypot must sit outside the two-column grid.');
     }
+
+    public function test_booking_time_controls_use_the_shared_field_sizing(): void
+    {
+        $this->permitType();
+
+        $content = $this->get(route('public.request.create'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('type="time" name="start_time"', $content);
+        $this->assertStringContainsString('type="time" name="end_time"', $content);
+        $this->assertStringContainsString('class="req-field min-w-0 flex-1"', $content);
+        $this->assertStringContainsString('sm:h-14 sm:w-14', $content);
+    }
 }

@@ -10,13 +10,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * The shared fat footer (<x-site-footer />) closes every page that scrolls:
+ * The shared fat footer (<x-site-footer />) closes every PUBLIC page:
  * contact details, doormat navigation, and the legal line.
  *
- * It is included by four different shells — the landing page, the citizen
- * layout, the guest/auth layout, the staff app layout — plus two standalone
- * public pages. A page family that loses the include is invisible in review,
- * so each one is asserted here by name.
+ * It is included by three shells — the landing page, the citizen layout, the
+ * guest/auth layout — plus two standalone public pages. A page family that
+ * loses the include is invisible in review, so each one is asserted here by
+ * name.
+ *
+ * The signed-in workspace deliberately has none; see the test at the foot.
  */
 class SiteFooterTest extends TestCase
 {
@@ -54,31 +56,6 @@ class SiteFooterTest extends TestCase
         $this->assertStringContainsString('All rights reserved', $content);
     }
 
-    public function test_the_staff_workspace_carries_the_footer_too(): void
-    {
-        $this->actingAs($this->supervisor())
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('mailto:speedtraqr@gmail.com', false)
-            ->assertSee('Get in Touch');
-    }
-
-    public function test_a_fixed_height_page_is_left_alone(): void
-    {
-        // Those pages fill the viewport and scroll their own panels, so a footer
-        // below the fold could never be reached — it would only steal height.
-        $document = Document::create([
-            'tracking_number' => 'SPD-20260101-FTR123',
-            'document_type' => 'Business Permit',
-            'status' => 'pending',
-        ]);
-
-        $this->actingAs($this->supervisor())
-            ->get(route('track.show', ['trackingNumber' => $document->tracking_number]))
-            ->assertOk()
-            ->assertDontSee('mailto:speedtraqr@gmail.com', false);
-    }
-
     public function test_the_doormat_links_point_at_real_pages(): void
     {
         // A dead link in a footer is the kind of thing nobody clicks until a
@@ -98,5 +75,55 @@ class SiteFooterTest extends TestCase
             ->assertOk()
             ->assertSee('RA 11032')
             ->assertSee('RA 10173');
+    }
+
+    /**
+     * Every signed-in dashboard, one per role.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function workspaceDashboards(): array
+    {
+        return [
+            'staff' => ['staff', 'staff.dashboard'],
+            'supervisor' => ['Supervisor', 'dashboard'],
+            'super admin' => ['super_admin', 'admin.dashboard'],
+        ];
+    }
+
+    /**
+     * The fat footer is wayfinding for visitors. Staff, supervisors and super
+     * admins already have all of it in the sidebar, so inside the workspace it
+     * is only 120px of padding and a dark plate between them and the bottom of
+     * their queue.
+     */
+    #[DataProvider('workspaceDashboards')]
+    public function test_the_signed_in_workspace_has_no_footer(string $role, string $route): void
+    {
+        $this->seedRolesAndPermissions();
+        $dept = Department::factory()->create();
+        $user = User::factory()->create(['department_id' => $dept->id])->assignRole($role);
+
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertOk()
+            ->assertDontSee('mailto:speedtraqr@gmail.com', false)
+            ->assertDontSee('Get in Touch')
+            ->assertDontSee('All rights reserved');
+    }
+
+    public function test_a_guest_on_an_app_layout_page_still_gets_the_footer(): void
+    {
+        // The public /track lookup runs on the same shell as the workspace but
+        // through its guest branch — a visitor there is still a visitor.
+        $document = Document::create([
+            'tracking_number' => 'SPD-20260101-FTR123',
+            'document_type' => 'Business Permit',
+            'status' => 'pending',
+        ]);
+
+        $this->get(route('track.show', ['trackingNumber' => $document->tracking_number]))
+            ->assertOk()
+            ->assertSee('mailto:speedtraqr@gmail.com', false);
     }
 }

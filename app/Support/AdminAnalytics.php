@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\DocumentStatus;
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -60,6 +61,11 @@ class AdminAnalytics
         $active = $this->scoped()->whereIn('status', DocumentStatus::activeValues())->count();
         $atRisk = $this->activeDocuments()->filter->isOverdue()->count();
 
+        // The frame's tile row splits the open work in two: requests nobody has
+        // started (Pending) and everything else still moving. `active` stays as
+        // it was — the charts and the CSV read it as "all open".
+        $pending = $this->scoped()->where('status', DocumentStatus::Pending->value)->count();
+
         $avgNow = $this->avgProcessingDays($this->from, $this->to);
         $avgPrev = $this->avgProcessingDays($this->prevFrom, $this->prevTo);
 
@@ -80,6 +86,12 @@ class AdminAnalytics
             'active' => [
                 'value' => $active,
                 'spark' => $this->dailyActive(),
+            ],
+            'pending' => [
+                'value' => $pending,
+            ],
+            'in_progress' => [
+                'value' => max(0, $active - $pending),
             ],
             'at_risk' => [
                 'value' => $atRisk,
@@ -284,6 +296,135 @@ class AdminAnalytics
             ->take(6)
             ->get()
             ->map(fn ($r): array => ['label' => $r->document_type, 'value' => (int) $r->total]);
+    }
+
+    /**
+     * "Document Volume by Department" — how much work each office is carrying.
+     *
+     * The bar is read against the busiest office, not against the total: the
+     * frame draws one row at 100% and the rest below it, which is a comparison
+     * between offices rather than a share of a whole. Offices with no documents
+     * in the slice are left out — an empty bar says nothing.
+     *
+     * @return Collection<int, array{label: string, code: ?string, value: int, pct: int, busiest: bool}>
+     */
+    public function departmentVolume(int $limit = 6): Collection
+    {
+        $counts = $this->scoped()
+            ->whereNotNull('department_id')
+            ->selectRaw('department_id, COUNT(*) as total')
+            ->groupBy('department_id')
+            ->orderByDesc('total')
+            ->take($limit)
+            ->pluck('total', 'department_id');
+
+        if ($counts->isEmpty()) {
+            return collect();
+        }
+
+        $departments = Department::whereIn('id', $counts->keys())->get(['id', 'name', 'code'])->keyBy('id');
+        $max = max(1, (int) $counts->max());
+
+        return $counts->map(fn ($total, $id): array => [
+            'label' => $departments[$id]->name ?? 'Unassigned office',
+            'code' => $departments[$id]->code ?? null,
+            'value' => (int) $total,
+            'pct' => (int) round($total / $max * 100),
+            'busiest' => (int) $total === $max,
+        ])->values();
+    }
+
+    /**
+     * "Overall Request Status Breakdown" — the whole pipeline in three buckets,
+     * the way the frame's donut legend names them. Everything open that is not
+     * sitting untouched counts as in-progress, including the side states (held,
+     * returned), so the three slices always add back to the total.
+     *
+     * @return array{total: int, slices: array<int, array{label: string, value: int, color: string, pct: float, offset: float}>}
+     */
+    public function statusSummary(): array
+    {
+        $counts = $this->scoped()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $completed = (int) ($counts[DocumentStatus::Completed->value] ?? 0);
+        $pending = (int) ($counts[DocumentStatus::Pending->value] ?? 0);
+        $inProgress = max(0, (int) $counts->sum() - $completed - $pending);
+
+        $segments = [
+            ['Completed', $completed, '#0f4d28'],
+            ['In-Progress', $inProgress, '#3faf5f'],
+            ['Pending Review', $pending, '#dfe7e1'],
+        ];
+
+        $total = $completed + $inProgress + $pending;
+        $slices = [];
+        $acc = 0.0;
+
+        foreach ($segments as [$label, $value, $color]) {
+            $pct = $total ? round($value / $total * 100, 2) : 0;
+            $slices[] = compact('label', 'value', 'color', 'pct') + ['offset' => -1 * $acc];
+            $acc += $pct;
+        }
+
+        return ['total' => $total, 'slices' => $slices];
+    }
+
+    /**
+     * The audit strip at the foot of the command center: who did what, latest
+     * first. Read straight off the activity log rather than a second table, so
+     * it can never drift from the full Audit Log page.
+     *
+     * @return Collection<int, array{at: Carbon, user: string, role: string, action: string, subject: ?string, detail: ?string}>
+     */
+    public function recentActivity(int $limit = 25): Collection
+    {
+        return Activity::with(['causer.roles', 'subject'])
+            // Several entries can share a second (a create and the first status
+            // change, say), so the id breaks the tie — otherwise "newest first"
+            // is whatever order the driver happens to return.
+            ->latest()
+            ->latest('id')
+            ->take($limit)
+            ->get()
+            ->map(function (Activity $entry): array {
+                $properties = $entry->properties ?? collect();
+                $changed = collect($properties->get('attributes') ?? []);
+                $subject = $entry->subject;
+                $tracking = $subject instanceof Document ? $subject->tracking_number : null;
+
+                [$action, $detail] = match (true) {
+                    $entry->log_name === 'auth' => [
+                        str_contains(strtolower((string) $entry->description), 'logged in') ? 'Signed In' : 'Signed Out',
+                        $properties->get('ip'),
+                    ],
+                    $entry->event === 'created' => ['Request Created', $changed->get('document_type')],
+                    $changed->has('status') => [
+                        'Status Updated',
+                        '→ '.DocumentStatus::fromLoose($changed->get('status'))->label(),
+                    ],
+                    $changed->has('assigned_to') => [
+                        'Staff Assigned',
+                        $changed->get('assigned_to')
+                            ? '→ '.(User::find($changed->get('assigned_to'))?->name ?? 'Unknown')
+                            : '→ Unassigned',
+                    ],
+                    default => [ucfirst((string) ($entry->description ?: $entry->event ?: 'Change')), null],
+                };
+
+                $role = $entry->causer?->roles->first()?->name;
+
+                return [
+                    'at' => $entry->created_at,
+                    'user' => $entry->causer?->name ?? 'System',
+                    'role' => $role ? str_replace('_', ' ', ucwords($role, '_')) : 'System',
+                    'action' => $action,
+                    'subject' => $tracking,
+                    'detail' => $detail,
+                ];
+            });
     }
 
     // ── Region D: supporting data ────────────────────────────────────────────

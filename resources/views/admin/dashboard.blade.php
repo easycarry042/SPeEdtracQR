@@ -115,14 +115,15 @@
         </div>
 
         {{-- ── Region B: KPI vitals ─────────────────────────────────────────
-             The four counts lead on the same gradient tiles the staff and
-             supervisor dashboards use, so all three read as one product. Their
-             period-over-period change rides under the number, where the small
-             tiles used to put it beside the label.
+             The four counts the frame draws, on the same gradient tiles the
+             staff and supervisor dashboards use, so all three read as one
+             product: total, then the open work split into untouched (Pending)
+             and moving (In Progress), then finished. Their period-over-period
+             change rides under the number.
 
-             The two rates keep the compact tile: a percentage and an average
-             are read against their own pill, not against each other, and a
-             58px numeral would claim more of the page than they are worth.
+             At Risk is not one of the four — risk is not a stage of the
+             pipeline — so it keeps the compact tile below beside the two rates,
+             where a percentage and an average are read against their own pill.
              ───────────────────────────────────────────────────────────────── --}}
         @php
             $delta = fn (string $key) => ! empty($kpis[$key]['delta']) ? $fmtDelta($kpis[$key]['delta']) : null;
@@ -130,22 +131,160 @@
 
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <x-staff-stat-tile label="Total Documents" :value="number_format($kpis['total']['value'])"
-                               tone="deep" icon="none" :note="$delta('total')" />
-            <x-staff-stat-tile label="In Progress" :value="number_format($kpis['active']['value'])"
-                               tone="mid" icon="clock" :note="$delta('active')" />
+                               tone="deep" icon="doc" :note="$delta('total')" />
+            <x-staff-stat-tile label="Pending" :value="number_format($kpis['pending']['value'])"
+                               tone="mid" icon="hourglass" />
+            <x-staff-stat-tile label="In Progress" :value="number_format($kpis['in_progress']['value'])"
+                               tone="bright" icon="clock" :note="$delta('active')" />
             <x-staff-stat-tile label="Completed" :value="number_format($kpis['completed']['value'])"
                                tone="brightest" icon="check" :note="$delta('completed')" />
-            <x-staff-stat-tile label="At Risk" :value="number_format($kpis['at_risk']['value'])"
-                               :tone="$kpis['at_risk']['pill'] === 'watch' ? 'amber' : 'bright'"
-                               icon="hourglass"
-                               :note="$kpis['at_risk']['pill'] === 'watch' ? 'Watch' : 'Clear'" />
         </div>
+
+        {{-- ── The frame's two reading panels ───────────────────────────────
+             Which office is carrying the load, and how the whole pipeline
+             splits three ways. Side by side on a wide screen, stacked below it.
+             ───────────────────────────────────────────────────────────────── --}}
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+            <section class="cc-panel">
+                <div class="cc-panel-head">
+                    <h2 class="cc-panel-title">Document Volume by Department</h2>
+                    <p class="cc-panel-sub">Share of the busiest office</p>
+                </div>
+                <div class="cc-panel-body">
+                    @if ($departmentVolume->isEmpty())
+                        <div class="sp-empty">No documents are routed to an office yet.</div>
+                    @else
+                        <div class="cc-bars">
+                            @foreach ($departmentVolume as $dept)
+                                <div class="cc-bar-row {{ $dept['busiest'] ? 'is-busiest' : '' }}">
+                                    <span class="cc-bar-label">{{ $dept['label'] }}</span>
+                                    <div class="cc-bar-track">
+                                        {{-- The count is the fact; the bar is only how it is read,
+                                             so the accessible name carries both. --}}
+                                        <div class="cc-bar-fill" style="width:{{ $dept['pct'] }}%"
+                                             role="img"
+                                             aria-label="{{ $dept['value'] }} document{{ $dept['value'] === 1 ? '' : 's' }} — {{ $dept['pct'] }}% of the busiest office"></div>
+                                    </div>
+                                    <span class="cc-bar-value">{{ $dept['pct'] }}%</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </section>
+
+            <section class="cc-panel">
+                <div class="cc-panel-head">
+                    <h2 class="cc-panel-title">Overall Request Status Breakdown</h2>
+                    <p class="cc-panel-sub">{{ number_format($statusSummary['total']) }} request{{ $statusSummary['total'] === 1 ? '' : 's' }} in total</p>
+                </div>
+                <div class="cc-panel-body">
+                    <div class="cc-donut">
+                        <svg viewBox="0 0 140 140" width="152" height="152" style="flex:none" role="img"
+                             aria-label="Request status breakdown">
+                            <g transform="rotate(-90 70 70)" fill="none" stroke-width="22">
+                                @if ($statusSummary['total'] > 0)
+                                    @foreach ($statusSummary['slices'] as $slice)
+                                        <circle cx="70" cy="70" r="52" pathLength="100"
+                                                stroke="{{ $slice['color'] }}"
+                                                stroke-dasharray="{{ $slice['pct'] }} {{ 100 - $slice['pct'] }}"
+                                                stroke-dashoffset="{{ $slice['offset'] }}"/>
+                                    @endforeach
+                                @else
+                                    <circle cx="70" cy="70" r="52" stroke="#eef2ef"/>
+                                @endif
+                            </g>
+                            <text x="70" y="68" text-anchor="middle" class="mono" font-size="22" font-weight="600" fill="#16211b">{{ number_format($statusSummary['total']) }}</text>
+                            <text x="70" y="86" text-anchor="middle" font-size="10" fill="#5b6b62">requests</text>
+                        </svg>
+                        <div class="cc-legend">
+                            @foreach ($statusSummary['slices'] as $slice)
+                                <div class="cc-legend-row">
+                                    <span class="cc-legend-dot" style="background:{{ $slice['color'] }}"></span>
+                                    <span>{{ $slice['label'] }}</span>
+                                    <span class="cc-legend-value">{{ number_format($slice['value']) }} · {{ round($slice['pct']) }}%</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        {{-- ── Recent activity ──────────────────────────────────────────────
+             The audit strip the frame closes the page with. Read off the same
+             activity log as the full Audit Log page, so it can never drift
+             from it; the heading links there for everything older.
+             ───────────────────────────────────────────────────────────────── --}}
+        <section class="cc-panel" x-data="{ showAll: false }">
+            <div class="cc-panel-head flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="cc-panel-title">Recent Activity</h2>
+                    <p class="cc-panel-sub">Latest {{ $recentActivity->count() }} entries, newest first</p>
+                </div>
+                <a href="{{ route('admin.audit-log.index') }}" class="cr-btn cr-btn-sm">Full audit log →</a>
+            </div>
+
+            <div class="st-scroll" style="margin-top:14px;">
+                <table class="st-table">
+                    <thead>
+                        <tr>
+                            <th>Time Stamp</th>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($recentActivity as $entry)
+                            <tr @if ($loop->index >= 5) x-show="showAll" x-cloak @endif>
+                                <td class="mono whitespace-nowrap">{{ $entry['at']?->format('y-m-d h:iA') ?? '—' }}</td>
+                                <td class="st-name">{{ $entry['user'] }}</td>
+                                <td>{{ $entry['role'] }}</td>
+                                <td class="font-medium text-ink">{{ $entry['action'] }}</td>
+                                <td>
+                                    @if ($entry['subject'])
+                                        <span class="mono">{{ $entry['subject'] }}</span>
+                                    @endif
+                                    @if ($entry['detail'])
+                                        {{-- Only a transition earns the emphasis; an auth row's
+                                             detail is an IP address, which is reference, not news. --}}
+                                        <span class="{{ str_starts_with($entry['detail'], '→') ? 'font-medium text-ink' : 'mono' }}">{{ $entry['detail'] }}</span>
+                                    @endif
+                                    @unless ($entry['subject'] || $entry['detail'])
+                                        —
+                                    @endunless
+                                </td>
+                            </tr>
+                        @empty
+                            <tr class="st-empty">
+                                <td colspan="5">Nothing has happened yet — activity will appear here as staff work.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            @if ($recentActivity->count() > 5)
+                <div class="st-pager justify-center" style="border-top:1px solid var(--hairline);">
+                    <button type="button" @click="showAll = ! showAll" class="st-page-more">
+                        <span x-show="! showAll">Show all {{ $recentActivity->count() }} entries</span>
+                        <span x-show="showAll" x-cloak>Show the latest 5 only</span>
+                    </button>
+                </div>
+            @endif
+        </section>
 
         <div class="an-kpis an-kpis-rates">
             @php
                 $rateDefs = [
                     ['key' => 'avg_processing', 'label' => 'Avg. Processing', 'fmt' => fn ($v) => $v !== null ? $v.'d' : '—'],
                     ['key' => 'on_time', 'label' => 'On-Time Rate', 'fmt' => fn ($v) => $v !== null ? $v.'%' : '—'],
+                    // At Risk left the gradient row with the frame's redesign;
+                    // it reads here, next to the rate it belongs with.
+                    ['key' => 'at_risk', 'label' => 'At Risk', 'fmt' => fn ($v) => number_format((int) $v)],
                 ];
             @endphp
             @foreach ($rateDefs as $def)
@@ -161,6 +300,8 @@
 
                     @if ($def['key'] === 'on_time')
                         <span class="pill p-{{ $k['pill'] === 'healthy' ? 'green' : ($k['pill'] === 'breach' ? 'red' : ($k['pill'] === 'muted' ? 'muted' : 'amber')) }}" style="margin-top:8px;">{{ ['healthy' => 'HEALTHY', 'watch' => 'WATCH', 'breach' => 'AT RISK', 'muted' => 'NO DATA'][$k['pill']] }}</span>
+                    @elseif ($def['key'] === 'at_risk')
+                        <span class="pill p-{{ $k['pill'] === 'watch' ? 'amber' : 'green' }}" style="margin-top:8px;">{{ $k['pill'] === 'watch' ? 'WATCH' : 'CLEAR' }}</span>
                     @else
                         <div class="bar brass" style="margin-top:9px;"></div>
                     @endif
