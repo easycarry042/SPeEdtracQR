@@ -119,7 +119,7 @@ class JourneyMapTest extends TestCase
 
         // 1. The public entry points all answer.
         $this->get(route('welcome'))->assertOk();
-        $this->get(route('citizen.dashboard'))->assertOk();
+        $this->get(route('citizen.track'))->assertOk();
         $this->get(route('public.request.create'))->assertOk();
 
         // 2. Filing redirects to the receipt (Post/Redirect/Get), so refreshing

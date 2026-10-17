@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\CitizenView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,19 +15,32 @@ class CitizenPortalHeaderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_citizen_portal_header_offers_a_route_back_to_the_public_homepage(): void
+    /**
+     * @return list<string>
+     */
+    private function citizenPages(): array
     {
-        $this->get(route('citizen.dashboard'))
-            ->assertOk()
-            ->assertSee('Back to Homepage')
-            ->assertSee('href="'.route('welcome').'"', false);
+        return [route('citizen.track'), route('public.request.create'), route('privacy')];
     }
 
-    public function test_citizen_portal_header_drops_the_track_and_staff_login_buttons(): void
+    public function test_every_citizen_page_offers_one_way_back_to_the_homepage(): void
     {
-        // Both actions are reachable from the landing page and the portal cards;
-        // the header stays down to a single wayfinding control.
-        $this->get(route('citizen.dashboard'))
+        foreach ($this->citizenPages() as $url) {
+            $content = $this->get($url)->assertOk()->getContent();
+
+            $this->assertStringContainsString('Back to Homepage', $content);
+            // Citizen-flagged, so a staff login on a shared PC cannot divert it.
+            $this->assertStringContainsString('href="'.e(CitizenView::homeUrl()).'"', $content);
+            // The retired portal page is never a destination.
+            $this->assertStringNotContainsString('href="'.route('citizen.dashboard').'"', $content);
+        }
+    }
+
+    public function test_the_header_drops_the_track_and_staff_login_buttons(): void
+    {
+        // Both actions are reachable from the landing page; the header stays
+        // down to a single wayfinding control.
+        $this->get(route('citizen.track'))
             ->assertOk()
             ->assertDontSee('Track Document')
             ->assertDontSee('Staff Login');
@@ -43,7 +57,7 @@ class CitizenPortalHeaderTest extends TestCase
     {
         // The bar no longer sits on a deep-green wash, so the wordmark is dark
         // green on white everywhere — one lockup, no light/dark variants.
-        foreach ([route('citizen.dashboard'), route('public.request.create')] as $url) {
+        foreach ($this->citizenPages() as $url) {
             $this->get($url)
                 ->assertOk()
                 ->assertSee('images/landing/speed-icon.png', false)
@@ -52,23 +66,12 @@ class CitizenPortalHeaderTest extends TestCase
         }
     }
 
-    public function test_sub_pages_show_only_a_back_button_not_a_homepage_button(): void
+    public function test_back_never_relies_on_browser_history(): void
     {
-        // One wayfinding control per page: sub-pages step back a level, so the
-        // homepage shortcut would be a second, competing "back".
+        // history.back() returns the visitor to whatever preceded this page — a
+        // search engine, the staff login — not necessarily the homepage.
         $this->get(route('citizen.track'))
             ->assertOk()
-            ->assertSee('Back')
-            ->assertDontSee('Back to Homepage');
-    }
-
-    public function test_back_always_lands_on_the_citizen_portal(): void
-    {
-        // Never history.back() — that returns the visitor to whatever preceded
-        // this page, which is not necessarily one level up in the portal.
-        $this->get(route('citizen.track'))
-            ->assertOk()
-            ->assertSee('href="'.route('citizen.dashboard').'"', false)
             ->assertDontSee('history.back()', false);
     }
 }

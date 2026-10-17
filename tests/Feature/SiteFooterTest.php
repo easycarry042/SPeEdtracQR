@@ -24,14 +24,6 @@ class SiteFooterTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function supervisor(): User
-    {
-        $this->seedRolesAndPermissions();
-        $dept = Department::factory()->create();
-
-        return User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
-    }
-
     /**
      * @return array<string, array{string}>
      */
@@ -39,7 +31,6 @@ class SiteFooterTest extends TestCase
     {
         return [
             'landing page' => ['welcome'],
-            'citizen portal' => ['citizen.dashboard'],
             'citizen lookup' => ['citizen.track'],
             'public request form' => ['public.request.create'],
             'staff sign in' => ['login'],
@@ -52,19 +43,42 @@ class SiteFooterTest extends TestCase
         $content = $this->get(route($route))->assertOk()->getContent();
 
         $this->assertStringContainsString('mailto:speedtraqr@gmail.com', $content);
-        $this->assertStringContainsString('For Citizens', $content);
+        $this->assertStringContainsString('Get in Touch', $content);
         $this->assertStringContainsString('All rights reserved', $content);
     }
 
-    public function test_the_doormat_links_point_at_real_pages(): void
+    /** The rendered footer element alone. */
+    private function footer(string $content): string
     {
-        // A dead link in a footer is the kind of thing nobody clicks until a
-        // panel does. Every href here is generated from a named route.
-        $response = $this->get(route('welcome'))->assertOk();
+        $start = (int) strpos($content, '<footer');
 
-        foreach (['public.request.create', 'citizen.track', 'citizen.dashboard', 'login'] as $name) {
-            $response->assertSee('href="'.route($name).'"', false);
+        return substr($content, $start, (int) strpos($content, '</footer>') - $start);
+    }
+
+    public function test_the_footer_carries_no_doormat_navigation(): void
+    {
+        // The "For Citizens" and "The System" columns only repeated links every
+        // page already offers. Its only links are the privacy notice and the
+        // office mailbox. Only public pages are checked — the workspace has no
+        // footer at all now; see test_the_signed_in_workspace_has_no_footer.
+        $landing = $this->footer($this->get(route('welcome'))->assertOk()->getContent());
+        $lookup = $this->footer($this->get(route('citizen.track'))->assertOk()->getContent());
+
+        foreach ([$landing, $lookup] as $footer) {
+            $this->assertStringNotContainsString('For Citizens', $footer);
+            $this->assertStringNotContainsString('The System', $footer);
+            $this->assertSame(2, substr_count($footer, '<a '));
+            $this->assertStringContainsString('href="'.route('privacy').'"', $footer);
+            $this->assertStringContainsString('href="mailto:speedtraqr@gmail.com"', $footer);
         }
+    }
+
+    public function test_the_footer_names_the_city_as_the_owner(): void
+    {
+        $footer = $this->footer($this->get(route('citizen.track'))->assertOk()->getContent());
+
+        $this->assertStringContainsString('images/staff/seal-2.png', $footer);
+        $this->assertStringContainsString('San Pedro City Hall, Laguna', $footer);
     }
 
     public function test_the_footer_states_the_statutes_the_system_runs_on(): void
@@ -73,8 +87,8 @@ class SiteFooterTest extends TestCase
         // design choices; both trace to these laws.
         $this->get(route('welcome'))
             ->assertOk()
-            ->assertSee('RA 11032')
-            ->assertSee('RA 10173');
+            ->assertSee('RA&nbsp;11032', false)
+            ->assertSee('RA&nbsp;10173', false);
     }
 
     /**

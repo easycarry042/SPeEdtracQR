@@ -172,20 +172,20 @@
                         </div>
                     </main>
 
-                    {{-- No site footer inside the signed-in shell. The fat footer
-                         is wayfinding for visitors — contact details, doormat
-                         links, the legal line — and staff, supervisors and super
-                         admins already have all of it in the sidebar. On a work
-                         queue it is 120px of padding plus a dark plate between
-                         the user and the bottom of their list. It still closes
-                         every public page, including the guest branch below. --}}
+                    {{-- No site footer inside the signed-in shell. The footer is
+                         wayfinding for visitors — the office's contact details,
+                         the privacy notice, the legal line — and staff already
+                         have all of it in the sidebar. On a work queue it is
+                         only padding plus a dark plate between the user and the
+                         bottom of their list. It still closes every public page,
+                         including the guest branch below. --}}
                 </div>
             </div>
         @include('layouts.partials.keyboard-shortcuts')
     @else
-        {{-- Guests can reach a few app-layout pages (public /track lookup and the
-             tracking result). Use the same public portal header as /citizen. --}}
-        @include('layouts.partials.public-header')
+        {{-- Guests can reach a few app-layout pages; they get the same citizen
+             header as every other public page. --}}
+        @include('layouts.partials.portal-header')
 
         <main id="main" class="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
             {{ $slot }}

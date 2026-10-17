@@ -48,7 +48,8 @@
       "Read(//dev/**)",
       "Bash(node -e ' *)",
       "Bash(ACT='\\(async\\(\\)=>{for\\(let i=0;i<7;i++\\){document.querySelector\\(\"[aria-label=\\\\\"Next month\\\\\"]\"\\).click\\(\\);await new Promise\\(r=>setTimeout\\(r,50\\)\\);}}\\)\\(\\)' node shot2.mjs cj.txt . 1366 757 bookings)",
-      "Bash(grep -n 'grid items-start gap-5\\\\|<section class=\"bk-panel px-4\\\\|<template x-for=\"\\(week, wi\\)\\\\|class=\"bk-week grid grid-cols-7\"\\\\|^                </template>$\\\\|^            </section>$' resources/views/bookings/index.blade.php)"
+      "Bash(grep -n 'grid items-start gap-5\\\\|<section class=\"bk-panel px-4\\\\|<template x-for=\"\\(week, wi\\)\\\\|class=\"bk-week grid grid-cols-7\"\\\\|^                </template>$\\\\|^            </section>$' resources/views/bookings/index.blade.php)",
+      "Bash(git merge *)"
     ]
   },
   "disabledMcpjsonServers": [

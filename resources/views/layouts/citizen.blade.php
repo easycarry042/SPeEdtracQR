@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $title ?? 'Citizen Portal' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
+    <title>{{ $title ?? 'City of San Pedro' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
     @include('layouts.partials.accessibility-widget')
@@ -15,13 +15,15 @@
 {{-- Column flex, so a short page still pushes the footer to the bottom of the
      viewport instead of leaving it floating mid-screen. --}}
 <body class="relative flex min-h-screen flex-col bg-white antialiased text-ink">
-    {{-- First tab stop: jumps the portal header. --}}
+    {{-- First tab stop: jumps the header. --}}
     <a href="#main" class="skip-link">Skip to content</a>
 
     @include('layouts.partials.portal-header')
 
-    {{-- 1209.5px is the redesign's frame — the old 1512 scaled to 0.8. --}}
-    <main id="main" class="mx-auto w-full max-w-[1209.5px] flex-1 px-4 py-10 sm:px-6">
+    {{-- 1209.5px is the redesign's frame — the old 1512 scaled to 0.8. The
+         same container and gutters as the header, so page content lines up
+         under the seal exactly as it does on the landing page. --}}
+    <main id="main" class="mx-auto w-full max-w-[1209.5px] flex-1 px-4 pb-10 pt-10 sm:px-6 sm:pt-14 lg:px-8">
         {{ $slot }}
     </main>
 

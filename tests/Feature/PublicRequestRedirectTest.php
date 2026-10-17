@@ -100,7 +100,7 @@ class PublicRequestRedirectTest extends TestCase
         $this->post(route('public.request.store'), $this->filing());
         $this->get(route('public.request.submitted'))->assertOk();
 
-        // Any other page consumes the kept flash.
+        // Starting over on the landing page forgets it.
         $this->get(route('welcome'));
 
         $this->get(route('public.request.submitted'))

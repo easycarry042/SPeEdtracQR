@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Support\CitizenView;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -436,6 +437,17 @@ class Document extends Model
             'body' => $body,
             'visibility' => DocumentComment::VISIBILITY_INTERNAL,
         ]);
+    }
+
+    /**
+     * The tracking page as the citizen sees it. Every citizen-facing link
+     * (receipt, public lookup, citizen emails) uses this, so a staff member
+     * signed in on the same browser still lands on the citizen page rather
+     * than the staff desk.
+     */
+    public function citizenTrackingUrl(): string
+    {
+        return route('track.show', ['trackingNumber' => $this->tracking_number] + CitizenView::QUERY);
     }
 
     // Backward-compatible helper. Primary generation lives in QrCodeService.

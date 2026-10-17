@@ -17,7 +17,7 @@ class CitizenTrackPageDesignTest extends TestCase
     {
         $response = $this->get(route('citizen.track'))->assertOk();
 
-        $response->assertSee('Track your requests now!');
+        $response->assertSee('Where is my request?');
         $response->assertSee('Scan QR Code to track');
         $response->assertSee('Enter Tracking Number');
         $response->assertSee('Start Camera');
@@ -91,6 +91,35 @@ class CitizenTrackPageDesignTest extends TestCase
         // The panel stays, but as feedback during the redirect.
         $response->assertSee('QR code detected — opening your record…', false);
         $response->assertSee('Open it now');
+    }
+
+    public function test_the_camera_window_never_distorts_what_the_decoder_reads(): void
+    {
+        // html5-qrcode maps its scan region through the video element's box.
+        // A 16:9 feed forced into the square (object-fit: cover) squashed every
+        // frame ~1.8x sideways, so a sharp QR in plain view never decoded. The
+        // reader is now laid out at the feed's own shape and drawn smaller with
+        // a transform, which the library's measurements ignore.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee('id="qr-reader" class="qr-surface"', false);
+        $response->assertSee('.then(() => prepareSurface(elementId))', false);
+        $response->assertSee('.then(() => fitSurface(elementId))', false);
+        // The fit waits for the stream's real size, not the 150px placeholder.
+        $response->assertSee('! video.videoWidth || ! video.videoHeight', false);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertDoesNotMatchRegularExpression('/\.qr-viewport video\s*\{[^}]*object-fit/', $css);
+    }
+
+    public function test_the_framing_guide_is_the_region_actually_decoded(): void
+    {
+        // The decoder reads 70% of the window's short side (SpeedQr's qrbox);
+        // a fixed 200px guide let a QR lined up inside it sit partly outside.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee('relative aspect-square w-[70%]', false);
+        $response->assertSee('Math.min(viewfinderWidth, viewfinderHeight) * 0.7', false);
     }
 
     public function test_a_failed_lookup_still_reports_inside_the_lookup_card(): void

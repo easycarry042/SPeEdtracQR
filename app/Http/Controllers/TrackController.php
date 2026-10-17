@@ -8,6 +8,7 @@ use App\Models\Document;
 use App\Models\DocumentComment;
 use App\Support\AssignmentScope;
 use App\Support\CitizenThreadAccess;
+use App\Support\CitizenView;
 use App\Support\CompletionPredictor;
 use App\Support\DocumentSeal;
 use App\Support\RequestReview;
@@ -228,7 +229,7 @@ class TrackController extends Controller
                 'department' => $document->department?->name,
                 'submitted_at' => $document->created_at?->format('M j, Y'),
                 'updated_at' => $document->updated_at?->diffForHumans(),
-                'url' => route('track.show', $document->tracking_number),
+                'url' => $document->citizenTrackingUrl(),
             ],
         ]);
     }
@@ -239,9 +240,21 @@ class TrackController extends Controller
             ->with('attachments')
             ->first();
 
-        // Soft-fail: a typo'd or unknown number lands back on the Look up hub
-        // with a clear message instead of a bare 404 page.
+        // Citizen-facing links (receipt, public lookup, citizen emails) ask for
+        // ?view=citizen. Without it, a staff member signed in on the same
+        // browser — a shared counter PC — was taken to the staff desk or the
+        // admin dashboard instead of the citizen's tracking page.
+        $citizenView = CitizenView::requested();
+
+        // Soft-fail: a typo'd or unknown number lands back on a lookup page with
+        // a clear message instead of a bare 404. Citizens get the public Track
+        // page, which reports "not found" itself — the staff Look up hub sends
+        // guests on to the landing page, losing the message.
         if (! $document) {
+            if ($citizenView) {
+                return to_route('citizen.track', ['tracking' => $trackingNumber]);
+            }
+
             return to_route('track.index', ['find' => 1])
                 ->withErrors(['lookup' => "No document found for \"{$trackingNumber}\". Check the number and try again."]);
         }
@@ -249,16 +262,16 @@ class TrackController extends Controller
         // Internal dept-to-dept requests are handled in their own module, with a
         // different (endorsement-chain) workflow — never the citizen assign/advance
         // panel. Authenticated staff go to the Internal request view; the public
-        // must never see internal requests, so guests get a 404 (no info leak).
+        // must never see internal requests, so the citizen view 404s (no info leak).
         if ($document->isInternal()) {
-            if (auth()->check()) {
+            if (! $citizenView) {
                 return to_route('requests.show', $document);
             }
 
             abort(404);
         }
 
-        if (auth()->user()?->can('manage system')) {
+        if (! $citizenView && auth()->user()->can('manage system')) {
             return to_route('admin.dashboard');
         }
 
@@ -279,7 +292,7 @@ class TrackController extends Controller
             DocumentStatus::Approved->value,
         ];
 
-        if (auth()->check()) {
+        if (! $citizenView) {
             $this->authorizeDocumentAccess($document);
 
             $user = auth()->user();
@@ -326,7 +339,7 @@ class TrackController extends Controller
         // the live listeners append new messages. `reorder()` is required: the
         // relation is declared newest-first, and an added orderBy would only be a
         // tie-breaker behind it.
-        if (auth()->check()) {
+        if (! $citizenView) {
             $document->load([
                 'comments' => fn ($query) => $query->reorder()->oldest(),
                 'comments.author',
@@ -351,7 +364,7 @@ class TrackController extends Controller
                 ->update(['citizen_read_at' => now()]);
         }
 
-        $user = auth()->user();
+        $user = $citizenView ? null : auth()->user();
         $canAct = false;
         if ($user && $document->status !== 'completed') {
             $canAct = AssignmentScope::canViewAll($user)
@@ -387,7 +400,7 @@ class TrackController extends Controller
         $anomaly = null;
 
         // QR lifecycle: physical custody (staff) + authenticity seal (issued docs).
-        $custody = auth()->check() ? $document->currentCustody() : null;
+        $custody = $citizenView ? null : $document->currentCustody();
         $verifyUrl = null;
         $sealSvg = null;
         if ($document->statusEnum() === DocumentStatus::Completed) {
@@ -398,7 +411,7 @@ class TrackController extends Controller
             );
         }
 
-        $isPublicView = ! auth()->check();
+        $isPublicView = $citizenView;
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
 
         return view($view, [

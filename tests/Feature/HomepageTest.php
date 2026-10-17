@@ -10,47 +10,67 @@ class HomepageTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** The page's <header> element, so header assertions don't match the body. */
+    private function header(string $content): string
+    {
+        $start = (int) strpos($content, '<header');
+
+        return substr($content, $start, (int) strpos($content, '</header>') - $start);
+    }
+
     public function test_guests_see_the_public_landing_page_at_root(): void
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Citizen Portal');
+            ->assertSee('Your requests,');
     }
 
     public function test_landing_hero_has_no_tracking_search_bar(): void
     {
-        // Tracking now lives in the citizen portal, not on the landing page.
+        // Tracking lives on the Track page; the hero links there instead.
         $this->get('/')
             ->assertOk()
             ->assertDontSee('Enter your tracking number to see its status here.')
             ->assertDontSee('trackLookup', false);
     }
 
-    public function test_landing_header_has_no_call_to_action_buttons(): void
+    public function test_header_leads_with_the_city_seal_and_the_wordmark(): void
     {
-        // The header is branding only — the hero carries the primary actions.
-        //
-        // Scoped to the <header> rather than the whole page: both phrases are
-        // legitimate doormat links in the footer, so a page-wide assertion was
-        // measuring the wrong element and failed the moment one was added.
-        $content = $this->get('/')->assertOk()->getContent();
+        // The owner comes first: a visitor should know this is the City's own
+        // service before they read the product name.
+        $header = $this->header($this->get('/')->assertOk()->getContent());
 
-        $header = substr($content, (int) strpos($content, '<header'), (int) strpos($content, '</header>') - (int) strpos($content, '<header'));
-
-        $this->assertStringNotContainsString('Submit a Request', $header);
-        $this->assertStringNotContainsString('Staff Sign In', $header);
+        $this->assertStringContainsString('images/staff/seal-2.png', $header);
+        $this->assertStringContainsString('alt="City of San Pedro seal"', $header);
+        $this->assertStringContainsString('City of San Pedro, Laguna', $header);
+        $this->assertFileExists(public_path('images/staff/seal-2.png'));
     }
 
-    public function test_hero_leads_with_one_citizen_button_and_a_staff_text_link(): void
+    public function test_header_gives_staff_a_quiet_way_in_and_citizens_no_competing_button(): void
     {
-        // Staff are the minority audience: they get a sentence, not a button
-        // competing with the citizen call to action.
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('Citizen Portal')
-            ->assertSee('Are you a municipal staff?')
-            ->assertSee('Click here')
-            ->assertDontSee('Staff Login');
+        // Staff are the minority audience: one outlined link in the header,
+        // never a filled button competing with the citizen actions in the hero.
+        $header = $this->header($this->get('/')->assertOk()->getContent());
+
+        $this->assertStringContainsString('href="'.route('login').'"', $header);
+        $this->assertStringContainsString('Staff sign in', $header);
+        $this->assertStringNotContainsString('Submit a request', $header);
+    }
+
+    public function test_hero_offers_both_citizen_actions_directly(): void
+    {
+        // Straight to the form and the Track page, not to a portal page that
+        // only offers the same two choices again. "Click here" is gone: a link
+        // names where it goes.
+        $content = $this->get('/')->assertOk()->getContent();
+        $start = (int) strpos($content, 'id="top"');
+        $hero = substr($content, $start, (int) strpos($content, 'id="how-it-works"') - $start);
+
+        $this->assertStringContainsString('href="'.route('public.request.create').'"', $hero);
+        $this->assertStringContainsString('href="'.route('citizen.track').'"', $hero);
+        $this->assertStringContainsString('Submit a request', $hero);
+        $this->assertStringContainsString('Track a request', $hero);
+        $this->assertStringNotContainsString('Click here', $content);
     }
 
     public function test_wordmark_splits_zain_and_nunito_across_its_two_halves(): void
@@ -71,7 +91,7 @@ class HomepageTest extends TestCase
         // white paper now, like the rest of the portal.
         $this->get('/')
             ->assertOk()
-            ->assertSee('How It Works')
+            ->assertSee('How it works')
             ->assertDontSee('doodle-pattern.jpg', false);
     }
 
@@ -81,72 +101,61 @@ class HomepageTest extends TestCase
         // without the step that tells them when to come collect the document.
         $this->get('/')
             ->assertOk()
-            ->assertSee('HOW IT WORKS')
-            ->assertSee('Tracking Flow')
             ->assertSeeInOrder([
-                'Submit Request',
-                'Document Processing',
-                'Track Progress',
-                'Claim Document',
-            ]);
+                'Submit a request',
+                'City Hall processes it',
+                'Track its progress',
+                'Claim your document',
+            ])
+            // The label a citizen actually sees on their tracking page.
+            ->assertSee('Ready for pickup');
     }
 
-    public function test_what_we_do_introduces_the_three_services(): void
+    public function test_features_are_one_section_with_no_repeats(): void
     {
+        // "What We Do", "Key Features" and "Security" described the same ideas
+        // three times over; they are one grid of six now.
         $this->get('/')
             ->assertOk()
-            ->assertSee('What We Do')
+            ->assertDontSee('What We Do')
+            ->assertDontSee('Key Features')
+            ->assertDontSee('features-person.png', false)
             ->assertSeeInOrder([
-                'Citizen Tracking',
-                'QR-Code Verification',
-                'Smart Chatbot Assistance',
+                'Real-time status',
+                'QR codes only City Hall can read',
+                'Routed office to office',
+                'Processing-time targets',
+                'Your details stay private',
+                'Every action on record',
             ]);
     }
 
-    public function test_key_features_lists_every_tool_with_its_icon(): void
+    public function test_every_section_the_nav_links_to_exists_and_clears_the_sticky_header(): void
     {
-        // Each tile's glyph is its own exported file; a missing one renders an
-        // empty frosted square rather than failing loudly in the browser.
-        foreach (['file-text', 'shield', 'search', 'people', 'clock'] as $glyph) {
-            $this->assertFileExists(public_path("images/landing/feat-{$glyph}.svg"));
+        $content = $this->get('/')->assertOk()->getContent();
+
+        foreach (['how-it-works', 'features', 'faq'] as $id) {
+            $this->assertStringContainsString('href="#'.$id.'"', $this->header($content));
+            $this->assertMatchesRegularExpression('/id="'.$id.'" class="[^"]*scroll-mt-/', $content);
         }
-
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('FEATURES')
-            ->assertSeeInOrder([
-                'Document Routing',
-                'Secure QR Identification',
-                'Accountability Audit',
-                'Role-Based Access',
-                'Real-Time Status',
-            ]);
     }
 
-    public function test_security_section_names_the_four_safeguards(): void
+    public function test_faq_answers_are_rendered_server_side_and_each_is_distinct(): void
     {
-        $this->get('/')
+        // Native <details>: the copy ships in the HTML, so a reader without
+        // JavaScript (and a search crawler) still gets it.
+        $content = $this->get('/')
             ->assertOk()
-            ->assertSee('SECURITY')
-            ->assertSee('Data Safe')
-            ->assertSeeInOrder([
-                'Law-Compliant Service',
-                'Staff Logs',
-                'Private Tracking',
-                'Offline Backup',
-            ]);
-    }
-
-    public function test_faq_answers_are_rendered_server_side(): void
-    {
-        // The panels are Alpine accordions, but the copy ships in the HTML so a
-        // reader without JavaScript — and a search crawler — still gets it.
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('Frequently Asked')
+            ->assertSee('Frequently asked')
             ->assertSee('How can I track the status of my document or request?')
-            ->assertSee('Data Privacy Act of 2012 (RA 10173)')
-            ->assertSee('Ease of Doing Business Act (RA 11032)');
+            ->assertSee('Data Privacy Act of 2012 (RA&nbsp;10173)', false)
+            ->assertSee('Ease of Doing Business Act (RA&nbsp;11032)', false)
+            ->getContent();
+
+        // Two questions once shared one copy-pasted answer.
+        preg_match_all('#</summary>\s*<p[^>]*>(.*?)</p>#s', $content, $answers);
+        $this->assertCount(6, $answers[1]);
+        $this->assertSame($answers[1], array_values(array_unique($answers[1])));
     }
 
     public function test_every_landing_image_referenced_by_the_page_exists(): void
@@ -155,7 +164,7 @@ class HomepageTest extends TestCase
         // a broken image on the municipality's front page.
         $html = $this->get('/')->assertOk()->getContent();
 
-        preg_match_all('#images/landing/[\w.-]+\.(?:svg|png|jpg)#', $html, $matches);
+        preg_match_all('#images/(?:landing|staff)/[\w.-]+\.(?:svg|png|jpg)#', $html, $matches);
 
         $this->assertNotEmpty($matches[0], 'The landing page referenced no images at all.');
 
@@ -171,23 +180,12 @@ class HomepageTest extends TestCase
 
         $response = $this->get('/')->assertOk();
 
-        // No placeholder card any more: the photo is the backdrop.
         $response->assertDontSee('Municipality photo');
         $response->assertSee('images/landing/hero-cityhall.jpg', false);
 
         // The exported vignette feathers the photo's edges into the paper the
         // copy sits on. Without it the photo ends on a hard vertical seam.
         $response->assertSee('images/landing/hero-gradient.svg', false);
-    }
-
-    public function test_nav_pill_sits_at_the_top_and_scrolls_away(): void
-    {
-        // It is absolute, not fixed: the design draws it as a capsule laid over
-        // the hero, not a bar that follows the page down over the content.
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('absolute inset-x-0 top-[4px]', false)
-            ->assertSeeInOrder(['Home', 'Features', 'How It Works', 'Security', 'FAQ']);
     }
 
     public function test_authenticated_users_are_redirected_off_the_public_landing(): void

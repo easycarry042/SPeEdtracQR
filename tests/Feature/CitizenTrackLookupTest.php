@@ -40,7 +40,7 @@ class CitizenTrackLookupTest extends TestCase
         ]);
 
         $this->get(route('citizen.track', ['tracking' => $document->tracking_number]))
-            ->assertRedirect(route('track.show', ['trackingNumber' => $document->tracking_number]));
+            ->assertRedirect($document->citizenTrackingUrl());
     }
 
     public function test_lowercase_input_is_normalised_before_lookup(): void
@@ -53,7 +53,7 @@ class CitizenTrackLookupTest extends TestCase
         ]);
 
         $this->get(route('citizen.track', ['tracking' => ' spd-20260728-abc234 ']))
-            ->assertRedirect(route('track.show', ['trackingNumber' => $document->tracking_number]));
+            ->assertRedirect($document->citizenTrackingUrl());
     }
 
     public function test_guests_are_never_told_that_an_internal_request_exists(): void

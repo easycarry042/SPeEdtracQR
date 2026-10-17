@@ -35,7 +35,7 @@ class StaffMessage extends Mailable implements ShouldQueue
             view: 'emails.staff-message',
             with: [
                 'document' => $this->comment->document,
-                'trackingUrl' => url('/track/'.$this->comment->document->tracking_number),
+                'trackingUrl' => $this->comment->document->citizenTrackingUrl(),
             ],
         );
     }

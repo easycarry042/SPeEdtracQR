@@ -40,7 +40,7 @@ class RequirementRevisionRequested extends Mailable implements ShouldQueue
         return new Content(
             view: 'emails.requirement-revision',
             with: [
-                'trackingUrl' => url('/track/'.$this->document->tracking_number),
+                'trackingUrl' => $this->document->citizenTrackingUrl(),
             ],
         );
     }

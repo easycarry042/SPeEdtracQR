@@ -119,7 +119,7 @@ class StaffRequestsPageDesignTest extends TestCase
             ->assertOk()
             ->assertSee('left: -9999px !important', false);
 
-        $this->get(route('citizen.dashboard'))
+        $this->get(route('citizen.track'))
             ->assertOk()
             ->assertDontSee('left: -9999px !important', false);
     }

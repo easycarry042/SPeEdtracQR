@@ -167,7 +167,7 @@ class InternalRequestController extends Controller
             return $document;
         });
 
-        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber, url("/track/{$trackingNumber}"));
+        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber);
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
