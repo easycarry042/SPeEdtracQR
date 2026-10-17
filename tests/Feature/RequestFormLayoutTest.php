@@ -92,7 +92,52 @@ class RequestFormLayoutTest extends TestCase
 
         $this->assertStringContainsString('type="time" name="start_time"', $content);
         $this->assertStringContainsString('type="time" name="end_time"', $content);
-        $this->assertStringContainsString('class="req-field min-w-0 flex-1"', $content);
-        $this->assertStringContainsString('sm:h-14 sm:w-14', $content);
+        $this->assertStringContainsString('class="req-field min-w-[7rem] flex-1"', $content);
+    }
+
+    /**
+     * Every date on this form opens the system's own calendar — the Look Up
+     * desk's picker — rather than whichever one the browser ships. The value
+     * still posts as a plain ISO date under the same field name, so nothing
+     * server-side knows the control changed.
+     */
+    public function test_dates_open_the_system_calendar_not_the_browsers(): void
+    {
+        $this->permitType();
+
+        $content = $this->get(route('public.request.create'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('type="date"', $content, 'A native date input brings the browser\'s own calendar back.');
+
+        foreach (['booking_date', 'needed_date', 'return_date', 'needed_by'] as $field) {
+            $this->assertStringContainsString('<input type="hidden" name="'.$field.'"', $content, "{$field} must still post its value.");
+        }
+
+        // The calendar itself, and the shared day-cell styling it borrows.
+        $this->assertStringContainsString('cz-datepicker', $content);
+        $this->assertStringContainsString('dp-day', $content);
+        $this->assertStringContainsString('Alpine.data(\'dateField\'', $content);
+    }
+
+    /**
+     * A native <input type="time"> in a 12-hour locale renders "hh:mm AM/PM"
+     * and clips that tail rather than shrinking it, so a time field squeezed
+     * narrow loses the AM/PM and reads as any hour of the day. Three columns
+     * left each one 63px against the ~105px it needs; two columns, with the
+     * date on its own row above, leave 138px.
+     */
+    public function test_the_reservation_row_leaves_the_time_fields_room_for_am_pm(): void
+    {
+        $this->permitType();
+
+        $content = $this->get(route('public.request.create'))->assertOk()->getContent();
+        $panel = substr($content, (int) strpos($content, 'id="bookingSection"'));
+        $panel = substr($panel, 0, (int) strpos($panel, 'id="equipmentSection"'));
+
+        $this->assertStringContainsString('sm:grid-cols-2', $panel);
+        $this->assertStringNotContainsString('sm:grid-cols-3', $panel, 'Three columns clip the AM/PM off both time fields.');
+        $this->assertStringContainsString('sm:col-span-2', $panel, 'The date takes its own row so the two times can share one.');
+        // The flex floor behind the same guarantee, inside the component.
+        $this->assertStringNotContainsString('min-w-0', $panel);
     }
 }

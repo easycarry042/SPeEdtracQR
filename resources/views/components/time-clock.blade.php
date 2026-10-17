@@ -10,14 +10,24 @@
      and drag the hands. The native <input type="time"> is the source submitted
      with the form; the clock manipulates it. Alpine drives the geometry. --}}
 <div x-data="timeClock('{{ $value !== '' ? $value : '' }}', '{{ $default }}')" class="relative">
-    <label class="mb-1 block text-xs font-semibold text-gray-700">{{ $label }}</label>
+    <label class="req-label text-sm">{{ $label }}</label>
     <div class="mt-2 flex items-center gap-2">
+        {{-- min-w, not min-w-0: a native <input type="time"> in a 12-hour
+             locale renders "hh:mm AM/PM", and the browser clips the trailing
+             segment rather than shrinking it. Letting flex squeeze this below
+             its intrinsic width silently hides whether the time is morning or
+             evening — the one thing the field exists to say. The real guard is
+             giving the field room to begin with (see the grid in
+             public/request.blade.php); this floor is a second line of defence
+             for any future caller that places it somewhere tighter. The clock
+             button stretches to the field's own height rather than setting a
+             taller one of its own. --}}
         <input type="time" name="{{ $name }}" @if($required) required @endif
                :value="value"
                @input="parse($event.target.value)"
-               class="req-field min-w-0 flex-1">
+               class="req-field min-w-[7rem] flex-1">
         <button type="button" @click="toggle()" aria-label="Open clock"
-                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:h-14 sm:w-14">
+                class="flex w-[42px] shrink-0 self-stretch items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/></svg>
         </button>
     </div>

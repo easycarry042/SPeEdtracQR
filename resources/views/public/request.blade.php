@@ -134,10 +134,14 @@
             <div id="bookingSection" class="req-note hidden p-4 sm:p-5">
                 <p class="req-note-title text-[16px]">Reservation details</p>
                 <p class="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
-                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div>
-                        <label for="booking_date" class="req-label text-sm">Date</label>
-                        <input id="booking_date" type="date" name="booking_date" value="{{ old('booking_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('booking_date') is-invalid @enderror">
+                {{-- Two columns, not three. A native time input has to show
+                     "hh:mm AM/PM" and will clip that rather than shrink, so a
+                     third of this panel is not enough to put one beside its
+                     clock button. The date takes its own row above the pair. --}}
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                        <x-date-field name="booking_date" label="Date" :value="old('booking_date')"
+                                      :min="now()->toDateString()" :invalid="$errors->has('booking_date')" />
                         @error('booking_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
@@ -162,13 +166,13 @@
                         @error('quantity')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="needed_date" class="req-label text-sm">Date needed</label>
-                        <input id="needed_date" type="date" name="needed_date" value="{{ old('needed_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_date') is-invalid @enderror">
+                        <x-date-field name="needed_date" label="Date needed" :value="old('needed_date')"
+                                      :min="now()->toDateString()" :invalid="$errors->has('needed_date')" />
                         @error('needed_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="return_date" class="req-label text-sm">Return by</label>
-                        <input id="return_date" type="date" name="return_date" value="{{ old('return_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('return_date') is-invalid @enderror">
+                        <x-date-field name="return_date" label="Return by" :value="old('return_date')"
+                                      :min="now()->toDateString()" :invalid="$errors->has('return_date')" />
                         @error('return_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -186,8 +190,8 @@
                         @error('quantity')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
-                        <label for="needed_by" class="req-label text-sm">Date needed</label>
-                        <input id="needed_by" type="date" name="needed_by" value="{{ old('needed_by') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_by') is-invalid @enderror">
+                        <x-date-field name="needed_by" label="Date needed" :value="old('needed_by')"
+                                      :min="now()->toDateString()" :invalid="$errors->has('needed_by')" />
                         @error('needed_by')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                 </div>

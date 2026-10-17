@@ -1650,6 +1650,49 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
 .dp-foot .cr-btn { height: 40px; padding: 0 18px; border-radius: 10px; font-size: var(--fs-small); font-weight: 600; }
 .dp-picked strong { font-weight: 700; color: var(--green-deep); }
 
+/* ── Date field on the public forms ───────────────────────────────────────
+   The same calendar as the Look Up picker above, in a popover under a form
+   field instead of filling a modal column: tighter padding, smaller day
+   buttons, and a width that still fits a phone. The trigger is a .req-field
+   so it lines up with every other control on the form.
+   ───────────────────────────────────────────────────────────────────────── */
+.cz-date-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    text-align: left;
+}
+.cz-date-trigger svg { width: 19px; height: 19px; flex: none; color: var(--green); }
+.cz-date-trigger .is-empty { font-style: italic; color: #6b7a70; }
+.cz-date-trigger.is-open { border-color: var(--cz-green); box-shadow: 0 0 0 4px rgba(1, 114, 26, .16); }
+
+.cz-datepicker {
+    width: min(21rem, calc(100vw - 2.5rem));
+    overflow: hidden;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 18px 40px -16px rgba(15, 77, 40, .45);
+}
+.cz-datepicker .dp-head { padding: 12px 14px; }
+.cz-datepicker .dp-month { font-size: var(--fs-body); }
+.cz-datepicker .dp-dows { padding: 7px 10px; }
+.cz-datepicker .dp-grid { overflow: visible; padding: 8px 10px 4px; }
+.cz-datepicker .dp-day { width: 100%; max-width: 40px; height: 40px; font-size: var(--fs-small); }
+.cz-datepicker .dp-foot { padding: 10px 14px; }
+.cz-datepicker .bk-nav { height: 34px; }
+.cz-datepicker .bk-nav button { min-width: 34px; padding: 0 11px; }
+.cz-datepicker .bk-nav svg { width: 15px; height: 15px; }
+
+.cz-date-clear {
+    flex: none;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: var(--fs-small); font-weight: 700;
+    color: var(--green-deep);
+    transition: background-color .15s;
+}
+.cz-date-clear:hover { background: var(--green-wash); }
+.cz-date-clear:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 /* Review modal (dashboards): the Look Up card, plus what review needs. The
    card lets the footer's "More" menu escape; the body still scrolls. */
 .dm-card-review { overflow: visible; }
@@ -3116,6 +3159,10 @@ a.dm-thumb:hover { border-color: var(--green); }
     font-size: 16px;
     line-height: 1.4;
     transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.req-field[type="time"] {
+    padding-inline: .5rem;
 }
 
 .req-field:hover { border-color: rgba(0, 64, 4, .4); }
