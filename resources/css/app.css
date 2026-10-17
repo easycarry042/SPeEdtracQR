@@ -1160,20 +1160,13 @@ aside.sidebar-pinned {
     box-shadow: var(--glass-shadow);
 }
 
-/* Tracking page panels (Figma: TRACK). A near-clear grey glass with a thin
-   deep-green rim — quieter than .portal-card because these panels hold a
-   camera feed and a form rather than being the thing you click. */
+/* Track lookup panels: the citizen card (.cz-card) under a name of its own,
+   so the page's two ways in can be found and counted. */
 .track-panel {
-    background: rgba(223, 223, 223, .2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(0, 64, 4, .5);
-}
-
-/* The one call-to-action size shared by Start Camera and Search, so the two
-   panels' buttons line up across the rule between them. */
-.track-cta {
-    height: 64px;
+    background: #fff;
+    border: 1px solid var(--cz-line);
+    border-radius: 20px;
+    box-shadow: var(--cz-shadow);
 }
 
 /* ── Booking screen (Figma: STAFF BOOKING) ───────────────────────────────────
@@ -1993,25 +1986,43 @@ a.dm-thumb:hover { border-color: var(--green); }
 .st-page-step:focus-visible, .st-page:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Camera viewport ──────────────────────────────────────────────────────
-   html5-qrcode injects a <video> at the stream's own dimensions, which are
-   landscape on essentially every device. Inside a square box that letterboxes:
-   a wide strip of picture with a black band underneath. Force the feed to cover
-   the box instead, and hide the library's shaded viewfinder — it is positioned
-   against the video's natural box, so it lands askew once the video is
-   transformed, and the page draws its own corner brackets anyway. */
+   A square camera window that shows the feed edge to edge, WITHOUT lying to
+   html5-qrcode about the picture's shape.
+
+   The library works out which pixels to decode from the video element's
+   on-screen box: it maps its square scan region through videoWidth/clientWidth
+   and videoHeight/clientHeight separately. Squeezing a 16:9 feed into a square
+   box (object-fit: cover) made those two ratios differ, so every frame was
+   squashed ~1.8× sideways — and shrunk to ~250px — before decoding. A sharp QR
+   in plain view never read.
+
+   So the surface (#qr-reader.qr-surface) keeps the stream's own shape at a
+   decoding-friendly size (SpeedQr sets its width, the video its height) and
+   is only *drawn* smaller, with a transform, which clientWidth/clientHeight
+   ignore. The library then decodes undistorted, full-resolution pixels, and
+   its region — 70% of the short side — is exactly the framing guide's 70%. */
 .qr-viewport {
     position: relative;
     aspect-ratio: 1 / 1;
+    overflow: hidden;
 }
 
-.qr-viewport video {
+.qr-viewport .qr-surface {
     position: absolute;
-    inset: 0;
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    /* Hidden until SpeedQr has fitted it; until then it is full size and
+       pinned to the corner. */
+    visibility: hidden;
 }
 
+.qr-viewport .qr-surface.is-fitted { visibility: visible; }
+
+.qr-viewport .qr-surface video { display: block; }
+
+/* The library's own shaded viewfinder: the pages draw their own corner
+   brackets. */
 .qr-viewport #qr-shaded-region {
     display: none !important;
 }
@@ -2025,10 +2036,6 @@ a.dm-thumb:hover { border-color: var(--green); }
 
     .portal-card {
         background: rgba(222, 243, 230, .96);
-    }
-
-    .track-panel {
-        background: rgba(247, 249, 247, .92);
     }
 }
 
@@ -2727,18 +2734,222 @@ a.dm-thumb:hover { border-color: var(--green); }
     }
 }
 
-/* ── "Submit a request" surface set ─────────────────────────────────────────
-   From the Figma REQS FORM / SUBMIT REQS PAGE frames. A frosted shell holding
-   lime-wash fields — a warmer, rounder treatment than the registry panels,
-   because this is the one page a citizen fills in rather than reads. Kept as
-   components, not utilities: the same three pieces repeat ~12 times in the
-   view, and the exact rgba values come straight from the design. */
+/* ── Citizen surface set ─────────────────────────────────────────────────────
+   Every public page a citizen moves through (landing page, request form,
+   receipt, track lookup, tracking result, privacy notice) speaks the landing
+   page's language: Zain display titles in deep green, Nunito body copy, white
+   cards on a hairline rim with a soft layered shadow, pill buttons. It used to
+   be three dialects (the landing page's utilities, the form's frosted glass,
+   the staff registry panels on the tracking page), so moving between pages
+   felt like changing sites. One set, defined here, keeps them from drifting.
+
+   In @layer components so a utility on the same element (hidden, w-full, mt-4)
+   still wins — the scanner's Start/Stop buttons are shown and hidden that way. */
+:root {
+    --cz-deep: #004004;
+    --cz-green: #01721a;
+    --cz-text: #353535;
+    --cz-muted: #4b5a50;
+    --cz-wash: #eef8ea;
+    --cz-mint: #f5faf3;
+    --cz-line: rgba(0, 64, 4, .12);
+    --cz-shadow: 0 1px 2px rgba(0, 64, 4, .06), 0 8px 24px -12px rgba(0, 64, 4, .18);
+}
+
+@layer components {
+    /* Page intro: eyebrow pill, title, one lead paragraph — the hero's stack. */
+    .cz-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        border-radius: 9999px;
+        background: var(--cz-wash);
+        padding: .375rem .875rem;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--cz-deep);
+    }
+
+    .cz-eyebrow::before {
+        content: "";
+        flex: none;
+        width: .5rem;
+        height: .5rem;
+        border-radius: 9999px;
+        background: var(--cz-green);
+    }
+
+    .cz-title {
+        font-family: theme('fontFamily.display');
+        font-size: 34px;
+        font-weight: 900;
+        line-height: 1.08;
+        letter-spacing: -.01em;
+        color: var(--cz-deep);
+        text-wrap: balance;
+    }
+
+    .cz-lead {
+        font-size: 17px;
+        font-weight: 500;
+        line-height: 1.65;
+        color: var(--cz-text);
+        text-wrap: pretty;
+    }
+
+    /* The feature cards' surface. */
+    .cz-card {
+        background: #fff;
+        border: 1px solid var(--cz-line);
+        border-radius: 20px;
+        box-shadow: var(--cz-shadow);
+    }
+
+    .cz-card-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem 1rem;
+        padding: 1.125rem 1.125rem 0;
+    }
+
+    .cz-card-title {
+        font-family: theme('fontFamily.display');
+        font-size: 21px;
+        font-weight: 900;
+        line-height: 1.25;
+        color: var(--cz-deep);
+    }
+
+    .cz-card-sub {
+        margin-top: .125rem;
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--cz-muted);
+    }
+
+    .cz-card-body { padding: .875rem 1.125rem 1.25rem; }
+
+    /* Field names in a details list — small caps over the value. */
+    .cz-key {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--cz-muted);
+    }
+
+    /* A tracking number. Monospace, because it is read character by character
+       off a receipt and 0/O, 1/I must not be confused. */
+    .cz-id {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 10px;
+        background: var(--cz-wash);
+        padding: .25rem .75rem;
+        font-family: var(--mono);
+        font-weight: 700;
+        letter-spacing: .04em;
+        color: var(--cz-deep);
+    }
+
+    /* The landing page's buttons. 48px tall (44px small) — both clear the
+       44px touch-target minimum. */
+    .cz-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        min-height: 48px;
+        padding: 0 1.5rem;
+        border: 1px solid transparent;
+        border-radius: 9999px;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+
+    .cz-btn svg { flex: none; width: 1.25rem; height: 1.25rem; }
+
+    .cz-btn:focus-visible {
+        outline: 3px solid var(--cz-green);
+        outline-offset: 2px;
+    }
+
+    .cz-btn:disabled,
+    .cz-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+
+    .cz-btn-primary {
+        background: var(--cz-green);
+        color: #fff;
+        box-shadow: 0 1px 2px rgba(0, 64, 4, .3), 0 8px 20px -8px rgba(1, 114, 26, .7);
+    }
+
+    .cz-btn-primary:not(:disabled):hover { background: var(--cz-deep); }
+
+    .cz-btn-secondary {
+        background: #fff;
+        border-color: rgba(0, 64, 4, .3);
+        color: var(--cz-deep);
+    }
+
+    .cz-btn-secondary:not(:disabled):hover { background: var(--cz-wash); }
+
+    .cz-btn-sm { min-height: 44px; padding: 0 1.125rem; font-size: 15px; }
+    .cz-btn-sm svg { width: 1.125rem; height: 1.125rem; }
+
+    @media (min-width: 640px) {
+        .cz-title { font-size: 44px; }
+        .cz-lead { font-size: 18px; }
+        .cz-card-head { padding: 1.25rem 1.5rem 0; }
+        .cz-card-body { padding: 1rem 1.5rem 1.5rem; }
+    }
+}
+
+/* The status line on the tracking page, at citizen size. The staff stepper
+   gives each stage a zero-width column with a 74px caption hanging over it, so
+   the first and last captions ran past the card edge and were clipped
+   ("ending", "Complet"). Inset by half a caption on each side, they fit. */
+.steps.steps-cz { padding-inline: 34px; }
+/* Each stage's column is zero-width, so the line segments run centre to
+   centre — under the circles. They come later in the markup, so without a
+   stacking order of their own they were painted over the numbers. */
+.steps-cz .node { position: relative; z-index: 1; width: 32px; height: 32px; font-family: inherit; font-size: 14px; font-weight: 700; }
+.steps-cz .node.done { background: var(--cz-green); color: #fff; }
+.steps-cz .node.now { border-color: var(--cz-green); color: var(--cz-deep); box-shadow: 0 0 0 4px var(--cz-wash); }
+.steps-cz .seg { height: 3px; margin-top: 15px; border-radius: 3px; }
+.steps-cz .seg.done { background: var(--cz-green); }
+/* On a phone the five captions share ~320px, so two-word stages ("In
+   Progress") wrap onto two lines instead of running into their neighbours. */
+.steps-cz .stp .cap { width: 58px; margin-top: 8px; font-size: 12px; line-height: 1.25; color: var(--cz-muted); }
+.steps-cz .stp .cap.cur { color: var(--cz-deep); font-weight: 800; }
+
+/* The status badge, read at a glance on a phone rather than scanned in a
+   staff table. */
+.cz-card .pill { font-size: 14px; font-weight: 700; padding: 5px 12px; }
+
+@media (min-width: 640px) {
+    .steps.steps-cz { padding-inline: 44px; }
+    .steps-cz .stp .cap { width: 88px; font-size: 14px; }
+}
+
+/* ── "Submit a request" form controls ───────────────────────────────────────
+   The request form's pieces, restyled from the frosted-glass Figma frames to
+   the citizen set above: a white card, white fields on a green hairline, pill
+   chips and a pill submit. Kept as components, not utilities: the same pieces
+   repeat ~12 times in the view, and the tracking page's own inputs reuse
+   .req-field so the two forms match. */
 .req-shell {
-    background: rgba(223, 223, 223, .2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 16px;
+    background: #fff;
+    border: 1px solid var(--cz-line);
+    border-radius: 20px;
+    box-shadow: var(--cz-shadow);
 }
 
 /* Label sits on its own row with the live character count pushed to the far
@@ -2752,11 +2963,10 @@ a.dm-thumb:hover { border-color: var(--green); }
 
 .req-label {
     display: block;
-    font-family: theme('fontFamily.display');
-    font-weight: 700;
-    color: #000;
-    font-size: 1.25rem;
-    line-height: 1.2;
+    font-weight: 800;
+    color: var(--cz-deep);
+    font-size: 16px;
+    line-height: 1.3;
 }
 
 .req-star { color: #ea5200; }
@@ -2766,28 +2976,29 @@ a.dm-thumb:hover { border-color: var(--green); }
 .req-field {
     width: 100%;
     min-height: 48px;
-    background: rgba(168, 168, 168, .2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 0.5px solid rgba(0, 64, 4, .5);
-    border-radius: 8px;
-    padding: .85rem 1.4rem;
-    color: #10231a;
-    font-size: 1.05rem;
+    background: #fff;
+    border: 1px solid rgba(0, 64, 4, .22);
+    border-radius: 12px;
+    padding: .7rem 1rem;
+    color: #1a1b1a;
+    font-size: 16px;
     line-height: 1.4;
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
+
+.req-field:hover { border-color: rgba(0, 64, 4, .4); }
 
 /* Placeholders are set in italic in the design — it keeps a sample answer
    ("e.g. Juan Cruz") from reading as a value already filled in. */
 .req-field::placeholder { font-style: italic; }
 
-.req-field::placeholder { color: rgba(0, 0, 0, .5); }
+.req-field::placeholder { color: #6b7a70; }
 
 .req-field:focus,
 .req-field:focus-within {
     outline: none;
-    border-color: var(--green);
-    box-shadow: 0 0 0 3px rgba(22, 122, 58, .22);
+    border-color: var(--cz-green);
+    box-shadow: 0 0 0 4px rgba(1, 114, 26, .16);
 }
 
 /* Invalid state has a border AND a tint — colour alone would fail AA for
@@ -2806,7 +3017,7 @@ a.dm-thumb:hover { border-color: var(--green); }
     padding-right: 3.25rem;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23004004'%3E%3Cpath d='M12 16.5 4.5 9h15z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 1.15rem center;
+    background-position: right 1rem center;
     background-size: 1.25rem;
 }
 
@@ -2832,45 +3043,45 @@ a.dm-thumb:hover { border-color: var(--green); }
    than the column next to it. */
 .req-count {
     flex: none;
-    line-height: 1.2;
-    font-size: 1.05rem;
-    color: rgba(0, 0, 0, .5);
+    line-height: 1.3;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: var(--cz-muted);
     pointer-events: none;
 }
 
-/* "Mostly Requested" shortcut chips — the lime wash the fields used to carry,
-   kept here because these are the one thing on the form you click rather than
-   fill in. */
+/* "Most requested" shortcut chips — pills in the landing page's eyebrow wash,
+   because these are the one thing on the form you click rather than fill in. */
 .req-chip {
     display: inline-flex;
     align-items: center;
-    gap: .7rem;
-    min-height: 40px;
-    padding: 0 1.1rem;
-    background: rgba(141, 255, 60, .2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(0, 64, 4, .5);
-    border-radius: 8px;
-    color: #000;
-    font-size: 1.05rem;
-    font-weight: 500;
+    gap: .5rem;
+    min-height: 44px;
+    padding: 0 1rem;
+    background: var(--cz-wash);
+    border: 1px solid rgba(1, 114, 26, .22);
+    border-radius: 9999px;
+    color: var(--cz-deep);
+    font-size: 15px;
+    font-weight: 700;
     text-align: left;
-    transition: background var(--dur-base) var(--ease-out);
+    touch-action: manipulation;
+    transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
 }
 
-.req-chip:hover { background: rgba(141, 255, 60, .38); }
+.req-chip:hover { background: #dff1d8; }
 
 .req-chip:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
+    outline: 3px solid var(--cz-green);
+    outline-offset: 2px;
 }
 
 /* The chip whose type is currently selected reads as chosen, so clicking one
    is visibly connected to the dropdown above it. */
 .req-chip[aria-pressed="true"] {
-    background: rgba(1, 114, 26, .28);
-    border-color: #01721a;
+    background: var(--cz-green);
+    border-color: var(--cz-green);
+    color: #fff;
 }
 
 /* +63 prefix on the contact row: a static affix, a hairline, then a bare
@@ -2909,33 +3120,29 @@ a.dm-thumb:hover { border-color: var(--green); }
     background: rgba(0, 64, 4, .35);
 }
 
-/* Privacy notice and the dynamic per-kind panels share the lime wash, one
-   step rounder than a field. */
+/* Privacy notice and the dynamic per-kind panels sit on the landing page's
+   mint section wash, one step rounder than a field. */
 .req-note {
-    background: rgba(55, 131, 0, .2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 0.5px solid rgba(0, 64, 4, .5);
-    border-radius: 8px;
+    background: var(--cz-mint);
+    border: 1px solid rgba(1, 114, 26, .18);
+    border-radius: 16px;
 
-    /* backdrop-filter creates a stacking context, which traps anything
-       positioned inside this panel. The time picker's popover lives in the
-       reservation panel and opens downward over the Purpose and Description
-       fields — those are later siblings, so without lifting the panel itself
-       they paint on top and the clock is hidden behind them. Its own z-index
-       cannot escape the context, so the lift has to happen here. */
+    /* The time picker's popover lives in the reservation panel and opens
+       downward over the Purpose and Description fields. Those are later
+       siblings, so without lifting the panel itself they paint on top and the
+       clock is hidden behind them. */
     position: relative;
     z-index: 20;
 }
 
 .req-note-title {
-    color: #245501;
+    color: var(--cz-deep);
     font-weight: 800;
 }
 
-.req-note-body { color: #245501; }
+.req-note-body { color: var(--cz-text); }
 
-/* Checkbox drawn to the design's 34px rounded square. The tick is a background
+/* Checkbox drawn as a 26px rounded square. The tick is a background
    image, not a ::before — an input is a replaced element, so pseudo-elements
    never render on it. The :checked rule also has to out-specify Tailwind's
    forms plugin, which paints checked boxes blue via [type='checkbox']:checked;
@@ -2944,11 +3151,11 @@ a.dm-thumb:hover { border-color: var(--green); }
     appearance: none;
     -webkit-appearance: none;
     flex: none;
-    width: 1.9rem;
-    height: 1.9rem;
-    border-radius: 799px;
-    border: 1px solid rgba(0, 64, 4, .5);
-    background-color: rgba(141, 255, 60, .2);
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1.5px solid rgba(0, 64, 4, .4);
+    background-color: #fff;
     background-image: none;
     cursor: pointer;
     transition: background-color .12s ease-in-out, border-color .12s ease-in-out;
@@ -2964,48 +3171,15 @@ a.dm-thumb:hover { border-color: var(--green); }
 }
 
 .req-check:focus-visible {
-    outline: 2px solid var(--green);
+    outline: 3px solid var(--cz-green);
     outline-offset: 2px;
 }
 
-.req-submit {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 48px;
-    background: #01721a;
-    color: #fff;
-    font-weight: 700;
-    font-size: 1.05rem;
-    border-radius: 40px;
-    padding: 1rem 2.5rem;
-    transition: background-color .15s ease-in-out;
-}
-
-.req-submit:hover { background: #015c15; }
-
-.req-submit:focus-visible {
-    outline: 2px solid #004004;
-    outline-offset: 3px;
-}
+/* The submit button is the shared primary pill (.cz-btn .cz-btn-primary). */
 
 @media (min-width: 640px) {
-    .req-label { font-size: 1.375rem; }
-    .req-field { min-height: 56px; padding: 1.1rem 1.5rem; font-size: 1.25rem; }
-    .req-affix { padding-block: 0; }
-    .req-affix > input { padding-block: 1.1rem; font-size: 1.25rem; }
-    .req-count { font-size: 1.25rem; }
-    .req-submit { min-height: 56px; font-size: 1.25rem; }
-    .req-check { width: 1.93rem; height: 1.93rem; }
-}
-
-/* No backdrop-filter (older Firefox/Safari): the wash behind these is busy, so
-   fall back to near-opaque surfaces rather than a translucent tint. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .req-shell { background: rgba(246, 250, 247, .94); }
-    .req-field { background: rgba(238, 238, 238, .96); }
-    .req-chip,
-    .req-note { background: rgba(226, 248, 214, .96); }
+    .req-label { font-size: 17px; }
+    .req-field { min-height: 52px; font-size: 17px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -40,8 +40,22 @@ class TrackingDetailsTest extends TestCase
             ->assertSee('BPLO')
             ->assertSee('Business Permits Office')
             ->assertSee('Juan Dela Cruz')
-            ->assertSee('maria@example.com')
-            ->assertSee('09171234567');
+            ->assertSee('Maria Santos');
+    }
+
+    public function test_public_tracking_page_masks_the_requesters_contact_details(): void
+    {
+        // Anyone with the tracking number can open this page, and the email and
+        // phone are what the message gate asks for — printing them in full
+        // handed a stranger the answer.
+        [$dept, $staff, $doc] = $this->routedDocument();
+
+        $this->get(route('track.show', $doc->tracking_number))
+            ->assertOk()
+            ->assertSee('m•••@example.com')
+            ->assertSee('•••4567')
+            ->assertDontSee('maria@example.com')
+            ->assertDontSee('09171234567');
     }
 
     public function test_internal_tracking_page_shows_department_thed_and_assignee(): void

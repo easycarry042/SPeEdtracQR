@@ -14,9 +14,10 @@ use Illuminate\Http\Request;
  * It used to be a one-view flash, so any detour — the printable slip, the
  * tracking page, which polls in the background — wiped it and Back landed on a
  * blank "Submit a request" form. It now lasts a short while instead, and is
- * forgotten the moment anyone starts over (landing page, citizen portal home or
- * a new request form). That is what the next person at a shared counter does,
- * so they still never find the previous citizen's receipt waiting for them.
+ * forgotten the moment anyone starts over (the landing page, which the old
+ * citizen portal address now redirects to, or a new request form). That is what
+ * the next person at a shared counter does, so they still never find the
+ * previous citizen's receipt waiting for them.
  */
 final class CitizenReceipt
 {

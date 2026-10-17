@@ -183,9 +183,9 @@
             </div>
         @include('layouts.partials.keyboard-shortcuts')
     @else
-        {{-- Guests can reach a few app-layout pages (public /track lookup and the
-             tracking result). Use the same public portal header as /citizen. --}}
-        @include('layouts.partials.public-header')
+        {{-- Guests can reach a few app-layout pages; they get the same citizen
+             header as every other public page. --}}
+        @include('layouts.partials.portal-header')
 
         <main id="main" class="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
             {{ $slot }}

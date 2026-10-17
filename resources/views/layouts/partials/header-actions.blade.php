@@ -66,7 +66,9 @@
 
                 <div class="p-5">
                     <div class="qr-viewport relative overflow-hidden rounded-xl bg-[#1e1e1e]">
-                        <div id="headerScanReader" class="absolute inset-0"></div>
+                        {{-- .qr-surface: see .qr-viewport in app.css — a square box must not
+                             distort the picture the decoder reads. --}}
+                        <div id="headerScanReader" class="qr-surface"></div>
                         <p x-show="starting && !error" class="absolute inset-0 flex items-center justify-center text-sm font-medium text-white/80">
                             Starting camera…
                         </p>

@@ -37,7 +37,6 @@ class SiteFooterTest extends TestCase
     {
         return [
             'landing page' => ['welcome'],
-            'citizen portal' => ['citizen.dashboard'],
             'citizen lookup' => ['citizen.track'],
             'public request form' => ['public.request.create'],
             'staff sign in' => ['login'],
@@ -106,7 +105,7 @@ class SiteFooterTest extends TestCase
 
     public function test_the_footer_names_the_city_as_the_owner(): void
     {
-        $footer = $this->footer($this->get(route('citizen.dashboard'))->assertOk()->getContent());
+        $footer = $this->footer($this->get(route('citizen.track'))->assertOk()->getContent());
 
         $this->assertStringContainsString('images/staff/seal-2.png', $footer);
         $this->assertStringContainsString('San Pedro City Hall, Laguna', $footer);

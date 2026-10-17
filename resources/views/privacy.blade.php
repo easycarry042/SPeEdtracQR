@@ -7,7 +7,7 @@
      City's Data Protection Officer is — are marked "To be confirmed" until the
      City supplies them. Do not publish with those markers still showing. --}}
 @php
-    $updated = 'October 16, 2026';
+    $updated = 'October 17, 2026';
     $tbc = 'rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900';
 
     $sections = [
@@ -24,15 +24,13 @@
 <x-citizen-layout hide-speedy>
     <x-slot name="title">Privacy Notice</x-slot>
 
-    <article class="mx-auto max-w-[760px] pb-6 pt-4 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">
+    <article class="mx-auto max-w-[760px] pb-6 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">
         <header>
-            <p class="text-[14px] font-bold text-[#01721a]">City Government of San Pedro, Laguna</p>
-            <h1 class="mt-2 font-display text-[34px] font-black leading-tight text-[#004004] sm:text-[42px]">Privacy Notice</h1>
-            <p class="mt-3 text-pretty text-[17px] text-[#4b5a50] sm:text-[18px]">
+            <x-page-intro eyebrow="City Government of San Pedro, Laguna" title="Privacy Notice">
                 How <span translate="no">SPeED TraQR</span> handles the personal information you give when you file
                 or track a request, under the Data Privacy Act of 2012 (RA&nbsp;10173).
-            </p>
-            <p class="mt-3 text-[14px] text-[#5b6b62]">Last updated: <time datetime="2026-10-16">{{ $updated }}</time></p>
+            </x-page-intro>
+            <p class="mt-3 text-[14px] text-[#4b5a50]">Last updated: <time datetime="2026-10-17">{{ $updated }}</time></p>
         </header>
 
         <nav aria-label="On this page" class="mt-8 rounded-[16px] border border-[rgba(0,64,4,0.12)] bg-[#f5faf3] p-5">
@@ -78,7 +76,8 @@
 
             <section id="public" class="scroll-mt-24">
                 <h2>What the public tracking page shows</h2>
-                <p>Anyone with your tracking number or QR code can see your request’s current status, the office that has it, and its routing history. That page never shows your name, contact details or files. Keep your tracking number and QR code to yourself, as you would a claim stub.</p>
+                <p>Anyone with your tracking number or QR code can see your request’s current status, the office that has it, and its routing history, and can print its claim slip, which carries your name so staff can release the document to you.</p>
+                <p>Your email address and contact number are shown only partly hidden (for example, j•••@gmail.com and •••4567), enough for you to recognise them. Your uploaded files are never shown there. Keep your tracking number and QR code to yourself, as you would a claim stub.</p>
             </section>
 
             <section id="keep" class="scroll-mt-24">

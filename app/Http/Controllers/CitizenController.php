@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Document;
-use App\Support\CitizenReceipt;
 use App\Support\CitizenView;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -20,14 +19,15 @@ class CitizenController extends Controller
      */
     private const TRACKING_NUMBER_PATTERN = '/^(SPD|INT)-\d{8}-[0-9A-Z]{6}$/';
 
-    /** Citizen portal homepage — two option cards. */
-    public function index(Request $request): Factory|View
+    /**
+     * The old citizen portal home. Its two cards (submit, track) only repeated
+     * the landing page's hero actions one click later, so the landing page is
+     * the citizen's home now. The address stays alive for old bookmarks.
+     */
+    public function index(): RedirectResponse
     {
-        // The portal home is where the next citizen starts, so the previous
-        // citizen's receipt must not be reopenable from here on.
-        CitizenReceipt::forget($request);
-
-        return view('citizen.dashboard');
+        // The landing page forgets the previous citizen's receipt itself.
+        return redirect(CitizenView::homeUrl());
     }
 
     /**

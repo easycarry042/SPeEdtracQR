@@ -1,16 +1,13 @@
 <x-citizen-layout>
     <x-slot name="title">Track a Document</x-slot>
 
-    {{-- Page header (Back lives in the shared public header — no duplicate here). --}}
-    <div class="mb-[27px] text-center">
-        {{-- Phone framing a QR code: the two ways in, in one mark. --}}
-        <img src="{{ asset('images/portal/icon-scan-phone.svg') }}" alt=""
-             class="mx-auto h-[60px] w-[39px] -rotate-[13.99deg]">
-
-        <h1 class="mt-[17.5px] text-[21px] font-black text-[#004004] sm:text-[24px]">
-            Track your requests now!
-        </h1>
-    </div>
+    {{-- Page header (Back lives in the shared public header — no duplicate here).
+         Centred, like the landing page's section heads, because the two panels
+         under it are centred too. --}}
+    <x-page-intro eyebrow="Track a request" title="Where is my request?" class="mx-auto mb-10 text-center">
+        Scan the QR code from your confirmation email or printed slip, or type the
+        tracking number printed under it.
+    </x-page-intro>
 
     {{-- Two ways in, side by side: scan the receipt's QR, or type the number
          from it. The rule between them is decorative, so it drops on mobile
@@ -19,27 +16,33 @@
 
         {{-- ── Scan ──────────────────────────────────────────────────────────── --}}
         <section class="flex w-full max-w-[360px] flex-col md:flex-1">
-            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col rounded-[16px] p-[9.5px]">
-                <h2 class="pb-[13px] pt-[8px] text-center text-[18px] font-extrabold text-[#017209]">Scan QR Code to track</h2>
+            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col p-4 sm:p-5">
+                <h2 class="cz-card-title pb-4 text-center">Scan QR Code to track</h2>
                 {{-- mb-4 rather than a top margin on the button: the button sinks with
                      mt-auto, which collapses to nothing when the card has no spare
                      height, so the gap has to come from above. --}}
-                {{-- Square viewport. html5-qrcode injects a <video> sized to the
-                     camera stream, which is landscape on nearly every device —
-                     left to itself it letterboxes inside this box and leaves a
-                     black band underneath. .qr-viewport makes the feed cover. --}}
+                {{-- Square viewport. The camera picture is landscape on nearly
+                     every device; .qr-viewport fills the square with it without
+                     distorting what the decoder reads (see app.css). --}}
                 <div class="qr-viewport relative mb-4 overflow-hidden rounded-[16px] bg-[#1e1e1e]">
-                    <div id="qr-reader" class="absolute inset-0 h-full w-full"></div>
+                    {{-- .qr-surface: laid out at the camera's own shape and drawn
+                         scaled down, so the decoder sees undistorted pixels (see
+                         .qr-viewport in app.css and SpeedQr.fitSurface). --}}
+                    <div id="qr-reader" class="qr-surface"></div>
 
                     {{-- Framing guide. Stays up while the camera runs — the
-                         library's own shaded viewfinder is hidden in CSS. --}}
+                         library's own shaded viewfinder is hidden in CSS. It is
+                         70% of the window because that is exactly the region the
+                         decoder reads (SpeedQr's qrbox): it used to be a fixed
+                         200px, so a QR lined up inside it could still sit partly
+                         outside what was being decoded. --}}
                     <div id="scanFrame" class="pointer-events-none absolute inset-0 flex items-center justify-center">
                         {{-- Four thick rounded corner brackets, as drawn. --}}
-                        <div class="relative h-[200px] w-[200px]">
-                            <span class="absolute left-0 top-0 h-[67px] w-[67px] rounded-tl-[13px] border-l-[9px] border-t-[9px] border-white"></span>
-                            <span class="absolute right-0 top-0 h-[67px] w-[67px] rounded-tr-[13px] border-r-[9px] border-t-[9px] border-white"></span>
-                            <span class="absolute bottom-0 left-0 h-[67px] w-[67px] rounded-bl-[13px] border-b-[9px] border-l-[9px] border-white"></span>
-                            <span class="absolute bottom-0 right-0 h-[67px] w-[67px] rounded-br-[13px] border-b-[9px] border-r-[9px] border-white"></span>
+                        <div class="relative aspect-square w-[70%]">
+                            <span class="absolute left-0 top-0 h-[30%] w-[30%] rounded-tl-[13px] border-l-[8px] border-t-[8px] border-white"></span>
+                            <span class="absolute right-0 top-0 h-[30%] w-[30%] rounded-tr-[13px] border-r-[8px] border-t-[8px] border-white"></span>
+                            <span class="absolute bottom-0 left-0 h-[30%] w-[30%] rounded-bl-[13px] border-b-[8px] border-l-[8px] border-white"></span>
+                            <span class="absolute bottom-0 right-0 h-[30%] w-[30%] rounded-br-[13px] border-b-[8px] border-r-[8px] border-white"></span>
                         </div>
                     </div>
                 </div>
@@ -49,15 +52,15 @@
                 </p>
 
                 <button id="startCameraBtn" type="button"
-                        class="track-cta mt-auto inline-flex w-full items-center justify-center gap-[8px] rounded-[32px] bg-[#01721a] text-[16px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
+                        class="cz-btn cz-btn-primary mt-auto w-full">
                     <img src="{{ asset('images/portal/icon-camera.svg') }}" alt=""
-                         class="h-[21px] w-[21px] brightness-0 invert">
+                         class="h-5 w-5 brightness-0 invert">
                     Start Camera
                 </button>
 
                 <button id="stopCameraBtn" type="button"
-                        class="track-cta mt-auto hidden w-full items-center justify-center gap-[8px] rounded-[32px] border border-[rgba(0,64,4,0.5)] bg-white text-[16px] font-black text-[#004004] transition hover:bg-[rgba(141,255,60,0.2)]">
-                    <svg class="h-5 w-5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        class="cz-btn cz-btn-secondary mt-auto hidden w-full">
+                    <svg class="text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <rect x="6" y="6" width="12" height="12" rx="2"/>
                     </svg>
                     Stop Camera
@@ -66,16 +69,16 @@
                 {{-- A scan opens the record straight away; this panel is the
                      feedback for the half-second in between (and the manual way
                      through if the redirect is blocked), not a confirmation step. --}}
-                <div id="scannedResult" class="mt-4 hidden space-y-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4">
-                    <p class="text-sm font-bold text-emerald-900">QR code detected — opening your record…</p>
-                    <p id="scannedId" class="break-all font-mono text-sm text-emerald-950"></p>
+                <div id="scannedResult" class="mt-4 hidden space-y-3 rounded-[16px] border border-[rgba(1,114,26,0.18)] bg-[#eef8ea] p-4">
+                    <p class="text-[15px] font-bold text-[#004004]">QR code detected — opening your record…</p>
+                    <p id="scannedId" class="break-all font-mono text-sm text-[#004004]"></p>
                     <div class="flex gap-3">
                         <button id="trackScannedBtn" type="button"
-                                class="flex-1 rounded-full bg-emerald-900 py-2 text-sm font-bold text-white transition hover:bg-emerald-950">
+                                class="cz-btn cz-btn-primary cz-btn-sm flex-1">
                             Open it now
                         </button>
                         <button id="retryScanBtn" type="button"
-                                class="rounded-full border border-emerald-300 px-4 py-2 text-sm font-bold text-emerald-800 transition hover:bg-white">
+                                class="cz-btn cz-btn-secondary cz-btn-sm">
                             Retry
                         </button>
                     </div>
@@ -86,12 +89,12 @@
 
         {{-- Rule between the two routes in — decorative, so it sits between the
              panels and disappears when they stack. --}}
-        <div class="mx-[30.5px] hidden w-[2px] self-stretch bg-black/20 md:my-[70.5px] md:block" aria-hidden="true"></div>
+        <div class="mx-[30.5px] hidden w-px self-stretch bg-[rgba(0,64,4,0.12)] md:my-[70.5px] md:block" aria-hidden="true"></div>
 
         {{-- ── Type the number ───────────────────────────────────────────────── --}}
         <section class="flex w-full max-w-[360px] flex-col md:flex-1">
-            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col rounded-[16px] px-[20px] pb-[9.5px] pt-[9.5px]">
-                <h2 class="pb-[13px] pt-[8px] text-center text-[18px] font-extrabold text-[#017209]">Enter Tracking Number</h2>
+            <div class="track-panel flex min-h-[457.5px] flex-1 flex-col p-4 sm:p-5">
+                <h2 class="cz-card-title pb-4 text-center">Enter Tracking Number</h2>
 
                 {{-- Stand-in for the printed number on the receipt. --}}
                 <img src="{{ asset('images/portal/illus-tracking-id.svg') }}" alt=""
@@ -100,7 +103,7 @@
                 <div class="mt-[36px] flex items-start gap-[13px]">
                     <img src="{{ asset('images/portal/icon-info.svg') }}" alt=""
                          class="mt-[3px] h-[24px] w-[25px] shrink-0">
-                    <p class="text-[14px] font-medium leading-snug text-[#33a64c]">
+                    <p class="text-[15px] font-medium leading-snug text-[#4b5a50]">
                         Your tracking ID is printed on the document receipt issued when the document was submitted.
                     </p>
                 </div>
@@ -116,7 +119,7 @@
                            autocomplete="off"
                            required
                            @if(! empty($trackingError)) aria-invalid="true" aria-describedby="tracking-error" @endif
-                           class="h-[56px] w-full rounded-[16px] border {{ ! empty($trackingError) ? 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-400/30' : 'border-transparent bg-[rgba(1,114,26,0.3)] focus:border-[#01721a] focus:ring-[#8dff3c]/40' }} px-[29px] font-mono text-[14px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:text-[16px] placeholder:font-semibold placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] transition focus:bg-white/70 focus:outline-none focus:ring-4">
+                           class="req-field text-center font-mono uppercase tracking-wider placeholder:font-sans placeholder:not-italic placeholder:tracking-normal">
 
                     @if(! empty($trackingError))
                         <div id="tracking-error" role="alert"
@@ -131,10 +134,9 @@
                         </div>
                     @endif
 
-                    <button type="submit"
-                            class="track-cta inline-flex w-full items-center justify-center gap-[8px] rounded-[48px] bg-[#01721a] text-[16px] font-black text-white transition hover:bg-[#004004] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c]">
+                    <button type="submit" class="cz-btn cz-btn-primary w-full">
                         <img src="{{ asset('images/portal/icon-search.svg') }}" alt=""
-                             class="h-[18.5px] w-[18.5px] brightness-0 invert">
+                             class="h-[18px] w-[18px] brightness-0 invert">
                         Search
                     </button>
                 </form>
@@ -153,7 +155,7 @@
                 </svg>
             </span>
 
-            <h2 id="cameraErrorTitle" class="mt-4 text-xl font-extrabold text-emerald-950">
+            <h2 id="cameraErrorTitle" class="cz-card-title mt-4">
                 Camera access denied
             </h2>
             <p id="cameraErrorBody" class="mt-2 text-sm text-gray-600">
@@ -162,11 +164,11 @@
 
             <div class="mt-6 flex flex-col gap-3 sm:flex-row-reverse">
                 <button type="button" x-on:click="$dispatch('close'); startScanner()"
-                        class="inline-flex w-full items-center justify-center rounded-full bg-emerald-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-950">
+                        class="cz-btn cz-btn-primary w-full">
                     Try Again
                 </button>
                 <button type="button" x-on:click="$dispatch('close')"
-                        class="inline-flex w-full items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50">
+                        class="cz-btn cz-btn-secondary w-full">
                     Close
                 </button>
             </div>

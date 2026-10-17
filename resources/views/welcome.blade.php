@@ -16,55 +16,18 @@
     $submitUrl = route('public.request.create');
     $trackUrl = route('citizen.track');
 
-    $btnPrimary = 'inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-full bg-[#01721a] px-6 text-[16px] font-bold text-white shadow-[0_1px_2px_rgba(0,64,4,0.3),0_8px_20px_-8px_rgba(1,114,26,0.7)] transition-colors hover:bg-[#004004] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
-    $btnSecondary = 'inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-full border border-[rgba(0,64,4,0.35)] bg-white px-6 text-[16px] font-bold text-[#004004] transition-colors hover:bg-[#eef8ea] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
-    $navLink = 'inline-flex h-11 touch-manipulation items-center rounded-full px-3.5 text-[15px] font-semibold text-[#3a4a3f] transition-colors hover:bg-[#eef8ea] hover:text-[#004004] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]';
+    // The shared citizen buttons (resources/css/app.css, "Citizen surface set").
+    $btnPrimary = 'cz-btn cz-btn-primary';
+    $btnSecondary = 'cz-btn cz-btn-secondary';
 @endphp
 
     {{-- First tab stop: jumps the header. --}}
     <a href="#main" class="skip-link">Skip to content</a>
 
-    {{-- ── Header ───────────────────────────────────────────────────────────
-         Owner first: the City seal leads, so a visitor knows whose service
-         this is before they read the product name. Sticky on a frosted white
-         surface, so the section links stay in reach on a long page; every
-         section they target sets scroll-margin to clear it.
-         ───────────────────────────────────────────────────────────────────── --}}
-    <header class="sticky top-0 z-50 border-b border-[rgba(0,64,4,0.08)] bg-white/90 backdrop-blur-md">
-        <div class="mx-auto flex h-16 max-w-[1209.5px] items-center justify-between gap-4 px-4 sm:h-[72px] sm:px-6 lg:px-8">
-            <a href="#top" class="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-[#01721a] sm:gap-3">
-                <img src="{{ asset('images/staff/seal-2.png') }}" alt="City of San Pedro seal"
-                     width="44" height="44" class="h-10 w-10 shrink-0 sm:h-11 sm:w-11">
-                <span class="hidden h-9 w-px shrink-0 bg-[rgba(0,64,4,0.15)] sm:block" aria-hidden="true"></span>
-                <img src="{{ asset('images/landing/speed-icon.png') }}" alt=""
-                     width="36" height="36" class="hidden h-9 w-9 shrink-0 object-contain sm:block">
-                <span class="flex min-w-0 flex-col">
-                    <span class="text-[19px] leading-none sm:text-[22px]" translate="no">
-                        <span class="font-display font-black text-[#004004]">SPeED</span>
-                        <span class="font-sans font-bold text-[#017209]">TraQR</span>
-                    </span>
-                    <span class="mt-1 truncate text-[12px] font-semibold leading-none text-[#4b5a50] sm:text-[13px]">City of San Pedro, Laguna</span>
-                </span>
-            </a>
-
-            <nav aria-label="Primary" class="flex shrink-0 items-center gap-1">
-                {{-- Section links only fit from tablet up; below that the page is
-                     one short scroll and the hero already holds both actions. --}}
-                <ul class="hidden items-center gap-0.5 md:flex">
-                    <li><a href="#how-it-works" class="{{ $navLink }}">How it works</a></li>
-                    <li><a href="#features" class="{{ $navLink }}">Features</a></li>
-                    <li><a href="#faq" class="{{ $navLink }}">FAQ</a></li>
-                </ul>
-                <span class="mx-2 hidden h-6 w-px bg-[rgba(0,64,4,0.15)] md:block" aria-hidden="true"></span>
-                {{-- Staff are the minority audience: a quiet outlined link, never
-                     a filled button competing with the citizen actions. --}}
-                <a href="{{ route('login') }}"
-                   class="inline-flex h-11 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-full border border-[rgba(0,64,4,0.25)] px-4 text-[14px] font-bold text-[#004004] transition-colors hover:bg-[#eef8ea] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a]">
-                    Staff sign in
-                </a>
-            </nav>
-        </div>
-    </header>
+    {{-- The shared citizen header, in its landing-page form: section links and
+         the staff sign-in. Every section it targets sets scroll-margin to clear
+         it. --}}
+    @include('layouts.partials.portal-header', ['landing' => true])
 
     <main id="main">
 
@@ -222,7 +185,7 @@
                      'body' => 'Every office works to a set processing time under RA&nbsp;11032, and late requests are flagged to staff.',
                      'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/>'],
                     ['title' => 'Your details stay private',
-                     'body' => 'The public tracking page shows status and location only. Personal details and files stay hidden, per RA&nbsp;10173.',
+                     'body' => 'The public tracking page shows your request’s status and location. Contact details are masked and files stay hidden, per RA&nbsp;10173.',
                      'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.2 2.3-2.4 3.5M6.6 6.6C4.5 8 3 10 2 12c1 2.5 5 7 10 7 1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'],
                     ['title' => 'Every action on record',
                      'body' => 'Each scan, update and release is logged with the staff member who made it.',
@@ -263,7 +226,7 @@
                     ['q' => 'Do I need an account to use SPeED TraQR?',
                      'a' => 'No. Anyone can file and track a request without signing up. Keep your tracking number: it is how you follow your request and claim it.'],
                     ['q' => 'Is my personal information safe when I track a document publicly?',
-                     'a' => 'Yes. In compliance with the Data Privacy Act of 2012 (RA&nbsp;10173), the public tracking page only shows the document’s current status, location and routing history. Personal details and attached files stay confidential.'],
+                     'a' => 'Yes. In compliance with the Data Privacy Act of 2012 (RA&nbsp;10173), the public tracking page shows the document’s current status, location and routing history. Your email and phone number appear only partly hidden, and attached files are never shown.'],
                     ['q' => 'What should I do if I lose my tracking number or QR code?',
                      'a' => 'Look for the confirmation email we sent when you filed. It has both your tracking number and your QR code. If you can’t find it, visit the City Hall office where you filed your request.'],
                     ['q' => 'What types of documents can be tracked through SPeED TraQR?',

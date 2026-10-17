@@ -227,6 +227,90 @@
             return (error && error.message) ? error.message : 'The camera could not be started.';
         }
 
+        /**
+         * A .qr-surface (see .qr-viewport in app.css) is laid out at a real
+         * decoding size and only drawn small. Its width is set before the camera
+         * starts, because html5-qrcode reads it then to size the video: 1280px
+         * for a landscape feed, 720px where the screen — and so usually the
+         * phone camera's picture — is portrait.
+         */
+        function prepareSurface(elementId) {
+            const element = document.getElementById(elementId);
+
+            if (! element || ! element.classList.contains('qr-surface')) {
+                return;
+            }
+
+            element.classList.remove('is-fitted');
+            element.style.transform = '';
+            element.style.width = (window.innerHeight > window.innerWidth ? 720 : 1280) + 'px';
+        }
+
+        let fitObserver = null;
+
+        /**
+         * Scale the surface down to cover its square window, centred. A
+         * transform, never a width change: html5-qrcode measures clientWidth /
+         * clientHeight, which a transform leaves alone, so its decoding stays
+         * undistorted and full resolution while the feed fills the window.
+         */
+        function fitSurface(elementId) {
+            const element = document.getElementById(elementId);
+
+            if (! element || ! element.classList.contains('qr-surface')) {
+                return;
+            }
+
+            const box = element.parentElement;
+
+            const apply = () => {
+                const video = element.querySelector('video');
+
+                // Until the stream's metadata arrives the video is the
+                // browser's default 150px tall, and a fit taken then zoomed the
+                // feed in ~5×. Wait for the real picture size.
+                if (! video || ! video.videoWidth || ! video.videoHeight) {
+                    return false;
+                }
+
+                const width = element.offsetWidth;
+                const height = video.offsetHeight;
+
+                if (! width || ! height || ! box.clientWidth) {
+                    return false;
+                }
+
+                const scale = Math.max(box.clientWidth / width, box.clientHeight / height);
+                const x = (box.clientWidth - width * scale) / 2;
+                const y = (box.clientHeight - height * scale) / 2;
+
+                element.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                element.classList.add('is-fitted');
+
+                return true;
+            };
+
+            // The video only has a height once its metadata has arrived.
+            const startedAt = Date.now();
+            (function fitWhenReady() {
+                if (! apply() && Date.now() - startedAt < 5000) {
+                    requestAnimationFrame(fitWhenReady);
+                }
+            })();
+
+            if (fitObserver) {
+                fitObserver.disconnect();
+            }
+
+            // Refit when the window resizes, or when the video changes shape
+            // (a phone rotating hands over a portrait picture).
+            if (window.ResizeObserver) {
+                fitObserver = new ResizeObserver(() => apply());
+                fitObserver.observe(box);
+                fitObserver.observe(element);
+            }
+        }
+
         /** Start the live camera in #elementId; onDecode(decodedText) fires per frame. */
         function start(elementId, onDecode, onError) {
             if (typeof Html5Qrcode === 'undefined') {
@@ -246,8 +330,10 @@
 
             queue = queue
                 .then(() => stop())
+                .then(() => prepareSurface(elementId))
                 .then(() => waitForBox(elementId))
                 .then(() => launch(elementId, onDecode))
+                .then(() => fitSurface(elementId))
                 .catch((e) => { scanner = null; if (onError) onError(e); });
 
             return queue;
@@ -257,6 +343,16 @@
         function stop() {
             const active = scanner;
             scanner = null;
+
+            if (fitObserver) {
+                fitObserver.disconnect();
+                fitObserver = null;
+            }
+
+            document.querySelectorAll('.qr-surface.is-fitted').forEach((surface) => {
+                surface.classList.remove('is-fitted');
+                surface.style.transform = '';
+            });
 
             if (! active) {
                 return Promise.resolve();

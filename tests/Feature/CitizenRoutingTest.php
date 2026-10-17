@@ -136,7 +136,9 @@ class CitizenRoutingTest extends TestCase
         $document = $this->citizenDocument();
 
         foreach ([CitizenView::homeUrl(), route('citizen.dashboard'), route('public.request.create')] as $startOver) {
-            $this->withReceiptFor($document)->get($startOver)->assertOk();
+            // The old portal address redirects to the landing page, which is
+            // where the receipt is forgotten, so the redirect is followed.
+            $this->withReceiptFor($document)->followingRedirects()->get($startOver)->assertOk();
 
             $this->get(route('public.request.submitted'))
                 ->assertRedirect(route('public.request.create'));

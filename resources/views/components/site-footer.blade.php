@@ -1,10 +1,10 @@
 {{-- Shared footer — the last thing on every page that scrolls.
 
      Who runs this, the privacy notice, how to reach them, and the legal
-     line. No navigation columns:
-     every page already carries its own way forward (the landing page's hero
-     and closing actions, the portal's cards, the staff sidebar), so a doormat
-     here only repeated those links a second time.
+     line. No navigation columns: every page already carries its own way
+     forward (the landing page's hero and closing actions, the citizen header's
+     way home, the staff sidebar), so a doormat here only repeated those links
+     a second time.
 
      The plate is the brand's dark green so it reads as the end of the page on
      every backdrop it sits on: the landing page's white paper, the citizen
@@ -57,8 +57,8 @@
             <div>
                 <h2 class="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">Your Privacy</h2>
                 <p class="mt-[18px] max-w-[300px] text-[15px] leading-relaxed text-white/75">
-                    Your personal details are used only to process your request and stay hidden
-                    from public tracking.
+                    Your personal details are used only to process your request, and are masked
+                    on the public tracking page.
                 </p>
                 <a href="{{ route('privacy') }}" class="footer-link mt-[12px] inline-flex items-center gap-[6px] text-[15px] font-semibold">
                     Read the privacy notice

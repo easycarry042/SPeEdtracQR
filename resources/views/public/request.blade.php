@@ -12,30 +12,24 @@
 <body class="relative min-h-screen bg-white antialiased text-ink">
     <a href="#main" class="skip-link">Skip to content</a>
 
-    {{-- Same white portal bar as /citizen and /track. Not sticky: this form is
-         long enough that fields would scroll through the wordmark. --}}
-    @include('layouts.partials.portal-header', ['sticky' => false])
+    {{-- The shared citizen header, as on every public page. Its frosted white
+         surface keeps the wordmark legible over the fields scrolling under it. --}}
+    @include('layouts.partials.portal-header')
 
-    <main id="main" class="mx-auto w-full max-w-[1091px] px-4 pb-16 pt-[56px] sm:px-6">
+    {{-- Same container as the header, so the title lines up under the seal. --}}
+    <main id="main" class="mx-auto w-full max-w-[1209.5px] px-4 pb-16 pt-10 sm:px-6 sm:pt-14 lg:px-8">
 
-        {{-- Title block: icon, heading, one line of orientation. --}}
-        <div class="flex items-start gap-4 sm:gap-[28px]">
-            <img src="{{ asset('images/icon-submit-request.svg') }}" alt=""
-                 class="h-14 w-14 shrink-0 sm:h-20 sm:w-20" aria-hidden="true">
-            <div class="min-w-0">
-                <h1 class="font-display text-[21px] font-black tracking-tight text-[#07491b] sm:text-[24px]">Submit a request</h1>
-                <p class="mt-1 max-w-[880px] text-[14px] font-medium text-black sm:mt-2 sm:text-[18px]">
-                    Fill in the form below instead of going to the municipality. You'll get a tracking number to follow your request.
-                </p>
-            </div>
-        </div>
+        <x-page-intro eyebrow="Online request" title="Submit a request">
+            File your request without lining up at City Hall. You’ll get a tracking number and
+            QR code by email, so you can follow it from filing to pickup.
+        </x-page-intro>
 
         {{-- Without JavaScript this static box is the whole report. With it, the
              script below lifts these messages into the pop-up alert and hides
              the box, so the problem arrives in front of the citizen instead of
              waiting quietly somewhere on a long form. --}}
         @if($errors->any())
-            <div id="serverErrorSummary" class="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+            <div id="serverErrorSummary" class="mt-8 rounded-[16px] border border-red-200 bg-red-50 px-5 py-4 text-[15px] text-red-800" role="alert">
                 <p class="font-semibold">Please fix the highlighted {{ $errors->count() === 1 ? 'field' : 'fields' }}:</p>
                 <ul class="mt-1 list-inside list-disc space-y-1">
                     @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
@@ -46,7 +40,7 @@
         {{-- Two columns, as drawn: what you are asking for on the left, who is
              asking on the right. They stack on narrow screens. --}}
         <form method="POST" action="{{ route('public.request.store') }}" enctype="multipart/form-data"
-              class="req-shell mt-[24px] p-6 sm:p-[40px]" novalidate>
+              class="req-shell mt-8 p-5 sm:p-8 lg:p-10" novalidate>
             @csrf
 
             {{-- Honeypot: must stay empty. Hidden from real users, and kept
@@ -91,7 +85,7 @@
             </div>
 
             <div>
-                <label for="document_type" class="req-label">Request Type <span class="req-star">*</span></label>
+                <label for="document_type" class="req-label">Request type <span class="req-star">*</span></label>
                 <select id="document_type" name="document_type" required aria-invalid="@error('document_type')true @else false @enderror" @error('document_type') aria-describedby="document_type-err" @enderror class="req-field req-select mt-2">
                     <option value="">Select a request type…</option>
                     @foreach($groups as $kind => $groupLabel)
@@ -104,7 +98,7 @@
                         @endif
                     @endforeach
                 </select>
-                @error('document_type')<p id="document_type-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                @error('document_type')<p id="document_type-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             {{-- Shortcuts to the handful of types citizens file most, so the
@@ -113,11 +107,11 @@
                  submitting, so the requirements/scheduling panels still appear. --}}
             @if($popularTypes->isNotEmpty())
                 <div>
-                    <p class="req-label">Mostly Requested</p>
-                    <div class="mt-3 flex flex-wrap gap-[14.5px]">
+                    <p class="req-label">Most requested</p>
+                    <div class="mt-3 flex flex-wrap gap-2.5">
                         @foreach($popularTypes as $popular)
                             <button type="button" class="req-chip" data-pick-type="{{ $popular->name }}">
-                                <svg class="h-[17.5px] w-[17.5px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="#01721a" stroke-width="2.5" aria-hidden="true">
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M9 7h8v8"/>
                                 </svg>
                                 {{ $popular->name }}
@@ -130,52 +124,52 @@
             {{-- Requirements for the chosen request type — populated by JS from the
                  catalog. Citizens bring the originals to the counter. --}}
             <div id="requirementsSection" class="req-note hidden p-4 sm:p-5">
-                <p class="req-note-title text-sm sm:text-base">Requirements for this request</p>
-                <p class="req-note-body mt-1 text-xs sm:text-sm">Please bring the <strong>original</strong> of each to the counter — staff will verify them. Attaching a copy below is optional.</p>
+                <p class="req-note-title text-[16px]">Requirements for this request</p>
+                <p class="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">Please bring the <strong>original</strong> of each to the counter — staff will verify them. Attaching a copy below is optional.</p>
                 <ul id="requirementsList" class="mt-3 space-y-3"></ul>
             </div>
 
             {{-- Facility reservations: reserve a place for a specific time window
                  on one day (e.g. covered court, 4:00 PM – 7:00 PM). --}}
             <div id="bookingSection" class="req-note hidden p-4 sm:p-5">
-                <p class="req-note-title text-sm sm:text-base">Reservation details</p>
-                <p class="req-note-body mt-1 text-xs sm:text-sm">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
+                <p class="req-note-title text-[16px]">Reservation details</p>
+                <p class="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">You're reserving <strong id="bookingResource"></strong>. Pick the date and the time you need it — staff confirm availability, and clashing times are refused.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                         <label for="booking_date" class="req-label text-sm">Date</label>
                         <input id="booking_date" type="date" name="booking_date" value="{{ old('booking_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('booking_date') is-invalid @enderror">
-                        @error('booking_date')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('booking_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <x-time-clock name="start_time" label="Start time" :value="old('start_time', '')" default="09:00" />
-                        @error('start_time')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('start_time')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <x-time-clock name="end_time" label="End time" :value="old('end_time', '')" default="10:00" />
-                        @error('end_time')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('end_time')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
 
             {{-- Equipment borrowing: how many units, and the borrow-to-return dates. --}}
             <div id="equipmentSection" class="req-note hidden p-4 sm:p-5">
-                <p class="req-note-title text-sm sm:text-base">Borrowing details</p>
-                <p class="req-note-body mt-1 text-xs sm:text-sm">You're borrowing <strong id="equipmentResource"></strong>. Tell us how many and when — staff confirm availability.</p>
+                <p class="req-note-title text-[16px]">Borrowing details</p>
+                <p class="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">You're borrowing <strong id="equipmentResource"></strong>. Tell us how many and when — staff confirm availability.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                         <label for="quantity" class="req-label text-sm">How many</label>
                         <input id="quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 50" class="req-field mt-2 @error('quantity') is-invalid @enderror">
-                        @error('quantity')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('quantity')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="needed_date" class="req-label text-sm">Date needed</label>
                         <input id="needed_date" type="date" name="needed_date" value="{{ old('needed_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_date') is-invalid @enderror">
-                        @error('needed_date')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('needed_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="return_date" class="req-label text-sm">Return by</label>
                         <input id="return_date" type="date" name="return_date" value="{{ old('return_date') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('return_date') is-invalid @enderror">
-                        @error('return_date')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('return_date')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
@@ -183,18 +177,18 @@
             {{-- Service / production requests (e.g. lei making): how many to make,
                  and the date they're needed. No resource is reserved. --}}
             <div id="serviceSection" class="req-note hidden p-4 sm:p-5">
-                <p class="req-note-title text-sm sm:text-base">Service details</p>
-                <p class="req-note-body mt-1 text-xs sm:text-sm">Tell us how many you need and by when.</p>
+                <p class="req-note-title text-[16px]">Service details</p>
+                <p class="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">Tell us how many you need and by when.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                         <label for="service_quantity" class="req-label text-sm">How many</label>
                         <input id="service_quantity" type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ old('quantity') }}" placeholder="e.g. 10" class="req-field mt-2 @error('quantity') is-invalid @enderror">
-                        @error('quantity')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('quantity')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="needed_by" class="req-label text-sm">Date needed</label>
                         <input id="needed_by" type="date" name="needed_by" value="{{ old('needed_by') }}" min="{{ now()->toDateString() }}" class="req-field mt-2 @error('needed_by') is-invalid @enderror">
-                        @error('needed_by')<p data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                        @error('needed_by')<p data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
@@ -216,14 +210,14 @@
                     <span class="req-count" data-count-for="purpose" aria-hidden="true"></span>
                 </div>
                 <input id="purpose" name="purpose" value="{{ old('purpose') }}" maxlength="255" placeholder="What is this request for?" data-counter aria-invalid="@error('purpose')true @else false @enderror" @error('purpose') aria-describedby="purpose-err" @enderror class="req-field mt-2 @error('purpose') is-invalid @enderror">
-                <p class="mt-1.5 text-xs text-gray-600">What the document is for — e.g. “business permit renewal.”</p>
-                @error('purpose')<p id="purpose-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                <p class="mt-1.5 text-[13px] text-[#4b5a50]">What the document is for — e.g. “business permit renewal.”</p>
+                @error('purpose')<p id="purpose-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             <div>
                 <label for="description" class="req-label">Description</label>
                 <textarea id="description" name="description" rows="3" maxlength="5000" placeholder="Anything else the office should know…" aria-invalid="@error('description')true @else false @enderror" @error('description') aria-describedby="description-err" @enderror class="req-field mt-2 @error('description') is-invalid @enderror">{{ old('description') }}</textarea>
-                @error('description')<p id="description-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                @error('description')<p id="description-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             </div>{{-- /left column --}}
@@ -236,7 +230,7 @@
                     <span class="req-count" data-count-for="citizen_name" aria-hidden="true"></span>
                 </div>
                 <input id="citizen_name" name="citizen_name" value="{{ old('citizen_name') }}" required autocomplete="name" maxlength="255" placeholder="e.g. Juan Cruz" data-counter aria-invalid="@error('citizen_name')true @else false @enderror" @error('citizen_name') aria-describedby="citizen_name-err" @enderror class="req-field mt-2 @error('citizen_name') is-invalid @enderror">
-                @error('citizen_name')<p id="citizen_name-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                @error('citizen_name')<p id="citizen_name-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             <div>
@@ -245,13 +239,13 @@
                     <span class="req-count" data-count-for="citizen_email" aria-hidden="true"></span>
                 </div>
                 <input id="citizen_email" type="email" name="citizen_email" value="{{ old('citizen_email') }}" required autocomplete="email" inputmode="email" maxlength="255" placeholder="Your email..." data-counter aria-invalid="@error('citizen_email')true @else false @enderror" aria-describedby="citizen_email-hint @error('citizen_email') citizen_email-err @enderror" class="req-field mt-2 @error('citizen_email') is-invalid @enderror">
-                <p id="citizen_email-hint" class="mt-1.5 text-xs text-gray-600">We'll send your tracking link here.</p>
-                @error('citizen_email')<p id="citizen_email-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                <p id="citizen_email-hint" class="mt-1.5 text-[13px] text-[#4b5a50]">We'll send your tracking link here.</p>
+                @error('citizen_email')<p id="citizen_email-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             <div>
                 <div class="req-label-row">
-                    <label for="citizen_contact" class="req-label">Contact No.</label>
+                    <label for="citizen_contact" class="req-label">Contact number</label>
                     <span class="req-count" data-count-for="citizen_contact" aria-hidden="true"></span>
                 </div>
                 {{-- The number is exactly 11 digits (09XXXXXXXXX), so the field
@@ -263,21 +257,21 @@
                      contradicted the 11-digit national form we store, so the
                      field looked full at 10 digits. --}}
                 <input id="citizen_contact" type="tel" name="citizen_contact" value="{{ old('citizen_contact') }}" autocomplete="tel" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" placeholder="09123456789" data-counter data-digits-only aria-invalid="@error('citizen_contact')true @else false @enderror" aria-describedby="citizen_contact-hint @error('citizen_contact') citizen_contact-err @enderror" class="req-field mt-2 @error('citizen_contact') is-invalid @enderror">
-                <p id="citizen_contact-hint" class="mt-1.5 text-xs text-gray-600">11 digits, starting with 09 — e.g. 09123456789.</p>
-                @error('citizen_contact')<p id="citizen_contact-err" data-field-error class="mt-1.5 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
+                <p id="citizen_contact-hint" class="mt-1.5 text-[13px] text-[#4b5a50]">11 digits, starting with 09 — e.g. 09123456789.</p>
+                @error('citizen_contact')<p id="citizen_contact-err" data-field-error class="mt-1.5 text-[13px] font-semibold text-red-700">{{ $message }}</p>@enderror
             </div>
 
             {{-- Privacy notice — RA 10173 consent, which the server requires. --}}
             <div class="req-note p-5">
-                <p class="req-note-title text-center text-[16px] sm:text-[18px]">Privacy Notice</p>
-                <label class="mt-3 flex items-start gap-4 text-left">
+                <p class="req-note-title text-[16px] sm:text-[17px]">Your privacy</p>
+                <label class="mt-3 flex items-start gap-3.5 text-left">
                     <input type="checkbox" name="consent" value="1" @checked(old('consent')) class="req-check mt-0.5">
-                    <span class="req-note-body text-[14px] leading-[18px] sm:text-[16px]">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected. <a href="{{ route('privacy') }}" target="_blank" rel="noopener" class="font-bold underline underline-offset-2">Read the full privacy notice</a> (opens in a new tab).</span>
+                    <span class="req-note-body text-[15px] leading-relaxed">I agree that the information I provided will be collected and processed by the municipality solely to handle this request, in accordance with the Data Privacy Act of 2012 (RA 10173). Only the details needed to process and contact me about this request are collected. <a href="{{ route('privacy') }}" target="_blank" rel="noopener" class="font-bold underline underline-offset-2">Read the full privacy notice</a> (opens in a new tab).</span>
                 </label>
             </div>
 
-            <div class="flex justify-center pt-1">
-                <button type="submit" class="req-submit w-full sm:w-[184px]">Submit Request</button>
+            <div class="pt-1">
+                <button type="submit" class="cz-btn cz-btn-primary w-full">Submit request</button>
             </div>
 
             </div>{{-- /right column --}}
@@ -464,14 +458,14 @@
                 reqSection.classList.remove('hidden');
                 reqs.forEach((r) => {
                     const li = document.createElement('li');
-                    li.className = 'rounded-2xl border border-white/60 bg-white/70 p-3';
+                    li.className = 'rounded-[12px] border border-[rgba(0,64,4,0.12)] bg-white p-3';
                     li.innerHTML =
                         `<div class="flex items-center justify-between gap-2">
-                            <span class="text-sm font-medium text-gray-800">${esc(r.label)}</span>
-                            <span class="shrink-0 text-[11px] font-semibold ${r.mandatory ? 'text-red-600' : 'text-gray-500'}">${r.mandatory ? 'Required' : 'Optional'}</span>
+                            <span class="text-[15px] font-semibold text-[#1a1b1a]">${esc(r.label)}</span>
+                            <span class="shrink-0 text-[12px] font-bold ${r.mandatory ? 'text-red-700' : 'text-[#4b5a50]'}">${r.mandatory ? 'Required' : 'Optional'}</span>
                         </div>
                         <input type="file" name="requirements[${r.id}]" accept="${ACCEPTED_UPLOADS}"
-                               class="mt-2 w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-800">`;
+                               class="mt-2 w-full text-[13px] text-[#4b5a50] file:mr-3 file:rounded-full file:border-0 file:bg-[#eef8ea] file:px-4 file:py-2 file:text-[13px] file:font-bold file:text-[#004004]">`;
                     reqList.appendChild(li);
                 });
             }
