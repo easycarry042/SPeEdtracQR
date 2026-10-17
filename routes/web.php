@@ -27,6 +27,7 @@ use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\InternalRequestController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
@@ -250,6 +251,15 @@ Route::middleware(['auth', 'verified', 'permission:manage bookings'])
         Route::patch('bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
         Route::patch('bookings/{booking}/reschedule', [BookingController::class, 'reschedule'])->name('bookings.reschedule');
         Route::patch('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
+    });
+
+// Inventory — what the office owns and what is free right now. Staff-owned for
+// the same reason as the booking calendar: they are the ones handing the chairs
+// over, so they are the only people who know when a count has changed.
+Route::middleware(['auth', 'verified', 'permission:manage inventory'])
+    ->group(function () {
+        Route::get('inventory', [InventoryController::class, 'index'])->name('inventory.index');
+        Route::patch('inventory/{resource}', [InventoryController::class, 'update'])->name('inventory.update');
     });
 
 // System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted

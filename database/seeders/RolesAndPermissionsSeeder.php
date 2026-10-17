@@ -24,6 +24,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'assign documents',  // assign the staff member responsible for a document
             'accept documents',  // staff self-accept from the unclaimed queue
             'manage bookings',   // staff manage resource reservations (approve/reschedule/cancel)
+            'manage inventory',  // staff keep the stock counts for facilities and equipment
             'view reports',
             'manage users',
             'view all documents',
@@ -40,7 +41,10 @@ class RolesAndPermissionsSeeder extends Seeder
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
         // Staff may draft internal requests for their office; only a Supervisor
         // (department head) can endorse/forward them ('act on internal requests').
-        $staffRole->syncPermissions(['scan documents', 'advance documents', 'accept documents', 'manage bookings', 'create internal requests']);
+        // Inventory sits with staff, not with the admins: they are the ones who
+        // hand the chairs over and take them back, so they are the only people
+        // who know a count has changed.
+        $staffRole->syncPermissions(['scan documents', 'advance documents', 'accept documents', 'manage bookings', 'manage inventory', 'create internal requests']);
 
         // receiving_staff has been folded into staff. Migrate any remaining users,
         // then drop the role so only Guest (public), Staff, Supervisor, and Super
@@ -58,6 +62,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $supervisorRole->syncPermissions([
             'assign documents', 'view reports', 'view all documents',
             'create internal requests', 'act on internal requests',
+            'manage inventory',
         ]);
         if ($legacyDeptAdminRole) {
             foreach ($legacyDeptAdminRole->users as $user) {

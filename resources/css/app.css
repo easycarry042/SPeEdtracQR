@@ -1650,6 +1650,26 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
 .dp-foot .cr-btn { height: 40px; padding: 0 18px; border-radius: 10px; font-size: var(--fs-small); font-weight: 600; }
 .dp-picked strong { font-weight: 700; color: var(--green-deep); }
 
+/* ── Inventory ────────────────────────────────────────────────────────────
+   Stock counts for the things the office lends. The free count leads at table
+   weight and the bar sits under it as a reading aid, never as the fact — a
+   bar alone cannot say "180", and 180 is what the citizen is told.
+   ───────────────────────────────────────────────────────────────────────── */
+.inv-free { font-size: var(--fs-body); font-weight: 700; color: var(--green-deep); font-variant-numeric: tabular-nums; }
+.inv-free.is-none { color: var(--red); }
+
+.inv-bar { width: 92px; height: 6px; margin-top: 5px; border-radius: 4px; background: rgba(205, 217, 210, .8); overflow: hidden; }
+.inv-bar-fill { height: 100%; border-radius: 4px; background: rgba(9, 107, 7, .8); transition: width .4s; }
+.inv-bar-fill.is-none { background: var(--red); }
+
+/* Labels inside the inline edit row — one step under .req-label, since the row
+   is already inside a table cell that names the item. */
+.inv-field-label { display: block; margin-bottom: 4px; font-size: var(--fs-caption); font-weight: 700; color: var(--ink-soft); }
+
+/* The edit row sits back from the row it belongs to, so an open panel reads as
+   attached to that item rather than as another item. */
+.inv-edit { background: #fafcfb; }
+
 /* ── Date field on the public forms ───────────────────────────────────────
    The same calendar as the Look Up picker above, in a popover under a form
    field instead of filling a modal column: tighter padding, smaller day

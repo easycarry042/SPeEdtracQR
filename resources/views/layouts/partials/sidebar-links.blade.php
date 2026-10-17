@@ -124,6 +124,17 @@
         </a>
     @endcan
 
+    {{-- Next to Booking: the calendar says when a thing is taken, Inventory
+         says how much of it there is. Staff-owned for the same reason. --}}
+    @can('manage inventory')
+        <a href="{{ route('inventory.index') }}" {!! $row(request()->routeIs('inventory*')) !!}>
+            <span class="{{ $glyph }}">
+                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            </span>
+            <span class="{{ $label }}">Inventory</span>
+        </a>
+    @endcan
+
     @can('view reports')
         <a href="{{ route('analytics') }}" {!! $row(request()->routeIs('analytics*')) !!}>
             <span class="{{ $glyph }}">

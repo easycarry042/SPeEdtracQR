@@ -156,6 +156,19 @@ class PublicTicketController extends Controller
             ]);
 
             $quantity = (int) $schedule['quantity'];
+
+            // The hard ceiling: the office cannot lend what it does not own.
+            // Whether enough is free on those particular dates is settled when
+            // staff approve — a pending request holds no stock, so two people
+            // may both ask for the last fifty chairs and staff decide.
+            $stock = $type->resource?->serviceableUnits() ?? 0;
+
+            if ($stock > 0 && $quantity > $stock) {
+                return back()->withInput()->withErrors([
+                    'quantity' => "The office has {$stock} {$type->resource->name} in total. Please ask for {$stock} or fewer.",
+                ]);
+            }
+
             $neededBy = Carbon::parse($schedule['needed_date'])->toDateString();
             $reservation = [
                 'starts_at' => Carbon::parse($schedule['needed_date'])->setTime(8, 0),
