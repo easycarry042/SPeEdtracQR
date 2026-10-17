@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Add Department">
     <x-slot name="header">
         <div class="flex flex-col gap-1">
             <x-breadcrumbs :items="[

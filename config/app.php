@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Accessibility Widget
+    |--------------------------------------------------------------------------
+    |
+    | Toggles the Sienna accessibility toolbar rendered by the
+    | "layouts.partials.accessibility-widget" partial.
+    |
+    */
+
+    'accessibility_widget' => env('ACCESSIBILITY_WIDGET', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |
@@ -43,6 +55,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seeded Super Admin Password
+    |--------------------------------------------------------------------------
+    |
+    | Read here rather than via env() in the seeders, so a cached config still
+    | resolves it. App\Support\SeedGuard refuses to seed outside local/testing
+    | unless this is set to a strong value that has never appeared in this
+    | repository.
+    |
+    */
+
+    'admin_password' => env('ADMIN_PASSWORD', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request QR Signing Key
+    |--------------------------------------------------------------------------
+    |
+    | Signs the payload in every request QR (App\Support\TrackingQr) so only
+    | codes this office printed are accepted. Falls back to APP_KEY. Set it in
+    | production BEFORE printing stickers: changing it later invalidates every
+    | QR already printed, so it must stay fixed even if APP_KEY is rotated.
+    |
+    */
+
+    'qr_signing_key' => env('QR_SIGNING_KEY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
@@ -60,12 +100,16 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | Philippine time: "today" on the calendar, desk and SLA timers must turn
+    | over at local midnight, not 08:00 when UTC does. Every timestamp the
+    | system recorded before the switch was converted from UTC by the
+    | 2026_10_15_180106_convert_system_timestamps_to_manila_time migration.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

@@ -40,6 +40,13 @@ class DocumentCommentPosted implements ShouldBroadcast
         return 'comment';
     }
 
+    /**
+     * One payload serves both channels, so `author` — a staff member's real name —
+     * reaches the public channel for citizen-visible messages. That is intended:
+     * the citizen page names the staff author (see DocumentComment::publicAuthorLabel)
+     * just as it names the assignee under "Handled by". Internal notes never get
+     * here, because broadcastOn() only adds the public channel for public posts.
+     */
     public function broadcastWith(): array
     {
         return [

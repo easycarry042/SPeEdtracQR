@@ -28,6 +28,9 @@ return [
         // cost ~60-80s); warm calls answer in a few seconds. Use "-1" to
         // pin it in memory permanently.
         'keep_alive' => env('OLLAMA_KEEP_ALIVE', '30m'),
+        // Max tokens to generate per answer. Answers are short, and latency
+        // scales with tokens produced, so a low cap keeps responses snappy.
+        'num_predict' => (int) env('OLLAMA_NUM_PREDICT', 160),
     ],
 
 ];

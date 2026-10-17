@@ -82,7 +82,7 @@ class RouteTemplateTest extends TestCase
         $supervisor = User::factory()->create()->assignRole('Supervisor');
 
         // Unauthorized admin-area hits bounce Supervisors back to their dashboard.
-        $this->actingAs($supervisor)->get(route('admin.route-templates.index'))->assertRedirect(route('dashboard'));
+        $this->actingAs($supervisor)->get(route('admin.route-templates.index'))->assertForbidden();
     }
 
     public function test_steps_resolve_by_amount_around_the_bidding_threshold(): void

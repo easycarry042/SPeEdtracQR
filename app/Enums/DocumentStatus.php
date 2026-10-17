@@ -54,6 +54,52 @@ enum DocumentStatus: string
         };
     }
 
+    /**
+     * The four stages the staff progress bar shows (Figma: Pending, In review,
+     * Processing, Completed), each with the statuses that sit on it. The flow
+     * has five statuses; In Progress and In Review are both the review stage.
+     *
+     * Side states are placed separately — see railStage().
+     *
+     * @return array<int, array{label: string, statuses: array<int, string>}>
+     */
+    public static function railStages(): array
+    {
+        return [
+            ['label' => 'Pending', 'statuses' => [self::Pending->value]],
+            ['label' => 'In review', 'statuses' => [self::InProgress->value, self::InReview->value]],
+            ['label' => 'Processing', 'statuses' => [self::Approved->value]],
+            ['label' => 'Completed', 'statuses' => [self::Completed->value]],
+        ];
+    }
+
+    /**
+     * 1-based stage on the four-stage bar. Off-line states show where the
+     * request stands: Returned is back in review; On Hold and Denied sit where
+     * the request was when it stopped (`$before`, if recorded).
+     */
+    public function railStage(?self $before = null): int
+    {
+        $onRail = match ($this) {
+            self::Returned => self::InReview,
+            self::OnHold, self::Denied => $before && $before->railStageOrNull() ? $before : self::InReview,
+            default => $this,
+        };
+
+        return $onRail->railStageOrNull() ?? 1;
+    }
+
+    private function railStageOrNull(): ?int
+    {
+        foreach (self::railStages() as $index => $stage) {
+            if (in_array($this->value, $stage['statuses'], true)) {
+                return $index + 1;
+            }
+        }
+
+        return null;
+    }
+
     /** The ordered forward line shown in the stepper. Excludes Returned. */
     public static function flow(): array
     {

@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\DocumentCustodyEvent;
+use App\Models\RequestStep;
+use App\Models\User;
 use App\Support\AssignmentScope;
+use App\Support\ScannedCode;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Physical custody trail. Scanning a folder's QR (or clicking "Take custody")
  * records that the authenticated staff member now physically holds the paper.
- * Purely additive — it never changes the document's status.
+ * It never changes the document's status — but for internal requests it does
+ * grow the endorsement chain, logging the office that just received the folder.
  */
 class DocumentCustodyController extends Controller
 {
@@ -43,18 +48,18 @@ class DocumentCustodyController extends Controller
 
         $isScan = $validated['capture_method'] === 'scan';
 
-        // A scan must decode to THIS document's tracking number — scanning the
-        // wrong folder (or pasting garbage) is refused. The QR encodes the
-        // tracking URL, so extract the number rather than comparing raw strings.
+        // A scan must decode to THIS document's tracking number, and the code must
+        // be one WE issued (our own tracking/verify URL, or a bare tracking
+        // number). A foreign QR that merely mentions a tracking number is refused
+        // — the browser applies the same rule, this is the authority.
         if ($isScan) {
-            preg_match('/SPD-\d{8}-[0-9A-Z]{6}/i', (string) $validated['scanned_value'], $matches);
-            $scanned = isset($matches[0]) ? strtoupper($matches[0]) : null;
+            $scanned = ScannedCode::trackingNumber((string) $validated['scanned_value']);
 
             if ($scanned !== strtoupper($document->tracking_number)) {
                 throw ValidationException::withMessages([
                     'custody' => $scanned
                         ? "That QR belongs to a different folder ({$scanned}). Scan this document's folder."
-                        : 'That QR does not contain a valid tracking number. Scan the folder\'s QR code.',
+                        : ScannedCode::FOREIGN_CODE_MESSAGE,
                 ]);
             }
         }
@@ -82,13 +87,51 @@ class DocumentCustodyController extends Controller
             ? "Physical custody: folder now with {$user->name} (scanned)"
             : "Physical custody: folder now with {$user->name} (manual: {$validated['override_reason']})");
 
-        return $this->respond($request, 'Custody recorded — the folder is now with you.');
+        $appended = $this->logDepartmentOntoChain($document, $user);
+
+        return $this->respond($request, $appended
+            ? "Custody recorded — {$appended->department->name} added to the endorsement chain."
+            : 'Custody recorded — the folder is now with you.');
+    }
+
+    /**
+     * Growing the chain from scans: whichever office takes custody of an
+     * internal request is logged as the hop now holding it. Nothing is appended
+     * when that office already holds it, when the request is finished, or for
+     * citizen tickets (which have no endorsement chain).
+     */
+    private function logDepartmentOntoChain(Document $document, User $user): ?RequestStep
+    {
+        if (! $document->isInternal() || $user->department_id === null) {
+            return null;
+        }
+
+        if (in_array($document->statusEnum(), [DocumentStatus::Completed, DocumentStatus::Denied], true)) {
+            return null;
+        }
+
+        $current = $document->currentRequestStep();
+        if ($current && (int) $current->department_id === (int) $user->department_id) {
+            return null;
+        }
+
+        $step = $document->appendEndorsementStep($user->department_id);
+
+        activity()->performedOn($document)->causedBy($user)
+            ->log("Endorsement chain: {$step->department->name} received the request");
+
+        return $step;
     }
 
     private function respond(Request $request, string $message)
     {
         if ($request->expectsJson()) {
             return response()->json(['message' => $message]);
+        }
+
+        // Taken from the Internal page's modal: go back there, modal reopened.
+        if ($request->input('from') === 'internal' && $request->route('document')) {
+            return to_route('requests.index', ['open' => $request->route('document')->id])->with('status', $message);
         }
 
         return back()->with('status', $message);

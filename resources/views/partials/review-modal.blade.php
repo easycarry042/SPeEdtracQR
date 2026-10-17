@@ -5,210 +5,244 @@
 @php $mode = $mode ?? 'supervisor'; @endphp
 
 <div x-show="active" x-cloak
-     class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8"
-     @keydown.escape.window="close()" @click.self="close()">
-    <div class="w-full max-w-2xl rounded-2xl border border-hairline bg-paper shadow-xl"
-         x-show="active" x-transition>
+     class="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-[27px]"
+     @keydown.escape.window="close()" @click.self="close()"
+     role="dialog" aria-modal="true" aria-label="Review request">
+    {{-- Same card as the Look Up detail modal (.dm-*): a fixed size with a
+         pinned header and footer, and a body that scrolls between them. --}}
+    <div class="dm-card dm-card-review dm-fixed mx-auto w-full max-w-[660px]" x-show="active" x-transition.opacity>
         <template x-if="active">
-            <div>
-                <div class="flex items-start justify-between gap-4 border-b border-hairline px-6 py-4">
-                    <div class="min-w-0">
-                        <p class="mono text-lg font-extrabold text-green-deep" x-text="active.tracking_number"></p>
-                        <p class="mt-0.5 text-sm text-ink-soft" x-text="active.document_type"></p>
+            <div class="flex h-full min-h-0 flex-col">
+                {{-- Header bar: where the request stands, and close. --}}
+                <div class="dm-head">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="pill" :class="active.needs_triage ? 'p-amber' : pillClass(active)"
+                              x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                        <span x-show="active.unread_messages > 0" x-cloak class="dm-chip-info">
+                            <span x-text="active.unread_messages"></span> new message<span x-show="active.unread_messages > 1">s</span>
+                        </span>
                     </div>
-                    <span class="pill shrink-0"
-                          :class="active.needs_triage ? 'p-amber' : 'p-muted'"
-                          x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                    <button type="button" @click="close()" aria-label="Close" class="dm-close">
+                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
                 </div>
 
-                <div class="max-h-[55vh] space-y-5 overflow-y-auto px-6 py-5">
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Citizen</p>
-                            <p class="mt-1 text-sm font-semibold text-ink" x-text="active.citizen_name || '—'"></p>
+                <div class="dm-body">
+                    {{-- Title + tracking number --}}
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="dm-title" x-text="active.document_type"></p>
+                            <p class="dm-subtitle" x-text="active.citizen_name || '—'"></p>
                         </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Submitted</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.submitted_at || '—'"></p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Email</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.citizen_email || '—'"></p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Contact</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.citizen_contact || '—'"></p>
-                        </div>
+                        @include('partials.qr-tile', ['record' => 'active'])
                     </div>
 
-                    <div x-show="active.purpose">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Purpose</p>
-                        <p class="mt-1 text-sm text-ink" x-text="active.purpose"></p>
-                    </div>
-                    <div x-show="active.description">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Description</p>
-                        <p class="mt-1 whitespace-pre-line text-sm text-ink" x-text="active.description"></p>
-                    </div>
+                    {{-- Progress: the four stages, moving as the actions below run. --}}
+                    <ol class="dm-steps" aria-label="Progress">
+                        <template x-for="(stage, i) in railStages" :key="stage.label">
+                            <li class="dm-step" :class="'is-' + railState(i + 1)"
+                                :aria-current="railState(i + 1) === 'current' ? 'step' : null">
+                                <span class="dm-step-line" x-show="i > 0" aria-hidden="true"></span>
+                                <span class="dm-step-dot" aria-hidden="true">
+                                    <svg x-show="railState(i + 1) === 'done'" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 12.5 4 4 8-9"/></svg>
+                                </span>
+                                <span class="dm-step-label" x-text="stage.label"></span>
+                            </li>
+                        </template>
+                    </ol>
 
-                    <div x-show="active.attachments && active.attachments.length">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Attachments</p>
-                        <div class="mt-2 flex flex-wrap gap-2">
-                            <template x-for="(att, i) in active.attachments" :key="i">
-                                <a :href="att.url" target="_blank" rel="noopener"
-                                   class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-green-wash ring-1 ring-hairline transition hover:ring-green-bright">
-                                    <template x-if="att.is_image">
-                                        <img :src="att.url" alt="Attachment" class="h-full w-full object-cover">
+                    @if($mode === 'staff')
+                        {{-- Off-the-line states, with what the citizen or office is waiting on. --}}
+                        <template x-if="active && !active.needs_triage && prog().isReturned">
+                            <div class="dm-callout dm-callout-amber mt-5">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
+                                <div>
+                                    <p class="font-bold">Returned for revision</p>
+                                    <template x-if="active.remarks"><p x-text="active.remarks"></p></template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="active && !active.needs_triage && prog().isHeld">
+                            <div class="dm-callout dm-callout-amber mt-5">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6M14 9v6M5 5h14v14H5z"/></svg>
+                                <div>
+                                    <p>
+                                        <span class="font-bold">On hold</span>
+                                        <template x-if="active.blocked_by"><span> · waiting on <span x-text="active.blocked_by"></span></span></template>
+                                        <template x-if="active.hold_until"><span> · until <span x-text="active.hold_until"></span></span></template>
+                                        <template x-if="active.hold_overdue_days"><span class="hold-stalled"> · <span x-text="active.hold_overdue_days"></span>d past due</span></template>
+                                    </p>
+                                    <template x-if="active.hold_reason"><p x-text="active.hold_reason"></p></template>
+                                </div>
+                            </div>
+                        </template>
+                    @endif
+
+                    {{-- More Info --}}
+                    <section class="mt-7">
+                        <h2 class="dm-section">More Info</h2>
+                        <dl class="dm-info">
+                            <template x-for="row in [
+                                ['Request by', active.citizen_name],
+                                ['Email', active.citizen_email],
+                                ['Contact No.', active.citizen_contact],
+                                ['Request Type', active.document_type],
+                                ['Submitted', active.submitted_at],
+                                ['Purpose', active.purpose],
+                            ]" :key="row[0]">
+                                <div class="dm-info-row" x-show="row[0] !== 'Purpose' || row[1]">
+                                    <dt x-text="row[0]"></dt>
+                                    <dd x-text="row[1] || '—'"></dd>
+                                </div>
+                            </template>
+                        </dl>
+                        <div x-show="active.description" class="dm-note">
+                            <p class="dm-note-label">Description</p>
+                            <p class="whitespace-pre-line" x-text="active.description"></p>
+                        </div>
+                    </section>
+
+                    {{-- Requirement uploads: the citizen's evidence for each listed
+                         requirement, each row linking to the authorized file stream. --}}
+                    <section class="mt-7" x-show="active.requirements && active.requirements.length">
+                        <h2 class="dm-section">Requirements for this request</h2>
+                        <ul class="dm-files">
+                            <template x-for="(req, i) in active.requirements" :key="i">
+                                <li class="dm-file">
+                                    <template x-if="req.has_file">
+                                        <a :href="req.url" target="_blank" rel="noopener" class="dm-thumb">
+                                            <template x-if="req.is_image"><img :src="req.url" alt=""></template>
+                                            <template x-if="!req.is_image">
+                                                <span class="dm-thumb-doc" :class="req.ext === 'pdf' && 'is-pdf'">
+                                                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8L14 3.5Z"/><path stroke-linejoin="round" d="M14 3.5V8h4.5"/></svg>
+                                                    <span x-text="req.ext"></span>
+                                                </span>
+                                            </template>
+                                        </a>
                                     </template>
+                                    <template x-if="!req.has_file">
+                                        <span class="dm-thumb is-missing" aria-hidden="true">
+                                            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                                        </span>
+                                    </template>
+
+                                    <div class="min-w-0 flex-1">
+                                        <p class="dm-file-name" x-text="req.label"></p>
+                                        <p class="dm-file-meta">
+                                            <span x-show="req.is_mandatory" class="font-semibold text-status-red">Required</span>
+                                            <span x-show="!req.is_mandatory">Optional</span>
+                                            <span x-show="!req.has_file"> · not uploaded</span>
+                                        </p>
+                                    </div>
+
+                                    <a x-show="req.has_file" :href="req.url" target="_blank" rel="noopener" class="dm-file-open">View</a>
+                                </li>
+                            </template>
+                        </ul>
+                    </section>
+
+                    <section class="mt-7" x-show="active.attachments && active.attachments.length">
+                        <h2 class="dm-section">Attachments</h2>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <template x-for="(att, i) in active.attachments" :key="i">
+                                <a :href="att.url" target="_blank" rel="noopener" class="dm-thumb dm-thumb-lg">
+                                    <template x-if="att.is_image"><img :src="att.url" alt="Attachment"></template>
                                     <template x-if="!att.is_image">
-                                        <span class="flex flex-col items-center gap-1 text-ink-soft">
-                                            <svg class="h-5 w-5" :class="att.ext === 'pdf' ? 'text-status-red' : 'text-green'" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5"/></svg>
-                                            <span class="text-[9px] font-bold uppercase" x-text="att.ext"></span>
+                                        <span class="dm-thumb-doc" :class="att.ext === 'pdf' && 'is-pdf'">
+                                            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8L14 3.5Z"/><path stroke-linejoin="round" d="M14 3.5V8h4.5"/></svg>
+                                            <span x-text="att.ext"></span>
                                         </span>
                                     </template>
                                 </a>
                             </template>
                         </div>
-                    </div>
+                    </section>
 
                     @if($mode === 'supervisor')
-                        <div class="rounded-[10px] border border-hairline-strong bg-green-wash/40 p-4">
-                            <label class="block text-sm font-semibold text-green-deep">Assign to Staff <span class="text-status-red">*</span></label>
-                            <select x-model="selectedStaff"
-                                    class="mt-2 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
+                        <section class="dm-panel-strong mt-7">
+                            <label class="block text-[length:var(--fs-small)] font-bold text-green-deep" for="reviewAssignee">Assign to Staff <span class="text-status-red">*</span></label>
+                            <select id="reviewAssignee" x-model="selectedStaff" class="st-filter-field mt-2">
                                 <option value="">Select a staff member…</option>
                                 <template x-for="member in staff" :key="member.id">
                                     <option :value="member.id" x-text="member.name"></option>
                                 </template>
                             </select>
-                            <p class="mt-2 text-xs text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
-                        </div>
+                            <p class="mt-2 text-[length:var(--fs-caption)] text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
+                        </section>
                     @else
                         {{-- Triage: this assignment is still awaiting Accept / Decline / Revision. --}}
                         <template x-if="active && active.needs_triage">
-                            <div class="rounded-[10px] border border-hairline-strong bg-green-wash/40 p-4 text-sm text-ink space-y-2">
-                                <p class="font-semibold text-green-deep">Review this assignment before deciding.</p>
-                                <p>Check the citizen details and attachments above, then choose <strong>Accept</strong> to start work, <strong>Decline</strong> to send it back to the supervisor, or <strong>Request revision</strong> if the citizen must fix something first.</p>
-                                <p class="text-xs text-ink-soft">You can also <a :href="'/track/' + active.tracking_number" target="_blank" rel="noopener" class="font-semibold underline">open the full track page</a> for the complete timeline.</p>
-                            </div>
+                            <section class="dm-panel-strong mt-7 space-y-2 text-[length:var(--fs-small)] text-ink">
+                                <p class="font-bold text-green-deep">Review this assignment before deciding.</p>
+                                <p>Check the citizen details and requirements above, then choose <strong>Accept</strong> to start work, <strong>Decline</strong> to send it back to the supervisor, or <strong>Request revision</strong> if the citizen must fix something first.</p>
+                            </section>
                         </template>
 
-                        {{-- Cockpit: once accepted, the whole status lifecycle is driven here. --}}
-                        <template x-if="active && !active.needs_triage">
-                            <div class="space-y-4">
-                                {{-- Returned side-state banner --}}
-                                <template x-if="prog().isReturned">
-                                    <div class="step-returned" style="width:100%;align-items:flex-start;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="margin-top:1px;flex:none;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
-                                        <div>
-                                            <span>Returned for revision</span>
-                                            <template x-if="active.remarks"><div style="font-weight:400;margin-top:2px;" x-text="active.remarks"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- On-hold side-state banner --}}
-                                <template x-if="prog().isHeld">
-                                    <div class="step-hold" style="width:100%;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6M14 9v6M5 5h14v14H5z"/></svg>
-                                        <div>
-                                            <span style="font-weight:700;">On hold</span>
-                                            <template x-if="active.blocked_by"><span style="opacity:.85;"> · waiting on <span x-text="active.blocked_by"></span></span></template>
-                                            <template x-if="active.hold_until"><span style="opacity:.85;"> · until <span x-text="active.hold_until"></span></span></template>
-                                            <template x-if="active.hold_reason"><div style="font-weight:400;margin-top:2px;" x-text="active.hold_reason"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- Stepper — identical vocabulary to the public/track view --}}
-                                <div>
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Status progress</p>
-                                    <div class="steps" style="margin:10px 2px 4px;">
-                                        <template x-for="(s, i) in flow" :key="s.value">
-                                            <div style="display:contents">
-                                                <div class="stp">
-                                                    <div class="node" :class="nodeClass(i)">
-                                                        <template x-if="isDone(i)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg></template>
-                                                        <template x-if="!isDone(i)"><span x-text="i + 1"></span></template>
-                                                    </div>
-                                                    <div class="cap" :class="isCurrent(i) ? 'cur' : ''" x-text="s.label"></div>
-                                                </div>
-                                                <div class="seg" :class="isDone(i) ? 'done' : ''" x-show="i < flow.length - 1"></div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                <p class="text-sm text-ink-soft" x-text="cockpitHint()"></p>
-                            </div>
+                        <template x-if="active && !active.needs_triage && cockpitHint()">
+                            <p class="mt-6 text-[length:var(--fs-small)] text-ink-soft" x-text="cockpitHint()"></p>
                         </template>
                     @endif
+
                 </div>
 
-                <div class="flex flex-wrap items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                <div class="dm-foot dm-actions">
                     {{-- Stage-gate / concurrency failures surface here, inline — no alert(). --}}
                     <p x-show="gateError" x-cloak x-text="gateError" role="alert"
-                       class="w-full rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red"></p>
+                       class="w-full rounded-[10px] bg-status-red-wash px-3 py-2 text-[length:var(--fs-small)] font-semibold text-status-red"></p>
 
-                    <button type="button" @click="close()" class="cr-btn !px-5 !py-2.5 !text-sm">
-                        <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
-                    </button>
-
-                    @if($mode === 'supervisor')
-                        <button type="button" @click="denyOpen = true" :disabled="submitting"
-                                class="cr-btn cr-btn-danger !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                            Deny
+                    <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <button type="button" @click="close()" class="cr-btn">
+                            <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
                         </button>
-                        <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
-                                class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-show="!submitting">Approve</span>
-                            <span x-show="submitting">Approving…</span>
-                        </button>
-                    @else
-                        {{-- Triage decision --}}
-                        <template x-if="active && active.needs_triage">
-                            <div class="flex flex-wrap items-center justify-end gap-3">
-                                <button type="button" @click="revisionOpen = true" :disabled="submitting"
-                                        class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    Request revision
-                                </button>
-                                <button type="button" @click="declineOpen = true" :disabled="submitting"
-                                        class="cr-btn cr-btn-danger !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    Decline
-                                </button>
-                                <button type="button" @click="acceptAssignment()" :disabled="submitting"
-                                        class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-show="!submitting">Accept</span>
-                                    <span x-show="submitting">Accepting…</span>
-                                </button>
-                            </div>
-                        </template>
 
-                        {{-- Working states: one primary Next action + secondary actions under More --}}
-                        <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
-                            <div class="flex flex-wrap items-center justify-end gap-3">
-                                <div class="relative" x-show="prog().canRevert || prog().canReturn || prog().canHold">
-                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting || active.can_advance === false"
-                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">More ▾</button>
-                                    <div x-show="moreOpen" x-cloak x-transition.opacity
-                                         @click.outside="moreOpen = false" @keydown.escape.window="moreOpen = false"
-                                         class="absolute bottom-full right-0 z-[70] mb-2 w-60 rounded-xl border border-hairline bg-paper p-1.5 shadow-xl">
-                                        <button type="button" x-show="prog().canRevert" @click="moreOpen = false; revertStatus()"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">← Move back a stage</button>
-                                        <button type="button" x-show="prog().canReturn" @click="moreOpen = false; returnOpen = true"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-status-amber hover:bg-status-amber-wash">Return for revision</button>
-                                        <button type="button" x-show="prog().canHold" @click="moreOpen = false; holdOpen = true"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">Put on hold</button>
-                                    </div>
+                        @if($mode === 'supervisor')
+                            <button type="button" @click="denyOpen = true" :disabled="submitting"
+                                    class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
+                                Deny
+                            </button>
+                            <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
+                                    class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-show="!submitting">Approve</span>
+                                <span x-show="submitting">Approving…</span>
+                            </button>
+                        @else
+                            {{-- Triage decision --}}
+                            <template x-if="active && active.needs_triage">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" @click="revisionOpen = true" :disabled="submitting"
+                                            class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber disabled:cursor-not-allowed disabled:opacity-50">
+                                        Request revision
+                                    </button>
+                                    <button type="button" @click="declineOpen = true" :disabled="submitting"
+                                            class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
+                                        Decline
+                                    </button>
+                                    <button type="button" @click="acceptAssignment()" :disabled="submitting"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting">Accept</span>
+                                        <span x-show="submitting">Accepting…</span>
+                                    </button>
                                 </div>
-                                <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
-                                        :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
-                                        class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-show="!submitting" x-text="prog().primary.label"></span>
-                                    <span x-show="submitting">Working…</span>
-                                </button>
-                            </div>
-                        </template>
-                    @endif
+                            </template>
+
+                            {{-- Working states: the next step, and sending it back to the citizen. --}}
+                            <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" x-show="prog().canReturn" @click="returnOpen = true"
+                                            :disabled="submitting || active.can_advance === false"
+                                            class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber disabled:cursor-not-allowed disabled:opacity-50">
+                                        Return for revision
+                                    </button>
+                                    <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
+                                            :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting" x-text="prog().primary.label"></span>
+                                        <span x-show="submitting">Working…</span>
+                                    </button>
+                                </div>
+                            </template>
+                        @endif
+                    </div>
                 </div>
 
                 @if($mode === 'supervisor')
@@ -301,7 +335,7 @@
                      @keydown.escape.window="advanceOpen = false" @click.self="advanceOpen = false">
                     <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="advanceOpen" x-transition>
                         <div class="border-b border-hairline px-6 py-4">
-                            <h3 class="text-base font-bold text-ink">Advance to <span x-text="advanceTargetLabel()"></span></h3>
+                            <h3 class="text-base font-bold text-ink" x-text="advanceTargetLabel() === 'Approved' ? 'Process this request' : 'Advance to ' + advanceTargetLabel()"></h3>
                             <p class="mt-0.5 text-sm text-ink-soft" x-text="advanceHint()"></p>
                         </div>
                         <div class="px-6 py-5">
@@ -311,6 +345,7 @@
                                 <span x-show="!advanceNoteRequired()" class="font-normal text-ink-soft">(optional)</span>
                             </label>
                             <textarea x-model="advanceNote" rows="3" maxlength="1000"
+                                      @keydown.meta.enter="confirmAdvance()" @keydown.ctrl.enter="confirmAdvance()"
                                       :placeholder="active && active.status === 'in_review' ? 'e.g. Requirements verified against the checklist; clearances valid' : (advanceNoteRequired() ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step…')"
                                       class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
                         </div>
@@ -319,7 +354,7 @@
                                     class="cr-btn !px-5 !py-2.5 !text-sm disabled:opacity-50">Cancel</button>
                             <button type="button" @click="confirmAdvance()" :disabled="submitting || (advanceNoteRequired() && !advanceNote.trim())"
                                     class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-show="!submitting">Confirm — advance</span>
+                                <span x-show="!submitting">Confirm — advance <span class="opacity-60">⌘↵</span></span>
                                 <span x-show="submitting">Advancing…</span>
                             </button>
                         </div>
@@ -429,8 +464,12 @@
 
 @once
 <script>
+    /** The four-stage bar's stages, from DocumentStatus::railStages(). */
+    window.REVIEW_RAIL = @js(\App\Enums\DocumentStatus::railStages());
+
     window.reviewPanel = function (cfg) {
         return {
+            railStages: window.REVIEW_RAIL,
             requests: cfg.requests || [],
             mode: cfg.mode || 'supervisor',
             staff: cfg.staff || [],
@@ -441,6 +480,7 @@
             completeBase: cfg.completeBase || '',
             reloadUrl: cfg.reloadUrl || null,
             active: null,
+            qrOpen: false,
             selectedStaff: '',
             submitting: false,
             denyOpen: false,
@@ -449,7 +489,6 @@
             declineReason: '',
             revisionOpen: false,
             revisionReason: '',
-            moreOpen: false,
             holdOpen: false,
             holdReason: '',
             holdBlockedBy: 'citizen',
@@ -461,9 +500,23 @@
             revertOpen: false,
             revertReason: '',
             gateError: '',
+            tableQuery: '',
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
+            },
+
+            /**
+             * Rows matching the in-table search (citizen name, tracking number,
+             * or request type). Filtering client-side keeps the queue instant —
+             * this list is a triage queue, not a full archive.
+             */
+            visibleRequests() {
+                const q = this.tableQuery.trim().toLowerCase();
+                if (!q) return this.requests;
+
+                return this.requests.filter((req) => [req.citizen_name, req.tracking_number, req.document_type, req.department]
+                    .some((field) => (field || '').toLowerCase().includes(q)));
             },
 
             // ─── Cockpit: client-side status logic (mirrors DocumentStatus enum) ───
@@ -504,7 +557,7 @@
                 if (isReturned) primary = { type: 'resume', label: 'Resume — back to In Progress' };
                 else if (isHeld) primary = { type: 'unhold', label: 'Resume — lift hold' };
                 else if (st === 'approved') primary = { type: 'approve', label: 'Approve & complete' };
-                else if (idx >= 0 && idx < this.flow.length - 2) primary = { type: 'advance', label: 'Advance to ' + this.flow[idx + 1].label };
+                else if (idx >= 0 && idx < this.flow.length - 2) primary = { type: 'advance', label: this.advanceLabel(this.flow[idx + 1]) };
                 else primary = { type: 'none', label: null };
 
                 return {
@@ -515,6 +568,38 @@
                     canHold: !isHeld && !isTerminal && idx >= 0,
                     primary,
                 };
+            },
+
+            /**
+             * Stage of the active request on the four-stage bar — mirrors
+             * DocumentStatus::railStage(), but runs here so the bar moves the
+             * moment an action changes the status, without a reload.
+             */
+            railStage() {
+                const at = (status) => this.railStages.findIndex((stage) => stage.statuses.includes(status)) + 1;
+                const st = this.active ? this.active.status : null;
+
+                if (st === 'returned') return at('in_review');
+                if (st === 'on_hold' || st === 'denied') return at(this.active.status_before_hold) || at('in_review');
+
+                return at(st) || 1;
+            },
+
+            /** 'done' | 'current' | 'todo' for the stage at `position`. */
+            railState(position) {
+                const current = this.railStage();
+                if (position < current || (position === current && this.active?.status === 'completed')) return 'done';
+
+                return position === current ? 'current' : 'todo';
+            },
+
+            /**
+             * Button label for moving to `next`. Approving the review moves the
+             * request onto the bar's "Processing" stage, so that step is simply
+             * "Process"; earlier steps keep their stage name.
+             */
+            advanceLabel(next) {
+                return next.value === 'approved' ? 'Process' : 'Advance to ' + next.label;
             },
 
             isDone(i) { const p = this.prog(); return !p.isReturned && (i + 1) < p.displayPosition; },
@@ -528,7 +613,7 @@
                 const p = this.prog();
                 switch (p.primary.type) {
                     case 'approve': return 'This request is at Approved. Approve it to mark it Completed and move it to your History.';
-                    case 'advance': return 'Click the button to move this request to the next stage. Secondary actions are under More.';
+                    case 'advance': return 'Move this request to the next stage, or return it to the citizen if something needs fixing.';
                     case 'resume': return 'This request was returned for revision. Resume it to continue working.';
                     case 'unhold': return 'This request is on hold and its SLA is paused. Resume to lift the hold and continue.';
                     default: return '';
@@ -577,7 +662,10 @@
 
             runPrimary() {
                 switch (this.prog().primary.type) {
-                    case 'advance': return this.openAdvance();
+                    // Fewer clicks: the confirm panel exists to collect a note, so
+                    // when this stage does not require one, advance straight away
+                    // instead of asking the same person to confirm their own click.
+                    case 'advance': return this.advanceNoteRequired() ? this.openAdvance() : this.confirmAdvance();
                     case 'approve': return this.approve();
                     case 'resume': return this.setStatus('in_progress');
                     case 'unhold': return this.patchStatus('unhold', { blocked_by: null, hold_reason: null, hold_until: null, status_before_hold: null });
@@ -606,6 +694,11 @@
                 return idx >= 0 && this.flow[idx + 1] ? this.flow[idx + 1].label : '';
             },
             openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
+            /**
+             * Applies the advance. Called from the confirm panel, and directly by
+             * runPrimary() for stages that need no note — in which case there is
+             * no panel state to reset beyond the (empty) note itself.
+             */
             confirmAdvance() {
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
                 const hadNote = !!this.advanceNote.trim();
@@ -658,6 +751,7 @@
 
             open(req) {
                 this.active = req;
+                this.qrOpen = false;
                 this.selectedStaff = '';
                 this.denyOpen = false;
                 this.denyReason = '';
@@ -665,7 +759,6 @@
                 this.declineReason = '';
                 this.revisionOpen = false;
                 this.revisionReason = '';
-                this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
                 this.advanceOpen = false;
@@ -739,6 +832,13 @@
             },
 
             close() {
+                // Esc steps back one layer: the QR viewer first, then the modal.
+                if (this.qrOpen) {
+                    this.qrOpen = false;
+
+                    return;
+                }
+
                 this.active = null;
                 this.submitting = false;
                 this.denyOpen = false;
@@ -747,7 +847,6 @@
                 this.declineReason = '';
                 this.revisionOpen = false;
                 this.revisionReason = '';
-                this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
                 this.advanceOpen = false;

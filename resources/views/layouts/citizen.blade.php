@@ -3,61 +3,89 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $title ?? 'Citizen Portal' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
+    <title>{{ $title ?? 'City of San Pedro' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
+    @include('layouts.partials.accessibility-widget')
 </head>
-<body class="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 antialiased text-gray-900">
+{{-- White paper. The redesign dropped the doodle wash from the portal — it is
+     plain white here now, and a test holds that. --}}
+{{-- Column flex, so a short page still pushes the footer to the bottom of the
+     viewport instead of leaving it floating mid-screen. --}}
+<body class="relative flex min-h-screen flex-col bg-white antialiased text-ink">
+    {{-- First tab stop: jumps the header. --}}
+    <a href="#main" class="skip-link">Skip to content</a>
 
-    {{-- Top navigation bar --}}
-    <header class="sticky top-0 z-40 border-b border-emerald-200/60 bg-white/90 backdrop-blur-md shadow-sm">
-        <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-            {{-- Brand --}}
-            <a href="{{ route('citizen.dashboard') }}" class="flex items-center gap-3 group">
-                <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-9 w-9 rounded-lg">
-                <span class="text-lg font-extrabold tracking-tight text-emerald-950 group-hover:text-emerald-700 transition">
-                    SPeED <span class="text-emerald-600">TraQR</span>
-                </span>
-            </a>
+    @include('layouts.partials.portal-header')
 
-            {{-- Nav actions --}}
-            <div class="flex items-center gap-1.5 sm:gap-3">
-                @unless(request()->routeIs('citizen.dashboard'))
-                    {{-- Real browser back when there is history; portal home otherwise. --}}
-                    <a href="{{ route('citizen.dashboard') }}"
-                       onclick="if (document.referrer && history.length > 1) { event.preventDefault(); history.back(); }"
-                       class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7 7-7M3 12h18"/>
-                        </svg>
-                        Back
-                    </a>
-                @endunless
-                <a href="{{ route('citizen.track') }}"
-                   class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition {{ request()->routeIs('citizen.track') ? 'bg-emerald-50 text-emerald-900' : '' }}">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 4l13 8-13 8V4z"/>
-                    </svg>
-                    <span class="hidden sm:inline">Track Document</span>
-                </a>
-                <a href="{{ route('login') }}"
-                   class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 transition">
-                    Staff Login
-                </a>
-            </div>
-        </div>
-    </header>
-
-    {{-- Page content --}}
-    <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    {{-- 1209.5px is the redesign's frame — the old 1512 scaled to 0.8. The
+         same container and gutters as the header, so page content lines up
+         under the seal exactly as it does on the landing page. --}}
+    <main id="main" class="mx-auto w-full max-w-[1209.5px] flex-1 px-4 pb-10 pt-10 sm:px-6 sm:pt-14 lg:px-8">
         {{ $slot }}
     </main>
 
-    {{-- Footer --}}
-    <footer class="mt-16 border-t border-emerald-200/60 bg-white/60 py-6 text-center text-sm text-gray-500">
-        &copy; {{ date('Y') }} {{ config('app.name', 'SPeED TraQR') }} &mdash; Citizen Portal
-    </footer>
+    {{-- The footer closes the page off, and carries the office's contact
+         details for a visitor who got here from a QR code and has no other
+         way back to them. --}}
+    <x-site-footer />
 
+    {{-- Speedy, parked bottom-right. The assistant only ever answers about ONE
+         request, so the bubble can't open a chat on its own — it asks which
+         request first, then hands off to that document's page where the real
+         assistant lives. It used to be a bare link to the lookup, which did
+         visibly nothing when you were already on the lookup. --}}
+    @unless($attributes->has('hide-speedy'))
+        <div class="fixed bottom-6 right-6 z-40" x-data="{ open: false }" @keydown.escape.window="open = false">
+            <div x-show="open" x-cloak x-transition.origin.bottom.right
+                 class="mb-3 w-[calc(100vw-3rem)] max-w-[264px] rounded-[16px] border border-[rgba(0,64,4,0.5)] bg-white p-5 shadow-[0_14.5px_32px_-16px_rgba(0,64,4,0.55)]"
+                 role="dialog" aria-label="Ask Speedy">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-display text-[16px] font-black text-[#017209]">Hi, I'm Speedy</p>
+                        <p class="mt-1 text-[14px] leading-snug text-ink-soft">
+                            I answer questions about one request at a time. Which one is it?
+                        </p>
+                    </div>
+                    <button type="button" @click="open = false" aria-label="Close"
+                            class="-mr-1 -mt-1 rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <form method="GET" action="{{ route('citizen.track') }}" class="mt-4 flex flex-col gap-3">
+                    <label for="speedyTracking" class="sr-only">Tracking number</label>
+                    <input id="speedyTracking" name="tracking" required autocomplete="off"
+                           placeholder="SPD-XXXXXXXX-XXXXXX"
+                           class="h-[38.5px] w-full rounded-[9.5px] border border-transparent bg-[rgba(1,114,26,0.18)] px-4 font-mono text-[14px] uppercase tracking-wider text-[#004004] placeholder:font-sans placeholder:tracking-normal placeholder:text-[rgba(0,64,4,0.5)] focus:border-[#01721a] focus:outline-none focus:ring-4 focus:ring-[#8dff3c]/40">
+                    <button type="submit"
+                            class="h-[38.5px] w-full rounded-[9.5px] bg-[#01721a] text-[14px] font-bold text-white transition hover:bg-[#004004]">
+                        Open my request
+                    </button>
+                </form>
+
+                <p class="mt-3 text-[13px] text-ink-soft">
+                    Don't have it to hand?
+                    <a href="{{ route('citizen.track') }}" class="font-bold text-[#01721a] underline underline-offset-2">Scan your QR code</a>
+                </p>
+            </div>
+
+            <button type="button" @click="open = ! open" :aria-expanded="open"
+                    class="group ml-auto flex h-[69px] w-[69px] items-center justify-center rounded-full bg-[#135226] shadow-[0_8px_24px_-8px_rgba(0,64,4,0.7)] transition hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c] sm:h-[88px] sm:w-[88px]"
+                    aria-label="Ask Speedy about your request">
+                <img src="{{ asset('images/portal/speedy.png') }}" alt=""
+                     class="h-[48px] w-[59px] object-contain sm:h-[61.5px] sm:w-[76px]">
+            </button>
+        </div>
+    @endunless
+
+    {{-- The shared pop-up error report (window.ErrorAlert). --}}
+    <x-error-alert />
+
+    @include('layouts.partials.bfcache-guard')
 </body>
 </html>

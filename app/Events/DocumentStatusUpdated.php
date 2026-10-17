@@ -44,8 +44,9 @@ class DocumentStatusUpdated implements ShouldBroadcast
         return [
             'status' => $this->document->status,
             'status_label' => $stage->label(),
-            // Kept for back-compat with the existing citizen JS payload shape.
-            'current_department' => null,
+            // "Handled by" value for the citizen page — the assigned staff member
+            // in the manual model (null → the JS shows "Not yet assigned").
+            'current_department' => $this->document->assignedTo?->name,
             'event' => "Status updated to {$stage->label()} by {$actor}",
             'assignee' => $this->document->assignedTo?->name,
             'timestamp' => ($this->document->status_changed_at ?? now())?->format('M d, Y h:i A'),

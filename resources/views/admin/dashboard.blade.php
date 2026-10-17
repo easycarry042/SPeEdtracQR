@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Command Center">
     @php
         /* ---------- shared helpers ---------- */
         // Sparkline: array<int|float> -> polyline points in a 0..100 x 0..30 box.
@@ -97,27 +97,20 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('admin.dashboard') }}" class="toolbar">
-                <div class="field">
-                    <label>Range</label>
-                    <select name="range" onchange="this.form.submit()">
-                        <option value="7" @selected($filters['range'] === 7)>Last 7 days</option>
-                        <option value="30" @selected($filters['range'] === 30)>Last 30 days</option>
-                        <option value="90" @selected($filters['range'] === 90)>Last 90 days</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Type</label>
-                    <select name="document_type" onchange="this.form.submit()">
-                        <option value="">All</option>
-                        @foreach ($documentTypes as $t)
-                            <option value="{{ $t }}" @selected($filters['document_type'] === $t)>{{ $t }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <x-select-menu name="range" label="Range" submit-on-change panel-width="w-48" class="w-48"
+                               :options="[7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days']"
+                               :selected="$filters['range']"/>
+                <x-select-menu name="document_type" label="Type" submit-on-change panel-width="w-56" class="w-56"
+                               :options="collect($documentTypes)->mapWithKeys(fn ($t) => [$t => $t])->prepend('All', '')->all()"
+                               :selected="$filters['document_type']"/>
                 <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>
                 @if ($filters['active'])
                     <a href="{{ route('admin.dashboard') }}" class="cr-btn cr-btn-sm">Reset</a>
                 @endif
+                <a href="{{ route('admin.dashboard.export', ['range' => $filters['range'], 'document_type' => $filters['document_type']]) }}"
+                   class="cr-btn cr-btn-sm" title="Download these figures as a CSV (opens in Excel)">
+                    Export CSV
+                </a>
             </form>
         </div>
 
@@ -262,7 +255,9 @@
             </div>
 
             {{-- Document type breakdown (1/2) --}}
-            <div class="panel an-span-3">
+            {{-- Full width: with 4+2 and 2+2+2 above, a 3-wide card here would
+                 leave half a row empty and throw the grid out of alignment. --}}
+            <div class="panel an-span-6">
                 <div class="ph"><h2>What volume by type?</h2><span class="sub">created in window</span></div>
                 <div class="pb">
                     @if ($typeBreakdown->isEmpty())
@@ -290,7 +285,7 @@
 
             {{-- At-risk table (2/3) — click a row to view + (re)assign in a panel --}}
             <div class="panel an-span-4">
-                <div class="ph"><h2>Exactly what needs attention</h2><span class="sub">{{ $atRisk->count() }} overdue · click a row to assign</span></div>
+                <div class="ph"><h2>Exactly what needs attention</h2><span class="sub">{{ $atRisk->count() }} overdue · click a row to notify the owner</span></div>
                 @if ($atRisk->isEmpty())
                     <div class="sp-empty">Nothing overdue — the pipeline is on time.</div>
                 @else
@@ -311,7 +306,7 @@
                                         'assignee' => $row['assignee'],
                                         'assignedTo' => $row['document']->assigned_to,
                                         'hoursOver' => $row['hours_over'],
-                                        'assignUrl' => route('admin.assignments.assign', $row['document']),
+                                        'nudgeUrl' => route('admin.nudge', $row['document']),
                                     ];
                                 @endphp
                                 <tr @click="sel = @js($rowData); open = true" style="cursor:pointer">
@@ -320,7 +315,7 @@
                                     <td><x-status-badge :status="$row['stage']->value" /></td>
                                     <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
                                     <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['hours_over'] }}h</td>
-                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Assign →</button></td>
+                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Notify →</button></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -348,7 +343,9 @@
                 </div>
             </div>
 
-            {{-- Reassign panel (admins can't open track.show — it redirects them here) --}}
+            {{-- Notify panel — the super admin flags the document for whoever owns
+                 it (the assignee, or the supervisors if it's unassigned) rather
+                 than assigning it themselves. --}}
             <div x-show="open" x-cloak class="admin-modal" @keydown.escape.window="open = false">
                 <div class="admin-modal-backdrop" @click="open = false"></div>
                 <div class="admin-modal-card">
@@ -366,23 +363,57 @@
                         <div><dt>Assignee</dt><dd x-text="sel.assignee || 'Unassigned'"></dd></div>
                         <div><dt>Over SLA</dt><dd><span x-text="sel.hoursOver"></span>h</dd></div>
                     </dl>
-                    <form method="POST" :action="sel.assignUrl">
-                        @csrf @method('PATCH')
-                        <label class="admin-modal-label">Assign to
-                            <select name="assigned_to">
-                                <option value="">Unassigned</option>
-                                @foreach ($assignableStaff as $st)
-                                    <option value="{{ $st->id }}" :selected="sel.assignedTo == {{ $st->id }}">{{ $st->name }}</option>
-                                @endforeach
-                            </select>
+                    <form method="POST" :action="sel.nudgeUrl">
+                        @csrf
+                        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">
+                            Sends a bell notification to
+                            <strong x-text="sel.assignee || 'the supervisors'"></strong>
+                            asking them to follow up. It does not reassign the document.
+                        </p>
+                        <label class="admin-modal-label">Note (optional)
+                            <textarea name="note" rows="2" maxlength="280" placeholder="Add context for the owner…"></textarea>
                         </label>
                         <div class="admin-modal-actions">
                             <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
-                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Save assignment</button>
+                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Send notification</button>
                         </div>
                     </form>
                 </div>
             </div>
+        </div>
+
+        {{-- Stalled holds (full width) — deliberately its own panel: a hold nulls
+             the stage SLA, so these documents can never appear in the at-risk
+             table above. This is the only place they surface on the dashboard. --}}
+        <div class="panel">
+            <div class="ph">
+                <h2>Parked and past due</h2>
+                <span class="sub">{{ $stalledHolds->count() }} stalled hold{{ $stalledHolds->count() === 1 ? '' : 's' }} · SLA paused, so these are invisible to the at-risk list</span>
+            </div>
+            @if ($stalledHolds->isEmpty())
+                <div class="sp-empty">No stalled holds — every parked request is still inside its hold date.</div>
+            @else
+                <div class="table-wrap">
+                    <table class="reg">
+                        <thead>
+                            <tr><th>Tracking</th><th>Type</th><th>Waiting on</th><th>Assignee</th><th>Held since</th><th>Past due</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($stalledHolds as $row)
+                                <tr>
+                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
+                                    <td>{{ $row['document']->document_type }}</td>
+                                    <td class="muted">{{ $row['blocked_by'] ? ucfirst($row['blocked_by']) : '—' }}</td>
+                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
+                                    <td class="muted">{{ $row['held_since']?->format('M d, Y') ?? '—' }}</td>
+                                    <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['days_over'] }}d</td>
+                                    <td><a class="cr-btn cr-btn-sm" href="{{ $row['url'] }}">Open →</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
         </div>
 
         {{-- System throughput heatmap (full width) --}}

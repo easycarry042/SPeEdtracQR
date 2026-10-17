@@ -6,12 +6,16 @@ namespace App\Mail;
 
 use App\Models\Document;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class SlaBreachMail extends Mailable
+/**
+ * Queued so one unreachable mailbox cannot abort the hourly SLA sweep.
+ */
+class SlaBreachMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 

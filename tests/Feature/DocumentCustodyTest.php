@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Document;
 use App\Models\User;
+use App\Support\TrackingQr;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
@@ -55,6 +56,42 @@ class DocumentCustodyTest extends TestCase
         $custody = $doc->fresh()->currentCustody();
         $this->assertSame('scan', $custody->capture_method);
         $this->assertNull($custody->override_reason);
+    }
+
+    public function test_scan_of_a_signed_sticker_records_custody(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff);
+
+        // What every newly printed sticker encodes: a signed, site-only payload.
+        $this->actingAs($staff)
+            ->post(route('documents.custody.store', $doc), [
+                'capture_method' => 'scan',
+                'scanned_value' => TrackingQr::payload($doc->tracking_number),
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('scan', $doc->fresh()->currentCustody()->capture_method);
+    }
+
+    public function test_scan_of_a_forged_signed_sticker_is_refused(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff);
+
+        config(['app.qr_signing_key' => 'someone-elses-key']);
+        $forged = TrackingQr::payload($doc->tracking_number);
+        config(['app.qr_signing_key' => null]);
+
+        $this->actingAs($staff)
+            ->postJson(route('documents.custody.store', $doc), [
+                'capture_method' => 'scan',
+                'scanned_value' => $forged,
+            ])
+            ->assertUnprocessable();
+
+        $this->assertSame(0, $doc->custodyEvents()->count());
     }
 
     public function test_scan_of_a_different_folder_is_refused(): void

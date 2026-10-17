@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Track">
     {{-- Look up hub: find a ticket by tracking number or by its QR code.
          The QR-IMAGE UPLOAD is the primary scan path (works on every device);
          the live camera is offered only when a camera actually exists.
@@ -46,7 +46,7 @@
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M5 19H3a2 2 0 01-2-2v-2m8-4h.01M12 12h.01M16 12h.01M8 12h.01"/></svg>
                     <span id="cameraToggleLabel">Open camera scanner</span>
                 </button>
-                <div id="reader" class="mt-3 hidden overflow-hidden rounded-lg border border-hairline-strong"></div>
+                <div id="reader" class="mt-3 hidden min-h-[220px] overflow-hidden rounded-lg border border-hairline-strong"></div>
             </div>
         </div>
     </div>
@@ -88,7 +88,7 @@
                     .then((decodedText) => {
                         const tracking = extractTracking(decodedText);
                         if (!tracking) {
-                            showError('That image has a QR code, but not a valid SPD- tracking number. Try the QR from your confirmation email or slip.');
+                            showError(window.SpeedQr.FOREIGN_CODE_MESSAGE);
                             return;
                         }
                         if (trackingInput) trackingInput.value = tracking;
@@ -142,12 +142,21 @@
                 cameraOn = true;
 
                 window.SpeedQr.start('reader', (decodedText) => {
-                    const tracking = extractTracking(decodedText) || decodedText.trim();
+                    // Only codes THIS system issued may open a record. The old
+                    // fallback to the raw decoded text meant any QR at all — a
+                    // Wi-Fi code, a payment code, another site's link — was taken
+                    // as a tracking number and navigated to.
+                    const tracking = extractTracking(decodedText);
                     stopCamera();
-                    if (tracking) openDocument(tracking);
-                }, () => {
+                    if (!tracking) {
+                        showError(window.SpeedQr.FOREIGN_CODE_MESSAGE);
+
+                        return;
+                    }
+                    openDocument(tracking);
+                }, (cameraError) => {
                     stopCamera();
-                    showError('Could not start the camera. Upload a QR image instead — it works the same.');
+                    showError(window.SpeedQr.describe(cameraError) + ' You can upload a QR image instead — it works the same.');
                 });
             });
         })();

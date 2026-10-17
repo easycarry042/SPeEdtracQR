@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Staff Profile">
     @php
         $initials = collect(explode(' ', $profileUser->name))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
         $active = $lastActiveAt && $lastActiveAt->gt(now()->subMinutes(5));

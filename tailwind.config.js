@@ -56,11 +56,33 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                // Nunito is the default for all body copy; Zain (`font-display`)
+                // is the title/heading face, applied to h1–h6 in the base layer.
+                sans: ['Nunito', ...defaultTheme.fontFamily.sans],
+                display: ['Zain', 'Nunito', ...defaultTheme.fontFamily.sans],
+            },
+            // `h-ctl` — the one height every inline control (search input,
+            // filter select, button) is sized to, shared with the .field /
+            // .cr-btn CSS components via --control-h.
+            // `screen` divides out the auto-fit zoom (--ui-zoom, app.css):
+            // under CSS zoom a plain 100vh renders at zoom × the window height
+            // and leaves a gap at the bottom. Arbitrary vh values need the same
+            // treatment: max-h-[calc(88vh/var(--ui-zoom))].
+            height: {
+                ctl: 'var(--control-h)',
+                'ctl-sm': 'var(--control-h-sm)',
+                screen: 'calc(100vh / var(--ui-zoom, 1))',
+            },
+            minHeight: {
+                screen: 'calc(100vh / var(--ui-zoom, 1))',
+            },
+            maxHeight: {
+                screen: 'calc(100vh / var(--ui-zoom, 1))',
             },
             colors: {
-                // Base — white = purity
+                // Base — white cards on a subtly tinted canvas
                 paper: 'var(--paper)',
+                canvas: 'var(--canvas)',
                 hairline: {
                     DEFAULT: 'var(--hairline)',
                     strong: 'var(--hairline-strong)',

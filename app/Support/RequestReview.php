@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\DocumentStatus;
 use App\Models\Document;
+use App\Models\DocumentRequirement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -21,23 +22,32 @@ class RequestReview
      *
      * @return Collection<int, User>
      */
-    public static function assignableStaff(): Collection
+    public static function assignableStaff(?int $departmentId = null): Collection
     {
         return User::query()
             ->whereHas('roles', fn ($q) => $q->where('name', 'staff'))
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'department_id']);
     }
 
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments');
+        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements');
 
         return [
             'id' => $document->id,
             'tracking_number' => $document->tracking_number,
+            // The request's generated QR, and its print-ready claim slip —
+            // shown from the tracking-number tile in the staff modals.
+            'qr_url' => PublicStorage::url($document->qr_code_path),
+            'slip_url' => route('track.slip', $document->tracking_number),
             'document_type' => $document->document_type,
+            // Tracking columns: who/where is responsible for this ticket.
+            'thed_id' => $document->department?->code,
+            'department' => $document->department?->name,
+            'assigned_staff' => $document->assignedTo?->name,
             'citizen_name' => $document->citizen_name,
             'citizen_email' => $document->citizen_email,
             'citizen_contact' => $document->citizen_contact,
@@ -56,12 +66,34 @@ class RequestReview
                 || $document->comments()->where('author_type', 'staff')->exists(),
             'assigned_to' => $document->assigned_to,
             'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
+            // Machine-readable day, for the staff tables' date-range filter.
+            'submitted_on' => $document->created_at?->toDateString(),
+            // Look Up desk: the long-form date the More Info table shows.
+            'request_date' => $document->created_at?->format('F j, Y'),
+            // Two different dates, deliberately. `needed_by` is what the citizen
+            // asked for on the request form; `claim_date` is what staff have
+            // actually committed to. The desk shows the first and lets staff
+            // adjust into the second.
+            'requested_claim_date' => $document->needed_by?->format('F j, Y'),
+            'claim_date' => $document->claim_date?->format('F j, Y'),
+            // Machine-readable versions, for marking them on the date picker.
+            'requested_claim_on' => $document->needed_by?->toDateString(),
+            'claim_on' => $document->claim_date?->toDateString(),
+            // Citizen messages nobody has read yet — the "waiting on a reply" badge.
+            'unread_messages' => $document->allComments()->unreadByStaff()->count(),
             // Cockpit context: lets the in-modal status controls render the hold
             // banner, the returned reason, and restore the stepper position on hold.
             'status_before_hold' => $document->status_before_hold,
+            // Position on the four-stage progress bar (DocumentStatus::railStages()).
+            'rail_stage' => $document->statusEnum()->railStage(
+                DocumentStatus::tryFrom((string) $document->status_before_hold)
+            ),
             'blocked_by' => $document->blocked_by,
             'hold_reason' => $document->hold_reason,
             'hold_until' => $document->hold_until?->format('M j, Y'),
+            // A hold pauses the SLA clock, so this count is the only thing in the
+            // cockpit that says a parked request has overrun its own deadline.
+            'hold_overdue_days' => $document->isHoldOverdue() ? $document->holdOverdueDays() : null,
             'remarks' => $document->remarks,
             'attachments' => $document->attachments->map(function ($a): array {
                 $ext = strtolower(pathinfo((string) $a->file_path, PATHINFO_EXTENSION));
@@ -69,10 +101,31 @@ class RequestReview
                 return [
                     'url' => route('attachments.show', $a),
                     'ext' => $ext,
-                    'is_image' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true),
+                    'is_image' => self::isImageExtension($ext),
+                ];
+            })->values()->all(),
+            // Requirement uploads live on their own table, not document_attachments,
+            // so they need listing separately or the reviewer sees no evidence at all.
+            'requirements' => $document->requirements->map(function (DocumentRequirement $r) use ($document): array {
+                $ext = strtolower(pathinfo((string) $r->uploaded_file_path, PATHINFO_EXTENSION));
+                $hasFile = $r->uploaded_file_path !== null;
+
+                return [
+                    'label' => $r->label,
+                    'is_mandatory' => $r->is_mandatory,
+                    'review_status' => $r->review_status,
+                    'has_file' => $hasFile,
+                    'url' => $hasFile ? route('documents.requirements.file', [$document, $r]) : null,
+                    'ext' => $ext,
+                    'is_image' => $hasFile && self::isImageExtension($ext),
                 ];
             })->values()->all(),
         ];
+    }
+
+    private static function isImageExtension(string $extension): bool
+    {
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
     }
 
     /** Assigned ticket awaiting staff Accept / Decline / Revision on the Requests page. */

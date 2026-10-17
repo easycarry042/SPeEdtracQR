@@ -3,18 +3,26 @@
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\RequestTypeController;
+use App\Http\Controllers\Admin\ResourceController;
 use App\Http\Controllers\Admin\RouteTemplateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
+use App\Http\Controllers\CitizenMessageController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentAssistantController;
 use App\Http\Controllers\DocumentCustodyController;
+use App\Http\Controllers\DocumentNudgeController;
+use App\Http\Controllers\DocumentPdfEditorController;
 use App\Http\Controllers\DocumentReleaseController;
+use App\Http\Controllers\DocumentRequirementController;
+use App\Http\Controllers\DocumentSlipController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
@@ -25,29 +33,50 @@ use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\RequestStepController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
+use App\Http\Controllers\ServiceReportController;
 use App\Http\Controllers\SignatureController;
+use App\Http\Controllers\StaffBadgeController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\TrackController;
 use App\Http\Controllers\VerificationController;
+use App\Support\CitizenReceipt;
+use App\Support\CitizenView;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
 /*
 |--------------------------------------------------------------------------
-| Root — redirect authenticated users to their role-specific dashboard
+| Root — the public landing page is the homepage for GUESTS only.
+| Authenticated users are sent to their role workspace via 'home', so they
+| never land back on the public site (e.g. via the browser Back button) while
+| signed in. The exception is a citizen-facing link (?view=citizen, see
+| App\Support\CitizenView): on a shared counter PC a citizen pressing "Back to
+| home" must reach the public site, not the signed-in staff member's desk.
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    if (! auth()->check()) {
-        return view('welcome');
+Route::get('/', function (Request $request) {
+    if (! CitizenView::requested()) {
+        return redirect()->route('home');
     }
 
+    // Starting over: the previous citizen's receipt must not be reopenable.
+    CitizenReceipt::forget($request);
+
+    return view('welcome');
+})->name('welcome');
+
+// The RA 10173 notice the request form's consent checkbox refers to. Public
+// for everyone, signed in or not.
+Route::view('/privacy', 'privacy')->name('privacy');
+
+Route::get('/home', function () {
     $user = auth()->user();
 
-    // Landing mirrors the post-login redirect: super_admin → command center,
-    // supervisors → Dashboard, intake-only → Look up hub, staff → Requests.
+    // Mirrors the post-login redirect: super_admin → command center,
+    // supervisors → Dashboard, staff → their own dashboard.
     if ($user->can('manage system')) {
         return redirect()->route('admin.dashboard');
     }
@@ -56,12 +85,8 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    if ($user->can('scan documents') && ! $user->can('create documents')) {
-        return redirect()->route('track.index', ['find' => 1]);
-    }
-
     return redirect()->route('staff.dashboard');
-});
+})->middleware('auth')->name('home');
 
 /*
 |--------------------------------------------------------------------------
@@ -76,8 +101,21 @@ Route::post('/request', [PublicTicketController::class, 'store'])
     ->middleware('throttle:8,1')
     ->name('public.request.store');
 
+// Post/Redirect/Get: `store` redirects here instead of rendering the receipt
+// itself, so refreshing the confirmation page cannot re-submit the form and
+// file a second identical request. The tracking number travels in the session,
+// never the URL — a guessable /request/submitted/{tracking} would let anyone
+// pull up someone else's receipt.
+Route::get('/request/submitted', [PublicTicketController::class, 'submitted'])
+    ->name('public.request.submitted');
+
 Route::get('/track', [TrackController::class, 'index'])->name('track.index');
 Route::get('/track-search', [TrackController::class, 'index'])->name('track.search');
+// JSON lookup that powers the inline search on the landing page (result shown
+// in a card below the search bar — no separate results page for the public).
+Route::get('/track-lookup', [TrackController::class, 'lookup'])
+    ->middleware('throttle:30,1')
+    ->name('track.lookup');
 // Rate-limited as defense-in-depth against tracking-number guessing
 // (primary defense is the high-entropy tracking number). 60/min/IP is
 // generous for legit use — the citizen page only polls status every 30s.
@@ -87,9 +125,31 @@ Route::get('/track/{trackingNumber}/status', [TrackController::class, 'status'])
 Route::get('/track/{trackingNumber}', [TrackController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('track.show');
+// Print-ready claim slip (QR + tracking number), Save-as-PDF from the browser.
+Route::get('/track/{trackingNumber}/slip', [DocumentSlipController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('track.slip');
 Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.citizen-upload');
+// Citizen re-uploads a single requirement that staff returned for revision.
+Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [CitizenDocumentUploadController::class, 'reupload'])
+    ->middleware('throttle:12,1')
+    ->name('track.requirement-reupload');
+// Citizen ↔ staff conversation. Reading the thread needs only the tracking
+// number; POSTING requires confirming a contact detail on the request first
+// (see App\Support\CitizenThreadAccess), so a forwarded link cannot speak as
+// the requester. Throttled like every other public write.
+Route::post('/track/{trackingNumber}/verify-contact', [CitizenMessageController::class, 'verify'])
+    ->middleware('throttle:10,1')
+    ->name('track.messages.verify');
+Route::post('/track/{trackingNumber}/messages', [CitizenMessageController::class, 'store'])
+    ->middleware('throttle:12,1')
+    ->name('track.messages.store');
+Route::get('/track/messages/{comment}/attachment', [CitizenMessageController::class, 'attachment'])
+    ->middleware('throttle:30,1')
+    ->name('track.messages.attachment');
+
 // Self-hosted AI assistant — answers questions grounded in this document only.
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
@@ -108,7 +168,11 @@ Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])
 
 Route::prefix('citizen')->name('citizen.')->group(function () {
     Route::get('/', [CitizenController::class, 'index'])->name('dashboard');
-    Route::get('/track', [CitizenController::class, 'track'])->name('track');
+    // Throttled like track.show: this resolves a tracking number, so it must not
+    // become a cheaper oracle for guessing them.
+    Route::get('/track', [CitizenController::class, 'track'])
+        ->middleware('throttle:60,1')
+        ->name('track');
 });
 
 /*
@@ -123,6 +187,11 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
     ->name('admin.')
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard/export', [AdminController::class, 'export'])->name('dashboard.export');
+
+        // Nudge the responsible staff/supervisor about an overdue document
+        // (the super admin notifies rather than assigns from the command center).
+        Route::post('nudge/{document}', [DocumentNudgeController::class, 'store'])->name('nudge');
 
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
@@ -143,6 +212,24 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
         Route::put('route-templates/{routeTemplate}', [RouteTemplateController::class, 'update'])->name('route-templates.update');
         Route::patch('route-templates/{routeTemplate}/toggle-active', [RouteTemplateController::class, 'toggleActive'])->name('route-templates.toggle-active');
         Route::delete('route-templates/{routeTemplate}', [RouteTemplateController::class, 'destroy'])->name('route-templates.destroy');
+
+        // Request types + their requirement checklists (public request catalog).
+        Route::get('request-types', [RequestTypeController::class, 'index'])->name('request-types.index');
+        Route::get('request-types/create', [RequestTypeController::class, 'create'])->name('request-types.create');
+        Route::post('request-types', [RequestTypeController::class, 'store'])->name('request-types.store');
+        Route::get('request-types/{requestType}/edit', [RequestTypeController::class, 'edit'])->name('request-types.edit');
+        Route::put('request-types/{requestType}', [RequestTypeController::class, 'update'])->name('request-types.update');
+        Route::patch('request-types/{requestType}/toggle-active', [RequestTypeController::class, 'toggleActive'])->name('request-types.toggle-active');
+        Route::delete('request-types/{requestType}', [RequestTypeController::class, 'destroy'])->name('request-types.destroy');
+
+        // Bookable resources catalog (covered court, plaza, sound system, …).
+        Route::get('resources', [ResourceController::class, 'index'])->name('resources.index');
+        Route::get('resources/create', [ResourceController::class, 'create'])->name('resources.create');
+        Route::post('resources', [ResourceController::class, 'store'])->name('resources.store');
+        Route::get('resources/{resource}/edit', [ResourceController::class, 'edit'])->name('resources.edit');
+        Route::put('resources/{resource}', [ResourceController::class, 'update'])->name('resources.update');
+        Route::patch('resources/{resource}/toggle-active', [ResourceController::class, 'toggleActive'])->name('resources.toggle-active');
+        Route::delete('resources/{resource}', [ResourceController::class, 'destroy'])->name('resources.destroy');
     });
 
 // Document assignment desk (admins assign the responsible staff member)
@@ -153,6 +240,16 @@ Route::middleware(['auth', 'verified', 'permission:assign documents'])
         Route::get('assignments', [AssignmentController::class, 'index'])->name('assignments.index');
         Route::patch('assignments/{document}', [AssignmentController::class, 'assign'])->name('assignments.assign');
         Route::get('assignments/unclaimed', [AssignmentController::class, 'unclaimed'])->name('assignments.unclaimed');
+    });
+
+// Resource booking calendar (covered court, plaza, sound system, …).
+// Owned by staff — they manage day-to-day reservations.
+Route::middleware(['auth', 'verified', 'permission:manage bookings'])
+    ->group(function () {
+        Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
+        Route::patch('bookings/{booking}/approve', [BookingController::class, 'approve'])->name('bookings.approve');
+        Route::patch('bookings/{booking}/reschedule', [BookingController::class, 'reschedule'])->name('bookings.reschedule');
+        Route::patch('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
     });
 
 // System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted
@@ -200,6 +297,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('permission:create internal requests')->group(function () {
         Route::get('/requests/create', [InternalRequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [InternalRequestController::class, 'store'])->name('requests.store');
+        // PDF scans are QR-stamped in the browser (no PDF toolchain on the
+        // server); this stores the result the confirmation screen produces.
+        Route::post('/requests/{document}/qr-stamp', [InternalRequestController::class, 'storeStampedScan'])->name('requests.qr-stamp');
     });
     Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
     Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
@@ -210,8 +310,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/requests/{document}/steps/approve', [RequestStepController::class, 'approve'])->name('requests.steps.approve');
         Route::post('/requests/{document}/steps/deny', [RequestStepController::class, 'deny'])->name('requests.steps.deny');
         Route::post('/requests/{document}/steps/return', [RequestStepController::class, 'returnToRequester'])->name('requests.steps.return');
+        // The only way an internal request reaches Completed.
+        Route::post('/requests/{document}/steps/complete', [RequestStepController::class, 'complete'])->name('requests.steps.complete');
     });
     Route::get('/request-steps/{requestStep}/signature', [RequestStepController::class, 'signature'])->name('requests.steps.signature');
+
+    // Staff badge: the printable QR that re-confirms identity when signing an
+    // endorsement hop (replaces the password prompt on decisions).
+    Route::get('/profile/badge', [StaffBadgeController::class, 'show'])->name('profile.badge');
+    Route::post('/profile/badge/regenerate', [StaffBadgeController::class, 'regenerate'])->name('profile.badge.regenerate');
 
     // Registered e-signature (drawn once on the profile page).
     Route::post('/profile/signature', [SignatureController::class, 'store'])->name('profile.signature.store');
@@ -231,6 +338,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
     Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
     Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
+    // Move the claiming date without moving the stage (Look Up's "Adjust Date").
+    Route::patch('/documents/{document}/claim-date', [ReviewController::class, 'setClaimDate'])->name('documents.claim-date');
+
+    // Supporting-requirement verification (staff confirm they've seen originals).
+    Route::post('/documents/{document}/requirements/{requirement}/verify', [DocumentRequirementController::class, 'toggle'])->name('documents.requirements.toggle');
+    // Per-requirement review: Approved / Needs revision / Rejected + comment.
+    Route::post('/documents/{document}/requirements/{requirement}/review', [DocumentRequirementController::class, 'review'])->name('documents.requirements.review');
+    Route::get('/documents/{document}/requirements/{requirement}/file', [DocumentRequirementController::class, 'file'])->name('documents.requirements.file');
 
     // Staff profile (identity rail + activity feed). Viewable by any staff user.
     Route::get('/staff/{user}', [StaffProfileController::class, 'show'])->name('staff.profile');
@@ -242,7 +357,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
 
@@ -254,8 +368,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/{document}/sticker', [DocumentWebController::class, 'printSticker'])->name('documents.sticker');
     Route::patch('/documents/{trackingNumber}/complete', [DocumentWebController::class, 'complete'])->name('documents.complete');
 
-    // Per-document staff collaboration feed (assignee or admin).
+    // Per-document conversation (assignee or admin): internal notes and
+    // citizen-facing messages, both threaded.
     Route::post('/documents/{document}/comments', [CommentController::class, 'store'])->name('documents.comments.store');
+    Route::post('/documents/{document}/comments/read', [CommentController::class, 'markRead'])->name('documents.comments.read');
+    Route::get('/messages/{comment}/attachment', [CommentController::class, 'attachment'])->name('documents.comments.attachment');
 
     // Physical custody trail — "the folder is now with me" (scan or click).
     Route::post('/documents/{document}/custody', [DocumentCustodyController::class, 'store'])->name('documents.custody.store');
@@ -273,6 +390,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('permission:view reports')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
         Route::get('/analytics/data', [AnalyticsController::class, 'chartData'])->name('analytics.data');
+        Route::get('/reports/services', [ServiceReportController::class, 'index'])->name('reports.services');
     });
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
@@ -281,6 +399,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/documents/{document}/accept', [AssignmentController::class, 'accept'])
         ->middleware('permission:accept documents|assign documents')
         ->name('documents.accept');
+
+    // Built-in PDF editor: place the registered e-signature / notes on an
+    // attached PDF. Saving writes a NEW attachment; the original is never
+    // modified (see DocumentPdfEditorController).
+    Route::get('/attachments/{attachment}/edit', [DocumentPdfEditorController::class, 'edit'])->name('attachments.edit');
+    Route::post('/attachments/{attachment}/edit', [DocumentPdfEditorController::class, 'store'])->name('attachments.edit.store');
 
     // Private document attachments — access checked per-department in the controller.
     Route::post('/documents/{document}/attachments', [AttachmentController::class, 'store'])->name('documents.attachments.store');

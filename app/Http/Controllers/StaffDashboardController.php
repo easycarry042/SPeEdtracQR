@@ -31,7 +31,7 @@ class StaffDashboardController extends Controller
             DocumentStatus::OnHold->value,
         ];
 
-        $requests = Document::with('attachments')
+        $requests = Document::with('attachments', 'requirements')
             ->where('assigned_to', $user->id)
             ->whereIn('status', $activeStatuses)
             ->latest('assigned_at')
@@ -46,6 +46,14 @@ class StaffDashboardController extends Controller
                 ->map(fn ($s): array => ['value' => $s->value, 'label' => $s->label()])
                 ->values()->all(),
             'assignedCount' => $requests->count(),
+            // Headline counts for the three tiles. Pending is work not yet
+            // picked up; everything else still open counts as in progress.
+            'pendingCount' => $requests
+                ->where('status', DocumentStatus::Pending->value)
+                ->count(),
+            'inProgressCount' => $requests
+                ->whereNotIn('status', [DocumentStatus::Pending->value])
+                ->count(),
             'completedCount' => Document::where('assigned_to', $user->id)
                 ->where('status', DocumentStatus::Completed->value)
                 ->count(),

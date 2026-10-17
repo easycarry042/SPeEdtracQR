@@ -7,6 +7,10 @@
     $shortcuts = collect([
         ['key' => 'd', 'label' => 'Dashboard',        'url' => $isSupervisor ? route('dashboard') : ($isSystemAdmin ? route('admin.dashboard') : route('staff.dashboard')), 'show' => true],
         ['key' => 'a', 'label' => 'Assignments',       'url' => \Illuminate\Support\Facades\Route::has('admin.assignments.index') ? route('admin.assignments.index') : null, 'show' => auth()->user()?->can('assign documents')],
+        ['key' => 'n', 'label' => 'New document',      'url' => \Illuminate\Support\Facades\Route::has('documents.create') ? route('documents.create') : null, 'show' => auth()->user()?->can('create documents')],
+        ['key' => 's', 'label' => 'Scan',              'url' => \Illuminate\Support\Facades\Route::has('scan.index') ? route('scan.index') : null, 'show' => auth()->user()?->can('scan documents')],
+        ['key' => 'k', 'label' => 'Look up',           'url' => \Illuminate\Support\Facades\Route::has('track.index') ? route('track.index') : null, 'show' => true],
+        ['key' => 'b', 'label' => 'Bookings',          'url' => \Illuminate\Support\Facades\Route::has('bookings.index') ? route('bookings.index') : null, 'show' => auth()->user()?->can('manage bookings')],
         ['key' => 'u', 'label' => 'Users',             'url' => \Illuminate\Support\Facades\Route::has('admin.users.index') ? route('admin.users.index') : null, 'show' => auth()->user()?->can('manage users')],
         ['key' => 'r', 'label' => 'Internal requests', 'url' => \Illuminate\Support\Facades\Route::has('requests.index') ? route('requests.index') : null, 'show' => auth()->user()?->can('manage system')],
         ['key' => 'p', 'label' => 'Departments',       'url' => \Illuminate\Support\Facades\Route::has('admin.departments.index') ? route('admin.departments.index') : null, 'show' => auth()->user()?->can('manage system')],

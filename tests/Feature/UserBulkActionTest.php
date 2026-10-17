@@ -84,10 +84,10 @@ class UserBulkActionTest extends TestCase
         $staff = User::factory()->create()->assignRole('staff');
         $a = User::factory()->create(['is_active' => true])->assignRole('staff');
 
-        // The app redirects unauthorized users to their dashboard rather than 403ing.
+        // Unauthorized users get a 403 Access Denied page.
         $this->actingAs($staff)
             ->post(route('admin.users.bulk'), ['action' => 'deactivate', 'ids' => [$a->id]])
-            ->assertRedirect();
+            ->assertForbidden();
 
         $this->assertTrue($a->fresh()->is_active, 'staff without permission must not change accounts');
     }

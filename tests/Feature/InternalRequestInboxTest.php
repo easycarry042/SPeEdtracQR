@@ -93,11 +93,22 @@ class InternalRequestInboxTest extends TestCase
             ->assertDontSee('Awaiting my office');
     }
 
-    public function test_staff_cannot_open_the_inbox(): void
+    public function test_staff_can_open_the_inbox_to_draft(): void
     {
-        $staff = User::factory()->create()->assignRole('staff');
+        // Staff draft internal requests for their office, so they may open the
+        // Internal module; only supervisors can act on (endorse) a hop.
+        $staff = User::factory()
+            ->create(['department_id' => $this->tourism->id])
+            ->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('requests.index'))->assertForbidden();
+        $this->actingAs($staff)->get(route('requests.index'))->assertOk();
+    }
+
+    public function test_a_user_with_no_internal_permission_cannot_open_the_inbox(): void
+    {
+        $guest = User::factory()->create(['department_id' => $this->tourism->id]);
+
+        $this->actingAs($guest)->get(route('requests.index'))->assertForbidden();
     }
 
     public function test_search_filters_by_tracking_number_and_purpose(): void

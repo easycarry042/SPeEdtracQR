@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Document Created">
     <x-slot name="header">
         <h1 class="text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl">Document Created</h1>
     </x-slot>

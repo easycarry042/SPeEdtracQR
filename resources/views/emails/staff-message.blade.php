@@ -19,7 +19,10 @@
     <div class="header"><h1>A message about your request</h1></div>
     <div class="body">
         <p>Hello {{ $document->citizen_name ?? 'there' }},</p>
-        <p>Staff handling your request <strong>{{ $document->tracking_number }}</strong> posted an update:</p>
+        <p>
+            <strong>{{ $comment->publicAuthorLabel() }}</strong> posted an update on your
+            request <strong>{{ $document->tracking_number }}</strong>:
+        </p>
         <div class="msg">{{ $comment->body }}</div>
         <div class="cta"><a href="{{ $trackingUrl }}">View your request</a></div>
     </div>

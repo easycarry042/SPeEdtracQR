@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\User;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * One in-app (database) notification type for the header bell, with named
@@ -42,6 +43,71 @@ class DocumentEvent extends Notification
             title: 'Assigned to you',
             body: ($document->document_type ?? 'Document')." — assigned by {$byName}. Accept it on your Requests page.",
             url: route('staff.dashboard'),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /**
+     * A super admin flagged an overdue document for the responsible party's
+     * attention — a nudge, not a reassignment.
+     */
+    public static function nudge(Document $document, string $byName, ?string $note = null): self
+    {
+        $label = $document->document_type ?? 'A document';
+
+        return new self(
+            event: 'nudge',
+            title: 'Flagged for your attention',
+            body: "{$label} ({$document->tracking_number}) is overdue. {$byName} asked you to follow up.".($note ? " Note: {$note}" : ''),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** The citizen asked something in their thread — the office owes an answer. */
+    public static function citizenMessage(Document $document, string $body): self
+    {
+        return new self(
+            event: 'citizen_message',
+            title: 'New message from the citizen',
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A staff member asked a question in the internal thread. */
+    public static function internalQuestion(Document $document, string $askedBy, string $body): self
+    {
+        return new self(
+            event: 'internal_question',
+            title: "{$askedBy} asked about this request",
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** Someone answered a question in the internal thread — tell whoever asked. */
+    public static function internalAnswer(Document $document, string $answeredBy, string $body): self
+    {
+        return new self(
+            event: 'internal_answer',
+            title: "{$answeredBy} answered your question",
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A citizen re-uploaded a document that was returned for revision. */
+    public static function revisionResubmitted(Document $document, string $requirementLabel): self
+    {
+        return new self(
+            event: 'revision_resubmitted',
+            title: 'Revised document uploaded',
+            body: 'The citizen re-uploaded "'.$requirementLabel.'" for '.$document->tracking_number.' — ready for re-review.',
+            url: route('track.show', $document->tracking_number),
             tracking: $document->tracking_number,
         );
     }
@@ -97,6 +163,29 @@ class DocumentEvent extends Notification
         return User::permission('assign documents')
             ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
             ->get();
+    }
+
+    /**
+     * Who triages a citizen ticket routed to a department: that department's
+     * assigning Supervisors plus all super admins (who see every department). No
+     * department → every triager. Excludes the actor when given.
+     */
+    public static function departmentTriagers(?int $departmentId, ?int $excludeUserId = null): Collection
+    {
+        if (! $departmentId) {
+            return self::supervisors($excludeUserId);
+        }
+
+        $deptSupervisors = User::permission('assign documents')
+            ->where('department_id', $departmentId)
+            ->get();
+
+        $superAdmins = User::permission('manage system')->get();
+
+        return $deptSupervisors->merge($superAdmins)
+            ->unique('id')
+            ->when($excludeUserId !== null, fn (Collection $c) => $c->reject(fn (User $u) => $u->id === $excludeUserId))
+            ->values();
     }
 
     public function via(object $notifiable): array

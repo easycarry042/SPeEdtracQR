@@ -1,7 +1,8 @@
-<x-app-layout>
-    <div class="mx-auto max-w-5xl">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h1 style="font-size:18px;font-weight:700;color:var(--green-deep);margin:0;">Staff directory</h1>
+<x-app-layout title="Staff">
+    <div class="w-full">
+        {{-- No page heading here: the layout's title bar already says
+             "Staff directory". Search sits alone, right-aligned. --}}
+        <div class="mb-3 flex flex-wrap items-center justify-end gap-3">
             <form method="GET" action="{{ route('staff.index') }}" class="toolbar">
                 @if($role !== '')
                     <input type="hidden" name="role" value="{{ $role }}">
@@ -10,14 +11,9 @@
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
                     <input type="text" name="q" value="{{ $q }}" placeholder="Name or email" aria-label="Search staff">
                 </div>
-                <div class="field">
-                    <label for="dirSort">Sort</label>
-                    <select id="dirSort" name="sort" onchange="this.form.submit()">
-                        <option value="name" @selected($sort === 'name')>Name</option>
-                        <option value="load" @selected($sort === 'load')>Open load</option>
-                        <option value="completed" @selected($sort === 'completed')>Completions</option>
-                    </select>
-                </div>
+                <x-select-menu name="sort" label="Sort" submit-on-change panel-width="w-48" class="w-48"
+                               :options="['name' => 'Name', 'load' => 'Open load', 'completed' => 'Completions']"
+                               :selected="$sort"/>
                 <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Search</button>
                 @if($q !== '' || $role !== '' || $sort !== 'name')
                     <a href="{{ route('staff.index') }}" class="cr-btn cr-btn-sm">Reset</a>
@@ -43,7 +39,7 @@
 
         <div class="dir-grid">
             @forelse($staff as $person)
-                <div class="panel dir-card">
+                <div class="panel dir-card {{ $person['overdue'] > 0 ? 'has-ovd' : '' }}">
                     {{-- Whole card opens the profile; quick actions sit above the cover link. --}}
                     <a href="{{ $person['url'] }}" class="dir-cover" aria-label="View {{ $person['name'] }}'s profile"></a>
 

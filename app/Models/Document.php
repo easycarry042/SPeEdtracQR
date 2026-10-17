@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Support\CitizenView;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -23,16 +27,21 @@ class Document extends Model
         'source',
         'origin',
         'requesting_department_id',
+        'department_id',
         'amount',
         'notify_citizen',
         'description',
         'purpose',
+        'quantity',
+        'needed_by',
         'status',
         'created_by',
         'assigned_to',
         'assigned_by',
         'assigned_at',
         'accepted_at',
+        'decided_by',
+        'decided_at',
         'status_changed_at',
         'remarks',
         'qr_code_path',
@@ -48,7 +57,9 @@ class Document extends Model
         'blocked_by',
         'held_at',
         'held_by',
+        'hold_reminder_sent_at',
         'claimed_at',
+        'claim_date',
         'released_by',
     ];
 
@@ -66,15 +77,22 @@ class Document extends Model
         'completed_at' => 'datetime',
         'assigned_at' => 'datetime',
         'accepted_at' => 'datetime',
+        'decided_at' => 'datetime',
         'status_changed_at' => 'datetime',
         'sla_warning_notified_at' => 'datetime',
         'sla_breach_notified_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'notify_citizen' => 'boolean',
         'amount' => 'decimal:2',
+        'quantity' => 'integer',
+        'needed_by' => 'date',
         'hold_until' => 'date',
         'held_at' => 'datetime',
+        'hold_reminder_sent_at' => 'datetime',
         'claimed_at' => 'datetime',
+        // The promised collection day (set when advancing), not the moment of
+        // collection — that is `claimed_at`.
+        'claim_date' => 'date',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -151,6 +169,17 @@ class Document extends Model
         return $this->belongsTo(Department::class, 'requesting_department_id');
     }
 
+    /**
+     * Department currently handling this ticket (from the request type). Its
+     * Supervisor assigns the responsible staff member.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
     /** Endorsement chain of an internal request, in hop order. */
     public function requestSteps(): HasMany
     {
@@ -161,6 +190,84 @@ class Document extends Model
     public function currentRequestStep(): ?RequestStep
     {
         return $this->requestSteps()->where('status', RequestStep::STATUS_CURRENT)->first();
+    }
+
+    /**
+     * Log a department onto the endorsement chain — used when an office scans
+     * the folder into its custody. The chain is a growing record of who handled
+     * the paper, not a route fixed at filing: it ends only when a department
+     * marks the request done.
+     *
+     * The office that was holding it is closed as `forwarded` (it passed the
+     * paper on) unless it had already been formally acted on.
+     */
+    public function appendEndorsementStep(int $departmentId, string $action = 'Received and handling'): RequestStep
+    {
+        $open = $this->requestSteps()
+            ->whereIn('status', [RequestStep::STATUS_CURRENT, RequestStep::STATUS_PENDING])
+            ->get();
+
+        foreach ($open as $step) {
+            $step->update([
+                'status' => $step->status === RequestStep::STATUS_CURRENT
+                    ? RequestStep::STATUS_FORWARDED
+                    : RequestStep::STATUS_SKIPPED,
+            ]);
+        }
+
+        $step = $this->requestSteps()->create([
+            'step_order' => (int) $this->requestSteps()->max('step_order') + 1,
+            'department_id' => $departmentId,
+            'action' => $action,
+            'status' => RequestStep::STATUS_CURRENT,
+            'started_at' => now(),
+        ]);
+
+        $this->unsetRelation('requestSteps');
+
+        return $step;
+    }
+
+    /**
+     * A human, chain-aware headline for an internal request — "Awaiting
+     * endorsement", "Under review", "Returned for revision", "Denied",
+     * "Completed" — derived from the endorsement chain rather than the
+     * citizen-oriented DocumentStatus enum. The office currently holding the
+     * request is shown alongside (see {@see currentRequestStep()}).
+     */
+    public function internalStatusLabel(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'Completed',
+            DocumentStatus::Denied => 'Denied',
+            DocumentStatus::Returned => 'Returned for revision',
+            default => (function (): string {
+                $step = $this->currentRequestStep();
+
+                if (! $step instanceof RequestStep) {
+                    return $this->statusEnum()->label();
+                }
+
+                // step_order 0 is the requesting department's own endorsement hop.
+                return $step->step_order === 0 && (int) $step->department_id === (int) $this->requesting_department_id
+                    ? 'Awaiting endorsement'
+                    : 'Under review';
+            })(),
+        };
+    }
+
+    /**
+     * Colour band for {@see internalStatusLabel()} — maps to a pill/dot tone.
+     * One of: green | amber | red | returned.
+     */
+    public function internalStatusBand(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'green',
+            DocumentStatus::Denied => 'red',
+            DocumentStatus::Returned => 'returned',
+            default => 'amber',
+        };
     }
 
     /**
@@ -209,6 +316,56 @@ class Document extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    /** Whoever denied or otherwise closed the request. */
+    public function decidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by');
+    }
+
+    /**
+     * Name + role of the person who closed this request, for the citizen page.
+     *
+     * Falls back to the activity log so requests denied before `decided_by`
+     * existed still name their decider instead of showing nothing.
+     *
+     * @return array{name: string, role: string}|null
+     */
+    public function decisionActor(): ?array
+    {
+        if ($this->decidedBy) {
+            return [
+                'name' => $this->decidedBy->name,
+                'role' => self::roleLabelFor($this->decidedBy),
+            ];
+        }
+
+        $causer = $this->activities()
+            ->whereNotNull('causer_id')
+            ->where('description', 'like', 'Denied%')
+            ->latest('id')
+            ->first()?->causer;
+
+        if (! $causer instanceof User) {
+            return null;
+        }
+
+        return [
+            'name' => $causer->name,
+            'role' => self::roleLabelFor($causer),
+        ];
+    }
+
+    /** Citizen-facing role wording — never the raw Spatie role name. */
+    private static function roleLabelFor(User $user): string
+    {
+        return match (true) {
+            $user->hasRole('super_admin') => 'Administrator',
+            $user->hasRole('Supervisor') => 'Supervisor',
+            $user->hasRole('department_admin') => 'Department Head',
+            default => 'Staff',
+        };
+    }
+
     /** Admin who made the current assignment. */
     public function assignedBy(): BelongsTo
     {
@@ -226,10 +383,40 @@ class Document extends Model
         return $this->hasMany(DocumentAttachment::class)->orderBy('sort_order');
     }
 
+    /** Supporting-requirement checklist for this request (Cedula, clearances, …). */
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(DocumentRequirement::class)->orderBy('id');
+    }
+
+    /** Resource reservation for a booking-kind request (null otherwise). */
+    public function booking(): HasOne
+    {
+        return $this->hasOne(Booking::class);
+    }
+
+    /** Mandatory requirements a staffer has not yet verified — blocks completion. */
+    public function unverifiedMandatoryRequirements(): Collection
+    {
+        return $this->requirements()->where('is_mandatory', true)->whereNull('verified_at')->get();
+    }
+
     /** Top-level collaboration posts (replies are loaded via the `replies` relation). */
     public function comments(): HasMany
     {
         return $this->hasMany(DocumentComment::class)->whereNull('parent_id')->latest();
+    }
+
+    /**
+     * Every message on the request, replies included.
+     *
+     * Read state and unread counts must use this, not `comments()`: a citizen's
+     * answer under a staff message is a reply, so counting only top-level posts
+     * would leave it permanently unread and its badge permanently lit.
+     */
+    public function allComments(): HasMany
+    {
+        return $this->hasMany(DocumentComment::class);
     }
 
     /** Citizen-facing posts only — never exposes internal staff notes. */
@@ -250,6 +437,17 @@ class Document extends Model
             'body' => $body,
             'visibility' => DocumentComment::VISIBILITY_INTERNAL,
         ]);
+    }
+
+    /**
+     * The tracking page as the citizen sees it. Every citizen-facing link
+     * (receipt, public lookup, citizen emails) uses this, so a staff member
+     * signed in on the same browser still lands on the citizen page rather
+     * than the staff desk.
+     */
+    public function citizenTrackingUrl(): string
+    {
+        return route('track.show', ['trackingNumber' => $this->tracking_number] + CitizenView::QUERY);
     }
 
     // Backward-compatible helper. Primary generation lives in QrCodeService.
@@ -280,6 +478,54 @@ class Document extends Model
 
         // anchor is in the past; order operands so the diff is positive.
         return $anchor->diffInHours(now()) > $sla;
+    }
+
+    /**
+     * When a hold stops being legitimate and becomes a stall.
+     *
+     * A hold deliberately pauses the SLA clock (see DocumentStatus::slaHours()),
+     * so isOverdue() and documents:check-sla both ignore held documents. Without
+     * a second deadline a parked document would be accountable to nothing, so
+     * every hold gets one:
+     *   - with a hold_until: the end of that day (staff named the date);
+     *   - open-ended: held_at + tracking.holds.stale_after_days.
+     *
+     * Returns null when the document is not on hold, or on hold with no anchor
+     * date at all (nothing to measure from).
+     */
+    public function holdDueAt(): ?Carbon
+    {
+        if ($this->statusEnum() !== DocumentStatus::OnHold) {
+            return null;
+        }
+
+        if ($this->hold_until) {
+            return $this->hold_until->copy()->endOfDay();
+        }
+
+        $staleAfter = (int) config('tracking.holds.stale_after_days', 14);
+
+        return $this->held_at?->copy()->addDays($staleAfter);
+    }
+
+    /** True once a hold has run past holdDueAt() — the stall the sweep chases. */
+    public function isHoldOverdue(): bool
+    {
+        $due = $this->holdDueAt();
+
+        return $due instanceof Carbon && $due->isPast();
+    }
+
+    /** Whole days a hold has overrun its deadline (0 when not overdue). */
+    public function holdOverdueDays(): int
+    {
+        $due = $this->holdDueAt();
+
+        if (! $due instanceof Carbon || ! $due->isPast()) {
+            return 0;
+        }
+
+        return (int) $due->diffInDays(now());
     }
 
     /**

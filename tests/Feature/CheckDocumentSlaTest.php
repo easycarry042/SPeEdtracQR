@@ -40,12 +40,12 @@ class CheckDocumentSlaTest extends TestCase
         $document = $this->documentSittingFor(72); // 72h > 48h SLA → breach
 
         $this->artisan('documents:check-sla')->assertSuccessful();
-        Mail::assertSent(SlaBreachMail::class, 1);
+        Mail::assertQueued(SlaBreachMail::class, 1);
         $this->assertNotNull($document->fresh()->sla_breach_notified_at);
 
         // Second run must not re-send (dedup via marker).
         $this->artisan('documents:check-sla')->assertSuccessful();
-        Mail::assertSent(SlaBreachMail::class, 1);
+        Mail::assertQueued(SlaBreachMail::class, 1);
     }
 
     public function test_warning_email_sent_between_threshold_and_sla(): void
@@ -54,8 +54,8 @@ class CheckDocumentSlaTest extends TestCase
         $document = $this->documentSittingFor(40); // 40/48 = 83% > 75% warning, < 100%
 
         $this->artisan('documents:check-sla')->assertSuccessful();
-        Mail::assertSent(SlaWarningMail::class, 1);
-        Mail::assertNotSent(SlaBreachMail::class);
+        Mail::assertQueued(SlaWarningMail::class, 1);
+        Mail::assertNotQueued(SlaBreachMail::class);
         $this->assertNotNull($document->fresh()->sla_warning_notified_at);
     }
 

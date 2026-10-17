@@ -16,29 +16,148 @@
 </button>
 @endif
 
-<div class="relative hidden sm:block"
-     x-data="{ open: false, q: '', results: [],
-        run() {
-            if (! this.q.trim()) { this.results = []; return; }
-            fetch('{{ route('staff.search') }}?q=' + encodeURIComponent(this.q), { headers: { 'Accept': 'application/json' } })
-                .then(r => r.json()).then(d => { this.results = d; }).catch(() => { this.results = []; });
-        } }">
-    <button type="button"
-            @click="open = ! open; if (open) $nextTick(() => $refs.pinput.focus())"
-            class="flex h-11 w-11 items-center justify-center rounded-full bg-green-wash text-green-deep ring-1 ring-hairline-strong transition hover:scale-105 hover:bg-emerald-300/90 active:scale-95"
-            title="Find a person" aria-haspopup="true">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
-    </button>
-    <div x-show="open" x-cloak @click.outside="open = false" class="people-panel">
-        <input type="text" x-ref="pinput" x-model="q" @input.debounce.300ms="run()" placeholder="Find a staff member…">
-        <div class="mt-1">
-            <template x-for="p in results" :key="p.url">
-                <a :href="p.url" class="people-result"><span x-text="p.name"></span><span class="r" x-text="p.role"></span></a>
-            </template>
-            <div x-show="q.length && ! results.length" class="people-empty">No matches.</div>
+{{-- No global search here: searching is offered inside the tab that needs it
+     (the Requests table below the supervisor dashboard, the staff directory, the
+     assignments desk, History), which keeps the header to identity + alerts. --}}
+
+{{-- The frame puts three controls on this side of the bar, each on its own white
+     disc: scan, notifications, then the identity chip (Figma: STAFF LOOK UP,
+     "Group 84"). The scan disc is how staff get to the QR hub when they have the
+     paper in hand — the desk below is for when they do not. --}}
+{{-- Opens the camera in a modal over whatever page staff are on. The href is
+     the no-JavaScript fallback: the Look Up hub, with image upload. --}}
+{{-- File Request: opens the filing form (layouts/app) over any page. The
+     href is the no-JavaScript route to the same form on its own page. --}}
+@if($fileRequestForm ?? null)
+    <a href="{{ route('requests.create') }}" @click.prevent="$dispatch('open-file-request')"
+       class="header-action" aria-haspopup="dialog">
+        <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
+        <span>File Request</span>
+    </a>
+@endif
+
+<div x-data="headerQrScanner" class="contents">
+    <a href="{{ route('track.index', ['scan' => 1]) }}" @click.prevent="open()"
+       class="header-action" aria-haspopup="dialog">
+        <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/>
+            <path stroke-linecap="round" d="M7 12h10"/>
+        </svg>
+        <span>Scan QR Code</span>
+    </a>
+
+    {{-- Teleported to <body> so the header's own stacking and backdrop
+         filter cannot clip a fixed overlay. --}}
+    <template x-teleport="body">
+        <div x-show="isOpen" x-cloak
+             x-transition.opacity.duration.150ms
+             @keydown.escape.window="isOpen && close()"
+             @click.self="close()"
+             class="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4"
+             role="dialog" aria-modal="true" aria-labelledby="headerScanTitle">
+            <div class="w-full max-w-md overflow-hidden rounded-2xl bg-paper shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+                    <h2 id="headerScanTitle" class="text-lg font-bold text-green-deep">Scan a QR code</h2>
+                    <button type="button" @click="close()" aria-label="Close scanner"
+                            class="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft transition hover:bg-green-wash hover:text-green-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                    </button>
+                </div>
+
+                <div class="p-5">
+                    <div class="qr-viewport relative overflow-hidden rounded-xl bg-[#1e1e1e]">
+                        {{-- .qr-surface: see .qr-viewport in app.css — a square box must not
+                             distort the picture the decoder reads. --}}
+                        <div id="headerScanReader" class="qr-surface"></div>
+                        <p x-show="starting && !error" class="absolute inset-0 flex items-center justify-center text-sm font-medium text-white/80">
+                            Starting camera…
+                        </p>
+                    </div>
+
+                    <p x-show="!error" class="mt-3 text-center text-sm text-ink-soft">
+                        Point the camera at the QR on the claim slip or folder.
+                    </p>
+                    <p x-show="error" x-text="error" class="mt-3 rounded-lg bg-status-red-wash px-3 py-2.5 text-sm font-semibold text-status-red" role="alert"></p>
+
+                    <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+                        <button type="button" x-show="error" @click="startCamera()"
+                                class="rounded-lg bg-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-green/40">
+                            Try again
+                        </button>
+                        <button type="button" @click="$refs.headerScanFile.click()"
+                                class="rounded-lg border border-hairline-strong px-4 py-2 text-sm font-semibold text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green/40">
+                            Upload QR image instead
+                        </button>
+                        <input x-ref="headerScanFile" type="file" accept="image/*" class="hidden" @change="readFile($event)">
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+    </template>
+
+    {{-- html5-qrcode's scanFile needs a container in the DOM. --}}
+    <div id="headerScanFileReader" class="hidden"></div>
 </div>
+
+@include('partials.qr-scan-helpers')
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('headerQrScanner', () => ({
+            isOpen: false,
+            starting: false,
+            error: '',
+
+            open() {
+                this.isOpen = true;
+                this.startCamera();
+            },
+
+            close() {
+                this.isOpen = false;
+                this.starting = false;
+                window.SpeedQr.stop();
+            },
+
+            startCamera() {
+                this.error = '';
+                this.starting = true;
+                window.SpeedQr.start('headerScanReader', (decodedText) => {
+                    this.handle(decodedText);
+                }, (cameraError) => {
+                    this.starting = false;
+                    this.error = window.SpeedQr.describe(cameraError) + ' You can upload a QR image instead.';
+                }).then(() => { this.starting = false; });
+            },
+
+            /** Only codes this system issued may open a record. */
+            handle(decodedText) {
+                const tracking = window.SpeedQr.extractTracking(decodedText);
+                window.SpeedQr.stop();
+                if (! tracking) {
+                    this.error = window.SpeedQr.FOREIGN_CODE_MESSAGE;
+
+                    return;
+                }
+                window.location.href = @json(url('/track')) + '/' + encodeURIComponent(tracking);
+            },
+
+            readFile(event) {
+                const file = event.target.files && event.target.files[0];
+                event.target.value = '';
+                if (! file) {
+                    return;
+                }
+                this.error = '';
+                window.SpeedQr.stop();
+                new Html5Qrcode('headerScanFileReader', false).scanFile(file, false)
+                    .then((decodedText) => this.handle(decodedText))
+                    .catch(() => {
+                        this.error = 'Could not read a QR code from that image. Use a clearer, well-lit photo.';
+                    });
+            },
+        }));
+    });
+</script>
 
 @php
     // Real unread feed for the bell (database notifications, see DocumentEvent).
@@ -49,18 +168,22 @@
     <button type="button"
             id="notifBtn"
             onclick="toggleHeaderDropdown('notifPanel', 'profilePanel')"
-            class="relative flex h-11 w-11 items-center justify-center rounded-full bg-green-wash text-green-deep ring-1 ring-hairline-strong transition hover:scale-105 hover:bg-emerald-300/90 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            class="header-disc"
             title="Notifications"
-            aria-haspopup="true">
-        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2z"/></svg>
+            aria-label="Notifications{{ $bellCount > 0 ? ', '.$bellCount.' unread' : '' }}"
+            aria-haspopup="true" aria-expanded="false">
+        <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z"/>
+            <path stroke-linecap="round" d="M10 20.5a2.2 2.2 0 0 0 4 0"/>
+        </svg>
         @if($bellCount > 0)
-            <span class="absolute right-1 top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
+            <span class="header-badge" aria-hidden="true">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
         @endif
     </button>
     <div id="notifPanel"
-         class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl shadow-gray-900/15"
+         class="dropdown-panel hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-2 shadow-xl shadow-gray-900/10"
          style="z-index:9999;">
-        <div class="flex items-center justify-between border-b border-gray-100 px-4 pb-2">
+        <div class="flex items-center justify-between border-b border-gray-200 px-4 pb-2">
             <p class="text-xs font-semibold tracking-wide text-gray-500">Notifications</p>
             @if($bellCount > 0)
                 <form method="POST" action="{{ route('notifications.read-all') }}">
@@ -71,7 +194,7 @@
         </div>
         @forelse($bellUnread as $notification)
             <a href="{{ route('notifications.open', $notification->id) }}"
-               class="block border-b border-gray-50 px-4 py-2.5 transition hover:bg-green-wash/60">
+               class="block border-b border-gray-200/70 px-4 py-2.5 transition hover:bg-gray-200/80">
                 <div class="flex items-baseline justify-between gap-2">
                     <p class="text-[13px] font-bold text-ink">{{ data_get($notification->data, 'title', 'Update') }}</p>
                     <span class="shrink-0 text-[11px] text-ink-soft">{{ $notification->created_at->diffForHumans(short: true) }}</span>
@@ -88,14 +211,30 @@
     </div>
 </div>
 
+@php
+    // The desk the signed-in user acts for. Department scoping decides what
+    // they can see, so the chip names it rather than leaving it implied.
+    $departmentName = auth()->user()?->department?->name;
+@endphp
 <div class="relative" id="profileDropdown">
     <button type="button"
             id="profileBtn"
             onclick="toggleHeaderDropdown('profilePanel', 'notifPanel')"
-            class="inline-flex items-center gap-2 rounded-full bg-green-wash py-1.5 pl-1.5 pr-3 text-green-deep ring-1 ring-hairline-strong transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green focus-visible:ring-offset-2"
-            aria-haspopup="true">
-        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">{{ $initials }}</span>
-        <svg class="h-4 w-4 text-emerald-900/70" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            class="header-chip"
+            aria-label="Account menu for {{ $name }}"
+            aria-haspopup="true" aria-expanded="false">
+        <span class="header-avatar" aria-hidden="true">{{ $initials }}</span>
+
+        {{-- Name, then role and office. Drops below sm: the avatar and caret
+             still open the menu. --}}
+        <span class="header-who hidden sm:block">
+            <span class="header-who-name">{{ $name }}</span>
+            <span class="header-who-meta">{{ collect([$roleLabel, $departmentName])->filter()->implode(' · ') }}</span>
+        </span>
+
+        <svg class="header-caret" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/>
+        </svg>
     </button>
     <div id="profilePanel"
          class="dropdown-panel hidden absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 py-1 shadow-xl shadow-gray-900/10"
@@ -112,13 +251,14 @@
                 class="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
             Keyboard shortcuts <kbd class="rounded border border-hairline-strong bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">?</kbd>
         </button>
-        {{-- Staff directory + Settings live in the super_admin sidebar; only
-             topnav roles need them here (avoids duplicate menu entries). --}}
+        {{-- Staff directory has its own super_admin sidebar entry, so it only
+             shows here for topnav roles. Settings lives in this menu for
+             everyone — it is not in the sidebar. --}}
         @unless(auth()->user()?->can('manage system'))
             <a href="{{ route('staff.index') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Staff directory</a>
-            <div class="my-1 border-t border-gray-200"></div>
-            <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
         @endunless
+        <div class="my-1 border-t border-gray-200"></div>
+        <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">Settings</a>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="w-full px-4 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50">Logout</button>
@@ -127,11 +267,20 @@
 </div>
 
 <script>
+    function syncHeaderExpanded() {
+        [['notifBtn', 'notifPanel'], ['profileBtn', 'profilePanel']].forEach(function (pair) {
+            const button = document.getElementById(pair[0]);
+            const panel = document.getElementById(pair[1]);
+            if (button && panel) button.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+        });
+    }
+
     function toggleHeaderDropdown(showId, hideId) {
         const show = document.getElementById(showId);
         const hide = document.getElementById(hideId);
         if (hide) hide.classList.add('hidden');
         if (show) show.classList.toggle('hidden');
+        syncHeaderExpanded();
     }
 
     document.addEventListener('click', function (e) {
@@ -142,5 +291,6 @@
                 if (panel) panel.classList.add('hidden');
             }
         });
+        syncHeaderExpanded();
     });
 </script>

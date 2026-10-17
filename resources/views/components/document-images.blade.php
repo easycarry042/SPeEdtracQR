@@ -20,6 +20,7 @@
                 // $img->url on a model — Eloquent treats it as a relationship.
                 $isAttachment = $img instanceof \App\Models\DocumentAttachment;
                 $url = $isAttachment ? route('attachments.show', $img) : ($img->url ?? null);
+                $downloadUrl = $isAttachment ? $img->downloadUrl() : $url;
                 $ext = $isAttachment ? strtolower(pathinfo($img->file_path, PATHINFO_EXTENSION)) : 'img';
                 $isImage = ! $isAttachment || in_array($ext, $imageExt, true);
                 $canDelete = $manage && $isAttachment;
@@ -28,7 +29,7 @@
                 <div class="relative">
                     @if($isImage)
                         {{-- data-lightbox-src opens the in-page viewer; href is the no-JS fallback --}}
-                        <a href="{{ $url }}" target="_blank" rel="noopener" data-lightbox-src="{{ $url }}"
+                        <a href="{{ $url }}" target="_blank" rel="noopener" data-lightbox-src="{{ $url }}" data-lightbox-download="{{ $downloadUrl }}"
                            class="block overflow-hidden rounded-lg ring-1 ring-hairline transition hover:ring-green-bright"
                            title="View image">
                             <img src="{{ $url }}" alt="Document attachment" class="{{ $thumbClass }} object-cover bg-green-wash"
@@ -42,6 +43,14 @@
                            title="Open {{ strtoupper($ext) }} file">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/></svg>
                             <span class="text-[9px] font-bold uppercase">{{ $ext }}</span>
+                        </a>
+                    @endif
+
+                    @if($isAttachment && ! $isImage)
+                        {{-- File chips have no lightbox, so offer a direct download. --}}
+                        <a href="{{ $downloadUrl }}" title="Download {{ strtoupper($ext) }} file"
+                           class="absolute -bottom-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-green-deep text-white shadow ring-2 ring-white transition hover:bg-green-bright">
+                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
                         </a>
                     @endif
 

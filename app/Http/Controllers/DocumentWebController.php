@@ -6,9 +6,11 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Models\Document;
 use App\Notifications\DocumentEvent;
+use App\Rules\ContactNumber;
 use App\Services\QrCodeService;
 use App\Support\AssignmentScope;
 use App\Support\DocumentFormOptions;
+use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -34,17 +36,22 @@ class DocumentWebController extends Controller
     {
         $this->ensureCanCreate();
 
+        // Canonical 09XXXXXXXXX whatever separators were typed (see ContactNumber).
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
+
         $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'citizen_name' => ['nullable', 'string'],
             'citizen_email' => ['nullable', 'email', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
             'description' => ['nullable', 'string'],
             'purpose' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachment' => UploadRules::rules(),
             'attachments' => ['nullable', 'array', 'max:10'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'],
+            'attachments.*' => UploadRules::rules(),
         ]);
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
@@ -67,8 +74,7 @@ class DocumentWebController extends Controller
             'remarks' => $request->remarks,
         ]);
 
-        $trackingUrl = url("/track/{$trackingNumber}");
-        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber, $trackingUrl);
+        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber);
 
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
@@ -96,8 +102,9 @@ class DocumentWebController extends Controller
 
     public function edit(Document $document): Factory|View
     {
-        $this->ensureCanCreate();
-        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+        // Editing is decoupled from creation: staff may edit only the ticket
+        // assigned to them; supervisors/admins may correct any record.
+        abort_unless(AssignmentScope::userCanEditDocument($document), 403);
 
         $categoryOptions = $this->categoryOptions();
 
@@ -106,14 +113,17 @@ class DocumentWebController extends Controller
 
     public function update(Request $request, Document $document)
     {
-        $this->ensureCanCreate();
-        abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
+        abort_unless(AssignmentScope::userCanEditDocument($document), 403);
+
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
 
         // Routing and status are changed only through scans, not this form.
         $validated = $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'citizen_name' => ['nullable', 'string', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
             'purpose' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'remarks' => ['nullable', 'string'],
@@ -128,9 +138,8 @@ class DocumentWebController extends Controller
     public function printSticker(Document $document): Factory|View
     {
         $this->authorizeDocumentView();
-        $trackingUrl = url('/track/'.$document->tracking_number);
 
-        return view('documents.qr-sticker', ['document' => $document, 'trackingUrl' => $trackingUrl]);
+        return view('documents.qr-sticker', ['document' => $document]);
     }
 
     public function complete(string $trackingNumber)
@@ -169,7 +178,9 @@ class DocumentWebController extends Controller
             abort(403, 'System administrators manage the organization but do not create document submissions.');
         }
 
-        // receiving_staff is intake/scan-only and lacks this permission.
+        // Only guests (the public) create requests via the public request form.
+        // No staff role holds 'create documents', so staff are blocked here too;
+        // they process and manage assigned requests instead.
         if (! $user?->can('create documents')) {
             abort(403, 'You do not have permission to create document submissions.');
         }
