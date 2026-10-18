@@ -3,19 +3,11 @@
         $supervisorView = $supervisorView ?? false;
     @endphp
 
-    {{-- Scan straight to a request instead of hunting for it in the list. --}}
-    <x-slot name="pageActions">
-        <button type="button"
-                @click="window.dispatchEvent(new CustomEvent('lookup-scan-open'))"
-                class="cr-btn cr-btn-primary">
-            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
-                <path stroke-linecap="round" d="M3 12h18"/>
-            </svg>
-            Scan QR
-        </button>
-    </x-slot>
+    {{-- No page action. The shared header already carries "Scan QR Code" on
+         every page; a second green "Scan QR" beside it was the same job twice,
+         and two scanners in one title row is what made this screen look unlike
+         the rest of Look Up. The scan dialog below still listens for the
+         event, so the header's scanner is the one way in. --}}
 
     {{-- Paging for the queue lists. The rows are server-rendered, so the page
          window is computed over the ones currently matching the search box
@@ -244,15 +236,20 @@
 
             {{-- ── Stage rail (Figma: STAFF LOOK UP) ────────────────────────────
                  A single 10px track with the travelled part filled, a 40px node
-                 on the current stage and 25px nodes either side. The frame draws
-                 four stages; the app has five, so the rail is built from the real
-                 flow — the treatment is copied, the stage list is not invented. --}}
+                 on the current stage and 25px nodes either side.
+
+                 Four stages, as the frame draws them — DocumentStatus::railStages().
+                 The flow underneath still has five statuses; In Progress and In
+                 Review are one stage on the rail. Every surface that shows this
+                 document counts the same way, so a citizen told "3 of 4" at the
+                 counter never sees "3 of 5" on their tracking link. --}}
             @php
                 // Fully qualified: this @php block sits inside a conditional, and
                 // a `use` statement there is a fatal.
-                $railFlow = \App\Enums\DocumentStatus::flow();
-                $railStage = $document->statusEnum();
-                $railCurrent = $railStage->position();
+                $railFlow = \App\Enums\DocumentStatus::railStages();
+                $railCurrent = $document->statusEnum()->railStage(
+                    \App\Enums\DocumentStatus::tryFrom((string) $document->status_before_hold)
+                );
                 $railCount = count($railFlow);
                 // Fill stops at the centre of the current node.
                 $railFill = $railCount > 1 && $railCurrent > 0
@@ -293,12 +290,12 @@
                 <div class="relative mt-[8px] h-[19px]">
                     @foreach($railFlow as $i => $stage)
                         @if($loop->first)
-                            <span class="absolute left-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage->label() }}</span>
+                            <span class="absolute left-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage['label'] }}</span>
                         @elseif($loop->last)
-                            <span class="absolute right-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage->label() }}</span>
+                            <span class="absolute right-0 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]">{{ $stage['label'] }}</span>
                         @else
                             <span class="absolute -translate-x-1/2 whitespace-nowrap text-[14px] font-medium text-black xl:text-[14px]"
-                                  style="left: {{ ($i / ($railCount - 1)) * 100 }}%">{{ $stage->label() }}</span>
+                                  style="left: {{ ($i / ($railCount - 1)) * 100 }}%">{{ $stage['label'] }}</span>
                         @endif
                     @endforeach
                 </div>

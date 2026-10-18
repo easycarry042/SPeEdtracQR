@@ -5,7 +5,7 @@
          that is where the deeper review tools (requirements, release, the
          authenticity seal) live; this desk is for finding and triaging. --}}
     <div class="page-shell page-shell-loose"
-         x-data="lookupDesk(@js(['pending' => $pendingRows, 'active' => $activeRows, 'flow' => $flow, 'rail' => $rail]))"
+         x-data="lookupDesk(@js(['pending' => $pendingRows, 'active' => $activeRows, 'flow' => $flow, 'rail' => $rail, 'openTracking' => $openTracking]))"
          @keydown.escape.window="close()">
 
         {{-- Same table design as the Dashboard and Internal (.st-* in app.css):
@@ -133,6 +133,33 @@
                 sending: false,
                 busy: false,
                 error: '',
+                openTracking: cfg.openTracking || null,
+
+                /**
+                 * Deep link (?open=SPD-…): open that row's detail card on load,
+                 * on its own queue's tab and page, so closing the card leaves
+                 * the viewer looking at the row they came for. The controller
+                 * has already redirected away anything not on this desk.
+                 */
+                init() {
+                    if (! this.openTracking) {
+                        return;
+                    }
+
+                    for (const queue of ['pending', 'active']) {
+                        const row = this.rows[queue].find((r) => r.tracking_number === this.openTracking);
+
+                        if (! row) {
+                            continue;
+                        }
+
+                        this.tab = queue;
+                        this.page = Math.max(1, Math.floor(this.matches.indexOf(row) / this.perPage) + 1);
+                        this.open(row);
+
+                        return;
+                    }
+                },
 
                 /** Types across both queues, so switching tab keeps the choice. */
                 typeOptions() {

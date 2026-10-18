@@ -444,6 +444,30 @@ class LookUpDeskTest extends TestCase
         $this->assertSame(0, $document->allComments()->unreadByStaff()->count());
     }
 
+    public function test_a_tracking_number_deep_links_its_row_open_on_the_desk(): void
+    {
+        $staff = $this->staff();
+        $document = $this->makeDocument(['assigned_to' => $staff->id]);
+
+        $response = $this->actingAs($staff)
+            ->get(route('track.index', ['open' => $document->tracking_number]))
+            ->assertOk()
+            ->assertSee('Request Type');
+
+        $this->assertSame($document->tracking_number, $response->viewData('openTracking'));
+        $response->assertSee('openTracking', false);
+    }
+
+    public function test_a_row_that_is_not_on_the_desk_falls_back_to_the_document_page(): void
+    {
+        $staff = $this->staff();
+        $document = $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'completed']);
+
+        $this->actingAs($staff)
+            ->get(route('track.index', ['open' => $document->tracking_number]))
+            ->assertRedirect(route('track.show', $document->tracking_number));
+    }
+
     public function test_a_staff_member_who_does_not_own_the_request_cannot_post_on_it(): void
     {
         $staff = $this->staff();

@@ -14,6 +14,7 @@ use App\Support\DocumentSeal;
 use App\Support\RequestReview;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
@@ -25,7 +26,9 @@ class TrackController extends Controller
 
     public function index(Request $request)
     {
-        if (auth()->user()?->can('manage system')) {
+        // ?open= is a deep link INTO the desk (a dashboard row, a report row).
+        // Bouncing an org-wide admin to their own dashboard would swallow it.
+        if (auth()->user()?->can('manage system') && ! $request->filled('open')) {
             return to_route('admin.dashboard');
         }
 
@@ -68,8 +71,12 @@ class TrackController extends Controller
      * Everything the modal needs travels in one payload rather than a fetch per
      * row: the desk is capped at a page of work, and a round trip per open would
      * be slower than shipping what is already loaded.
+     *
+     * `?open=SPD-…` deep links one row's detail card open, so screens that list
+     * a tracking number (the Supervisor dashboard's at-risk table) land on this
+     * desk instead of the older per-document page.
      */
-    private function lookupDesk(Request $request): Factory|View
+    private function lookupDesk(Request $request): Factory|View|RedirectResponse
     {
         // Two queues, named as the design names them. "Pending" is work that has
         // landed but not been started; "In Progress" is everything still open
@@ -101,9 +108,19 @@ class TrackController extends Controller
                 ->whereIn('status', array_merge($pendingStatuses, $activeStatuses))
         )->latest('created_at')->get();
 
+        // A row that is not on this desk — completed, internal, or another
+        // office's — still has to resolve somewhere: fall back to the
+        // per-document page rather than opening the desk on nothing.
+        $openTracking = strtoupper(trim((string) $request->get('open')));
+
+        if ($openTracking !== '' && ! $documents->contains('tracking_number', $openTracking)) {
+            return to_route('track.show', $openTracking);
+        }
+
         $logs = $this->deskLogs($documents->pluck('id')->all());
 
         return view('track.desk', [
+            'openTracking' => $openTracking !== '' ? $openTracking : null,
             'pendingRows' => $this->deskRows($documents->whereIn('status', $pendingStatuses), $logs),
             'activeRows' => $this->deskRows($documents->whereIn('status', $activeStatuses), $logs),
             'flow' => collect(DocumentStatus::flow())

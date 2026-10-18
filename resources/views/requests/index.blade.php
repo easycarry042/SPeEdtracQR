@@ -1,14 +1,8 @@
 <x-app-layout title="Internal Requests" fixed-height>
-    {{-- The layout's title bar already says "Internal Requests", so only the
-         action moves up here rather than repeating the heading beneath it. --}}
-    @if($canFile)
-        <x-slot name="pageActions">
-            <a href="{{ route('requests.create') }}" title="File a request" aria-label="File a request"
-               class="flex h-[52px] w-[52px] items-center justify-center rounded-full border border-hairline bg-paper text-green-deep shadow-sm transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
-                <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            </a>
-        </x-slot>
-    @endif
+    {{-- No page action here. The shared header already carries a labelled
+         "File Request" button on every page; a second, icon-only plus sitting
+         beside the title was the same action twice, and the bare one gave no
+         clue which. One affordance, with words on it. --}}
 
     @php
         $tabs = $department

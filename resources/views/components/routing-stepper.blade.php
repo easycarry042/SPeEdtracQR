@@ -9,11 +9,21 @@
 @php
     use App\Enums\DocumentStatus;
 
-    $flow    = DocumentStatus::flow();
+    // The LINE shows the four-stage rail (DocumentStatus::railStages()); the
+    // CONTROLS below still move through the five real statuses. They are not
+    // the same thing: In Progress and In Review are one stage to a citizen
+    // reading a tracking page, and two separate moves to the staff member
+    // advancing the document. Every surface showing this document now counts
+    // in fours, so none of them contradict each other.
+    $rail    = DocumentStatus::railStages();
     $stage   = $document->statusEnum();
-    $current = $stage->position();          // 1-based; 0 when Returned (off the line)
     $returned = $stage === DocumentStatus::Returned;
     $held    = $stage === DocumentStatus::OnHold;
+    // railStage() places the side states too: Returned reads as back in
+    // review, a hold sits where the request stopped.
+    $current = $stage->railStage(
+        DocumentStatus::tryFrom((string) $document->status_before_hold)
+    );
 
     // Who may operate the controls: the assigned staff member, or an admin.
     $canAct = $controls && $document->canBeAdvancedBy(auth()->user());
@@ -52,11 +62,11 @@
      (Look Up, which uses the design's own bar) but still need the controls. --}}
 @if($line)
 <div {{ $attributes->merge(['class' => 'steps']) }} style="margin:8px 2px 4px;">
-    @foreach($flow as $i => $s)
+    @foreach($rail as $i => $s)
         @php
             $pos = $i + 1;
-            $isDone = ! $returned && $pos < $current;
-            $isCurrent = ! $returned && $pos === $current;
+            $isDone = $pos < $current;
+            $isCurrent = $pos === $current;
             $node = $isDone ? 'done' : ($isCurrent ? 'now' : 'todo');
         @endphp
 
@@ -70,7 +80,7 @@
                     {{ $pos }}
                 @endif
             </div>
-            <div class="cap {{ $isCurrent ? 'cur' : '' }}">{{ $s->label() }}</div>
+            <div class="cap {{ $isCurrent ? 'cur' : '' }}">{{ $s['label'] }}</div>
         </div>
 
         @if(!$loop->last)

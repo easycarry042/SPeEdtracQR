@@ -2,7 +2,7 @@
     'label' => '',
     'value' => 0,
     'tone' => 'mid',   // deep | mid | bright | brightest | amber
-    'icon' => 'clock', // doc | hourglass | clock | check | none
+    'icon' => 'clock', // doc | hourglass | people | clock | check | none
     'note' => null,    // optional line under the number (the admin row's deltas)
 ])
 
@@ -29,6 +29,9 @@
         // for a plain total, which had to show as icon="none" until it existed.
         'doc' => ['file' => 'stat-total.svg', 'class' => 'h-[63px] w-[64px]'],
         'hourglass' => ['file' => 'stat-pending.svg', 'class' => 'h-[66.5px] w-[56px]'],
+        // Work nobody has picked up yet — the frame's person-at-a-monitor
+        // drawing on the supervisor's Unassigned tile.
+        'people' => ['file' => 'stat-unassigned.svg', 'class' => 'h-[64px] w-[63px]'],
         'clock' => ['file' => 'stat-in-progress.svg', 'class' => 'h-[64px] w-[64px]'],
         'check' => ['file' => 'stat-completed.svg', 'class' => 'h-[64px] w-[64px]'],
     ];

@@ -44,16 +44,29 @@
             $maxAssigned = max(1, (int) (collect($topStaff ?? [])->max('assigned')));
         @endphp
 
-        {{-- KPI tiles --}}
-        {{-- Spacing comes from .page-shell's gap; a margin here would double it. --}}
-        <div class="tiles">
-            <div class="tile"><div class="k">In progress</div><div class="v mono">{{ $kpis['in_progress'] ?? 0 }}</div><div class="bar amber"></div></div>
-            <div class="tile"><div class="k">Completed</div><div class="v mono">{{ $kpis['completed'] ?? 0 }}</div><div class="bar"></div></div>
-            <div class="tile"><div class="k">Submitted this month</div><div class="v mono">{{ $kpis['submitted_month'] ?? 0 }}</div><div class="bar bright"></div></div>
-            <div class="tile"><div class="k">Overdue now</div><div class="v mono">{{ $kpis['overdue'] ?? 0 }}</div><div class="bar red"></div></div>
+        {{-- The same gradient tiles the dashboards use. This page used to draw
+             its own white cards with a coloured underline, which is why it read
+             as a different product from every other screen a supervisor opens.
+             Spacing comes from .page-shell's gap; a margin here would double it. --}}
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <x-staff-stat-tile label="In Progress" :value="number_format($kpis['in_progress'] ?? 0)"
+                               tone="deep" icon="clock" />
+            <x-staff-stat-tile label="Completed" :value="number_format($kpis['completed'] ?? 0)"
+                               tone="brightest" icon="check" />
+            <x-staff-stat-tile label="Submitted This Month" :value="number_format($kpis['submitted_month'] ?? 0)"
+                               tone="mid" icon="doc" />
+            {{-- Overdue breaks the green ramp on purpose: amber is what this
+                 system uses for "watch this", and a count of breaches must not
+                 read as one more shade of done. The word "Overdue" carries the
+                 meaning too, so it never depends on the colour alone. --}}
+            <x-staff-stat-tile label="Overdue Now" :value="number_format($kpis['overdue'] ?? 0)"
+                               :tone="($kpis['overdue'] ?? 0) > 0 ? 'amber' : 'bright'" icon="hourglass" />
         </div>
 
-        <div class="row" style="display:grid;gap:14px;grid-template-columns:1.4fr 1fr;">
+        {{-- Two columns on a wide screen, stacked below it. The fixed 1.4fr/1fr
+             grid here had no breakpoint, so on a laptop the chart and its legend
+             were squeezed side by side at any width. --}}
+        <div class="grid grid-cols-1 gap-[14px] lg:grid-cols-[1.4fr_1fr]">
 
             {{-- LEFT: activity over time --}}
             <div class="panel">
@@ -72,8 +85,12 @@
                         <x-select-menu name="status" label="Status" panel-width="w-48" class="w-48"
                                        :options="['' => 'All', 'pending' => 'Pending', 'in_progress' => 'In progress', 'completed' => 'Completed']"
                                        :selected="request('status')"/>
-                        <div class="field"><label>From</label><input type="date" name="from" value="{{ request('from') }}"></div>
-                        <div class="field"><label>To</label><input type="date" name="to" value="{{ request('to') }}"></div>
+                        {{-- The system's own calendar, not the browser's — the
+                             same <x-date-field> the request form uses, so a date
+                             is picked the same way everywhere. No min: a report
+                             looks backwards. --}}
+                        <x-date-field name="from" label="From" :value="request('from')" compact class="w-48" />
+                        <x-date-field name="to" label="To" :value="request('to')" compact class="w-48" />
                         <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>
                         @if (request()->hasAny(['category', 'status', 'from', 'to']))
                             <a href="{{ url()->current() }}" class="cr-btn cr-btn-sm">Reset</a>

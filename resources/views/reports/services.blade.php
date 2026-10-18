@@ -3,14 +3,26 @@
 
         {{-- KPI tiles --}}
         {{-- Spacing comes from .page-shell's gap; a margin here would double it. --}}
-        <div class="tiles">
-            <div class="tile"><div class="k">Active request types</div><div class="v mono">{{ $kpis['request_types'] }}</div><div class="bar bright"></div></div>
-            <div class="tile"><div class="k">Upcoming bookings</div><div class="v mono">{{ $kpis['bookings_upcoming'] }}</div><div class="bar"></div></div>
-            <div class="tile"><div class="k">Bookings awaiting approval</div><div class="v mono">{{ $kpis['pending_approvals'] }}</div><div class="bar amber"></div></div>
-            <div class="tile"><div class="k">Mandatory docs submitted</div><div class="v mono">{{ $kpis['requirement_completion_pct'] }}%</div><div class="bar"></div></div>
+        {{-- The dashboards' gradient tiles, not this page's own white cards —
+             a supervisor moving between Dashboard, Analytics and Services
+             should not feel they have changed product. --}}
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <x-staff-stat-tile label="Active Request Types" :value="number_format($kpis['request_types'])"
+                               tone="deep" icon="doc" />
+            <x-staff-stat-tile label="Upcoming Bookings" :value="number_format($kpis['bookings_upcoming'])"
+                               tone="mid" icon="clock" />
+            {{-- Awaiting approval is work queued on a person, so it takes the
+                 amber "watch this" tone when there is any. The label says so
+                 too — the colour is never the only signal. --}}
+            <x-staff-stat-tile label="Bookings Awaiting Approval" :value="number_format($kpis['pending_approvals'])"
+                               :tone="$kpis['pending_approvals'] > 0 ? 'amber' : 'bright'" icon="hourglass" />
+            <x-staff-stat-tile label="Mandatory Docs Submitted" :value="$kpis['requirement_completion_pct'].'%'"
+                               tone="brightest" icon="check" />
         </div>
 
-        <div class="row" style="display:grid;gap:14px;grid-template-columns:1.3fr 1fr;">
+        {{-- Two columns on a wide screen, stacked below it; the fixed grid had
+             no breakpoint and squeezed both panels at any width. --}}
+        <div class="grid grid-cols-1 gap-[14px] lg:grid-cols-[1.3fr_1fr]">
 
             {{-- LEFT: request volume by type --}}
             <div class="panel">

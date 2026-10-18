@@ -20,15 +20,19 @@
     <div class="page-shell page-shell-loose">
 
         {{-- Headline counts, on the same gradient ramp as the staff dashboard —
-             darkest carries the oldest work, lightest the finished work. At Risk
-             breaks the ramp on purpose: amber is what this system uses for
-             "watch this", and it must not read as one more shade of done. --}}
+             darkest carries the oldest work, lightest the finished work.
+
+             The four the frame names walk the queue from one end to the other:
+             nobody has started it (Pending), nobody owns it (Unassigned), it is
+             moving (In Progress), it is done (Completed). At Risk is not one of
+             them — risk is not a stage, it cuts across all of them — and it
+             keeps its own section below, where the overdue documents are named
+             rather than merely counted. --}}
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <x-staff-stat-tile label="Total Request" :value="$totalRequests" tone="deep" icon="none" />
-            <x-staff-stat-tile label="Pending" :value="$pendingRequest" tone="mid" icon="hourglass" />
+            <x-staff-stat-tile label="Pending" :value="$pendingOnly" tone="deep" icon="hourglass" />
+            <x-staff-stat-tile label="Unassigned" :value="$unassigned" tone="mid" icon="people" />
+            <x-staff-stat-tile label="In Progress" :value="$inProgress" tone="bright" icon="clock" />
             <x-staff-stat-tile label="Completed" :value="$completed" tone="brightest" icon="check" />
-            <x-staff-stat-tile label="At Risk" :value="$atRiskCount"
-                               :tone="$atRiskCount > 0 ? 'amber' : 'bright'" icon="clock" />
         </div>
 
         @if(($internalAwaiting ?? 0) > 0)
@@ -49,6 +53,7 @@
             </a>
         @endif
 
+        {{-- The single worst offender, in full, as a routing slip. --}}
         @if($slip)
             <x-routing-slip :slip="$slip" />
         @endif
@@ -90,7 +95,16 @@
                                 @endphp
                                 <tr @if($rowIndex >= 5) x-show="showAll" x-cloak @endif>
                                     <td>
-                                        <a href="{{ route('track.show', $doc->tracking_number) }}" class="mono font-semibold text-green-deep hover:underline">{{ $doc->tracking_number }}</a>
+                                        {{-- Land on the current Look Up desk with this row's card
+                                             already open, not the older per-document page. Internal
+                                             dept-to-dept requests have their own desk, so they open
+                                             their own detail modal instead. --}}
+                                        @php
+                                            $atRiskUrl = $doc->origin === \App\Models\Document::ORIGIN_INTERNAL
+                                                ? route('requests.index', ['open' => $doc->id])
+                                                : route('track.index', ['open' => $doc->tracking_number]);
+                                        @endphp
+                                        <a href="{{ $atRiskUrl }}" class="mono font-semibold text-green-deep hover:underline">{{ $doc->tracking_number }}</a>
                                     </td>
                                     <td>{{ $doc->document_type }}</td>
                                     <td>{{ $doc->citizen_name ?? '—' }}</td>
@@ -189,10 +203,6 @@
             'assignBase' => url('/documents'),
             'denyBase' => url('/documents'),
         ]))">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 class="st-section-title">Pending requests</h2>
-            </div>
-
             <div x-data="{
                      ...window.stFilterMixin(),
                      q: '',
@@ -240,14 +250,22 @@
                      },
                  }">
 
-                <div class="st-toolbar mb-4">
-                    <label for="requestSearch" class="sr-only">Search requests</label>
-                    <div class="st-search">
-                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
-                        <input id="requestSearch" type="search" x-model="q" @input="page = 1" data-kbd-search placeholder="Search">
-                    </div>
+                {{-- Title and search share one line, as the frame draws them:
+                     the heading sits left, the search and filter right. They
+                     wrap to two lines on a narrow screen rather than squeezing
+                     the search field down to nothing. --}}
+                <div class="st-toolbar mb-4 flex-wrap justify-between gap-3">
+                    <h2 class="st-section-title">Pending Requests</h2>
 
-                    @include('partials.staff-table-filter', ['id' => 'supervisorFilter'])
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-3">
+                        <label for="requestSearch" class="sr-only">Search requests</label>
+                        <div class="st-search">
+                            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                            <input id="requestSearch" type="search" x-model="q" @input="page = 1" data-kbd-search placeholder="Search">
+                        </div>
+
+                        @include('partials.staff-table-filter', ['id' => 'supervisorFilter'])
+                    </div>
                 </div>
 
                 <div class="st-card">
@@ -257,7 +275,13 @@
                                 <tr>
                                     <th>Request Type</th>
                                     <th>Tracking ID</th>
-                                    <th>Department</th>
+                                    {{-- A department head's queue is their own office by
+                                         definition, so the frame leaves this column out.
+                                         An org-wide admin reads the same table across
+                                         every office and would be lost without it. --}}
+                                    @if($spansDepartments)
+                                        <th>Department</th>
+                                    @endif
                                     <th>Date</th>
                                     <th>Requested by</th>
                                     <th>Action</th>
@@ -274,19 +298,24 @@
                                                          browser from the same keyword rules as <x-request-type-icon>. --}}
                                                     <img :src="window.requestTypeIcon(req.document_type)" alt="">
                                                 </span>
+                                                {{-- No status pill: this table holds nothing but
+                                                     pending requests, so a "Pending" badge on every
+                                                     row is a column of the same word. The frame
+                                                     leaves it out for the same reason. --}}
                                                 <div class="min-w-0">
                                                     <p class="st-name truncate" x-text="req.document_type"></p>
-                                                    <span class="pill p-muted mt-1 inline-block">Pending</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td><span class="mono" x-text="req.tracking_number"></span></td>
-                                        {{-- Department carries its own code (the THED ID) — one
-                                             column instead of two saying the same thing. --}}
-                                        <td>
-                                            <span x-text="req.department || 'Not yet routed'"></span>
-                                            <span class="ml-1 mono text-xs text-ink-soft" x-show="req.thed_id" x-text="'· ' + req.thed_id"></span>
-                                        </td>
+                                        @if($spansDepartments)
+                                            {{-- Department carries its own code (the THED ID) — one
+                                                 column instead of two saying the same thing. --}}
+                                            <td>
+                                                <span x-text="req.department || 'Not yet routed'"></span>
+                                                <span class="ml-1 mono text-xs text-ink-soft" x-show="req.thed_id" x-text="'· ' + req.thed_id"></span>
+                                            </td>
+                                        @endif
                                         <td class="mono" x-text="req.submitted_at"></td>
                                         <td x-text="req.citizen_name || '—'"></td>
                                         <td>
@@ -299,7 +328,7 @@
                                 </template>
 
                                 <tr x-show="matches.length === 0" class="st-empty">
-                                    <td colspan="6">
+                                    <td colspan="{{ $spansDepartments ? 6 : 5 }}">
                                         <div class="mx-auto flex max-w-sm flex-col items-center">
                                             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>

@@ -5,6 +5,11 @@
     'min' => null,
     'id' => null,
     'invalid' => false,
+    // Toolbar sizing: a filter bar needs the control at the height of the
+    // selects beside it, not at full form-field height.
+    'compact' => false,
+    // Empty-state text. A filter reads "any date"; a form field asks for one.
+    'placeholder' => null,
 ])
 
 @php
@@ -21,15 +26,23 @@
 
      The submitted value is a hidden ISO field, exactly what type="date" posted
      before, so validation and the controllers are untouched. --}}
-<div x-data="dateField('{{ $value }}', '{{ $min }}')" class="relative">
-    <label for="{{ $fieldId }}" class="req-label text-sm">{{ $label }}</label>
+<div x-data="dateField('{{ $value }}', '{{ $min }}', {{ Js::from($placeholder ?? ($compact ? 'Any date' : 'Select a date')) }})"
+     {{ $attributes->merge(['class' => 'relative']) }}>
+    {{-- On a filter bar the label rides inside the control, the way the selects
+         beside it do — a label stacked above would make this one control taller
+         than the row and wrap the toolbar. It stays a real <label> either way,
+         so clicking it still opens the picker. --}}
+    <label for="{{ $fieldId }}" class="{{ $compact ? 'sr-only' : 'req-label text-sm' }}">{{ $label }}</label>
 
     <input type="hidden" name="{{ $name }}" :value="value">
 
     <button type="button" id="{{ $fieldId }}" @click="toggle()"
-            class="req-field cz-date-trigger mt-2 @if($invalid) is-invalid @endif"
+            class="req-field cz-date-trigger @if($compact) cz-date-compact @else mt-2 @endif @if($invalid) is-invalid @endif"
             :class="{ 'is-open': open }"
             aria-haspopup="dialog" :aria-expanded="open">
+        @if($compact)
+            <span class="cz-date-prefix" aria-hidden="true">{{ $label }}</span>
+        @endif
         <span :class="value || 'is-empty'" x-text="displayLabel()"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <rect x="3" y="5" width="18" height="16" rx="3"/>
@@ -103,10 +116,11 @@
 @once
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('dateField', (initial, min) => ({
+    Alpine.data('dateField', (initial, min, placeholder) => ({
         open: false,
         value: initial || '',
         min: min || '',
+        placeholder: placeholder || 'Select a date',
         calYear: 0,
         calMonth: 0,
 
@@ -144,7 +158,7 @@ document.addEventListener('alpine:init', () => {
 
             return d
                 ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-                : 'Select a date';
+                : this.placeholder;
         },
 
         monthLabel() {

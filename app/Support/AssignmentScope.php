@@ -41,13 +41,38 @@ class AssignmentScope
             return $query->whereRaw('1 = 0');
         }
 
-        if (self::canViewAll($user)) {
+        // Org-wide means org-wide: only a super admin reads every office's work.
+        // canViewAll() is deliberately NOT used here — it answers "may this user
+        // see documents they were not assigned", which a department head may,
+        // and returning the unscoped query for them leaked every other office's
+        // documents into their Look Up, History, Analytics and Services report.
+        if ($user->can('manage system')) {
             return $query;
         }
 
+        // A department head reads their own office — plus intake that has not
+        // been routed anywhere yet, which is every triager's to pick up (see
+        // DashboardController::deptScopeIncludingUnrouted for the same rule).
+        // Columns are table-qualified throughout: callers join `users` (the
+        // analytics staff ranking does), and `users` has a department_id of its
+        // own, so a bare column name is ambiguous and the query dies.
+        if ($user->hasRole('Supervisor')) {
+            // A supervisor who heads no particular office is not scoped to one.
+            // DashboardController already reads them as org-wide (its $deptId
+            // is null for them); scoping them to nothing here would blank out
+            // their History and Analytics instead.
+            if (! $user->department_id) {
+                return $query;
+            }
+
+            return $query->where(fn (Builder $q) => $q
+                ->where('documents.department_id', $user->department_id)
+                ->orWhereNull('documents.department_id'));
+        }
+
         return $query->where(function (Builder $q) use ($user): void {
-            $q->where('assigned_to', $user->id)
-                ->orWhere('created_by', $user->id);
+            $q->where('documents.assigned_to', $user->id)
+                ->orWhere('documents.created_by', $user->id);
         });
     }
 

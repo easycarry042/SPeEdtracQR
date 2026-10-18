@@ -16,6 +16,14 @@ class ServiceReportController extends Controller
 {
     public function index(ServiceReport $report): Factory|View
     {
+        $user = auth()->user();
+
+        // A department head reads their own office's services; a super admin
+        // reads every office's. Passing null is what "org-wide" means here.
+        $report = $report->forDepartment(
+            $user?->can('manage system') ? null : $user?->department_id
+        );
+
         return view('reports.services', [
             'kpis' => $report->kpis(),
             'volumeByType' => $report->requestVolumeByType(),

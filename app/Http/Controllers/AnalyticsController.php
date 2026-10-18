@@ -26,51 +26,40 @@ class AnalyticsController extends Controller
         }
 
         $user = auth()->user();
-        $isOrgWide = AssignmentScope::canViewAll($user);
+        // Only a super admin is org-wide, and they were redirected above — so
+        // everyone who reaches this page is scoped to their own office. This
+        // used to ask canViewAll(), which is true for a department head, and
+        // every figure below was then computed across every department.
+        $isOrgWide = $user?->can('manage system') ?? false;
         $documentTypes = $this->scopedDocuments()->distinct()->orderBy('document_type')->pluck('document_type');
         $statuses = DocumentStatus::values();
 
         $summary = $this->buildSummary();
 
-        $topStaff = collect();
-        $statusBreakdown = collect();
-        $byType = collect();
+        // Every panel reads the same scoped query, so none of them can disagree
+        // about whose work this page is describing. The staff ranking used to
+        // be built from an unscoped Document::query(), which listed every
+        // department's staff to any department head who opened the page.
+        $statusBreakdown = $this->scopedDocuments()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->orderByDesc('total')
+            ->get();
 
-        if ($isOrgWide) {
-            $topStaff = Document::query()
-                ->leftJoin('users', 'documents.assigned_to', '=', 'users.id')
-                ->select(DB::raw("COALESCE(users.name, 'Unassigned') as name"), DB::raw('COUNT(documents.id) as total'))
-                ->groupBy('users.name')
-                ->orderByDesc('total')
-                ->take(8)
-                ->get();
+        $byType = $this->scopedDocuments()
+            ->select('document_type', DB::raw('COUNT(*) as total'))
+            ->groupBy('document_type')
+            ->orderByDesc('total')
+            ->take(6)
+            ->get();
 
-            $statusBreakdown = Document::query()
-                ->select('status', DB::raw('COUNT(*) as total'))
-                ->groupBy('status')
-                ->orderByDesc('total')
-                ->get();
-
-            $byType = Document::query()
-                ->select('document_type', DB::raw('COUNT(*) as total'))
-                ->groupBy('document_type')
-                ->orderByDesc('total')
-                ->take(6)
-                ->get();
-        } else {
-            $statusBreakdown = $this->scopedDocuments()
-                ->select('status', DB::raw('COUNT(*) as total'))
-                ->groupBy('status')
-                ->orderByDesc('total')
-                ->get();
-
-            $byType = $this->scopedDocuments()
-                ->select('document_type', DB::raw('COUNT(*) as total'))
-                ->groupBy('document_type')
-                ->orderByDesc('total')
-                ->take(6)
-                ->get();
-        }
+        $topStaff = $this->scopedDocuments()
+            ->leftJoin('users', 'documents.assigned_to', '=', 'users.id')
+            ->select(DB::raw("COALESCE(users.name, 'Unassigned') as name"), DB::raw('COUNT(documents.id) as total'))
+            ->groupBy('users.name')
+            ->orderByDesc('total')
+            ->take(8)
+            ->get();
 
         // ---- Reshape into the plain arrays the Civic Record analytics view expects ----
         $kpis = [

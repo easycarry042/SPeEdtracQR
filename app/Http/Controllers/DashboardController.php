@@ -28,11 +28,23 @@ class DashboardController extends Controller
         $deptId = $user->can('manage system') ? null : $user->department_id;
         $dept = $deptId ? $user->department : null;
 
+        // Whether this desk looks across more than one office. Not the same as
+        // $isOrgWide, which only says the viewer may see every document — a
+        // department head may, and is still looking at one office. The queue
+        // below names each request's department only when that can vary.
+        $spansDepartments = $deptId === null;
+
         $base = fn (): Builder => $this->deptScope($this->scopeDocuments(Document::query()), $deptId);
 
         $totalRequests = $base()->count();
         $pendingRequest = $base()->whereIn('status', DocumentStatus::activeValues())->count();
         $completed = $base()->where('status', DocumentStatus::Completed->value)->count();
+
+        // The frame's tile row splits the open work three ways rather than
+        // showing one "in progress" lump: what has not been started, what has
+        // been started but not handed to anyone, and what is actually moving.
+        $pendingOnly = $base()->where('status', DocumentStatus::Pending->value)->count();
+        $inProgress = max(0, $pendingRequest - $pendingOnly);
 
         // Department completion rate — a headline of departmental performance.
         $completionRate = $totalRequests > 0 ? (int) round($completed / $totalRequests * 100) : null;
@@ -85,6 +97,9 @@ class DashboardController extends Controller
 
         // At-risk = documents sitting in a non-terminal stage past 75% of that
         // stage's SLA budget (anchored to status_changed_at — the manual model).
+        // The slip below names only the single worst offender; a department head
+        // needs the whole list, because the second-worst is the one they can
+        // still save.
         $activeQuery = $this->deptScope($this->scopeDocuments(
             Document::with('assignedTo', 'department')
                 ->whereIn('status', DocumentStatus::activeValues())
@@ -123,7 +138,7 @@ class DashboardController extends Controller
                 ->count()
             : 0;
 
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'atRiskDocuments' => $atRiskDocuments, 'atRiskCount' => $atRiskCount, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'atRiskDocuments' => $atRiskDocuments, 'atRiskCount' => $atRiskCount, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */
@@ -177,8 +192,15 @@ class DashboardController extends Controller
             return null;
         }
 
-        $stages = array_map(fn (DocumentStatus $s): string => $s->label(), DocumentStatus::flow());
-        $current = $doc->statusEnum()->position() ?: 1;
+        // The four-stage rail, not the five-status flow. Look Up, the review
+        // modal and this slip all show the same document, and a citizen who is
+        // told "stage 3 of 4" at the counter must not find "stage 3 of 5" on
+        // the supervisor's screen. In Progress and In Review are one stage on
+        // the rail; the status underneath keeps its own label elsewhere.
+        $stages = array_column(DocumentStatus::railStages(), 'label');
+        $current = $doc->statusEnum()->railStage(
+            DocumentStatus::tryFrom((string) $doc->status_before_hold)
+        );
 
         $over = (int) round($doc->slipHoursOver);
         $overdue = $over > 0;

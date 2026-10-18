@@ -1679,10 +1679,26 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
 .cz-date-trigger {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     text-align: left;
+    /* The date and its label are one line. Allowed to wrap, the control grows
+       taller than the row it sits in and breaks a filter bar's alignment. */
+    white-space: nowrap;
 }
+.cz-date-trigger > span { overflow: hidden; text-overflow: ellipsis; }
 .cz-date-trigger svg { width: 19px; height: 19px; flex: none; color: var(--green); }
 .cz-date-trigger .is-empty { font-style: italic; color: #6b7a70; }
 .cz-date-trigger.is-open { border-color: var(--cz-green); box-shadow: 0 0 0 4px rgba(1, 114, 26, .16); }
+
+/* Toolbar sizing — matches the selects it sits beside on a filter bar. */
+.cz-date-compact {
+    min-height: 38px;
+    padding: .35rem .6rem;
+    border-radius: 10px;
+    font-size: var(--fs-small);
+}
+.cz-date-compact svg { width: 16px; height: 16px; }
+.cz-date-compact .cz-date-prefix { flex: none; margin-right: 6px; font-weight: 700; color: var(--ink-soft); }
+/* The value takes the middle; the icon stays pinned right. */
+.cz-date-compact > span:not(.cz-date-prefix) { margin-right: auto; }
 
 .cz-datepicker {
     width: min(21rem, calc(100vw - 2.5rem));
