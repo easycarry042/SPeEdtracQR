@@ -3,15 +3,24 @@
 namespace App\Support;
 
 use App\Enums\DocumentStatus;
+use App\Http\Controllers\CommentController;
 use App\Models\Document;
+use App\Models\DocumentComment;
 use App\Models\DocumentRequirement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * Shapes a Document into the flat payload the Review modal needs (supervisor and
  * staff share the same modal markup). Attachments are exposed as authorized URLs
  * with their extension so the modal can show a thumbnail or a file chip.
+ *
+ * The status log and the citizen conversation used to be assembled separately by
+ * the Look Up desk, which is why the two modals could do different things to the
+ * same request. The desk is gone and its panels moved into the Review modal, so
+ * everything that modal needs is built here — use collection() for a queue, not
+ * forModal() in a loop, or the activity log costs a query per row.
  */
 class RequestReview
 {
@@ -29,6 +38,80 @@ class RequestReview
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->orderBy('name')
             ->get(['id', 'name', 'department_id']);
+    }
+
+    /**
+     * A whole queue, shaped for the Review modal.
+     *
+     * The status log is fetched for every row in one query — the desk learned
+     * this the hard way; per-row it is an activity query per request on a page
+     * that lists ten of them.
+     *
+     * @param  Collection<int, Document>|\Illuminate\Support\Collection<int, Document>  $documents
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public static function collection($documents): \Illuminate\Support\Collection
+    {
+        // The Messages panel renders the citizen-facing thread, so it travels
+        // with the row. Internal staff notes are deliberately excluded — that
+        // thread is not this panel's.
+        $documents->loadMissing([
+            'allComments' => fn ($q) => $q
+                ->where('visibility', DocumentComment::VISIBILITY_PUBLIC)
+                ->oldest(),
+        ]);
+
+        $logs = self::statusLogs($documents->pluck('id')->all());
+
+        return $documents->map(fn (Document $document): array => self::forModal($document) + [
+            'date_short' => $document->created_at?->format('m/d/y'),
+            'logs' => $logs[$document->id] ?? [],
+            'messages' => $document->allComments->map(
+                fn (DocumentComment $comment): array => $comment->deskPayload()
+            )->values()->all(),
+            // Drives whether the panel offers a composer or reads as an
+            // archive: a colleague may see the thread without owning it.
+            'can_message' => CommentController::userCanPost($document, auth()->user()),
+        ])->values();
+    }
+
+    /**
+     * Status changes per document, newest first, keyed by document id. Only
+     * entries that actually moved the status are kept — the activity log also
+     * records edits to unrelated columns, which read as noise in a stage log.
+     *
+     * @param  array<int, int>  $documentIds
+     * @return array<int, array<int, array{event: string, time: string}>>
+     */
+    public static function statusLogs(array $documentIds): array
+    {
+        if ($documentIds === []) {
+            return [];
+        }
+
+        return Activity::query()
+            ->where('subject_type', (new Document)->getMorphClass())
+            ->whereIn('subject_id', $documentIds)
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy('subject_id')
+            ->map(fn ($activities): array => $activities
+                ->map(function (Activity $activity): ?array {
+                    $to = data_get($activity->properties, 'attributes.status');
+
+                    if (! $to) {
+                        return null;
+                    }
+
+                    return [
+                        'event' => 'Updated to '.DocumentStatus::fromLoose($to)->label(),
+                        'time' => $activity->created_at?->format('M j, g:i A') ?? '',
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all())
+            ->all();
     }
 
     /** @return array<string, mixed> */

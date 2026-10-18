@@ -11,11 +11,18 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * The Look Up desk: a table of the work in scope with a detail modal per row
- * (Figma: STAFF LOOK UP, frames 1293:1331 + 1294:1680). Replaces the two-pane
- * list + detail, which is still reachable at /track/{trackingNumber}.
+ * The merged Review modal.
+ *
+ * The Look Up desk (Figma: STAFF LOOK UP) and the dashboards' Review modal each
+ * held half the tools for one request: the desk could adjust a claiming date,
+ * read the status log and answer the citizen but could not accept an
+ * assignment; the modal could accept, advance, return and hold but had none of
+ * the other three. Staff had to cross between two screens to finish one piece
+ * of work. The desk's panels moved into the modal and the desk was deleted —
+ * these are the behaviours that had to survive the move, now asserted where
+ * they actually live. Its per-request page is still at /track/{trackingNumber}.
  */
-class LookUpDeskTest extends TestCase
+class ReviewModalMergeTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -44,7 +51,7 @@ class LookUpDeskTest extends TestCase
         $this->makeDocument(['assigned_to' => $staff->id]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSee('Lei Making')
             ->assertSee('Francisco Consorte')
@@ -58,7 +65,7 @@ class LookUpDeskTest extends TestCase
         $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'in_progress']);
 
         $response = $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk();
 
         $response->assertSee('Pending');
@@ -82,26 +89,33 @@ class LookUpDeskTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertDontSee('Borrowing of Flag');
     }
 
-    public function test_the_modal_carries_the_frames_own_blocks(): void
+    /**
+     * The blocks the desk owned and the modal did not. Attachments and
+     * requirements are not among them — the Review modal already listed both
+     * inline, so the desk's "View Attachments" toggle would have been a second
+     * way to the same files.
+     */
+    public function test_the_modal_carries_the_blocks_the_desk_used_to_own(): void
     {
         $staff = $this->staff();
         $this->makeDocument(['assigned_to' => $staff->id]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
-            ->assertSee('Mark as Completed')
-            ->assertSee('Requested Claiming Date')
+            ->assertSee('Claiming Date')
             ->assertSee('Adjust Date')
-            ->assertSee('<span>View Attachments</span>', false)
             ->assertSee('Messages')
             ->assertSee('Tracking Number')
-            ->assertSeeInOrder(['Logs', 'More Info'])
+            ->assertSee('Logs')
+            // And what it already had: the triage decision.
+            ->assertSee('Accept')
+            ->assertSee('Decline')
             // No link out to the request's own page from the modal.
             ->assertDontSee('Open the full record');
     }
@@ -117,7 +131,7 @@ class LookUpDeskTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertDontSee('Someone Elses Request');
     }
@@ -134,7 +148,7 @@ class LookUpDeskTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertDontSee('Internal Memo');
     }
@@ -184,7 +198,7 @@ class LookUpDeskTest extends TestCase
         $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'in_progress']);
 
         $this->actingAs($staff)
-            ->get(route('track.index'))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSeeInOrder(['Request Type', 'Date', 'Requested by', 'Action']);
     }
@@ -208,7 +222,7 @@ class LookUpDeskTest extends TestCase
         $staff = $this->staff();
 
         $this->actingAs($staff)
-            ->get(route('track.index'))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSee('<span>Scan QR Code</span>', false)
             ->assertSee(route('track.index', ['scan' => 1]), false)
@@ -222,14 +236,16 @@ class LookUpDeskTest extends TestCase
         $staff = $this->staff();
         $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'approved']);
 
-        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('staff.dashboard'))->assertOk();
 
-        // The prototype's four stages, not the five statuses.
-        $response->assertViewHas('rail', ['Pending', 'In review', 'Processing', 'Completed']);
+        // The prototype's four stages, not the five statuses. The modal reads
+        // them from window.REVIEW_RAIL rather than per-page view data.
+        $response->assertSee('window.REVIEW_RAIL', false);
+        $response->assertSee('Processing');
         $response->assertSee('<ol class="dm-steps" aria-label="Progress">', false);
 
         // Approved sits on "Processing", the third stage.
-        $this->assertSame(3, $response->viewData('activeRows')[0]['rail_stage']);
+        $this->assertSame(3, $response->viewData('requestPayload')->first()['rail_stage']);
     }
 
     public function test_the_date_picker_marks_the_requested_and_current_claiming_dates(): void
@@ -242,15 +258,15 @@ class LookUpDeskTest extends TestCase
             'claim_date' => '2026-11-07',
         ]);
 
-        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('staff.dashboard'))->assertOk();
 
         // Machine-readable days, so the picker can mark them on the grid.
-        $row = $response->viewData('activeRows')[0];
+        $row = $response->viewData('requestPayload')->first();
         $this->assertSame('2026-11-05', $row['requested_claim_on']);
         $this->assertSame('2026-11-07', $row['claim_on']);
 
-        $response->assertSee("'is-requested': cell.iso === selected?.requested_claim_on", false);
-        $response->assertSee("'is-set': cell.iso === selected?.claim_on", false);
+        $response->assertSee("'is-requested': cell.iso === active.requested_claim_on", false);
+        $response->assertSee("'is-set': cell.iso === active.claim_on", false);
         $response->assertSee('<div class="dp-grid" role="grid" aria-label="Claiming date">', false);
     }
 
@@ -260,10 +276,10 @@ class LookUpDeskTest extends TestCase
         $document = $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'in_progress']);
         $document->update(['qr_code_path' => 'qrcodes/'.$document->tracking_number.'.png']);
 
-        $response = $this->actingAs($staff)->get(route('track.index'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('staff.dashboard'))->assertOk();
 
         // The row carries the generated QR and the print-ready claim slip.
-        $row = $response->viewData('activeRows')[0];
+        $row = $response->viewData('requestPayload')->first();
         $this->assertSame('/storage/qrcodes/'.$document->tracking_number.'.png', $row['qr_url']);
         $this->assertSame(route('track.slip', $document->tracking_number), $row['slip_url']);
 
@@ -295,7 +311,7 @@ class LookUpDeskTest extends TestCase
     public function test_file_request_is_hidden_without_an_office_to_file_from(): void
     {
         $this->actingAs($this->staff())
-            ->get(route('track.index'))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertDontSee('<span>File Request</span>', false)
             ->assertSee('<span>Scan QR Code</span>', false);
@@ -326,7 +342,7 @@ class LookUpDeskTest extends TestCase
         $this->makeDocument(['assigned_to' => $staff->id]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSee('Adjust Claiming Date')
             ->assertSee('Apply')
@@ -358,7 +374,7 @@ class LookUpDeskTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->get(route('track.index', ['find' => 1]))
+            ->get(route('staff.dashboard'))
             ->assertOk()
             ->assertSee('Good morning po, any update?')
             ->assertDontSee('Colleagues only');
@@ -444,28 +460,36 @@ class LookUpDeskTest extends TestCase
         $this->assertSame(0, $document->allComments()->unreadByStaff()->count());
     }
 
-    public function test_a_tracking_number_deep_links_its_row_open_on_the_desk(): void
+    /**
+     * ?open=SPD-… deep linked a row open on the desk. With the desk gone it
+     * resolves on the request's own page rather than being dropped on a screen
+     * that no longer lists it. Rows on a dashboard open their modal in place
+     * instead (see openById), so nothing still needs the deep link.
+     */
+    public function test_an_open_deep_link_resolves_on_the_requests_own_page(): void
     {
         $staff = $this->staff();
         $document = $this->makeDocument(['assigned_to' => $staff->id]);
 
-        $response = $this->actingAs($staff)
-            ->get(route('track.index', ['open' => $document->tracking_number]))
-            ->assertOk()
-            ->assertSee('Request Type');
-
-        $this->assertSame($document->tracking_number, $response->viewData('openTracking'));
-        $response->assertSee('openTracking', false);
-    }
-
-    public function test_a_row_that_is_not_on_the_desk_falls_back_to_the_document_page(): void
-    {
-        $staff = $this->staff();
-        $document = $this->makeDocument(['assigned_to' => $staff->id, 'status' => 'completed']);
-
         $this->actingAs($staff)
             ->get(route('track.index', ['open' => $document->tracking_number]))
             ->assertRedirect(route('track.show', $document->tracking_number));
+    }
+
+    /** What is left at /track is the QR and tracking-number hub. */
+    public function test_track_now_serves_only_the_qr_hub(): void
+    {
+        $staff = $this->staff();
+        $this->makeDocument(['assigned_to' => $staff->id]);
+
+        $this->actingAs($staff)
+            ->get(route('track.index'))
+            ->assertOk()
+            ->assertSee('Look up a document')
+            ->assertSee('Upload QR image')
+            // None of the desk's table furniture survives here.
+            ->assertDontSee('Requested by')
+            ->assertDontSee('View details');
     }
 
     public function test_a_staff_member_who_does_not_own_the_request_cannot_post_on_it(): void

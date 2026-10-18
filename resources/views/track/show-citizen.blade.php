@@ -53,11 +53,33 @@
             </div>
 
             <div class="cz-card-body">
-                {{-- Wrapped: the stepper sets its own margins inline, so a margin
-                     class on it would be ignored. --}}
+                {{-- The same four-stage rail staff read on the Look Up desk, in
+                     the citizen palette (.dm-steps-cz). A citizen told "stage 3
+                     of 4" at the counter must find the same bar, drawn the same
+                     way, on their tracking link. --}}
                 <div class="mb-6">
-                    <x-routing-stepper :document="$document" class="steps-cz" />
+                    <x-stage-bar :document="$document" surface="citizen" />
                 </div>
+
+                {{-- A hold is the one state the bar cannot explain on its own:
+                     it pauses the SLA clock, and what the citizen needs is who
+                     it is waiting on and until when. --}}
+                @if($document->status === \App\Enums\DocumentStatus::OnHold->value)
+                    <div class="mb-6 rounded-[12px] border border-status-amber-wash bg-status-amber-wash px-4 py-3 text-[15px] text-status-amber">
+                        <p class="font-bold">This request is paused</p>
+                        <p class="mt-1">
+                            @if($document->blocked_by)
+                                Waiting on {{ $document->blocked_by }}.
+                            @endif
+                            @if($document->hold_until)
+                                Expected to resume by {{ $document->hold_until->format('M d, Y') }}.
+                            @endif
+                        </p>
+                        @if($document->hold_reason)
+                            <p class="mt-1">{{ $document->hold_reason }}</p>
+                        @endif
+                    </div>
+                @endif
 
                 {{-- Status badge --}}
                 <div class="flex flex-wrap items-center gap-4">

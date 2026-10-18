@@ -99,12 +99,10 @@
         <span class="{{ $label }}">Dashboard</span>
     </a>
 
-    <a href="{{ route('track.index') }}" {!! $row(request()->routeIs('track.*') || request()->routeIs('scan.*')) !!}>
-        <span class="{{ $glyph }}">
-            <img src="{{ asset('images/staff/nav-search.svg') }}" alt="" class="sb-icon">
-        </span>
-        <span class="{{ $label }}">Look Up</span>
-    </a>
+    {{-- No "Look Up" row: the desk it opened was a second copy of this role's
+         own dashboard queue, and the two screens each had half the tools for
+         one request. The dashboard carries both halves now. The QR hub it also
+         served is still a click away on the header's Scan QR Code button. --}}
 
     @canany(['act on internal requests', 'create internal requests'])
         <a href="{{ route('requests.index') }}" {!! $row(request()->routeIs('requests.*')) !!}>

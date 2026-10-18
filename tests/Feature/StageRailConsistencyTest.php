@@ -63,10 +63,31 @@ class StageRailConsistencyTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // The stepper's stage captions, not prose elsewhere on the page.
-        preg_match_all('/class="cap[^"]*">([^<]+)</', $content, $matches);
+        // The rail's stage captions, not prose elsewhere on the page. The
+        // citizen page draws the Look Up rail (<x-stage-bar>) now, so the
+        // caption class is the shared .dm-step-label rather than the old
+        // stepper's .cap.
+        preg_match_all('/class="dm-step-label">([^<]+)</', $content, $matches);
 
         $this->assertSame($this->railLabels(), array_map('trim', $matches[1]));
+    }
+
+    /**
+     * The citizen's bar and the staff bar are one component now. Before this
+     * they were two different drawings of the same four stages — the citizen
+     * got numbered circles on a brass line, staff got dots on a green one — so
+     * nobody could tell from a screenshot whether the two agreed.
+     */
+    public function test_the_citizen_rail_is_the_look_up_rail_in_the_citizen_palette(): void
+    {
+        $content = $this->get(route('track.show', $this->document()->tracking_number))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('dm-steps-cz', $content);
+        // .stp / .cap were the old stepper's own furniture.
+        $this->assertStringNotContainsString('class="stp"', $content, 'the old citizen stepper should be gone');
+        $this->assertStringNotContainsString('class="cap', $content, 'the old citizen stepper should be gone');
     }
 
     public function test_the_supervisor_dashboard_slip_counts_in_fours(): void
@@ -88,57 +109,108 @@ class StageRailConsistencyTest extends TestCase
     }
 
     /**
-     * The slip names one document; the at-risk list names all of them. Both
-     * belong on the page — the second-worst offender is the one a department
-     * head can still save, and the slip never mentions it.
+     * The slip names one document; the at-risk list names all of them. The
+     * second-worst offender is the one still worth saving and the slip never
+     * mentions it — so the full list sits on the assignee's own dashboard,
+     * drawn with the same rail.
      */
-    public function test_the_dashboard_lists_every_at_risk_document_not_just_the_worst(): void
+    public function test_the_staff_dashboard_lists_every_at_risk_request_not_just_the_worst(): void
     {
         $this->seedRolesAndPermissions();
 
-        $dept = Department::create(['name' => 'General Services', 'code' => 'GSO', 'is_active' => true]);
-        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
+        $staff = User::factory()->create()->assignRole('staff');
 
         foreach ([40, 30, 20] as $i => $daysOver) {
             $this->document()->update([
                 'tracking_number' => 'SPD-LATE-'.$i,
-                'department_id' => $dept->id,
+                'assigned_to' => $staff->id,
+                'assigned_at' => now(),
                 'status_changed_at' => now()->subDays($daysOver),
             ]);
         }
 
-        $response = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('staff.dashboard'))->assertOk();
 
         $this->assertSame(3, $response->viewData('atRiskCount'));
-        $response->assertSee('At-risk documents');
+        $response->assertSee('At-risk requests');
         foreach (['SPD-LATE-0', 'SPD-LATE-1', 'SPD-LATE-2'] as $tracking) {
             $response->assertSee($tracking);
         }
-        $this->assertNotNull($response->viewData('slip'), 'The worst offender still leads as a slip.');
+
+        // Soonest to breach first — the order the queue should be worked in.
+        $this->assertSame(
+            ['SPD-LATE-0', 'SPD-LATE-1', 'SPD-LATE-2'],
+            $response->viewData('atRisk')->pluck('tracking_number')->all()
+        );
+    }
+
+    /** The at-risk rows carry the same four-stage rail as every other surface. */
+    public function test_the_staff_at_risk_rows_draw_the_rail(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $staff = User::factory()->create()->assignRole('staff');
+        $document = $this->document();
+        $document->update([
+            'tracking_number' => 'SPD-LATE-RAIL',
+            'assigned_to' => $staff->id,
+            'assigned_at' => now(),
+            'status_changed_at' => now()->subDays(30),
+        ]);
+
+        $content = $this->actingAs($staff)->get(route('staff.dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('dm-steps-sm', $content);
+        // The row opens the queue's own Review modal rather than sending the
+        // assignee to another page to act on their own work.
+        $this->assertStringContainsString('openById('.$document->id.')', $content);
     }
 
     /**
-     * The at-risk tracking number used to open the older per-document page,
-     * so a department head clicking from the dashboard got a different Look Up
-     * than the staff one. It deep links the current desk instead.
+     * A staff member's at-risk list is their own. Work assigned to someone else
+     * is that person's to rescue; listing it here would put one warning on
+     * several desks with nothing to say whose it was.
      */
-    public function test_an_at_risk_tracking_number_opens_the_look_up_desk(): void
+    public function test_the_staff_at_risk_list_is_scoped_to_the_assignee(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $staff = User::factory()->create()->assignRole('staff');
+        $colleague = User::factory()->create()->assignRole('staff');
+
+        $this->document()->update([
+            'tracking_number' => 'SPD-LATE-THEIRS',
+            'assigned_to' => $colleague->id,
+            'assigned_at' => now(),
+            'status_changed_at' => now()->subDays(30),
+        ]);
+
+        $response = $this->actingAs($staff)->get(route('staff.dashboard'))->assertOk();
+
+        $this->assertSame(0, $response->viewData('atRiskCount'));
+        $response->assertDontSee('SPD-LATE-THEIRS');
+    }
+
+    /** The supervisor desk keeps the slip and no longer repeats the list. */
+    public function test_the_supervisor_dashboard_no_longer_carries_the_at_risk_list(): void
     {
         $this->seedRolesAndPermissions();
 
         $dept = Department::create(['name' => 'General Services', 'code' => 'GSO', 'is_active' => true]);
         $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
 
-        $document = $this->document();
-        $document->update([
+        $this->document()->update([
             'tracking_number' => 'SPD-LATE-DESK',
             'department_id' => $dept->id,
             'status_changed_at' => now()->subDays(30),
         ]);
 
-        $this->actingAs($supervisor)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee(route('track.index', ['open' => 'SPD-LATE-DESK']), false);
+        $response = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk();
+
+        $response->assertDontSee('At-risk documents');
+        $response->assertDontSee('At-risk requests');
+        $this->assertNotNull($response->viewData('slip'), 'The worst offender still leads as a slip.');
     }
 }

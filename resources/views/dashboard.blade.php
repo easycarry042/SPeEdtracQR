@@ -25,9 +25,10 @@
              The four the frame names walk the queue from one end to the other:
              nobody has started it (Pending), nobody owns it (Unassigned), it is
              moving (In Progress), it is done (Completed). At Risk is not one of
-             them — risk is not a stage, it cuts across all of them — and it
-             keeps its own section below, where the overdue documents are named
-             rather than merely counted. --}}
+             them — risk is not a stage, it cuts across all of them — and the
+             named at-risk list now sits on each staff member's own dashboard,
+             where the person who can advance the request will see it. The slip
+             below still names this office's worst offender. --}}
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <x-staff-stat-tile label="Pending" :value="$pendingOnly" tone="deep" icon="hourglass" />
             <x-staff-stat-tile label="Unassigned" :value="$unassigned" tone="mid" icon="people" />
@@ -56,88 +57,6 @@
         {{-- The single worst offender, in full, as a routing slip. --}}
         @if($slip)
             <x-routing-slip :slip="$slip" />
-        @endif
-
-        {{-- ── At risk ─────────────────────────────────────────────────────────
-             Same .st-card table as everywhere else; the amber belongs to the SLA
-             bar and the heading count, not to the furniture around them.
-             ───────────────────────────────────────────────────────────────── --}}
-        @if($atRiskDocuments->isNotEmpty())
-        <section x-data="{ showAll: false }">
-            <div class="mb-4 flex flex-wrap items-center gap-3">
-                <h2 class="st-section-title">At-risk documents</h2>
-                <span class="pill p-amber">{{ $atRiskCount }} need{{ $atRiskCount === 1 ? 's' : '' }} attention</span>
-            </div>
-
-            <div class="st-card">
-                <div class="st-scroll">
-                    <table class="st-table">
-                        <thead>
-                            <tr>
-                                <th>Tracking ID</th>
-                                <th>Type</th>
-                                <th>Citizen</th>
-                                <th>Stage</th>
-                                <th class="min-w-[170px]">SLA usage</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($atRiskDocuments as $doc)
-                                @php
-                                    $rowIndex = $loop->index;
-                                    $slaHours = $doc->statusEnum()->slaHours() ?? 0;
-                                    $elapsed = $doc->sla_elapsed_hours ?? 0;
-                                    $pct = $slaHours > 0 ? min(round(($elapsed / $slaHours) * 100), 100) : 0;
-                                    $overdue = $doc->sla_overdue ?? false;
-                                    $barColor = $overdue ? 'bg-status-red' : ($pct >= 75 ? 'bg-[#d8920f]' : 'bg-green');
-                                    $remaining = $slaHours > 0 ? round($slaHours - $elapsed) : 0;
-                                    $overBy = $slaHours > 0 ? round($elapsed - $slaHours) : 0;
-                                @endphp
-                                <tr @if($rowIndex >= 5) x-show="showAll" x-cloak @endif>
-                                    <td>
-                                        {{-- Land on the current Look Up desk with this row's card
-                                             already open, not the older per-document page. Internal
-                                             dept-to-dept requests have their own desk, so they open
-                                             their own detail modal instead. --}}
-                                        @php
-                                            $atRiskUrl = $doc->origin === \App\Models\Document::ORIGIN_INTERNAL
-                                                ? route('requests.index', ['open' => $doc->id])
-                                                : route('track.index', ['open' => $doc->tracking_number]);
-                                        @endphp
-                                        <a href="{{ $atRiskUrl }}" class="mono font-semibold text-green-deep hover:underline">{{ $doc->tracking_number }}</a>
-                                    </td>
-                                    <td>{{ $doc->document_type }}</td>
-                                    <td>{{ $doc->citizen_name ?? '—' }}</td>
-                                    <td><span class="pill {{ $overdue ? 'p-red' : 'p-amber' }}">{{ $doc->statusEnum()->label() }}</span></td>
-                                    <td>
-                                        <div class="flex items-center gap-2">
-                                            <div class="h-2 w-24 shrink-0 overflow-hidden rounded-full bg-[#e6ece8]">
-                                                <div class="h-2 rounded-full {{ $barColor }} transition-[width] duration-500" style="width:{{ $pct }}%"></div>
-                                            </div>
-                                            @if($overdue)
-                                                <span class="whitespace-nowrap text-xs font-semibold text-status-red">+{{ $overBy }}h over</span>
-                                            @else
-                                                <span class="whitespace-nowrap text-xs font-semibold text-[#8a5a08]">~{{ $remaining }}h left</span>
-                                            @endif
-                                        </div>
-                                        <p class="mt-0.5 text-xs text-ink-soft">{{ $slaHours }}h SLA · {{ $pct }}% used</p>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @if($atRiskDocuments->count() > 5)
-                    <div class="st-pager justify-center">
-                        <button type="button" @click="showAll = ! showAll" class="st-page-more">
-                            <span x-show="! showAll">Show all {{ $atRiskDocuments->count() }} documents</span>
-                            <span x-show="showAll" x-cloak>Show the top 5 only</span>
-                        </button>
-                    </div>
-                @endif
-            </div>
-        </section>
         @endif
 
         {{-- ── Staff workload ──────────────────────────────────────────────────
@@ -191,30 +110,47 @@
         </section>
         @endif
 
-        {{-- ── Pending requests ────────────────────────────────────────────────
-             The same table the staff dashboard draws: searched, filtered and
-             paged in the browser, since the whole queue already rides in the
-             Alpine payload that drives the review modal.
+        {{-- ── The office's requests ───────────────────────────────────────────
+             Two queues on one table, as the Look Up desk drew them: Unassigned
+             is the triage list (approve = assign), In Progress is the work in
+             flight. The second tab is why the desk could be retired — without
+             it a request vanished from this screen the moment it was assigned
+             and did not reappear until it was completed.
+
+             Both queues ride in one payload, so the Review modal resolves a row
+             from either tab and the table can never disagree with it. Searched,
+             filtered and paged in the browser for the same reason.
              ───────────────────────────────────────────────────────────────── --}}
         <section x-data="reviewPanel(@js([
-            'requests' => $pendingPayload,
+            'requests' => $pendingPayload->concat($activePayload),
             'mode' => 'supervisor',
             'staff' => $assignableStaff,
             'assignBase' => url('/documents'),
             'denyBase' => url('/documents'),
+            'openBase' => url('/documents'),
         ]))">
             <div x-data="{
                      ...window.stFilterMixin(),
+                     tab: 'pending',
                      q: '',
                      page: 1,
                      perPage: 10,
                      typeOptions() {
                          return this.uniqueTypes(this.requests.map((r) => r.document_type));
                      },
+                     /* Unassigned vs in flight, decided by the row itself so the
+                        two tabs cannot drift apart from the modal's payload. */
+                     inQueue(req, which) {
+                         return which === 'pending' ? ! req.assigned_to : !! req.assigned_to;
+                     },
+                     queueCount(which) {
+                         return this.requests.filter((r) => this.inQueue(r, which)).length;
+                     },
                      get matches() {
                          const needle = this.q.trim().toLowerCase();
 
-                         return this.requests.filter((r) => this.passesFilter(r.document_type, r.submitted_on)
+                         return this.requests.filter((r) => this.inQueue(r, this.tab)
+                             && this.passesFilter(r.document_type, r.submitted_on)
                              && (! needle || [r.citizen_name, r.tracking_number, r.document_type, r.department]
                                  .some((field) => (field || '').toLowerCase().includes(needle))));
                      },
@@ -255,7 +191,16 @@
                      wrap to two lines on a narrow screen rather than squeezing
                      the search field down to nothing. --}}
                 <div class="st-toolbar mb-4 flex-wrap justify-between gap-3">
-                    <h2 class="st-section-title">Pending Requests</h2>
+                    <div class="st-tabs" role="tablist" aria-label="Request queues">
+                        <button type="button" role="tab" @click="tab = 'pending'; page = 1"
+                                :class="tab === 'pending' ? 'on' : ''" :aria-selected="tab === 'pending'">
+                            Unassigned <span class="st-tab-count" x-text="queueCount('pending')"></span>
+                        </button>
+                        <button type="button" role="tab" @click="tab = 'active'; page = 1"
+                                :class="tab === 'active' ? 'on' : ''" :aria-selected="tab === 'active'">
+                            In Progress <span class="st-tab-count" x-text="queueCount('active')"></span>
+                        </button>
+                    </div>
 
                     <div class="flex min-w-0 flex-1 items-center justify-end gap-3">
                         <label for="requestSearch" class="sr-only">Search requests</label>
@@ -284,6 +229,9 @@
                                     @endif
                                     <th>Date</th>
                                     <th>Requested by</th>
+                                    {{-- Only meaningful on the In Progress tab: on the
+                                         Unassigned one it would be a column of dashes. --}}
+                                    <th x-show="tab === 'active'">Handled by</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -298,12 +246,14 @@
                                                          browser from the same keyword rules as <x-request-type-icon>. --}}
                                                     <img :src="window.requestTypeIcon(req.document_type)" alt="">
                                                 </span>
-                                                {{-- No status pill: this table holds nothing but
-                                                     pending requests, so a "Pending" badge on every
-                                                     row is a column of the same word. The frame
-                                                     leaves it out for the same reason. --}}
                                                 <div class="min-w-0">
                                                     <p class="st-name truncate" x-text="req.document_type"></p>
+                                                    {{-- No pill on the Unassigned tab: every row there is
+                                                         Pending, so the badge would be a column of the
+                                                         same word. On the In Progress tab the stage is
+                                                         the whole point of the row. --}}
+                                                    <span x-show="tab === 'active'" class="pill mt-1 inline-block"
+                                                          :class="pillClass(req)" x-text="req.status_label"></span>
                                                 </div>
                                             </div>
                                         </td>
@@ -318,25 +268,26 @@
                                         @endif
                                         <td class="mono" x-text="req.submitted_at"></td>
                                         <td x-text="req.citizen_name || '—'"></td>
+                                        <td x-show="tab === 'active'" x-text="req.assigned_staff || '—'"></td>
                                         <td>
                                             <button type="button" @click="open(req)" class="st-action">
                                                 <img src="{{ asset('images/staff/icon-eye.svg') }}" alt="">
-                                                <span>Review</span>
+                                                <span x-text="tab === 'active' ? 'View details' : 'Review'"></span>
                                             </button>
                                         </td>
                                     </tr>
                                 </template>
 
                                 <tr x-show="matches.length === 0" class="st-empty">
-                                    <td colspan="{{ $spansDepartments ? 6 : 5 }}">
+                                    <td :colspan="{{ $spansDepartments ? 6 : 5 }} + (tab === 'active' ? 1 : 0)">
                                         <div class="mx-auto flex max-w-sm flex-col items-center">
                                             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
                                             </div>
                                             <p class="mt-3 text-sm font-semibold text-ink"
-                                               x-text="q || filterCount() ? 'No requests match' : 'No pending requests'"></p>
+                                               x-text="q || filterCount() ? 'No requests match' : (tab === 'active' ? 'Nothing in progress' : 'No unassigned requests')"></p>
                                             <p class="mt-1 text-sm text-ink-soft"
-                                               x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : 'New citizen submissions awaiting approval will appear here.'"></p>
+                                               x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : (tab === 'active' ? 'Requests your staff are working on appear here.' : 'New citizen submissions awaiting approval will appear here.')"></p>
                                         </div>
                                     </td>
                                 </tr>
@@ -344,7 +295,7 @@
                         </table>
                     </div>
 
-                    @include('partials.staff-table-pager', ['label' => 'Pending request pages'])
+                    @include('partials.staff-table-pager', ['label' => 'Request pages'])
                 </div>
             </div>
 

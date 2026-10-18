@@ -107,11 +107,23 @@ class CitizenPageParityTest extends TestCase
 
     public function test_the_tracking_stepper_keeps_its_captions_inside_the_card(): void
     {
-        // The staff stepper's first and last captions hung past the card edge
-        // and were clipped ("ending", "Complet"); the citizen variant insets them.
+        // The old stepper hung a fixed-width caption off a zero-width stage, so
+        // the first and last ones ran past the card edge and were clipped
+        // ("ending", "Complet") until they were inset by hand. The citizen page
+        // draws the Look Up rail (<x-stage-bar surface="citizen">) now, which
+        // gives every stage its own grid column — a caption is bounded by its
+        // column, so there is no edge left to hang over.
         $this->get($this->document()->citizenTrackingUrl())
             ->assertOk()
-            ->assertSee('class="steps steps-cz"', false);
+            ->assertSee('dm-steps dm-steps-cz', false);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.dm-steps \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/',
+            $css,
+            'the rail must lay its stages out in equal, bounded columns'
+        );
     }
 
     public function test_the_stepper_circles_sit_above_the_line(): void
@@ -120,7 +132,7 @@ class CitizenPageParityTest extends TestCase
         // the markup, so without a stacking order the line crossed the numbers.
         $css = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertMatchesRegularExpression('/\.steps-cz \.node \{[^}]*position: relative;[^}]*z-index: 1;/', $css);
+        $this->assertMatchesRegularExpression('/\.dm-step-dot \{[^}]*position: relative;[^}]*z-index: 1;/', $css);
     }
 
     public function test_the_completion_date_is_not_set_in_monospace_for_citizens(): void

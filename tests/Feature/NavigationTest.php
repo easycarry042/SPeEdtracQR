@@ -72,14 +72,19 @@ class NavigationTest extends TestCase
             ->assertRedirect(route('track.index', ['find' => 1]));
     }
 
-    public function test_find_mode_renders_the_look_up_desk_instead_of_redirecting(): void
+    /**
+     * ?find=1 used to render the Look Up desk — a browsable table of the work
+     * in scope. The desk was folded into each dashboard's Review modal and
+     * deleted, so /track is the QR and tracking-number hub in every mode.
+     */
+    public function test_find_mode_renders_the_qr_hub_instead_of_redirecting(): void
     {
         $this->seedRolesAndPermissions();
 
         $user = $this->userWithRole('staff');
 
         // Even with an assigned in-progress document (which /track would
-        // otherwise auto-open), ?find=1 stays on the finder.
+        // otherwise auto-open), the finder stays on the finder.
         $this->makeDocument([
             'assigned_to' => $user->id,
             'status' => 'in_progress',
@@ -89,9 +94,9 @@ class NavigationTest extends TestCase
         $this->actingAs($user)
             ->get(route('track.index', ['find' => 1]))
             ->assertOk()
-            ->assertSee('Request Type')
-            ->assertSee('Requested by')
-            ->assertSee('View details');
+            ->assertSee('Look up a document')
+            ->assertSee('Type the tracking number')
+            ->assertDontSee('Requested by');
     }
 
     public function test_scan_mode_still_reaches_the_qr_hub(): void

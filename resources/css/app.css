@@ -1529,6 +1529,20 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
     color: var(--amber);
 }
 
+/* The same rail inside a table cell (<x-stage-bar size="sm">): identical
+   design, smaller furniture. The min-width is what stops the four captions
+   from collapsing into each other as the column narrows — the cell scrolls
+   with the rest of .st-scroll instead. */
+.dm-steps-sm { min-width: 232px; margin-top: 0; }
+.dm-steps-sm .dm-step { gap: 5px; }
+.dm-steps-sm .dm-step-line { top: 8px; height: 2px; }
+.dm-steps-sm .dm-step-dot { width: 18px; height: 18px; }
+.dm-steps-sm .dm-step-dot svg { width: 10px; height: 10px; }
+.dm-steps-sm .dm-step.is-current .dm-step-dot { border-width: 2px; box-shadow: 0 0 0 3px rgba(22, 122, 58, .15); }
+.dm-steps-sm .dm-step.is-current .dm-step-dot::after { width: 7px; height: 7px; }
+.dm-steps-sm .dm-step-label { font-size: var(--fs-caption); line-height: 1.25; }
+.dm-steps-sm + .dm-side-state { margin: 6px 0 0; }
+
 /* Claiming date + actions */
 .dm-date {
     display: flex; min-height: 76px; flex: 1 1 10rem; flex-direction: column; justify-content: center;
@@ -2006,6 +2020,14 @@ a.dm-thumb:hover { border-color: var(--green); }
 @media (min-width: 1024px) { .st-card { min-height: 0; } }
 
 .st-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; }
+
+/* An .st-card that sizes to its rows instead of claiming the page's spare
+   height. The staff dashboard stacks two of them on a fixed-height page — the
+   at-risk list over the work queue — and a plain .st-card has flex:1 and a
+   320px floor, so both grew and on a short screen overflowed a page that is
+   not allowed to scroll. The capped scroll keeps "Show all" inside the card. */
+.st-card-compact { flex: 0 0 auto; min-height: 0; }
+.st-card-compact .st-scroll { max-height: 19rem; }
 
 .st-table { width: 100%; min-width: 576px; text-align: left; }
 .st-table th {
@@ -3133,31 +3155,34 @@ a.dm-thumb:hover { border-color: var(--green); }
     }
 }
 
-/* The status line on the tracking page, at citizen size. The staff stepper
-   gives each stage a zero-width column with a 74px caption hanging over it, so
-   the first and last captions ran past the card edge and were clipped
-   ("ending", "Complet"). Inset by half a caption on each side, they fit. */
-.steps.steps-cz { padding-inline: 34px; }
-/* Each stage's column is zero-width, so the line segments run centre to
-   centre — under the circles. They come later in the markup, so without a
-   stacking order of their own they were painted over the numbers. */
-.steps-cz .node { position: relative; z-index: 1; width: 32px; height: 32px; font-family: inherit; font-size: 14px; font-weight: 700; }
-.steps-cz .node.done { background: var(--cz-green); color: #fff; }
-.steps-cz .node.now { border-color: var(--cz-green); color: var(--cz-deep); box-shadow: 0 0 0 4px var(--cz-wash); }
-.steps-cz .seg { height: 3px; margin-top: 15px; border-radius: 3px; }
-.steps-cz .seg.done { background: var(--cz-green); }
-/* On a phone the five captions share ~320px, so two-word stages ("In
-   Progress") wrap onto two lines instead of running into their neighbours. */
-.steps-cz .stp .cap { width: 58px; margin-top: 8px; font-size: 12px; line-height: 1.25; color: var(--cz-muted); }
-.steps-cz .stp .cap.cur { color: var(--cz-deep); font-weight: 800; }
+/* The status line on the tracking page: the Look Up rail (.dm-steps, via
+   <x-stage-bar>) at citizen size and in the citizen palette. The citizen used
+   to get a different bar from the one staff read at the counter — same four
+   stages, different shape — so the two are one component now and only the
+   skin changes here.
+
+   Each caption is centred in its own grid column rather than hanging off a
+   zero-width stage, so nothing needs insetting to stay inside the card. */
+.dm-steps-cz .dm-step-line { top: 14.5px; height: 3px; }
+.dm-steps-cz .dm-step.is-done .dm-step-line,
+.dm-steps-cz .dm-step.is-current .dm-step-line { background: var(--cz-green); }
+.dm-steps-cz .dm-step-dot { width: 32px; height: 32px; }
+.dm-steps-cz .dm-step-dot svg { width: 16px; height: 16px; }
+.dm-steps-cz .dm-step.is-done .dm-step-dot { border-color: var(--cz-green); background: var(--cz-green); }
+.dm-steps-cz .dm-step.is-current .dm-step-dot { border-color: var(--cz-green); box-shadow: 0 0 0 4px var(--cz-wash); }
+.dm-steps-cz .dm-step.is-current .dm-step-dot::after { width: 11px; height: 11px; background: var(--cz-green); }
+/* On a phone the four captions share ~320px, so two-word stages ("In review")
+   wrap onto two lines instead of running into their neighbours. */
+.dm-steps-cz .dm-step-label { font-size: 12px; line-height: 1.25; color: var(--cz-muted); }
+.dm-steps-cz .dm-step.is-done .dm-step-label { color: var(--cz-deep); }
+.dm-steps-cz .dm-step.is-current .dm-step-label { font-weight: 800; color: var(--cz-deep); }
 
 /* The status badge, read at a glance on a phone rather than scanned in a
    staff table. */
 .cz-card .pill { font-size: 14px; font-weight: 700; padding: 5px 12px; }
 
 @media (min-width: 640px) {
-    .steps.steps-cz { padding-inline: 44px; }
-    .steps-cz .stp .cap { width: 88px; font-size: 14px; }
+    .dm-steps-cz .dm-step-label { font-size: 14px; }
 }
 
 /* ── Speedy, the citizen assistant (components/speedy.blade.php) ──────────

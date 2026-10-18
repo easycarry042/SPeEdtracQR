@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
-use App\Models\DocumentComment;
 use App\Support\AssignmentScope;
 use App\Support\CitizenThread;
 use App\Support\CitizenThreadAccess;
@@ -13,11 +12,8 @@ use App\Support\CitizenView;
 use App\Support\CompletionPredictor;
 use App\Support\DocumentSeal;
 use App\Support\RequestReview;
-use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Spatie\Activitylog\Models\Activity;
 
@@ -25,18 +21,32 @@ class TrackController extends Controller
 {
     use ScopesToAssignedWork;
 
+    /**
+     * The QR / tracking-number hub: the way in when the paper is in hand.
+     *
+     * This used to serve the Look Up desk as well — a browsable table of the
+     * work in scope with a detail modal per row. The desk was a second copy of
+     * each dashboard's queue that could adjust a claiming date and answer the
+     * citizen but could not accept an assignment, while the dashboards could
+     * accept but neither of the other two. Staff had to cross between screens
+     * to finish one request. The desk's panels moved into the Review modal on
+     * the dashboards and the desk itself is gone; this hub is what remains.
+     */
     public function index(Request $request)
     {
-        // ?open= is a deep link INTO the desk (a dashboard row, a report row).
-        // Bouncing an org-wide admin to their own dashboard would swallow it.
-        if (auth()->user()?->can('manage system') && ! $request->filled('open')) {
-            return to_route('admin.dashboard');
-        }
-
         $trackingNumber = trim((string) $request->get('tracking_number'));
 
         if ($trackingNumber !== '') {
             return to_route('track.show', $trackingNumber);
+        }
+
+        // ?open=SPD-… used to deep link a row open on the desk. The desk is
+        // gone, so the request resolves on its own page instead of being
+        // silently dropped on a screen that no longer lists it.
+        $open = strtoupper(trim((string) $request->get('open')));
+
+        if ($open !== '') {
+            return to_route('track.show', $open);
         }
 
         // Guests search inline on the landing page — there is no standalone
@@ -46,153 +56,7 @@ class TrackController extends Controller
             return to_route('welcome');
         }
 
-        // ?scan=1 keeps the QR hub (image upload + live camera), which is still
-        // the fastest way in when the paper is in hand.
-        if ($request->boolean('scan')) {
-            return view('track.index');
-        }
-
-        // Everything else lands on the Look Up desk — the browsable table of the
-        // work in scope (Figma: STAFF LOOK UP).
-        //
-        // This used to auto-open whichever request the viewer had touched most
-        // recently, which meant the sidebar's "Look Up" never actually reached
-        // this screen: staff clicked it and got dropped into one request's own
-        // page. A finder that picks the answer for you is not a finder. The
-        // per-request view is still there, reached from a row or a scanned QR.
-        return $this->lookupDesk($request);
-    }
-
-    /**
-     * The Look Up desk: a browsable table of the work in the viewer's scope,
-     * with a detail modal per row. This is where staff land when they do NOT
-     * have a tracking number in hand — ?find=1&scan=1 keeps the QR hub for when
-     * they do.
-     *
-     * Everything the modal needs travels in one payload rather than a fetch per
-     * row: the desk is capped at a page of work, and a round trip per open would
-     * be slower than shipping what is already loaded.
-     *
-     * `?open=SPD-…` deep links one row's detail card open, so screens that list
-     * a tracking number (the Supervisor dashboard's at-risk table) land on this
-     * desk instead of the older per-document page.
-     */
-    private function lookupDesk(Request $request): Factory|View|RedirectResponse
-    {
-        // Two queues, named as the design names them. "Pending" is work that has
-        // landed but not been started; "In Progress" is everything still open
-        // beyond that. Completed work is reached from History, not here.
-        $pendingStatuses = [DocumentStatus::Pending->value];
-        $activeStatuses = [
-            DocumentStatus::InProgress->value,
-            DocumentStatus::InReview->value,
-            DocumentStatus::Approved->value,
-            DocumentStatus::Returned->value,
-            DocumentStatus::OnHold->value,
-        ];
-
-        $documents = $this->scopeDocuments(
-            Document::query()
-                ->with([
-                    'attachments', 'requirements', 'department', 'assignedTo',
-                    // The Messages panel renders the citizen-facing thread inside
-                    // the modal, so it travels with the row. Internal staff notes
-                    // are deliberately excluded — that thread is not this panel's.
-                    'allComments' => fn ($q) => $q
-                        ->where('visibility', DocumentComment::VISIBILITY_PUBLIC)
-                        ->oldest(),
-                ])
-                // Internal dept-to-dept requests have their own desk; mixing them
-                // in here would put them in front of people who only handle
-                // citizen work.
-                ->where('origin', '!=', Document::ORIGIN_INTERNAL)
-                ->whereIn('status', array_merge($pendingStatuses, $activeStatuses))
-        )->latest('created_at')->get();
-
-        // A row that is not on this desk — completed, internal, or another
-        // office's — still has to resolve somewhere: fall back to the
-        // per-document page rather than opening the desk on nothing.
-        $openTracking = strtoupper(trim((string) $request->get('open')));
-
-        if ($openTracking !== '' && ! $documents->contains('tracking_number', $openTracking)) {
-            return to_route('track.show', $openTracking);
-        }
-
-        $logs = $this->deskLogs($documents->pluck('id')->all());
-
-        return view('track.desk', [
-            'openTracking' => $openTracking !== '' ? $openTracking : null,
-            'pendingRows' => $this->deskRows($documents->whereIn('status', $pendingStatuses), $logs),
-            'activeRows' => $this->deskRows($documents->whereIn('status', $activeStatuses), $logs),
-            'flow' => collect(DocumentStatus::flow())
-                ->map(fn (DocumentStatus $s): array => ['value' => $s->value, 'label' => $s->label()])
-                ->values()->all(),
-            'rail' => collect(DocumentStatus::railStages())->pluck('label')->all(),
-        ]);
-    }
-
-    /**
-     * Shape a set of documents into desk rows — the review payload plus the few
-     * fields this screen adds on top of it.
-     *
-     * @param  Collection<int, Document>  $documents
-     * @param  array<int, array<int, array{event: string, time: string}>>  $logs
-     * @return array<int, array<string, mixed>>
-     */
-    private function deskRows($documents, array $logs): array
-    {
-        return $documents->map(function (Document $document) use ($logs): array {
-            return RequestReview::forModal($document) + [
-                'date_short' => $document->created_at?->format('m/d/y'),
-                'logs' => $logs[$document->id] ?? [],
-                'messages' => $document->allComments->map(
-                    fn (DocumentComment $comment): array => $comment->deskPayload()
-                )->values()->all(),
-                // Drives whether the panel offers a composer or reads as an
-                // archive: a colleague may see the thread without owning it.
-                'can_message' => CommentController::userCanPost($document, auth()->user()),
-            ];
-        })->values()->all();
-    }
-
-    /**
-     * Status-change history for every document on the desk, in ONE query
-     * grouped by subject — a per-row lookup would be a query per open row.
-     *
-     * @param  array<int, int>  $documentIds
-     * @return array<int, array<int, array{event: string, time: string}>>
-     */
-    private function deskLogs(array $documentIds): array
-    {
-        if ($documentIds === []) {
-            return [];
-        }
-
-        return Activity::query()
-            ->where('subject_type', (new Document)->getMorphClass())
-            ->whereIn('subject_id', $documentIds)
-            ->orderByDesc('created_at')
-            ->get()
-            ->groupBy('subject_id')
-            ->map(function ($activities): array {
-                return $activities
-                    ->map(function (Activity $activity): ?array {
-                        $to = data_get($activity->properties, 'attributes.status');
-
-                        if (! $to) {
-                            return null;
-                        }
-
-                        return [
-                            'event' => 'Updated to '.DocumentStatus::fromLoose($to)->label(),
-                            'time' => $activity->created_at?->format('M j, g:i A') ?? '',
-                        ];
-                    })
-                    ->filter()
-                    ->values()
-                    ->all();
-            })
-            ->all();
+        return view('track.index');
     }
 
     /**

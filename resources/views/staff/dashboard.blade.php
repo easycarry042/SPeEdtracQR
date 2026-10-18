@@ -1,4 +1,9 @@
-<x-app-layout fixed-height title="Dashboard">
+{{-- Not fixed-height. This page stacks three blocks now — the tiles, the
+     at-risk list and the work queue — and the fixed-height shell gives the
+     viewport exactly once with no page scrollbar, so the queue's own 320px
+     floor pushed the bottom of the page somewhere nothing could reach it.
+     The supervisor dashboard has always scrolled; this one matches it. --}}
+<x-app-layout title="Dashboard">
     <div class="page-shell page-shell-loose"
          x-data="reviewPanel(@js([
             'requests' => $requestPayload,
@@ -15,10 +20,98 @@
             <x-staff-stat-tile label="Completed" :value="$completedCount" tone="bright" icon="check" />
         </div>
 
+        {{-- ── At risk ─────────────────────────────────────────────────────────
+             The assignee's own work running out of stage SLA, soonest first.
+             Above the queue because it is the part of the queue that cannot
+             wait; the amber belongs to the SLA bar and the heading count, not
+             to the furniture around them.
+
+             The tracking number opens the same Review modal the queue below
+             uses — these rows are a subset of the same payload, so the row can
+             be acted on where it is read rather than hunted for again.
+             ───────────────────────────────────────────────────────────────── --}}
+        @if($atRisk->isNotEmpty())
+        {{-- .st-card-compact keeps this card sized to its rows and caps its own
+             scroll, so "Show all" on a long list does not bury the work queue
+             under it. --}}
+        <section class="mt-6" x-data="{ showAll: false }">
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+                <h2 class="st-section-title">At-risk requests</h2>
+                <span class="pill p-amber">{{ $atRiskCount }} need{{ $atRiskCount === 1 ? 's' : '' }} attention</span>
+            </div>
+
+            <div class="st-card st-card-compact">
+                <div class="st-scroll">
+                    <table class="st-table">
+                        <thead>
+                            <tr>
+                                <th>Tracking ID</th>
+                                <th>Request Type</th>
+                                <th>Requested by</th>
+                                <th class="min-w-[248px]">Stage</th>
+                                <th class="min-w-[170px]">SLA usage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($atRisk as $doc)
+                                @php
+                                    $budget = (int) $doc->sla_budget_hours;
+                                    $used = \App\Support\SlaWatch::percentUsed($doc);
+                                    $overdue = (bool) $doc->sla_overdue;
+                                    $barColor = $overdue ? 'bg-status-red' : ($used >= 75 ? 'bg-[#d8920f]' : 'bg-green');
+                                    $remaining = (int) $doc->sla_remaining_hours;
+                                    $overBy = (int) $doc->sla_elapsed_hours - $budget;
+                                @endphp
+                                <tr @if($loop->index >= 5) x-show="showAll" x-cloak @endif>
+                                    <td>
+                                        <button type="button" @click="openById({{ $doc->id }})"
+                                                class="mono font-semibold text-green-deep hover:underline">
+                                            {{ $doc->tracking_number }}
+                                        </button>
+                                    </td>
+                                    <td>{{ $doc->document_type }}</td>
+                                    <td>{{ $doc->citizen_name ?? '—' }}</td>
+                                    <td>
+                                        {{-- The same four-stage rail Look Up draws, so the stage a
+                                             staff member reads here is the stage the citizen is
+                                             shown on their tracking page. --}}
+                                        <x-stage-bar :document="$doc" size="sm" />
+                                    </td>
+                                    <td>
+                                        <div class="flex items-center gap-2">
+                                            <div class="h-2 w-24 shrink-0 overflow-hidden rounded-full bg-[#e6ece8]">
+                                                <div class="h-2 rounded-full {{ $barColor }} transition-[width] duration-500" style="width:{{ $used }}%"></div>
+                                            </div>
+                                            @if($overdue)
+                                                <span class="whitespace-nowrap text-xs font-semibold text-status-red">+{{ $overBy }}h over</span>
+                                            @else
+                                                <span class="whitespace-nowrap text-xs font-semibold text-[#8a5a08]">~{{ $remaining }}h left</span>
+                                            @endif
+                                        </div>
+                                        <p class="mt-0.5 text-xs text-ink-soft">{{ $budget }}h SLA · {{ $used }}% used</p>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if($atRisk->count() > 5)
+                    <div class="st-pager justify-center">
+                        <button type="button" @click="showAll = ! showAll" class="st-page-more">
+                            <span x-show="! showAll">Show all {{ $atRisk->count() }} requests</span>
+                            <span x-show="showAll" x-cloak>Show the top 5 only</span>
+                        </button>
+                    </div>
+                @endif
+            </div>
+        </section>
+        @endif
+
         {{-- The table filters and paginates in the browser: the whole assigned
              set is already in the Alpine payload that drives the review modal,
              so a round trip per page would fetch what the page already holds. --}}
-        <section class="mt-6 flex min-h-0 flex-1 flex-col"
+        <section class="mt-6"
                  x-data="{
                      ...window.stFilterMixin(),
                      q: '',

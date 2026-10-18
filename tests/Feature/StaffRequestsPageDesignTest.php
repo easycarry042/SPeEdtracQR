@@ -191,17 +191,25 @@ class StaffRequestsPageDesignTest extends TestCase
         $this->assertStringContainsString('Requests pages', $content);
     }
 
-    public function test_the_table_keeps_a_fixed_size_and_scrolls_inside(): void
+    /**
+     * The page used to be fixed-height: it took the viewport exactly once and
+     * the table card scrolled its rows internally. That worked while the page
+     * held two blocks. It now holds three — tiles, the at-risk list and the
+     * queue — and the queue card's own 320px floor pushed the bottom of the
+     * page past the edge of a window that had no scrollbar, so there was no way
+     * to reach it. The page scrolls now, as the supervisor dashboard always has.
+     */
+    public function test_the_page_scrolls_rather_than_clipping_its_stacked_cards(): void
     {
         $content = $this->actingAs($this->staff())
             ->get(route('staff.dashboard'))
             ->assertOk()
             ->getContent();
 
-        // The page fills the window and the table card takes the rest of it,
-        // scrolling its rows internally under a pinned header and pager.
-        $this->assertStringContainsString('class="app-fixed-height', $content);
-        $this->assertStringContainsString('pb-10 pt-2 main-fixed', $content);
+        $this->assertStringNotContainsString('app-fixed-height', $content);
+        $this->assertStringNotContainsString('main-fixed', $content);
+
+        // The table furniture is unchanged — only the page's own height is.
         $this->assertStringContainsString('<div class="st-card">', $content);
         $this->assertStringContainsString('<div class="st-scroll">', $content);
         $this->assertStringContainsString('<table class="st-table">', $content);
@@ -255,7 +263,7 @@ class StaffRequestsPageDesignTest extends TestCase
         $this->seedRolesAndPermissions();
         $supervisor = User::factory()->create()->assignRole('Supervisor');
 
-        foreach (['staff.dashboard' => 'Request type', 'track.index' => 'Request type', 'requests.index' => 'Requesting office'] as $route => $typeLabel) {
+        foreach (['staff.dashboard' => 'Request type', 'dashboard' => 'Request type', 'requests.index' => 'Requesting office'] as $route => $typeLabel) {
             $content = $this->actingAs($supervisor)
                 ->get(route($route))
                 ->assertOk()
@@ -286,21 +294,21 @@ class StaffRequestsPageDesignTest extends TestCase
     }
 
     /**
-     * Dashboard, Look Up and Internal share one table design (.st-* classes
-     * and the shared pager), so the three work lists cannot drift apart.
+     * Every work list shares one table design (.st-* classes and the shared
+     * pager) so they cannot drift apart. There were four; the Look Up desk was
+     * one of them and has been folded into the two dashboards.
      */
-    public function test_look_up_and_internal_use_the_dashboard_table_design(): void
+    public function test_every_work_list_uses_the_same_table_design(): void
     {
         $this->seedRolesAndPermissions();
         $supervisor = User::factory()->create()->assignRole('Supervisor');
 
-        foreach (['track.index', 'requests.index'] as $route) {
+        foreach (['dashboard', 'staff.dashboard', 'requests.index'] as $route) {
             $content = $this->actingAs($supervisor)
                 ->get(route($route))
                 ->assertOk()
                 ->getContent();
 
-            $this->assertStringContainsString('class="app-fixed-height', $content, $route);
             $this->assertStringContainsString('class="st-search"', $content, $route);
             $this->assertStringContainsString('class="st-tool-btn"', $content, $route);
             $this->assertStringContainsString('<div class="st-card">', $content, $route);
@@ -308,6 +316,14 @@ class StaffRequestsPageDesignTest extends TestCase
             $this->assertStringContainsString('class="st-pager"', $content, $route);
             $this->assertStringContainsString('perPage: 10', $content, $route);
         }
+
+        // Internal is still a single full-height table and keeps the fixed
+        // shell. The dashboards stack several blocks and scroll instead — see
+        // test_the_page_scrolls_rather_than_clipping_its_stacked_cards.
+        $this->assertStringContainsString(
+            'class="app-fixed-height',
+            $this->actingAs($supervisor)->get(route('requests.index'))->assertOk()->getContent()
+        );
     }
 
     public function test_the_search_box_filters_without_a_round_trip(): void

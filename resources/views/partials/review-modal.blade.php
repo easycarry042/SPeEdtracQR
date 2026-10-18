@@ -8,9 +8,21 @@
      class="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-[27px]"
      @keydown.escape.window="close()" @click.self="close()"
      role="dialog" aria-modal="true" aria-label="Review request">
+
+    {{-- Two cards, as the Look Up desk laid them out: the request on the left,
+         and a second card that slides in beside it holding the claiming-date
+         calendar or the citizen conversation. `side` is which of those is open
+         — the card only exists while one of them is.
+
+         The desk was a separate screen that could do these two things but not
+         accept an assignment, while this modal could accept but not adjust a
+         date or answer the citizen. They are one modal now. --}}
+    <div class="mx-auto flex w-full max-w-[1335px] flex-col items-start justify-center gap-[15px] lg:flex-row lg:items-stretch"
+         @click.self="close()">
+
     {{-- Same card as the Look Up detail modal (.dm-*): a fixed size with a
          pinned header and footer, and a body that scrolls between them. --}}
-    <div class="dm-card dm-card-review dm-fixed mx-auto w-full max-w-[660px]" x-show="active" x-transition.opacity>
+    <div class="dm-card dm-card-review dm-fixed w-full max-w-[660px] lg:min-w-0 lg:flex-1" x-show="active" x-transition.opacity>
         <template x-if="active">
             <div class="flex h-full min-h-0 flex-col">
                 {{-- Header bar: where the request stands, and close. --}}
@@ -50,6 +62,30 @@
                             </li>
                         </template>
                     </ol>
+
+                    {{-- Claiming date, and the two side panels. The date is what
+                         the citizen opened their tracking page to find out, so it
+                         is readable here and editable one click away — it used to
+                         be reachable only from the Look Up desk. --}}
+                    <div class="mt-6 flex flex-wrap items-stretch gap-2">
+                        <div class="dm-date">
+                            <p class="dm-date-label">Claiming Date</p>
+                            <p class="dm-date-value" x-text="active.claim_date || active.requested_claim_date || 'Not set yet'"></p>
+                        </div>
+
+                        <button type="button" @click="toggleSide('date')"
+                                class="dm-tile" :class="side === 'date' ? 'on' : ''" :aria-expanded="side === 'date'">
+                            <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>
+                            <span>Adjust Date</span>
+                        </button>
+
+                        <button type="button" @click="toggleSide('messages')"
+                                class="dm-tile relative" :class="side === 'messages' ? 'on' : ''" :aria-expanded="side === 'messages'">
+                            <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M5 18.5V7a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 19 7v6.5a2.5 2.5 0 0 1-2.5 2.5H9l-4 2.5Z"/><path stroke-linecap="round" d="M9 10.5h.01M12 10.5h.01M15 10.5h.01"/></svg>
+                            <span>Messages</span>
+                            <span x-show="active.unread_messages > 0" x-cloak class="dm-tile-badge" x-text="active.unread_messages"></span>
+                        </button>
+                    </div>
 
                     @if($mode === 'staff')
                         {{-- Off-the-line states, with what the citizen or office is waiting on. --}}
@@ -158,17 +194,57 @@
                         </div>
                     </section>
 
+                    {{-- Logs: the stage history, two entries deep until asked.
+                         Ported from the Look Up desk — the one place this used
+                         to be readable. --}}
+                    <section class="mt-7">
+                        <h2 class="dm-section">Logs</h2>
+
+                        <template x-if="(active.logs || []).length === 0">
+                            <p class="mt-2 text-[length:var(--fs-small)] text-ink-soft">Nothing recorded yet.</p>
+                        </template>
+
+                        <ul class="dm-logs">
+                            <template x-for="(log, i) in (active.logs || [])" :key="i">
+                                <li class="dm-log" x-show="i < 2 || allLogs">
+                                    <span class="dm-log-dot" aria-hidden="true"></span>
+                                    <span class="dm-log-event" x-text="log.event"></span>
+                                    <span class="lookup-leader" aria-hidden="true"></span>
+                                    <span class="dm-log-time" x-text="log.time"></span>
+                                </li>
+                            </template>
+                        </ul>
+
+                        <button type="button" x-show="(active.logs || []).length > 2" @click="allLogs = ! allLogs" class="dm-more">
+                            <span x-text="allLogs ? 'View less' : 'View more'">View more</span>
+                            <svg class="h-4 w-4 transition" :class="allLogs ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                    </section>
+
                     @if($mode === 'supervisor')
-                        <section class="dm-panel-strong mt-7">
-                            <label class="block text-[length:var(--fs-small)] font-bold text-green-deep" for="reviewAssignee">Assign to Staff <span class="text-status-red">*</span></label>
-                            <select id="reviewAssignee" x-model="selectedStaff" class="st-filter-field mt-2">
-                                <option value="">Select a staff member…</option>
-                                <template x-for="member in staff" :key="member.id">
-                                    <option :value="member.id" x-text="member.name"></option>
-                                </template>
-                            </select>
-                            <p class="mt-2 text-[length:var(--fs-caption)] text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
-                        </section>
+                        {{-- Only an unassigned request can be assigned. The
+                             In Progress queue opens this same modal, and
+                             offering "Assign to Staff" on work somebody is
+                             already doing invites reassignment by accident. --}}
+                        <template x-if="! active.assigned_to">
+                            <section class="dm-panel-strong mt-7">
+                                <label class="block text-[length:var(--fs-small)] font-bold text-green-deep" for="reviewAssignee">Assign to Staff <span class="text-status-red">*</span></label>
+                                <select id="reviewAssignee" x-model="selectedStaff" class="st-filter-field mt-2">
+                                    <option value="">Select a staff member…</option>
+                                    <template x-for="member in staff" :key="member.id">
+                                        <option :value="member.id" x-text="member.name"></option>
+                                    </template>
+                                </select>
+                                <p class="mt-2 text-[length:var(--fs-caption)] text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
+                            </section>
+                        </template>
+
+                        <template x-if="active.assigned_to">
+                            <section class="dm-panel-strong mt-7 text-[length:var(--fs-small)] text-ink">
+                                <p>Being handled by <strong class="text-green-deep" x-text="active.assigned_staff || 'a staff member'"></strong>.
+                                   You can adjust the claiming date and answer the citizen from here; the stage itself is theirs to advance.</p>
+                            </section>
+                        </template>
                     @else
                         {{-- Triage: this assignment is still awaiting Accept / Decline / Revision. --}}
                         <template x-if="active && active.needs_triage">
@@ -196,15 +272,19 @@
                         </button>
 
                         @if($mode === 'supervisor')
-                            <button type="button" @click="denyOpen = true" :disabled="submitting"
-                                    class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
-                                Deny
-                            </button>
-                            <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
-                                    class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-show="!submitting">Approve</span>
-                                <span x-show="submitting">Approving…</span>
-                            </button>
+                            <template x-if="! active.assigned_to">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" @click="denyOpen = true" :disabled="submitting"
+                                            class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
+                                        Deny
+                                    </button>
+                                    <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting">Approve</span>
+                                        <span x-show="submitting">Approving…</span>
+                                    </button>
+                                </div>
+                            </template>
                         @else
                             {{-- Triage decision --}}
                             <template x-if="active && active.needs_triage">
@@ -460,6 +540,220 @@
             </div>
         </template>
     </div>
+
+    {{-- ── Side card: the claiming-date calendar, or the conversation ──────
+         Both ported from the Look Up desk (Figma: STAFF LOOK UP 1321:1370 and
+         1321:1750) so the staff member who accepted a request can also set its
+         claiming date and answer the citizen without changing screens. --}}
+    <div x-show="active && side" x-cloak x-transition.opacity
+         class="dm-fixed flex w-full max-w-[660px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_19px_48px_-16px_rgba(0,64,4,0.45)] lg:min-w-0 lg:flex-1"
+         :aria-label="side === 'date' ? 'Adjust claiming date' : 'Messages'" role="region">
+        <template x-if="active">
+            <div class="flex h-full min-h-0 flex-col">
+
+                {{-- Shared header --}}
+                <div class="dm-head">
+                    <h2 class="dm-section min-w-0 truncate">
+                        <span x-show="side === 'date'">Adjust Claiming Date</span>
+                        <span x-show="side === 'messages'">
+                            Messages · <span class="font-semibold text-ink" x-text="active.citizen_name || 'Citizen'"></span>
+                        </span>
+                    </h2>
+
+                    <button type="button" @click="side = null" aria-label="Close panel" class="dm-close shrink-0">
+                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+
+                {{-- ── Calendar ── --}}
+                <div x-show="side === 'date'" class="flex min-h-0 flex-1 flex-col">
+                    {{-- Where things stand before anything is picked. --}}
+                    <div class="dp-context">
+                        <div class="dp-context-item">
+                            <span class="dp-key dp-key-requested" aria-hidden="true"></span>
+                            <span>Citizen asked for</span>
+                            <strong x-text="active.requested_claim_date || 'no date'"></strong>
+                        </div>
+                        <div class="dp-context-item" x-show="active.claim_date">
+                            <span class="dp-key dp-key-set" aria-hidden="true"></span>
+                            <span>Currently set</span>
+                            <strong x-text="active.claim_date"></strong>
+                        </div>
+                    </div>
+
+                    {{-- Month, with Previous / Today / Next as one control. --}}
+                    <div class="dp-head">
+                        <p class="dp-month" x-text="monthLabel()" aria-live="polite"></p>
+                        <div class="bk-nav" role="group" aria-label="Change month">
+                            <button type="button" @click="shiftMonth(-1)" aria-label="Previous month">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                            <button type="button" @click="calendarToToday()">Today</button>
+                            <button type="button" @click="shiftMonth(1)" aria-label="Next month">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dp-dows" aria-hidden="true">
+                        <template x-for="(name, i) in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="name">
+                            <span :class="i === 0 && 'is-sunday'" x-text="name"></span>
+                        </template>
+                    </div>
+
+                    <div class="dp-grid" role="grid" aria-label="Claiming date">
+                        <template x-for="(week, w) in calendarWeeks()" :key="'w' + w">
+                            <div class="dp-week" role="row">
+                                <template x-for="cell in week" :key="cell.iso">
+                                    <div class="dp-cell" role="gridcell">
+                                        <button type="button" @click="dateValue = cell.iso"
+                                                :disabled="cell.past"
+                                                class="dp-day"
+                                                :class="{
+                                                    'is-picked': dateValue === cell.iso,
+                                                    'is-today': cell.today,
+                                                    'is-outside': ! cell.inMonth,
+                                                    'is-sunday': cell.sunday,
+                                                    'is-requested': cell.iso === active.requested_claim_on,
+                                                    'is-set': cell.iso === active.claim_on,
+                                                }"
+                                                :aria-pressed="dateValue === cell.iso"
+                                                :aria-current="cell.today ? 'date' : null"
+                                                :aria-label="cell.label
+                                                    + (cell.iso === active.requested_claim_on ? ', requested by the citizen' : '')
+                                                    + (cell.iso === active.claim_on ? ', currently set' : '')
+                                                    + (cell.past ? ', unavailable' : '')">
+                                            <span x-text="cell.day"></span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="dp-foot">
+                        <p class="dp-picked">
+                            <template x-if="dateValue">
+                                <span>New claiming date <strong x-text="pickedLabel()"></strong></span>
+                            </template>
+                            <template x-if="! dateValue">
+                                <span>Pick a day for the citizen to claim.</span>
+                            </template>
+                        </p>
+
+                        <div class="flex shrink-0 items-center gap-2">
+                            <button type="button" x-show="dateValue" @click="dateValue = ''" class="cr-btn">Clear</button>
+                            <button type="button" @click="saveDate()" :disabled="submitting || ! dateValue" class="cr-btn cr-btn-primary disabled:opacity-40">
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Conversation ── --}}
+                <div x-show="side === 'messages'" class="flex min-h-0 flex-1 flex-col">
+                    <div class="min-h-[256px] flex-1 space-y-[8px] overflow-y-auto px-[26.5px] py-[19px]" x-ref="thread">
+
+                        {{-- Empty state, as the frame draws it. --}}
+                        <div x-show="(active.messages || []).length === 0" class="flex h-full flex-col items-center justify-center text-center">
+                            <img src="{{ asset('images/staff/chat-empty.svg') }}" alt=""
+                                 style="width:80px; height:78.5px; max-width:none;">
+                            <p class="mt-[14.5px] text-[20px] font-extrabold text-[#017209]">You are now chatting with the client</p>
+                            <p class="text-[18px] font-medium text-black">Your conversation is secured</p>
+                        </div>
+
+                        <template x-for="(msg, i) in (active.messages || [])" :key="i">
+                            <div>
+                                {{-- Timestamp above the first message and whenever the
+                                     clock moves on, the way a chat groups a burst. --}}
+                                <p x-show="i === 0 || msg.time !== active.messages[i - 1].time"
+                                   class="py-[8px] text-center text-[14px] font-medium text-black"
+                                   x-text="msg.time"></p>
+
+                                <div class="flex" :class="msg.from === 'citizen' ? 'justify-start' : 'justify-end'">
+                                    <div class="max-w-[80%]">
+                                        <p class="desk-bubble" :class="msg.from === 'citizen' ? 'from-citizen' : 'from-staff'"
+                                           x-text="msg.body"></p>
+
+                                        <template x-if="msg.attachment">
+                                            <a :href="msg.attachment.url" target="_blank" rel="noopener"
+                                               class="mt-[6px] flex items-center gap-[8px] rounded-[8px] border border-hairline bg-white px-[11px] py-[8px] text-[14px] font-medium text-ink transition hover:bg-green-wash"
+                                               :class="msg.from === 'citizen' ? '' : 'justify-end'">
+                                                <img src="{{ asset('images/staff/icon-file.svg') }}" alt=""
+                                                     style="width:16px; height:16px; max-width:none;">
+                                                <span class="min-w-0 truncate" x-text="msg.attachment.name"></span>
+                                            </a>
+                                        </template>
+
+                                        {{-- Read receipt: the frame's double tick, dimmed
+                                             until the citizen has actually opened it. --}}
+                                        <p x-show="msg.from !== 'citizen'"
+                                           class="mt-[4px] flex items-center justify-end gap-[4px] text-[14px] font-medium text-black">
+                                            <span x-text="msg.read ? 'Read' : 'Sent'"></span>
+                                            <span class="flex items-center" :class="msg.read ? '' : 'opacity-40'" aria-hidden="true">
+                                                <img src="{{ asset('images/staff/icon-check.svg') }}" alt=""
+                                                     style="width:14.5px; height:14.5px; max-width:none;">
+                                                <img src="{{ asset('images/staff/icon-check.svg') }}" alt=""
+                                                     class="-ml-[7px]" style="width:14.5px; height:14.5px; max-width:none;">
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="h-[2px] w-full bg-[#d9d9d9]"></div>
+
+                    <template x-if="active.can_message">
+                        <form @submit.prevent="sendMessage()" class="px-[23px] py-[14.5px]">
+                            {{-- The file rides along with the message it belongs to,
+                                 so it is staged here and posted on send. --}}
+                            <div x-show="file" x-cloak
+                                 class="mb-[8px] flex items-center gap-[8px] rounded-[8px] bg-green-wash px-[11px] py-[8px]">
+                                <img src="{{ asset('images/staff/icon-file.svg') }}" alt=""
+                                     style="width:16px; height:16px; max-width:none;">
+                                <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-ink" x-text="file?.name"></span>
+                                <button type="button" @click="clearFile()"
+                                        class="shrink-0 text-[14px] font-bold text-status-red hover:underline">Remove</button>
+                            </div>
+
+                            <div class="flex items-center gap-[16px]">
+                                <input type="file" x-ref="attachment" class="sr-only"
+                                       accept="{{ \App\Support\UploadRules::accept() }}"
+                                       @change="pickFile($event)">
+
+                                <button type="button" @click="$refs.attachment.click()"
+                                        title="{{ \App\Support\UploadRules::hint() }}" aria-label="Attach a file"
+                                        class="shrink-0 rounded-lg p-1 transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                                    <img src="{{ asset('images/staff/icon-plus.svg') }}" alt=""
+                                         style="width:24px; height:24px; max-width:none;">
+                                </button>
+
+                                <label for="reviewMessage" class="sr-only">Write your message</label>
+                                <input id="reviewMessage" type="text" x-model="draft" maxlength="5000"
+                                       placeholder="Write your message..." class="desk-composer">
+
+                                <button type="submit" :disabled="sending || ! draft.trim()"
+                                        class="shrink-0 rounded-lg p-1 transition hover:bg-green-wash disabled:opacity-40"
+                                        aria-label="Send message">
+                                    <img src="{{ asset('images/staff/icon-send.svg') }}" alt=""
+                                         style="width:24px; height:24px; max-width:none;">
+                                </button>
+                            </div>
+                        </form>
+                    </template>
+
+                    <template x-if="! active.can_message">
+                        <p class="px-[26.5px] py-[17.5px] text-[14px] text-ink-soft">
+                            Only the assigned staff member or an admin can reply on this request.
+                        </p>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+    </div>
 </div>
 
 @once
@@ -501,6 +795,16 @@
             revertReason: '',
             gateError: '',
             tableQuery: '',
+
+            // ─── Side panels, ported from the Look Up desk ───
+            side: null,       // 'date' | 'messages' | null — the second card
+            allLogs: false,
+            dateValue: '',
+            calYear: 0,
+            calMonth: 0,      // 0-11, as Date reports it
+            draft: '',
+            file: null,       // staged attachment, posted with the message
+            sending: false,
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
@@ -752,6 +1056,21 @@
             open(req) {
                 this.active = req;
                 this.qrOpen = false;
+                this.side = null;
+                this.allLogs = false;
+                this.dateValue = '';
+                this.draft = '';
+                this.clearFile();
+
+                // Land the calendar on the date already committed to, else on
+                // the one the citizen asked for, else on this month.
+                const anchor = this.parseDate(req?.claim_on)
+                    || this.parseDate(req?.requested_claim_on)
+                    || new Date();
+
+                this.calYear = anchor.getFullYear();
+                this.calMonth = anchor.getMonth();
+
                 this.selectedStaff = '';
                 this.denyOpen = false;
                 this.denyReason = '';
@@ -771,6 +1090,223 @@
             openById(id) {
                 const req = this.requests.find((r) => r.id === id);
                 if (req) this.open(req);
+            },
+
+            /* ── Side panels ─────────────────────────────────────────────────
+               Everything below came from the Look Up desk's own Alpine scope
+               when the desk was folded into this modal and deleted; see
+               ReviewModalMergeTest for what had to survive the move.
+               ───────────────────────────────────────────────────────────── */
+
+            /** Open one of the two side cards, or close it if already up. */
+            toggleSide(which) {
+                this.side = this.side === which ? null : which;
+
+                if (this.side === 'messages') {
+                    this.readMessages();
+                    this.$nextTick(() => this.scrollThread());
+                }
+            },
+
+            /** The claiming date the citizen sees on their tracking page. */
+            saveDate() {
+                if (!this.active || !this.dateValue) {
+                    this.gateError = 'Pick the claiming date for the citizen.';
+
+                    return;
+                }
+
+                this.submitting = true;
+                this.gateError = '';
+
+                fetch(`${this.openBase}/${this.active.id}/claim-date`, {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ claim_date: this.dateValue }),
+                }).then(async (r) => {
+                    if (r.ok) {
+                        this.afterSuccess();
+
+                        return;
+                    }
+
+                    const data = await r.json().catch(() => ({}));
+                    this.gateError = data.message || 'That date could not be saved.';
+                    this.submitting = false;
+                }).catch(() => {
+                    this.gateError = 'That date could not be saved.';
+                    this.submitting = false;
+                });
+            },
+
+            /* ── Calendar ───────────────────────────────────────────────── */
+
+            /** Local YYYY-MM-DD. toISOString() would shift the day by the UTC offset. */
+            isoOf(date) {
+                const pad = (n) => String(n).padStart(2, '0');
+
+                return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+            },
+
+            parseDate(text) {
+                if (!text) return null;
+
+                const parsed = new Date(text);
+
+                return isNaN(parsed.getTime()) ? null : parsed;
+            },
+
+            monthLabel() {
+                return new Date(this.calYear, this.calMonth, 1)
+                    .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            },
+
+            /** Jump the calendar back to this month. */
+            calendarToToday() {
+                const now = new Date();
+                this.calYear = now.getFullYear();
+                this.calMonth = now.getMonth();
+            },
+
+            /** "Friday, August 7, 2026" for the picked day. */
+            pickedLabel() {
+                const picked = this.parseDate(this.dateValue + 'T00:00:00');
+
+                return picked ? picked.toLocaleDateString(undefined, { dateStyle: 'full' }) : '';
+            },
+
+            shiftMonth(delta) {
+                const moved = new Date(this.calYear, this.calMonth + delta, 1);
+
+                this.calYear = moved.getFullYear();
+                this.calMonth = moved.getMonth();
+            },
+
+            /**
+             * The month as weeks of seven days, padded out to whole weeks with
+             * the neighbouring months' days — only as many rows as the month
+             * actually spans, so a 5-week month does not draw an empty sixth.
+             */
+            calendarWeeks() {
+                const first = new Date(this.calYear, this.calMonth, 1);
+                const daysInMonth = new Date(this.calYear, this.calMonth + 1, 0).getDate();
+                const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+                const today = this.isoOf(new Date());
+                const out = [];
+
+                for (let w = 0; w < weeks; w++) {
+                    const row = [];
+
+                    for (let d = 0; d < 7; d++) {
+                        const day = new Date(this.calYear, this.calMonth, 1 - first.getDay() + (w * 7) + d);
+
+                        row.push({
+                            day: day.getDate(),
+                            iso: this.isoOf(day),
+                            label: day.toLocaleDateString(undefined, { dateStyle: 'long' }),
+                            inMonth: day.getMonth() === this.calMonth,
+                            sunday: day.getDay() === 0,
+                            today: this.isoOf(day) === today,
+                            // A claiming date in the past is not a commitment
+                            // anyone can keep, so those days are not offerable.
+                            past: this.isoOf(day) < today,
+                        });
+                    }
+
+                    out.push(row);
+                }
+
+                return out;
+            },
+
+            /* ── Conversation ───────────────────────────────────────────── */
+
+            scrollThread() {
+                const thread = this.$refs.thread;
+
+                if (thread) {
+                    thread.scrollTop = thread.scrollHeight;
+                }
+            },
+
+            /** Opening the thread is what clears the request's unread badge. */
+            readMessages() {
+                if (!this.active || !this.active.unread_messages) return;
+
+                this.active.unread_messages = 0;
+
+                fetch(`${this.openBase}/${this.active.id}/comments/read`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json' },
+                }).catch(() => {});
+            },
+
+            pickFile(event) {
+                this.file = event.target.files[0] || null;
+                this.gateError = '';
+            },
+
+            clearFile() {
+                this.file = null;
+
+                // The input only exists while the composer is rendered.
+                if (this.$refs.attachment) {
+                    this.$refs.attachment.value = '';
+                }
+            },
+
+            sendMessage() {
+                const body = this.draft.trim();
+
+                if (!this.active || !body || this.sending) return;
+
+                this.sending = true;
+                this.gateError = '';
+
+                // Multipart throughout, with or without a file: one path to
+                // maintain, and the browser sets the boundary for us (so the
+                // Content-Type header must NOT be set by hand here).
+                const payload = new FormData();
+                payload.append('body', body);
+                payload.append('visibility', 'public');
+
+                if (this.file) {
+                    payload.append('attachment', this.file);
+                }
+
+                fetch(`${this.openBase}/${this.active.id}/comments`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json' },
+                    body: payload,
+                }).then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+
+                    if (!r.ok) {
+                        // 422 reports per-field messages; the file rules are
+                        // the ones staff actually trip over.
+                        this.gateError = (data.errors && Object.values(data.errors)[0][0])
+                            || data.message
+                            || 'That message could not be sent.';
+                        this.sending = false;
+
+                        return;
+                    }
+
+                    // Append rather than reload: the queue behind the modal has
+                    // not changed, and a reload would close what staff are in.
+                    this.active.messages = (this.active.messages || []).concat([data.comment]);
+                    this.draft = '';
+                    this.clearFile();
+                    this.sending = false;
+                    this.$nextTick(() => this.scrollThread());
+                }).catch(() => {
+                    this.gateError = 'That message could not be sent.';
+                    this.sending = false;
+                });
             },
 
             afterSuccess() {
@@ -832,9 +1368,16 @@
             },
 
             close() {
-                // Esc steps back one layer: the QR viewer first, then the modal.
+                // Esc steps back one layer: the QR viewer, then the side card,
+                // then the modal itself.
                 if (this.qrOpen) {
                     this.qrOpen = false;
+
+                    return;
+                }
+
+                if (this.side) {
+                    this.side = null;
 
                     return;
                 }
@@ -854,6 +1397,11 @@
                 this.revertOpen = false;
                 this.revertReason = '';
                 this.gateError = '';
+                this.allLogs = false;
+                this.dateValue = '';
+                this.draft = '';
+                this.sending = false;
+                this.clearFile();
             },
 
             postAction(url, opts) {

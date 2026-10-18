@@ -422,16 +422,23 @@ class JourneyMapTest extends TestCase
         }
 
         // Two screens deliberately redirect a super admin rather than render:
-        // `analytics` sends them to their own command centre, and `track.index`
-        // / `requests.create` bounce because an org-wide admin has no department
-        // of their own. These are controller business rules, not denials.
-        foreach (['analytics', 'track.index', 'requests.create'] as $name) {
+        // `analytics` sends them to their own command centre, and
+        // `requests.create` bounces because an org-wide admin has no department
+        // of its own to file from. These are controller business rules, not
+        // denials.
+        foreach (['analytics', 'requests.create'] as $name) {
             $this->assertSame(
                 302,
                 $this->actingAs($admin)->get(route($name))->getStatusCode(),
                 "[{$name}] is expected to redirect a super admin"
             );
         }
+
+        // `track.index` used to bounce them too, because it served the Look Up
+        // desk and an org-wide admin had no scoped queue to show there. What is
+        // left is the QR hub, and scanning a code off a piece of paper is not
+        // department-specific — so they now reach it like everybody else.
+        $this->actingAs($admin)->get(route('track.index'))->assertOk()->assertSee('Look up a document');
     }
 
     // ──────────────────────────────────────────────────────────────────────

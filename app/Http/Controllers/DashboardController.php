@@ -82,7 +82,21 @@ class DashboardController extends Controller
                 ->latest('created_at')
         ), $deptId)->get();
 
-        $pendingPayload = $pendingRequests->map(fn (Document $d): array => RequestReview::forModal($d))->values();
+        $pendingPayload = RequestReview::collection($pendingRequests);
+
+        // The office's work in flight. This is what the Look Up desk used to be
+        // for: the desk is gone, and without this a Supervisor could only see
+        // the requests nobody had started yet — the moment one was assigned it
+        // dropped off their screen entirely until it came back completed.
+        $activeRequests = $this->deptScope($this->scopeDocuments(
+            Document::with('attachments', 'department', 'assignedTo', 'requirements')
+                ->where('origin', '!=', Document::ORIGIN_INTERNAL)
+                ->whereIn('status', DocumentStatus::activeValues())
+                ->whereNotNull('assigned_to')
+                ->latest('status_changed_at')
+        ), $deptId)->get();
+
+        $activePayload = RequestReview::collection($activeRequests);
 
         // Staff who can be assigned a request — a department-head Supervisor sees
         // only their own department's staff; org-wide admins see everyone.
@@ -95,36 +109,12 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        // At-risk = documents sitting in a non-terminal stage past 75% of that
-        // stage's SLA budget (anchored to status_changed_at — the manual model).
-        // The slip below names only the single worst offender; a department head
-        // needs the whole list, because the second-worst is the one they can
-        // still save.
-        $activeQuery = $this->deptScope($this->scopeDocuments(
-            Document::with('assignedTo', 'department')
-                ->whereIn('status', DocumentStatus::activeValues())
-        ), $deptId);
-
-        $atRiskDocuments = $activeQuery->get()->map(function ($doc) {
-            $sla = $doc->statusEnum()->slaHours();
-            $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
-            if (! $sla || ! $anchor) {
-                return null;
-            }
-            $elapsed = $anchor->diffInHours(now());
-            $doc->sla_elapsed_hours = $elapsed;
-            $doc->sla_remaining_hours = max(0, $sla - $elapsed);
-            $doc->sla_overdue = $elapsed > $sla;
-            $doc->sla_ratio = $elapsed / $sla;
-
-            return $doc;
-        })->filter(fn ($doc): bool => $doc && $doc->sla_ratio >= 0.75)
-            ->sortBy('sla_remaining_hours')
-            ->values();
-
-        $atRiskCount = $atRiskDocuments->count();
-
         // ── Routing slip: the single most at-risk active document ─────────────
+        // The named at-risk LIST lives on the staff dashboard now (see
+        // StaffDashboardController): a supervisor can reassign a slipping
+        // request, but only its assignee can advance it, so the warning belongs
+        // where it can be acted on. This desk keeps the one-document slip as
+        // the office's headline.
         $slip = $this->buildRoutingSlip($deptId);
 
         // Internal requests currently sitting at this supervisor's office (0
@@ -138,7 +128,7 @@ class DashboardController extends Controller
                 ->count()
             : 0;
 
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'atRiskDocuments' => $atRiskDocuments, 'atRiskCount' => $atRiskCount, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */

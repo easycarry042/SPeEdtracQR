@@ -96,4 +96,77 @@ class SupervisorDashboardScopeTest extends TestCase
             $this->actingAs($admin)->get(route('dashboard'))->assertOk()->viewData('spansDepartments'),
         );
     }
+
+    /**
+     * The Look Up desk used to be the only place a supervisor could see work in
+     * flight: their dashboard listed unassigned intake only, so a request
+     * disappeared from this screen the moment it was assigned and did not come
+     * back until it was completed. The desk is gone, so the queue grew a second
+     * tab instead.
+     */
+    public function test_the_dashboard_lists_work_in_progress_not_only_unassigned_intake(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $dept = Department::create(['name' => 'Business Permits', 'code' => 'BPLO', 'is_active' => true]);
+        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
+        $staff = User::factory()->create(['name' => 'Ana Reyes', 'department_id' => $dept->id])->assignRole('staff');
+
+        Document::create(['tracking_number' => 'SPD-UNASSIGNED', 'document_type' => 'Business Permit', 'department_id' => $dept->id, 'status' => 'pending']);
+        Document::create(['tracking_number' => 'SPD-INFLIGHT', 'document_type' => 'Cedula', 'department_id' => $dept->id, 'assigned_to' => $staff->id, 'status' => 'in_progress']);
+
+        $response = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk();
+
+        $this->assertSame(['SPD-UNASSIGNED'], $response->viewData('pendingPayload')->pluck('tracking_number')->all());
+        $this->assertSame(['SPD-INFLIGHT'], $response->viewData('activePayload')->pluck('tracking_number')->all());
+
+        // Both queues are named on the page, and both rows reach the modal.
+        $response->assertSee('In Progress');
+        $response->assertSee('Unassigned');
+        $response->assertSee('SPD-INFLIGHT');
+    }
+
+    /** In-flight work stays inside the viewer's own office. */
+    public function test_the_in_progress_queue_is_department_scoped(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $mine = Department::create(['name' => 'Business Permits', 'code' => 'BPLO', 'is_active' => true]);
+        $other = Department::create(['name' => 'Treasury', 'code' => 'TRE', 'is_active' => true]);
+
+        $supervisor = User::factory()->create(['department_id' => $mine->id])->assignRole('Supervisor');
+        $mineStaff = User::factory()->create(['department_id' => $mine->id])->assignRole('staff');
+        $otherStaff = User::factory()->create(['department_id' => $other->id])->assignRole('staff');
+
+        Document::create(['tracking_number' => 'SPD-MINE-WIP', 'document_type' => 'Business Permit', 'department_id' => $mine->id, 'assigned_to' => $mineStaff->id, 'status' => 'in_review']);
+        Document::create(['tracking_number' => 'SPD-THEIRS-WIP', 'document_type' => 'Cedula', 'department_id' => $other->id, 'assigned_to' => $otherStaff->id, 'status' => 'in_review']);
+
+        $response = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk();
+
+        $this->assertSame(['SPD-MINE-WIP'], $response->viewData('activePayload')->pluck('tracking_number')->all());
+        $response->assertDontSee('SPD-THEIRS-WIP');
+    }
+
+    /**
+     * The merged modal carries the Look Up desk's panels now, so the payload it
+     * is driven from has to include what they render.
+     */
+    public function test_the_modal_payload_carries_the_logs_and_the_conversation(): void
+    {
+        $this->seedRolesAndPermissions();
+
+        $dept = Department::create(['name' => 'Business Permits', 'code' => 'BPLO', 'is_active' => true]);
+        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
+
+        Document::create(['tracking_number' => 'SPD-PANELS', 'document_type' => 'Business Permit', 'department_id' => $dept->id, 'status' => 'pending']);
+
+        $row = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk()
+            ->viewData('pendingPayload')->first();
+
+        foreach (['logs', 'messages', 'can_message', 'claim_date', 'requested_claim_date', 'claim_on'] as $key) {
+            $this->assertArrayHasKey($key, $row, "the merged modal needs {$key}");
+        }
+        $this->assertIsArray($row['logs']);
+        $this->assertIsArray($row['messages']);
+    }
 }
