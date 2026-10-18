@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\RequestStep;
 use App\Notifications\DocumentEvent;
+use App\Support\InternalRequestForm;
 use App\Support\ScannedCode;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
@@ -47,9 +48,23 @@ class RequestStepController extends Controller
                 Rule::exists('departments', 'id')->where('is_active', true),
                 Rule::notIn([(string) $step->department_id]),
             ],
+            // A soft copy has no folder to hand across, so whoever forwards it
+            // names who receives it at the next office — as the filing office
+            // did for the first.
+            'next_recipient_id' => [
+                Rule::requiredIf(fn (): bool => $queued === null && $document->isSoftCopy()),
+                'nullable',
+                'integer',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if ($value && ! InternalRequestForm::isRecipientAt((int) $value, (int) $request->input('next_department_id'))) {
+                        $fail('Choose someone who works in the next office.');
+                    }
+                },
+            ],
         ], [
             'next_department_id.required' => 'Choose the office this request goes to next — or use Done if your office is the last to handle it.',
             'next_department_id.not_in' => 'Pick a different office: the request is already with yours.',
+            'next_recipient_id.required' => 'This request has no paper copy. Choose who in the next office receives it.',
         ]);
 
         $this->confirmScannedFolder($request, $document);
@@ -88,6 +103,7 @@ class RequestStepController extends Controller
             $next = $document->requestSteps()->create([
                 'step_order' => (int) $document->requestSteps()->max('step_order') + 1,
                 'department_id' => (int) $request->input('next_department_id'),
+                'recipient_id' => $document->isSoftCopy() ? (int) $request->input('next_recipient_id') : null,
                 'action' => 'Review and action',
                 'status' => RequestStep::STATUS_CURRENT,
                 'started_at' => now(),
@@ -99,7 +115,7 @@ class RequestStepController extends Controller
         $next->loadMissing('department');
 
         Notification::send(
-            DocumentEvent::departmentSupervisors($next->department_id, $user->id),
+            DocumentEvent::hopRecipients($next, $user->id),
             DocumentEvent::internalHopArrived($document, $next->action),
         );
 
@@ -248,6 +264,18 @@ class RequestStepController extends Controller
 
     private function validateAction(Request $request, bool $remarksRequired): void
     {
+        // A soft copy has no folder or sticker to scan; the decision stands on
+        // the signed-in person the request reached.
+        if ($request->route('document')?->isSoftCopy()) {
+            $request->validate([
+                'remarks' => [$remarksRequired ? 'required' : 'nullable', 'string', 'max:500'],
+            ], [
+                'remarks.required' => 'Explain the decision so the filing office knows what to fix.',
+            ]);
+
+            return;
+        }
+
         $request->validate([
             // Either the folder's QR is scanned, or a written reason is given for
             // why it could not be. One of the two is always required: a decision
@@ -281,6 +309,10 @@ class RequestStepController extends Controller
      */
     private function confirmScannedFolder(Request $request, Document $document): void
     {
+        if ($document->isSoftCopy()) {
+            return;
+        }
+
         $override = trim((string) $request->input('scan_override_reason'));
 
         // The hidden scan field always posts, so an unscanned folder arrives as

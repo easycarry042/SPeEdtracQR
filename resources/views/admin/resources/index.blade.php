@@ -19,7 +19,9 @@
                     <thead>
                         <tr>
                             <th>Resource</th>
-                            <th>Bookings</th>
+                            <th>Awaiting approval</th>
+                            <th>Upcoming</th>
+                            <th>All bookings</th>
                             <th>Status</th>
                             <th></th>
                         </tr>
@@ -33,6 +35,14 @@
                                         <p class="mt-0.5 max-w-md truncate text-[11px] text-ink-soft">{{ $resource->description }}</p>
                                     @endif
                                 </td>
+                                <td>
+                                    @if($resource->pending_count > 0)
+                                        <span class="pill p-amber">{{ $resource->pending_count }} pending</span>
+                                    @else
+                                        <span class="muted">0</span>
+                                    @endif
+                                </td>
+                                <td class="muted">{{ $resource->upcoming_count }}</td>
                                 <td class="muted">{{ $resource->bookings_count }}</td>
                                 <td>
                                     <span class="pill {{ $resource->is_active ? 'p-green' : 'p-muted' }}">{{ $resource->is_active ? 'Active' : 'Inactive' }}</span>
@@ -54,7 +64,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="py-10 text-center text-[13px] text-ink-soft">
+                                <td colspan="6" class="py-10 text-center text-[13px] text-ink-soft">
                                     No resources yet. Seed the defaults with <code class="code">php artisan db:seed --class=ResourceSeeder</code> or add one above.
                                 </td>
                             </tr>

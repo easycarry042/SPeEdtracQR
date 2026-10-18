@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -112,6 +113,21 @@ class InternalRequestController extends Controller
         $validated = $request->validate([
             'first_department_id' => ['required', 'exists:departments,id'],
             'purpose' => ['required', 'string', 'max:255'],
+            // Is there paper that will be carried to the first office? Without
+            // it there is no folder to scan in, so the filer names who receives
+            // the request there.
+            // Absent means paper, as every request was before the choice existed.
+            'has_hard_copy' => ['sometimes', 'boolean'],
+            'recipient_id' => [
+                Rule::requiredIf(fn (): bool => $request->has('has_hard_copy') && ! $request->boolean('has_hard_copy')),
+                'nullable',
+                'integer',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if ($value && ! InternalRequestForm::isRecipientAt((int) $value, (int) $request->input('first_department_id'))) {
+                        $fail('Choose someone who works in the first office.');
+                    }
+                },
+            ],
             // The signed paper is the request: filing without the scan leaves
             // the receiving office nothing to act on, so it is required.
             'paper_scan' => UploadRules::rules(required: true),
@@ -121,7 +137,12 @@ class InternalRequestController extends Controller
             'qr_size' => ['nullable', 'numeric', 'min:0.12', 'max:0.40'],
             // Which page of a multi-page PDF scan carries the stamp.
             'qr_page' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ], [
+            'recipient_id.required' => 'Without a hard copy, choose who in the first office receives this request.',
         ]);
+
+        $hasHardCopy = (bool) ($validated['has_hard_copy'] ?? true);
+        $recipientId = $hasHardCopy ? null : (int) $validated['recipient_id'];
 
         $firstDepartment = Department::active()->findOrFail($validated['first_department_id']);
 
@@ -129,7 +150,7 @@ class InternalRequestController extends Controller
         // distinctly from citizen tickets (SPD-).
         $trackingNumber = $this->qrCodeService->generateTrackingNumber('INT');
 
-        $document = DB::transaction(function () use ($validated, $firstDepartment, $department, $trackingNumber) {
+        $document = DB::transaction(function () use ($validated, $firstDepartment, $department, $trackingNumber, $hasHardCopy, $recipientId) {
             $document = Document::create([
                 'tracking_number' => $trackingNumber,
                 'document_type' => 'Internal Request',
@@ -138,6 +159,7 @@ class InternalRequestController extends Controller
                 'status_changed_at' => now(),
                 'source' => 'walk_in',
                 'origin' => Document::ORIGIN_INTERNAL,
+                'has_hard_copy' => $hasHardCopy,
                 'requesting_department_id' => $department->id,
                 'created_by' => auth()->id(),
             ]);
@@ -150,6 +172,7 @@ class InternalRequestController extends Controller
             $document->requestSteps()->create([
                 'step_order' => 1,
                 'department_id' => $firstDepartment->id,
+                'recipient_id' => $recipientId,
                 'action' => 'Review and action',
                 'status' => RequestStep::STATUS_CURRENT,
                 'started_at' => now(),
@@ -157,12 +180,15 @@ class InternalRequestController extends Controller
 
             // The filing office physically holds the paper it just created; the
             // trail starts with it. The receiving office still scans the folder
-            // to take custody before acting (custody is per department).
-            $document->custodyEvents()->create([
-                'user_id' => auth()->id(),
-                'capture_method' => 'manual',
-                'override_reason' => 'Filing office holds the paper at submission.',
-            ]);
+            // to take custody before acting (custody is per department). A soft
+            // copy has no paper, so no trail.
+            if ($hasHardCopy) {
+                $document->custodyEvents()->create([
+                    'user_id' => auth()->id(),
+                    'capture_method' => 'manual',
+                    'override_reason' => 'Filing office holds the paper at submission.',
+                ]);
+            }
 
             return $document;
         });
@@ -215,19 +241,23 @@ class InternalRequestController extends Controller
             }
         }
 
+        $firstStep = $document->requestSteps()->with('recipient')->first();
+
         $document->logSystemComment(sprintf(
-            'Internal request filed by %s (%s), routed first to %s (%s).',
+            'Internal request filed by %s (%s), routed first to %s (%s)%s.',
             auth()->user()->name,
             $department->name,
             $firstDepartment->name,
             $firstDepartment->code,
+            $hasHardCopy ? '' : ' — soft copy only, received by '.($firstStep?->recipient?->name ?? 'the office'),
         ));
 
-        // Ping the first hop's supervisors: the paper is on its way to them.
-        $firstStep = $document->requestSteps()->first();
+        // Ping the first hop: its supervisors, and for a soft copy the person
+        // named to receive it. A paper request is on its way to them; a soft
+        // copy is already there.
         if ($firstStep) {
             Notification::send(
-                DocumentEvent::departmentSupervisors($firstStep->department_id, auth()->id()),
+                DocumentEvent::hopRecipients($firstStep, auth()->id()),
                 DocumentEvent::internalHopArrived($document, $firstStep->action),
             );
         }
@@ -244,9 +274,13 @@ class InternalRequestController extends Controller
         abort_unless(auth()->check(), 403);
         abort_unless($document->isInternal(), 404);
 
-        $document->load(['requestSteps.department', 'requestSteps.actedBy', 'requestingDepartment', 'attachments', 'creator']);
+        $document->load(['requestSteps.department', 'requestSteps.actedBy', 'requestSteps.recipient', 'requestingDepartment', 'attachments', 'creator']);
 
         $currentStep = $document->currentRequestStep();
+        $forwardDepartments = Department::active()
+            ->when($currentStep, fn ($query) => $query->where('id', '!=', $currentStep->department_id))
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
 
         // ?modal=1: just the detail, fetched into the modal on the Internal page.
         return view($request->boolean('modal') ? 'requests.detail-modal' : 'requests.show', [
@@ -258,10 +292,11 @@ class InternalRequestController extends Controller
             // hop was already queued when the request was filed.
             'queuedNextStep' => $document->requestSteps
                 ->firstWhere('status', RequestStep::STATUS_PENDING),
-            'forwardDepartments' => Department::active()
-                ->when($currentStep, fn ($query) => $query->where('id', '!=', $currentStep->department_id))
-                ->orderBy('name')
-                ->get(['id', 'name', 'code']),
+            'forwardDepartments' => $forwardDepartments,
+            // A soft copy is forwarded to a named person at the next office.
+            'forwardRecipients' => $document->isSoftCopy()
+                ? InternalRequestForm::recipients($forwardDepartments->pluck('id')->all())
+                : collect(),
             // Who scanned this folder, and when: the endorsement view has to
             // answer "who had this paper?" without digging through the audit log.
             'custodyTrail' => $document->custodyEvents()
@@ -272,12 +307,23 @@ class InternalRequestController extends Controller
         ]);
     }
 
+    /**
+     * Who can be named to receive a soft copy at one office — fetched by the
+     * filing form when that office is picked.
+     */
+    public function recipients(Department $department): JsonResponse
+    {
+        abort_unless($department->is_active, 404);
+
+        return response()->json(InternalRequestForm::recipients([$department->id])->get($department->id, []));
+    }
+
     public function created(Document $document): Factory|View
     {
         abort_unless(auth()->check(), 403);
         abort_unless($document->isInternal(), 404);
 
-        $document->load(['requestSteps.department', 'requestingDepartment', 'attachments']);
+        $document->load(['requestSteps.department', 'requestSteps.recipient', 'requestingDepartment', 'attachments']);
 
         return view('requests.created', ['document' => $document]);
     }

@@ -242,7 +242,7 @@
                         <template x-for="m in thread" :key="m.id">
                             <div :class="m.from === 'citizen' ? 'speedy-msg-user' : (m.from === 'system' ? 'speedy-msg-update' : 'speedy-msg-staff')">
                                 <span x-show="m.from === 'staff'" class="speedy-who-staff">
-                                    <span x-text="m.name"></span><span x-show="m.office" x-text="' · ' + m.office" class="font-semibold normal-case tracking-normal text-[#4b5a50]"></span>
+                                    <span x-text="m.name"></span>
                                     <span class="speedy-staff-mark">Staff</span>
                                 </span>
                                 <div class="speedy-bubble speedy-bubble-rich">

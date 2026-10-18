@@ -58,7 +58,13 @@
                         default => 'p-amber',
                     } }}" style="font-size:10px;padding:1px 7px;">{{ $badge['label'] }}</span>
                 </p>
-                <p class="text-[12px] text-ink-soft">{{ $step->action }}</p>
+                <p class="text-[12px] text-ink-soft">
+                    {{ $step->action }}
+                    {{-- A soft copy goes to a named person rather than a folder on a desk. --}}
+                    @if($step->recipient)
+                        · sent to <span class="font-semibold text-ink">{{ $step->recipient->name }}</span>
+                    @endif
+                </p>
 
                 @if($isCurrent)
                     <p class="mt-0.5 text-[12px] font-semibold text-status-amber">

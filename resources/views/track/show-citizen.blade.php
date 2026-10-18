@@ -87,10 +87,12 @@
                         <span id="statusLabel">{{ $document->statusEnum()->label() }}</span>
                     </span>
 
+                    {{-- The office, never the person: staff stay anonymous on
+                         every public surface (legal advice). --}}
                     <div>
                         <p class="cz-key">Handled by</p>
                         <p class="mt-0.5 text-[16px] font-semibold text-[#1a1b1a]" id="currentDept">
-                            {{ $document->assignedTo?->name ?? 'Not yet assigned' }}
+                            {{ $document->department?->name ?? 'Not yet routed' }}
                         </p>
                     </div>
                 </div>
@@ -217,7 +219,6 @@
                     @foreach([
                         'Office' => $document->department?->name ?? 'Not yet routed',
                         'Office code' => $document->department?->code ?? '—',
-                        'Staff assigned' => $document->assignedTo?->name ?? 'Not yet assigned',
                         'Requested by' => $document->citizen_name ?? '—',
                         'Email' => \App\Support\ContactMask::email($document->citizen_email) ?? '—',
                         'Contact number' => \App\Support\ContactMask::phone($document->citizen_contact) ?? '—',
@@ -624,7 +625,7 @@
             if (department) {
                 dept.textContent = department;
             } else if (department === null) {
-                dept.textContent = 'Not yet assigned';
+                dept.textContent = 'Not yet routed';
             }
             currentStatus = status;
         }

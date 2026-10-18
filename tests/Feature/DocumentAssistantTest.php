@@ -42,7 +42,9 @@ class DocumentAssistantTest extends TestCase
 
         $this->assertSame('fallback', $result['source']);
         $this->assertStringContainsString($doc->tracking_number, $result['answer']);
-        $this->assertStringContainsString('Ana Cruz', $result['answer']);
+        // Staff stay anonymous to the public: the office, never the person.
+        $this->assertStringContainsString('not been routed to an office', $result['answer']);
+        $this->assertStringNotContainsString('Ana Cruz', $result['answer']);
     }
 
     public function test_uses_llm_answer_when_provider_available(): void

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Document;
+use App\Models\RequestStep;
 use App\Models\User;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
@@ -157,6 +158,20 @@ class DocumentEvent extends Notification
             ->get();
     }
 
+    /**
+     * Who hears that an internal request reached an office: its supervisors,
+     * plus the person named to receive a soft copy there. Minus the actor.
+     */
+    public static function hopRecipients(RequestStep $step, ?int $excludeUserId = null): Collection
+    {
+        return self::departmentSupervisors($step->department_id, $excludeUserId)
+            ->when($step->recipient_id !== null && $step->recipient_id !== $excludeUserId,
+                fn (Collection $people) => $people->push(User::find($step->recipient_id)))
+            ->filter()
+            ->unique('id')
+            ->values();
+    }
+
     /** Everyone who triages/assigns (Supervisors + super_admin), minus the actor. */
     public static function supervisors(?int $excludeUserId = null): Collection
     {
@@ -167,8 +182,14 @@ class DocumentEvent extends Notification
 
     /**
      * Who triages a citizen ticket routed to a department: that department's
-     * assigning Supervisors plus all super admins (who see every department). No
-     * department → every triager. Excludes the actor when given.
+     * active assigning Supervisors. Excludes the actor when given.
+     *
+     * Super admins are told only when something is wrong — the ticket reached
+     * no office (its request type has none: every triager, super admins
+     * included, since any supervisor's desk shows it), or the office has no
+     * active supervisor to act on it. They used to be copied on every new
+     * ticket in the city, which buried those few in routine ones; the command
+     * center shows them the rest.
      */
     public static function departmentTriagers(?int $departmentId, ?int $excludeUserId = null): Collection
     {
@@ -178,14 +199,21 @@ class DocumentEvent extends Notification
 
         $deptSupervisors = User::permission('assign documents')
             ->where('department_id', $departmentId)
-            ->get();
+            ->where('is_active', true)
+            ->get()
+            ->reject(fn (User $u): bool => $u->can('manage system'));
 
-        $superAdmins = User::permission('manage system')->get();
+        $recipients = $deptSupervisors->isNotEmpty() ? $deptSupervisors : self::superAdmins();
 
-        return $deptSupervisors->merge($superAdmins)
-            ->unique('id')
+        return $recipients
             ->when($excludeUserId !== null, fn (Collection $c) => $c->reject(fn (User $u) => $u->id === $excludeUserId))
             ->values();
+    }
+
+    /** @return Collection<int, User> */
+    public static function superAdmins(): Collection
+    {
+        return User::permission('manage system')->where('is_active', true)->get();
     }
 
     public function via(object $notifiable): array

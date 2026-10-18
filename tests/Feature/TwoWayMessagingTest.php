@@ -429,11 +429,11 @@ class TwoWayMessagingTest extends TestCase
 
     // ── Who the citizen sees as the sender ──────────────────────────────────
     //
-    // Staff are named on the citizen thread, the same way the page already names
-    // the assignee under "Handled by". The property that must survive that: an
-    // INTERNAL note's author is still never named publicly.
+    // Staff stay anonymous to the public (legal advice): a reply is signed by
+    // the office, never the person, and still marked as staff rather than the
+    // automated assistant.
 
-    public function test_the_citizen_sees_which_staff_member_answered(): void
+    public function test_the_citizen_sees_which_office_answered_never_who(): void
     {
         $office = Department::create(['name' => 'Business Permits Office', 'code' => 'BPLO', 'is_active' => true]);
         $supervisor = User::factory()->create(['is_active' => true, 'name' => 'Ana Cruz', 'department_id' => $office->id])->assignRole('Supervisor');
@@ -449,14 +449,30 @@ class TwoWayMessagingTest extends TestCase
 
         $reply = collect($this->thread())->firstWhere('body', 'Your permit is ready for pickup.');
 
-        // A person, named, with their office, and marked as staff — never
-        // passed off as the automated assistant.
         $this->assertSame('staff', $reply['from']);
-        $this->assertSame('Ana Cruz', $reply['name']);
-        $this->assertSame('Business Permits Office', $reply['office']);
+        $this->assertSame('Business Permits Office', $reply['name']);
+        $this->assertStringNotContainsString('Ana Cruz', json_encode($this->thread()));
     }
 
-    public function test_naming_staff_publicly_does_not_expose_an_internal_notes_author(): void
+    public function test_a_reply_from_someone_without_an_office_is_signed_by_the_requests_office(): void
+    {
+        // A super admin belongs to no department.
+        $office = Department::create(['name' => 'General Services Office', 'code' => 'GSO', 'is_active' => true]);
+        $this->document->update(['department_id' => $office->id]);
+        $admin = User::factory()->create(['is_active' => true, 'name' => 'Root Admin', 'department_id' => null]);
+
+        $this->document->comments()->create([
+            'author_id' => $admin->id,
+            'author_type' => DocumentComment::AUTHOR_STAFF,
+            'author_name' => $admin->name,
+            'body' => 'We are on it.',
+            'visibility' => DocumentComment::VISIBILITY_PUBLIC,
+        ]);
+
+        $this->assertSame('General Services Office', collect($this->thread())->firstWhere('body', 'We are on it.')['name']);
+    }
+
+    public function test_no_staff_name_reaches_the_citizen_thread(): void
     {
         $hidden = User::factory()->create(['is_active' => true, 'name' => 'Ramon Dela Cruz'])->assignRole('staff');
         $answering = User::factory()->create(['is_active' => true, 'name' => 'Ana Cruz'])->assignRole('staff');
@@ -476,10 +492,10 @@ class TwoWayMessagingTest extends TestCase
             'visibility' => DocumentComment::VISIBILITY_PUBLIC,
         ]);
 
-        $names = array_column($this->thread(), 'name');
+        $thread = json_encode($this->thread());
 
-        $this->assertContains('Ana Cruz', $names);
-        $this->assertNotContains('Ramon Dela Cruz', $names);
+        $this->assertStringNotContainsString('Ana Cruz', $thread);
+        $this->assertStringNotContainsString('Ramon Dela Cruz', $thread);
     }
 
     public function test_the_citizen_sees_their_own_message_as_you_and_a_system_entry_as_update(): void
@@ -515,11 +531,10 @@ class TwoWayMessagingTest extends TestCase
 
         $orphan = collect($this->thread())->firstWhere('body', 'Posted before author names were recorded.');
 
-        $this->assertSame('Staff', $orphan['name']);
-        $this->assertNull($orphan['office']);
+        $this->assertSame('City Hall', $orphan['name']);
     }
 
-    public function test_the_citizen_email_names_the_staff_member_who_replied(): void
+    public function test_the_citizen_email_does_not_name_the_staff_member_who_replied(): void
     {
         $this->actingAs($this->staff)
             ->post(route('documents.comments.store', $this->document), [
@@ -528,7 +543,7 @@ class TwoWayMessagingTest extends TestCase
             ])->assertRedirect();
 
         Mail::assertQueued(StaffMessage::class, function (StaffMessage $mail): bool {
-            return str_contains($mail->render(), 'Jose Reyes');
+            return ! str_contains($mail->render(), 'Jose Reyes');
         });
     }
 

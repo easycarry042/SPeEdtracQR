@@ -31,15 +31,16 @@ class TrackingDetailsTest extends TestCase
         return [$dept, $staff, $doc];
     }
 
-    public function test_public_tracking_page_shows_department_thed_and_assignee(): void
+    public function test_public_tracking_page_shows_department_but_never_the_assignee(): void
     {
         [$dept, $staff, $doc] = $this->routedDocument();
 
+        // Staff stay anonymous to the public: the office, never the person.
         $this->get(route('track.show', $doc->tracking_number))
             ->assertOk()
             ->assertSee('BPLO')
             ->assertSee('Business Permits Office')
-            ->assertSee('Juan Dela Cruz')
+            ->assertDontSee('Juan Dela Cruz')
             ->assertSee('Maria Santos');
     }
 

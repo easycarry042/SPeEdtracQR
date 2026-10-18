@@ -76,6 +76,18 @@ class SpeedyTest extends TestCase
         }
     }
 
+    public function test_every_page_with_speedy_hides_its_panel_until_alpine_starts(): void
+    {
+        // The landing page and the request form have their own <head>. They
+        // lacked the x-cloak rule, so on a slow load Speedy's whole panel —
+        // scanner, contact form and all — flashed open until Alpine started.
+        foreach ([route('welcome'), route('public.request.create'), $this->document()->citizenTrackingUrl()] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertSee('<style>[x-cloak]{display:none!important}</style>', false);
+        }
+    }
+
     public function test_a_page_about_one_request_starts_speedy_on_it(): void
     {
         $document = $this->document();

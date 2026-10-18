@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\ActivityLine;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class AuditLogController extends Controller
 {
     public function index(Request $request): Factory|View
     {
-        $query = Activity::with('causer')->latest();
+        $query = ActivityLine::withoutEmptyUpdates(Activity::with(['causer', 'subject'])->latest()->latest('id'));
 
         if ($userId = $request->get('user')) {
             $query->where('causer_id', $userId)

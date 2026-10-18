@@ -41,6 +41,7 @@ class RequestStep extends Model
         'document_id',
         'step_order',
         'department_id',
+        'recipient_id',
         'action',
         'status',
         'acted_by',
@@ -63,6 +64,12 @@ class RequestStep extends Model
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /** Who the filing (or forwarding) office named to receive a soft copy here. */
+    public function recipient()
+    {
+        return $this->belongsTo(User::class, 'recipient_id');
     }
 
     public function actedBy()

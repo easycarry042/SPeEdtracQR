@@ -28,13 +28,9 @@
         <span class="{{ $label }}">Dashboard</span>
     </a>
     {{-- Analytics is folded into the command-center Dashboard for super admins.
-         History moved into the account menu (header-actions). --}}
-    <a href="{{ route('staff.index') }}" {!! $row(request()->routeIs('staff.index')) !!}>
-        <span class="{{ $glyph }}">
-            <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>
-        </span>
-        <span class="{{ $label }}">Staff</span>
-    </a>
+         History moved into the account menu (header-actions). The Staff
+         directory was folded into Users (same people, now with their
+         workload), and the Services report into the Dashboard and Resources. --}}
     @can('manage users')
         <a href="{{ route('admin.users.index') }}" {!! $row(request()->routeIs('admin.users*')) !!}>
             <span class="{{ $glyph }}">
@@ -45,14 +41,6 @@
     @endcan
     {{-- Assignments + Bookings intentionally omitted: assignment is handled
          inline on the command-center dashboard, and Bookings is owned by staff. --}}
-    @can('view reports')
-        <a href="{{ route('reports.services') }}" {!! $row(request()->routeIs('reports.services')) !!}>
-            <span class="{{ $glyph }}">
-                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m3 6V7m3 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-            </span>
-            <span class="{{ $label }}">Services report</span>
-        </a>
-    @endcan
     @can('manage system')
         <a href="{{ route('requests.index') }}" {!! $row(request()->routeIs('requests.*')) !!}>
             <span class="{{ $glyph }}">
@@ -60,6 +48,16 @@
             </span>
             <span class="{{ $label }}">Internal Requests</span>
         </a>
+        <a href="{{ route('admin.audit-log.index') }}" {!! $row(request()->routeIs('admin.audit-log*')) !!}>
+            <span class="{{ $glyph }}">
+                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 002 2h2a2 2 0 002-2M9 4a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </span>
+            <span class="{{ $label }}">Audit Log</span>
+        </a>
+
+        {{-- Configuration, visited when something is being set up rather
+             than every day — grouped under its own heading. --}}
+        <p class="sb-section sb-subsection">Setup</p>
         <a href="{{ route('admin.departments.index') }}" {!! $row(request()->routeIs('admin.departments*')) !!}>
             <span class="{{ $glyph }}">
                 <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M4 21V7l8-4 8 4v14M9 9h1m4 0h1M9 13h1m4 0h1M9 17h1m4 0h1"/></svg>
@@ -83,12 +81,6 @@
                 <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             </span>
             <span class="{{ $label }}">Resources</span>
-        </a>
-        <a href="{{ route('admin.audit-log.index') }}" {!! $row(request()->routeIs('admin.audit-log*')) !!}>
-            <span class="{{ $glyph }}">
-                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 002 2h2a2 2 0 002-2M9 4a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-            </span>
-            <span class="{{ $label }}">Audit Log</span>
         </a>
     @endcan
 @else

@@ -42,6 +42,7 @@
                                 $ip      = $props->get('ip', '—');
                                 $isAuth  = $log->log_name === 'auth';
                                 $isLogin = str_contains(strtolower($log->description), 'logged in');
+                                $line    = \App\Support\ActivityLine::describe($log);
                             @endphp
                             <tr class="transition hover:bg-gray-50/60">
                                 <td class="whitespace-nowrap px-4 py-3.5 text-sm text-gray-700">
@@ -65,15 +66,17 @@
                                         </span>
                                     @else
                                         <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                                            {{ ucfirst($log->event ?? 'change') }}
+                                            {{ match ($log->event) { 'created' => 'Created', 'updated' => 'Edited', 'deleted' => 'Deleted', default => 'Action' } }}
                                         </span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3.5 text-sm text-gray-600">
-                                    {{ $log->description }}
-                                    @if($log->subject_type && $log->subject_type !== \App\Models\User::class)
-                                        <span class="ml-1 text-xs text-gray-400">({{ class_basename($log->subject_type) }} #{{ $log->subject_id }})</span>
+                                    {{-- The tracking number, not "Document #19": the number
+                                         people search for (App\Support\ActivityLine). --}}
+                                    @if($line['subject'])
+                                        <span class="mr-1 font-mono text-xs text-gray-500">{{ $line['subject'] }}</span>
                                     @endif
+                                    {{ $line['action'] }}@if($line['detail']) <span class="font-medium text-gray-800">{{ $line['detail'] }}</span>@endif
                                 </td>
                                 <td class="px-4 py-3.5 font-mono text-xs text-gray-500">
                                     {{ $ip }}

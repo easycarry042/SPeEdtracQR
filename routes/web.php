@@ -324,6 +324,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/requests', [InternalRequestController::class, 'index'])->name('requests.index');
     Route::middleware('permission:create internal requests')->group(function () {
         Route::get('/requests/create', [InternalRequestController::class, 'create'])->name('requests.create');
+        // Who can receive a soft copy at the office picked in the filing form.
+        Route::get('/requests/recipients/{department}', [InternalRequestController::class, 'recipients'])->name('requests.recipients');
         Route::post('/requests', [InternalRequestController::class, 'store'])->name('requests.store');
         // PDF scans are QR-stamped in the browser (no PDF toolchain on the
         // server); this stores the result the confirmation screen produces.
@@ -332,9 +334,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
     Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
 
-    // Hop actions on the endorsement chain (current-department supervisors only;
-    // each action re-confirms the password, approval affixes the e-signature).
-    Route::middleware('permission:act on internal requests')->group(function () {
+    // Hop actions on the endorsement chain: the current office's supervisors,
+    // or the person named to receive a soft copy there. Gated per request in
+    // RequestStepController (Document::canActOnCurrentStep), not by a role
+    // here, since a named staff recipient holds no supervisor permission.
+    Route::group([], function () {
         Route::post('/requests/{document}/steps/approve', [RequestStepController::class, 'approve'])->name('requests.steps.approve');
         Route::post('/requests/{document}/steps/deny', [RequestStepController::class, 'deny'])->name('requests.steps.deny');
         Route::post('/requests/{document}/steps/return', [RequestStepController::class, 'returnToRequester'])->name('requests.steps.return');

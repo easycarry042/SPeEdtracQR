@@ -321,13 +321,13 @@ class TrackController extends Controller
 
     public function status($trackingNumber)
     {
-        $document = Document::with('assignedTo')->where('tracking_number', $trackingNumber)->firstOrFail();
+        $document = Document::with('department')->where('tracking_number', $trackingNumber)->firstOrFail();
 
         return response()->json([
             'status' => $document->status,
-            // "Handled by" value for the citizen page. In the manual model this
-            // is the assigned staff member (null → "Not yet assigned").
-            'current_department' => $document->assignedTo?->name,
+            // "Handled by" on the citizen page: the handling office, never the
+            // staff member — staff stay anonymous to the public.
+            'current_department' => $document->department?->name,
             'updated_at' => $document->updated_at?->toISOString(),
         ]);
     }

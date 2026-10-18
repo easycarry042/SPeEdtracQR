@@ -69,7 +69,7 @@
                             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7.5V12l3 2"/></svg>
                             <span>
                                 @if($currentStep)
-                                    Awaiting <span class="font-semibold text-ink">{{ $currentStep->department?->name }}</span> — {{ $currentStep->action }}.
+                                    Awaiting <span class="font-semibold text-ink">{{ $currentStep->department?->name }}</span>@if($currentStep->recipient) ({{ $currentStep->recipient->name }})@endif — {{ $currentStep->action }}.
                                     @if($currentStep->started_at)
                                         There since {{ $currentStep->started_at->diffForHumans() }}.
                                     @endif
@@ -89,7 +89,9 @@
                         </div>
                     </section>
 
-                    {{-- Who scanned this folder: every custody hand-off, newest first. --}}
+                    {{-- Who scanned this folder: every custody hand-off, newest first.
+                         A soft copy has no folder, so no trail. --}}
+                    @unless($document->isSoftCopy())
                     <section class="mt-7">
                         <h2 class="dm-section">Scan Trail</h2>
                         <ul class="dm-logs">
@@ -113,12 +115,14 @@
                             @endforelse
                         </ul>
                     </section>
+                    @endunless
 
                     <section class="mt-7">
                         <h2 class="dm-section">More Info</h2>
                         <dl class="dm-info">
                             <div class="dm-info-row"><dt>What is requested</dt><dd>{{ $document->purpose }}</dd></div>
                             <div class="dm-info-row"><dt>Route</dt><dd>{{ $document->document_type }}</dd></div>
+                            <div class="dm-info-row"><dt>Copy</dt><dd>{{ $document->isSoftCopy() ? 'Soft copy only — no paper folder' : 'Hard copy — paper folder, scanned at each office' }}</dd></div>
                             <div class="dm-info-row"><dt>Filed by</dt><dd>{{ $document->creator?->name ?? '—' }} · {{ $document->requestingDepartment?->name }}</dd></div>
                             <div class="dm-info-row"><dt>Filed on</dt><dd>{{ $document->created_at->format('M j, Y g:i A') }}</dd></div>
                         </dl>
@@ -177,10 +181,10 @@
             @elseif($canAct && $currentStep)
                 @php $hasSignature = (bool) auth()->user()->signature_path; @endphp
                 <section class="dm-card dm-page-card dm-decision @if($inModal) dm-in-modal @endif lg:sticky lg:top-24"
-                         x-data="{ mode: 'approve', denyAck: false, hasSignature: {{ $hasSignature ? 'true' : 'false' }} }">
+                         x-data="{ mode: 'approve', denyAck: false, hasSignature: {{ $hasSignature ? 'true' : 'false' }}, nextDept: @js((string) old('next_department_id', '')) }">
                     <div class="dm-head">
                         <div class="min-w-0">
-                            <h2 class="dm-section">Your office holds this request</h2>
+                            <h2 class="dm-section">{{ (int) $currentStep->recipient_id === (int) auth()->id() ? 'This request was sent to you' : 'Your office holds this request' }}</h2>
                             <p class="text-[length:var(--fs-caption)] text-ink-soft">{{ $currentStep->action }}</p>
                         </div>
                     </div>
@@ -254,7 +258,7 @@
                                         <label for="next-department" class="block text-[13px] font-semibold text-ink">
                                             Send to which office next? <span class="text-status-red">*</span>
                                         </label>
-                                        <select id="next-department" name="next_department_id"
+                                        <select id="next-department" name="next_department_id" x-model="nextDept"
                                                 :required="mode === 'approve'"
                                                 class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('next_department_id') border-status-red @enderror">
                                             <option value="">Select a department…</option>
@@ -266,6 +270,26 @@
                                         </select>
                                         <p class="mt-1 text-[12px] text-ink-soft">If your office is the last to handle this, use <strong>Done</strong> instead.</p>
                                         @error('next_department_id')<p class="mt-1 text-[12px] font-semibold text-status-red">{{ $message }}</p>@enderror
+
+                                        {{-- No paper to hand across, so name who receives
+                                             it there — as the filing office did. --}}
+                                        @if($document->isSoftCopy())
+                                            <div class="mt-3" x-data="{ people: @js($forwardRecipients ?? (object) []), chosen: @js((string) old('next_recipient_id', '')) }">
+                                                <label for="next-recipient" class="block text-[13px] font-semibold text-ink">
+                                                    Who in that office receives it? <span class="text-status-red">*</span>
+                                                </label>
+                                                <select id="next-recipient" name="next_recipient_id" x-model="chosen"
+                                                        :required="mode === 'approve'" :disabled="! nextDept"
+                                                        class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('next_recipient_id') border-status-red @enderror">
+                                                    <option value="" x-text="nextDept ? 'Select a person…' : 'Choose the office first'"></option>
+                                                    <template x-for="person in (people[nextDept] ?? [])" :key="person.id">
+                                                        <option :value="person.id" x-text="`${person.name} · ${person.role}`" :selected="String(person.id) === chosen"></option>
+                                                    </template>
+                                                </select>
+                                                <p class="mt-1 text-[12px] text-ink-soft">This request has no paper copy, so it goes straight to the person you choose.</p>
+                                                @error('next_recipient_id')<p class="mt-1 text-[12px] font-semibold text-status-red">{{ $message }}</p>@enderror
+                                            </div>
+                                        @endif
                                     @endif
                                 </div>
 
@@ -287,7 +311,13 @@
 
                                 {{-- The decision is confirmed against the folder itself:
                                      scan this request's QR sticker. A code from another
-                                     request — or any foreign QR — is refused. --}}
+                                     request — or any foreign QR — is refused. A soft
+                                     copy has no folder, so there is nothing to scan. --}}
+                                @if($document->isSoftCopy())
+                                    <p class="rounded-[8px] border border-hairline bg-[#f6f8f7] px-3 py-2.5 text-[12.5px] text-ink-soft">
+                                        Soft copy only — there is no paper folder to scan. Your decision is recorded under your name.
+                                    </p>
+                                @else
                                 <div x-data="folderSign(@js($document->tracking_number))">
                                     <p class="block text-[13px] font-semibold text-ink">
                                         Scan this request's QR <span class="text-status-red">*</span>
@@ -354,6 +384,7 @@
                                         Sticker missing? <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="font-semibold underline">Print the QR</a>.
                                     </p>
                                 </div>
+                                @endif
 
                                 <button type="submit"
                                         :disabled="(mode === 'approve' && !hasSignature) || (mode === 'deny' && !denyAck)"

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\User;
+use App\Support\StaffLoad;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
@@ -34,7 +35,12 @@ class UserController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $roles = $this->assignableRoles();
 
-        return view('admin.users.index', ['users' => $users, 'roles' => $roles]);
+        // The staff directory's workload figures, so one page answers both
+        // "who is this account" and "what are they carrying" — the directory
+        // was a second list of the same people.
+        $load = StaffLoad::for($users->getCollection()->pluck('id'));
+
+        return view('admin.users.index', ['users' => $users, 'roles' => $roles, 'load' => $load]);
     }
 
     public function create(): Factory|View
