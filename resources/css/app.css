@@ -2112,6 +2112,8 @@ a.dm-thumb:hover { border-color: var(--green); }
     color: #245501;
 }
 .cc-panel-sub { margin-top: 2px; font-size: var(--fs-caption); color: var(--ink-soft); }
+/* Says what the tile row counts: the requests filed in the selected range. */
+.cc-tiles-caption { margin: 0 0 -6px; font-size: var(--fs-caption); color: var(--ink-soft); }
 .cc-panel-head { padding: 22px 28px 0; }
 .cc-panel-body { padding: 18px 28px 24px; }
 
@@ -2128,6 +2130,9 @@ a.dm-thumb:hover { border-color: var(--green); }
 .cc-donut { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
 .cc-legend { display: flex; flex-direction: column; gap: 18px; }
 .cc-legend-row { display: flex; align-items: center; gap: 14px; font-size: var(--fs-body); color: var(--ink); }
+/* A stage with nothing in it stays listed (the eight always read in the same
+   order) but steps back, so the stages that hold requests stand out. */
+.cc-legend-row.is-empty { opacity: .45; }
 .cc-legend-dot { width: 17px; height: 17px; border-radius: 9999px; flex: none; }
 .cc-legend-value { margin-left: auto; padding-left: 12px; font-weight: 700; color: var(--green-deep); }
 
@@ -2625,6 +2630,11 @@ a.dm-thumb:hover { border-color: var(--green); }
 .an-grid > * { min-width: 0; }
 .an-grid > .panel { display: flex; flex-direction: column; height: 100%; }
 .an-grid > .panel > .pb { flex: 1; }
+/* The command centre's chart cards wear the panels above them (.cc-panel), so
+   the page reads as one set of cards instead of two styles stacked. */
+.an-grid > .cc-panel { height: 100%; }
+.an-grid > .cc-panel > .cc-panel-body { flex: 1; }
+.cc-panel-table { margin-top: 14px; border-top: 1px solid rgba(0, 64, 4, .12); }
 .an-span-2 { grid-column: span 2; }
 .an-span-3 { grid-column: span 3; }
 .an-span-4 { grid-column: span 4; }
@@ -3149,6 +3159,156 @@ a.dm-thumb:hover { border-color: var(--green); }
     .steps.steps-cz { padding-inline: 44px; }
     .steps-cz .stp .cap { width: 88px; font-size: 14px; }
 }
+
+/* ── Speedy, the citizen assistant (components/speedy.blade.php) ──────────
+   Every bot line is labelled "Speedy": it is automated, and a citizen must be
+   able to tell its best-effort answers from anything official. */
+.speedy-msg-bot { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.speedy-msg-user { display: flex; justify-content: flex-end; }
+.speedy-who { padding-left: 4px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--cz-green); }
+.speedy-bubble {
+    max-width: 88%;
+    white-space: pre-line;
+    border-radius: 16px;
+    padding: .55rem .85rem;
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.speedy-msg-bot .speedy-bubble { border-top-left-radius: 6px; background: var(--cz-mint); color: #1a1b1a; }
+/* A bubble holding markup (text + attachment link): keep the citizen's own
+   line breaks in the text, not the template's indentation around it. */
+.speedy-bubble-rich { white-space: normal; }
+.speedy-bubble-rich > p { white-space: pre-line; }
+.speedy-msg-user .speedy-bubble { border-top-right-radius: 6px; background: var(--cz-green); color: #fff; }
+.speedy-chip {
+    min-height: 36px;
+    border: 1px solid rgba(1, 114, 26, .22);
+    border-radius: 9999px;
+    background: #fff;
+    padding: .35rem .85rem;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--cz-deep);
+    text-align: left;
+    touch-action: manipulation;
+    transition: background-color .15s ease;
+}
+.speedy-chip:hover { background: var(--cz-wash); }
+.speedy-chip:focus-visible { outline: 3px solid var(--cz-green); outline-offset: 2px; }
+.speedy-chip-strong { background: var(--cz-wash); }
+
+.speedy-log { max-height: min(19rem, calc(100dvh - 24rem)); min-height: 4rem; }
+
+.speedy-icon-btn {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(0, 64, 4, .3);
+    border-radius: 9999px;
+    color: var(--cz-deep);
+    touch-action: manipulation;
+    transition: background-color .15s ease;
+}
+.speedy-icon-btn:hover { background: var(--cz-wash); }
+.speedy-icon-btn:focus-visible,
+.speedy-icon-btn:focus-within { outline: 3px solid var(--cz-green); outline-offset: 2px; }
+
+/* "Speedy" | "Office messages": the robot and the people, never mixed. */
+.speedy-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgba(0, 64, 4, .08); padding: 6px 12px 0; }
+.speedy-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    border-bottom: 3px solid transparent;
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--cz-muted);
+    touch-action: manipulation;
+}
+.speedy-tab[aria-selected="true"] { border-bottom-color: var(--cz-green); color: var(--cz-deep); }
+.speedy-tab:focus-visible { outline: 3px solid var(--cz-green); outline-offset: -3px; border-radius: 8px; }
+
+/* Unread counts: on the tab, the waiting-replies row and the launcher. */
+.speedy-count {
+    display: inline-flex;
+    min-width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: #c62828;
+    padding: 0 6px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #fff;
+}
+.speedy-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    display: flex;
+    min-width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    border-radius: 9999px;
+    background: #c62828;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+}
+.speedy-waiting {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(198, 40, 40, .25);
+    border-radius: 14px;
+    background: #fff5f5;
+    padding: 10px 12px;
+    font-size: 14px;
+}
+.speedy-waiting:focus-visible { outline: 3px solid var(--cz-green); outline-offset: 2px; }
+
+/* The office's side of the conversation: a person, named, marked as staff. */
+.speedy-msg-staff { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.speedy-msg-staff .speedy-bubble { border-top-left-radius: 6px; border: 1px solid rgba(0, 64, 4, .14); background: #fff; color: #1a1b1a; }
+.speedy-msg-user { flex-direction: column; align-items: flex-end; gap: 3px; }
+.speedy-msg-update { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.speedy-msg-update .speedy-bubble { max-width: 94%; background: #fff7e6; color: #5c3d00; font-size: 14px; text-align: center; }
+.speedy-who-staff { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 4px; font-size: 13px; font-weight: 800; color: var(--cz-deep); }
+.speedy-staff-mark {
+    border-radius: 9999px;
+    background: var(--cz-deep);
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #fff;
+}
+.speedy-time { padding-inline: 4px; font-size: 11.5px; color: var(--cz-muted); }
+.speedy-attachment {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    max-width: 100%;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.speedy-msg-user .speedy-attachment { color: #fff; }
+.speedy-msg-staff .speedy-attachment { color: var(--cz-green); }
 
 /* ── "Submit a request" form controls ───────────────────────────────────────
    The request form's pieces, restyled from the frosted-glass Figma frames to

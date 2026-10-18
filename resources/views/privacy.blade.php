@@ -21,7 +21,7 @@
         'contact' => 'Contact and complaints',
     ];
 @endphp
-<x-citizen-layout hide-speedy>
+<x-citizen-layout>
     <x-slot name="title">Privacy Notice</x-slot>
 
     <article class="mx-auto max-w-[760px] pb-6 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">

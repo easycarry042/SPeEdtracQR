@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\CitizenThreadChanged;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,6 +48,20 @@ class DocumentComment extends Model
         'staff_read_at' => 'datetime',
         'citizen_read_at' => 'datetime',
     ];
+
+    /**
+     * Any citizen-visible message — a staff reply, a system update, the
+     * citizen's own — pings the request's public channel so an open Speedy
+     * refreshes. The ping carries no content (see CitizenThreadChanged).
+     */
+    protected static function booted(): void
+    {
+        static::created(function (DocumentComment $comment): void {
+            if ($comment->isPublic() && $comment->document) {
+                CitizenThreadChanged::dispatch($comment->document, (string) $comment->author_type);
+            }
+        });
+    }
 
     public function document(): BelongsTo
     {

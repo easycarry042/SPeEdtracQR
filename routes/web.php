@@ -36,6 +36,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
 use App\Http\Controllers\ServiceReportController;
 use App\Http\Controllers\SignatureController;
+use App\Http\Controllers\SpeedyController;
 use App\Http\Controllers\StaffBadgeController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\StaffProfileController;
@@ -137,13 +138,19 @@ Route::post('/track/{trackingNumber}/upload', [CitizenDocumentUploadController::
 Route::post('/track/{trackingNumber}/requirements/{requirement}/reupload', [CitizenDocumentUploadController::class, 'reupload'])
     ->middleware('throttle:12,1')
     ->name('track.requirement-reupload');
-// Citizen ↔ staff conversation. Reading the thread needs only the tracking
-// number; POSTING requires confirming a contact detail on the request first
-// (see App\Support\CitizenThreadAccess), so a forwarded link cannot speak as
-// the requester. Throttled like every other public write.
+// Citizen ↔ staff conversation, in Speedy's "Office messages" tab. Reading and
+// posting both require confirming a contact detail on the request first (see
+// App\Support\CitizenThreadAccess): a tracking number is printed on slips and
+// stickers, so it alone must not open the conversation or speak in it.
+// Throttled like every other public write.
 Route::post('/track/{trackingNumber}/verify-contact', [CitizenMessageController::class, 'verify'])
     ->middleware('throttle:10,1')
     ->name('track.messages.verify');
+// Reading the thread needs the same confirmation as writing it (it used to
+// need only the tracking number). JSON, for Speedy's "Office messages" tab.
+Route::get('/track/{trackingNumber}/messages', [CitizenMessageController::class, 'thread'])
+    ->middleware('throttle:60,1')
+    ->name('track.messages.index');
 Route::post('/track/{trackingNumber}/messages', [CitizenMessageController::class, 'store'])
     ->middleware('throttle:12,1')
     ->name('track.messages.store');
@@ -155,6 +162,17 @@ Route::get('/track/messages/{comment}/attachment', [CitizenMessageController::cl
 Route::post('/track/{trackingNumber}/ask', [DocumentAssistantController::class, 'ask'])
     ->middleware('throttle:20,1')
     ->name('track.ask');
+
+// Speedy, the assistant on every citizen page: the site FAQ and services
+// catalogue, or one request once its tracking number is given.
+Route::post('/speedy/ask', [SpeedyController::class, 'ask'])
+    ->middleware('throttle:20,1')
+    ->name('speedy.ask');
+// Unread office messages for the requests this browser has confirmed — the
+// badge on Speedy's launcher.
+Route::get('/speedy/inbox', [SpeedyController::class, 'inbox'])
+    ->middleware('throttle:60,1')
+    ->name('speedy.inbox');
 
 // Public authenticity check — the signed QR on an issued document lands here.
 Route::get('/verify/{trackingNumber}', [VerificationController::class, 'show'])

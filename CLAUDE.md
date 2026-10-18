@@ -83,6 +83,30 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 - **Active layout**: `resources/views/layouts/app.blade.php` is the live shell (collapsible icon+label sidebar). Track/scan views live under their subdirectories (`resources/views/track/`, `resources/views/scan/`).
 - `QrCodeService` requires the PHP `gd` extension. Check with `php -m | grep gd`; install via `sudo apt-get install php-gd` if missing.
+- **QR codes are signed** (`App\Support\TrackingQr`, payload `SPDQR1:…`) so only this site can read them; `window.SpeedQr` (`resources/views/partials/qr-scan-helpers.blade.php`) is the one scanner helper. A square camera box must use `.qr-viewport` + `.qr-surface` — never `object-fit: cover` on the video, which distorts what html5-qrcode decodes.
+
+### Citizen-facing pages
+
+- **One look.** Landing, request form, receipt, track lookup, tracking result and privacy notice share the "Citizen surface set" in `resources/css/app.css` (`cz-*` classes: `cz-card`, `cz-btn cz-btn-primary/secondary`, `cz-title`, …), the header `layouts/partials/portal-header.blade.php` (landing passes `landing: true`) and `<x-page-intro>`. Use these, not new one-off styles.
+- `/citizen` (the old portal page) only redirects to the landing page (`CitizenView::homeUrl()`). Citizen links carry `?view=citizen` so a staff login on a shared counter PC can't divert them.
+- The public tracking page masks email/phone (`App\Support\ContactMask`). Internal (`INT-`) requests are "not found" on every public surface, including Speedy.
+- The site FAQ lives in `App\Support\SiteFaq` — the landing page and Speedy both read it.
+
+### Speedy (citizen assistant + office messaging)
+
+- `<x-speedy>` (`resources/views/components/speedy.blade.php`) is on every citizen page; pages about one request pass it via `<x-citizen-layout :speedy-document="$document">`. Endpoint `POST /speedy/ask` (`SpeedyController`): `SiteAssistant` (FAQ + requirements, LLM last) until a tracking number is typed/scanned, then `DocumentAssistant`. Shared helpers in `app/Support/Ai/`.
+- Two tabs: "Speedy" (automated, always labelled so) and "Office messages" (real staff, named with office + STAFF mark). Never present staff replies as the bot.
+- The citizen↔staff thread is read **and** written only after the citizen confirms the email/mobile on file (`CitizenThreadAccess`). Logic in `App\Support\CitizenThread`; JSON endpoints `track.messages.index/verify/store`, unread badge from `GET /speedy/inbox`. The public channel `documents.{tracking}` only carries the content-free `CitizenThreadChanged` ping; full messages go to the private staff channel only. The reply email links to `?speedy=messages`.
+
+### Super admin command center (`/admin/dashboard`)
+
+- Numbers come from `App\Support\AdminAnalytics`. The six tiles read one cohort (requests filed in the selected range) plus Avg. Processing and Overdue; overdue/at-risk is decided only by `slaState()`. Durations are formatted with `App\Support\Duration`. On-time rate and "Fastest staff" were removed on purpose (no agreed target; speed rankings reward rushing). All panels use `cc-panel`.
+
+### Local dev notes (this machine)
+
+- XAMPP PHP 8.5 + MariaDB on port **3307** (see `.env`; never print `DB_PASSWORD`). Vite dev server writes `public/hot`; tests run on in-memory SQLite.
+- The landing page must render without a database query for ordinary visitors (`tests/Feature/ExampleTest.php` has no DB).
+- Working branch is `biddyblas` (the team merges it into `riskofrain`; fetch that with `git fetch origin riskofrain:refs/remotes/origin/riskofrain`). Leave `SKILL.md` and the local `package-lock.json` name change uncommitted.
 
 ## Manual Testing Checklist
 

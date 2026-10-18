@@ -376,11 +376,15 @@ class HoldBackstopTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Parked and past due')
+            ->assertSee('Parked and Past Due')
             ->assertSee($doc->tracking_number);
     }
 
-    public function test_admin_dashboard_shows_empty_state_when_no_hold_is_stalled(): void
+    /**
+     * A hold still inside its date is not news, so the panel stays off the
+     * page rather than showing an empty card every day.
+     */
+    public function test_admin_dashboard_leaves_the_panel_out_when_no_hold_is_stalled(): void
     {
         $this->seedRolesAndPermissions();
         $admin = User::factory()->create()->assignRole('super_admin');
@@ -391,6 +395,6 @@ class HoldBackstopTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('No stalled holds — every parked request is still inside its hold date.', false);
+            ->assertDontSee('Parked and Past Due');
     }
 }

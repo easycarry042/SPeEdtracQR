@@ -4,27 +4,27 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Events\DocumentCommentPosted;
-use App\Mail\CitizenMessage;
 use App\Models\Document;
 use App\Models\DocumentComment;
-use App\Notifications\DocumentEvent;
+use App\Support\CitizenThread;
 use App\Support\CitizenThreadAccess;
 use App\Support\UploadRules;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The citizen's half of the conversation.
+ * The citizen's half of the conversation, behind Speedy's "Office messages" tab.
  *
- * A citizen may read their request's thread with the tracking number alone, but
- * may only POST after confirming a detail already on the request (see
- * CitizenThreadAccess) — staff act on what this thread says, so a forwarded link
- * must not be able to speak as the requester.
+ * Reading and writing both need the citizen to confirm a detail already on the
+ * request (see CitizenThreadAccess). Writing always did — staff act on what this
+ * thread says, so a forwarded link must not speak as the requester. Reading
+ * used to need only the tracking number, but staff replies can carry personal
+ * details, and the number is printed on slips and QR stickers.
+ *
+ * Every action answers JSON for Speedy and redirects back for a plain form.
  *
  * Everything a citizen writes or reads here is visibility=public. Internal staff
  * notes are never loaded, never rendered, and never reachable from this
@@ -32,8 +32,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CitizenMessageController extends Controller
 {
-    /** Confirm the email or contact number on file, unlocking the composer. */
-    public function verify(Request $request, string $trackingNumber): RedirectResponse
+    /** Confirm the email or contact number on file, unlocking the thread. */
+    public function verify(Request $request, string $trackingNumber): RedirectResponse|JsonResponse
     {
         $document = $this->trackableDocument($trackingNumber);
 
@@ -52,11 +52,38 @@ class CitizenMessageController extends Controller
 
         CitizenThreadAccess::markVerified($request, $document);
 
+        if ($request->expectsJson()) {
+            return $this->thread($request, $trackingNumber);
+        }
+
         return back()->with('status', 'Verified — you can now message the office about this request.');
     }
 
+    /**
+     * The conversation, for a confirmed citizen. Opening it is reading it, so
+     * the office's messages stop counting as unread.
+     */
+    public function thread(Request $request, string $trackingNumber): JsonResponse
+    {
+        $document = $this->trackableDocument($trackingNumber);
+
+        if (! CitizenThreadAccess::isVerified($request, $document)) {
+            return response()->json([
+                'verified' => false,
+                'can_verify' => CitizenThreadAccess::canBeVerified($document),
+            ], 403);
+        }
+
+        CitizenThread::markRead($document);
+
+        return response()->json([
+            'verified' => true,
+            'messages' => CitizenThread::messages($document),
+        ]);
+    }
+
     /** Post a message (or a reply) in the citizen-visible thread. */
-    public function store(Request $request, string $trackingNumber): RedirectResponse
+    public function store(Request $request, string $trackingNumber): RedirectResponse|JsonResponse
     {
         $document = $this->trackableDocument($trackingNumber);
 
@@ -87,73 +114,18 @@ class CitizenMessageController extends Controller
             'body.required' => 'Write your message first.',
         ]);
 
-        $attachment = $this->storeAttachment($request, $document);
+        CitizenThread::post(
+            $document,
+            $validated['body'],
+            $request->file('attachment'),
+            $validated['parent_id'] ?? null,
+        );
 
-        $message = $document->comments()->create([
-            'author_id' => null,
-            'author_type' => DocumentComment::AUTHOR_CITIZEN,
-            'author_name' => $document->citizen_name,
-            'body' => $validated['body'],
-            'visibility' => DocumentComment::VISIBILITY_PUBLIC,
-            'parent_id' => $validated['parent_id'] ?? null,
-            // The citizen has obviously read their own message; staff have not.
-            'citizen_read_at' => now(),
-            'attachment_path' => $attachment['path'],
-            'attachment_name' => $attachment['name'],
-        ]);
-
-        activity()->performedOn($document)->log('Citizen posted a message on the request');
-
-        event(new DocumentCommentPosted($message));
-
-        $this->notifyStaff($document, $message);
+        if ($request->expectsJson()) {
+            return $this->thread($request, $trackingNumber);
+        }
 
         return back()->with('status', 'Message sent — the office will see it with your request.');
-    }
-
-    /**
-     * Store the optional attachment on the PRIVATE disk. Message attachments are
-     * served only through the gated route, never from a public URL.
-     *
-     * @return array{path: ?string, name: ?string}
-     */
-    private function storeAttachment(Request $request, Document $document): array
-    {
-        if (! $request->hasFile('attachment')) {
-            return ['path' => null, 'name' => null];
-        }
-
-        $file = $request->file('attachment');
-
-        return [
-            'path' => $file->store("message-attachments/{$document->tracking_number}", 'local'),
-            'name' => $file->getClientOriginalName(),
-        ];
-    }
-
-    /**
-     * Tell the office a citizen is waiting on an answer: the assignee gets the
-     * bell and an email; with nobody assigned yet, the triagers get the bell so
-     * the question is not left unread until assignment.
-     */
-    private function notifyStaff(Document $document, DocumentComment $message): void
-    {
-        $assignee = $document->assignedTo;
-
-        if ($assignee) {
-            $assignee->notify(DocumentEvent::citizenMessage($document, $message->body));
-
-            if ($assignee->email) {
-                Mail::to($assignee->email)->send(new CitizenMessage($message, $assignee));
-            }
-
-            return;
-        }
-
-        Notification::send(
-            DocumentEvent::departmentTriagers($document->department_id),
-            DocumentEvent::citizenMessage($document, $message->body),
-        );
     }
 
     /**

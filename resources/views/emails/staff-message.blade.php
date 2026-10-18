@@ -24,7 +24,8 @@
             request <strong>{{ $document->tracking_number }}</strong>:
         </p>
         <div class="msg">{{ $comment->body }}</div>
-        <div class="cta"><a href="{{ $trackingUrl }}">View your request</a></div>
+        <div class="cta"><a href="{{ $trackingUrl }}">Reply in Speedy</a></div>
+        <p style="font-size:13px;color:#5b6b62;">You'll be asked to confirm your email address or mobile number before the conversation opens.</p>
     </div>
     <div class="footer">SPeED TraQR · This is an automated message — please do not reply.</div>
 </div>

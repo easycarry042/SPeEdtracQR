@@ -219,33 +219,20 @@
                 Frequently asked <span class="text-[#01721a]">questions</span>
             </h2>
 
-            @php
-                $faqs = [
-                    ['q' => 'How can I track the status of my document or request?',
-                     'a' => 'Open the <a href="'.e($trackUrl).'" class="font-bold text-[#01721a] underline underline-offset-2 hover:text-[#004004]">Track page</a> and enter your tracking number, or scan the QR code from your confirmation email or printed slip.'],
-                    ['q' => 'Do I need an account to use SPeED TraQR?',
-                     'a' => 'No. Anyone can file and track a request without signing up. Keep your tracking number: it is how you follow your request and claim it.'],
-                    ['q' => 'Is my personal information safe when I track a document publicly?',
-                     'a' => 'Yes. In compliance with the Data Privacy Act of 2012 (RA&nbsp;10173), the public tracking page shows the document’s current status, location and routing history. Your email and phone number appear only partly hidden, and attached files are never shown.'],
-                    ['q' => 'What should I do if I lose my tracking number or QR code?',
-                     'a' => 'Look for the confirmation email we sent when you filed. It has both your tracking number and your QR code. If you can’t find it, visit the City Hall office where you filed your request.'],
-                    ['q' => 'What types of documents can be tracked through SPeED TraQR?',
-                     'a' => 'Official documents, citizen service requests, permits, endorsements and internal office communications routed across departments of the City Government of San Pedro.'],
-                    ['q' => 'How does the system estimate when my document will be ready?',
-                     'a' => 'It looks at how long similar requests took to finish. Until there is enough history, it uses the standard processing times set under the Ease of Doing Business Act (RA&nbsp;11032).'],
-                ];
-            @endphp
+            {{-- One source for these answers and Speedy's (App\Support\SiteFaq),
+                 so the page and the assistant can never disagree. --}}
+            @php $faqs = \App\Support\SiteFaq::all(); @endphp
 
             <div class="mt-10 flex flex-col gap-3">
                 @foreach ($faqs as $faq)
                     <details class="group rounded-[16px] border border-[rgba(0,64,4,0.12)] bg-white shadow-[0_1px_2px_rgba(0,64,4,0.05)] open:border-[rgba(1,114,26,0.4)] open:bg-[#fbfdfa]">
                         <summary class="flex cursor-pointer touch-manipulation list-none items-start justify-between gap-6 rounded-[16px] px-6 py-5 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#01721a] [&::-webkit-details-marker]:hidden">
-                            <span class="font-display text-[19px] font-bold leading-snug text-[#004004] sm:text-[21px]">{{ $faq['q'] }}</span>
+                            <span class="font-display text-[19px] font-bold leading-snug text-[#004004] sm:text-[21px]">{{ $faq['question'] }}</span>
                             <svg class="mt-1 h-5 w-5 shrink-0 text-[#01721a] transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/>
                             </svg>
                         </summary>
-                        <p class="px-6 pb-6 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">{!! $faq['a'] !!}</p>
+                        <p class="px-6 pb-6 text-[16px] leading-relaxed text-[#353535] sm:text-[17px]">{!! $faq['answer_html'] !!}</p>
                     </details>
                 @endforeach
             </div>
@@ -268,6 +255,9 @@
     </main>
 
     <x-site-footer />
+
+    {{-- Speedy answers the FAQ above, and checks a request from its number. --}}
+    <x-speedy />
 
     @include('layouts.partials.bfcache-guard')
 

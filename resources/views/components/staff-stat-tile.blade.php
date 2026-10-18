@@ -2,7 +2,7 @@
     'label' => '',
     'value' => 0,
     'tone' => 'mid',   // deep | mid | bright | brightest | amber
-    'icon' => 'clock', // doc | hourglass | people | clock | check | none
+    'icon' => 'clock', // doc | hourglass | people | clock | check | stopwatch | overdue | none
     'note' => null,    // optional line under the number (the admin row's deltas)
 ])
 
@@ -34,6 +34,10 @@
         'people' => ['file' => 'stat-unassigned.svg', 'class' => 'h-[64px] w-[63px]'],
         'clock' => ['file' => 'stat-in-progress.svg', 'class' => 'h-[64px] w-[64px]'],
         'check' => ['file' => 'stat-completed.svg', 'class' => 'h-[64px] w-[64px]'],
+        // The command centre's two time tiles. Drawn to sit with the exported
+        // set (white outline, loose hand), since the design had none for them.
+        'stopwatch' => ['file' => 'stat-avg-time.svg', 'class' => 'h-[64px] w-[64px]'],
+        'overdue' => ['file' => 'stat-overdue.svg', 'class' => 'h-[64px] w-[64px]'],
     ];
     // icon="none" for a count the design has no drawing for — better an honest
     // blank than one of the three reused on two tiles in the same row.

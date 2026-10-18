@@ -285,6 +285,9 @@
 
     <x-site-footer />
 
+    {{-- Speedy: "what do I need for…?" while filling the form in. --}}
+    <x-speedy />
+
     {{-- The shared pop-up error report (window.ErrorAlert). --}}
     <x-error-alert />
 

@@ -43,15 +43,17 @@
         // Throughput grouped bars
         $tputMax = max(1, collect($throughput)->max('created') ?? 0, collect($throughput)->max('completed') ?? 0);
 
-        // Status distribution donut (stage palette: gray→brass→gold→green→deep→amber)
-        $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309', '#d8920f'];
+        // Requests by stage, for the panel beside the department bars. One
+        // colour per stage (Pending, In Progress, In Review, Approved, Completed,
+        // Returned, On Hold, Denied) — the old palette had seven for eight.
+        $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309', '#d8920f', '#c98a8a'];
         $sd = $donut($statusDistribution->values()->map(fn ($r, $i) => [$r['label'], $r['value'], $stageColors[$i % count($stageColors)]])->all());
 
         // Bottlenecks donut
         $bt = $donut([
-            ['On-time', $bottlenecks['on_time'], '#167a3a'],
-            ['At-risk', $bottlenecks['at_risk'], '#b45309'],
-            ['Breached', $bottlenecks['breached'], '#b91c1c'],
+            ['On time', $bottlenecks['on_time'], '#167a3a'],
+            ['At risk', $bottlenecks['at_risk'], '#b45309'],
+            ['Overdue', $bottlenecks['breached'], '#b91c1c'],
         ]);
 
         // Processing time by stage — tallest bar is the bottleneck (red)
@@ -62,28 +64,6 @@
 
         // Staff workload
         $wlMax = max(1, $staffWorkload->max(fn ($r) => $r['completed'] + $r['active']) ?? 0);
-
-        /* ---------- heatmap grid (weeks × days) ---------- */
-        $hCounts = $heatmap['counts'];
-        $hMax = max(1, $heatmap['max']);
-        $hCursor = \Illuminate\Support\Carbon::parse($heatmap['since'])->startOfWeek(\Carbon\Carbon::SUNDAY);
-        $hEnd = now()->endOfWeek(\Carbon\Carbon::SATURDAY);
-        $hWeeks = [];
-        while ($hCursor <= $hEnd) {
-            $week = [];
-            for ($i = 0; $i < 7; $i++) {
-                $key = $hCursor->toDateString();
-                $c = $hCounts[$key] ?? 0;
-                $week[] = [
-                    'date' => $key,
-                    'count' => $c,
-                    'level' => $c == 0 ? 0 : min(4, (int) ceil($c / $hMax * 4)),
-                    'future' => $hCursor->isFuture(),
-                ];
-                $hCursor->addDay();
-            }
-            $hWeeks[] = $week;
-        }
     @endphp
 
     <div class="page-shell">
@@ -115,45 +95,69 @@
         </div>
 
         {{-- ── Region B: KPI vitals ─────────────────────────────────────────
-             The four counts the frame draws, on the same gradient tiles the
-             staff and supervisor dashboards use, so all three read as one
-             product: total, then the open work split into untouched (Pending)
-             and moving (In Progress), then finished. Their period-over-period
-             change rides under the number.
-
-             At Risk is not one of the four — risk is not a stage of the
-             pipeline — so it keeps the compact tile below beside the two rates,
-             where a percentage and an average are read against their own pill.
+             Six counts on the same gradient tiles the staff and supervisor
+             dashboards use, so they read as one product. The first four are
+             one set: the requests filed in the selected range, by where each
+             is now, so they add back to the total. Average processing time and
+             Overdue sit beside them in the same dress; they used to be a row
+             of small white cards under the panels, a second style of KPI with
+             an on-time "health" pill whose 85% / 70% cut-offs no one had set.
              ───────────────────────────────────────────────────────────────── --}}
         @php
             $delta = fn (string $key) => ! empty($kpis[$key]['delta']) ? $fmtDelta($kpis[$key]['delta']) : null;
         @endphp
 
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <p class="cc-tiles-caption" data-tile-caption>
+            Requests filed in the last {{ $filters['range'] }} days, by where they are now
+            @if ($kpis['denied']['value'] > 0)
+                · {{ number_format($kpis['denied']['value']) }} denied
+            @endif
+        </p>
+
+        @php
+            $avgDelta = $kpis['avg_processing']['delta'] ?? null;
+            $avgNote = 'Filing to completion'
+                .($avgDelta && $avgDelta['pct'] !== null ? ' · '.$avgDelta['pct'].'% '.($avgDelta['dir'] === 'up' ? 'slower' : 'faster') : '');
+            $overdueNote = 'Open now, any filing date'
+                .($kpis['at_risk']['value'] > 0 ? ' · +'.number_format($kpis['at_risk']['value']).' at risk' : '');
+        @endphp
+
+        {{-- Three across on a wide screen: six tiles in one row left each too
+             narrow for its label and drawing. --}}
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             <x-staff-stat-tile label="Total Documents" :value="number_format($kpis['total']['value'])"
                                tone="deep" icon="doc" :note="$delta('total')" />
             <x-staff-stat-tile label="Pending" :value="number_format($kpis['pending']['value'])"
                                tone="mid" icon="hourglass" />
-            <x-staff-stat-tile label="In Progress" :value="number_format($kpis['in_progress']['value'])"
-                               tone="bright" icon="clock" :note="$delta('active')" />
+            {{-- Not "In Progress": that is one stage of five in the status list
+                 below, while this counts every started request. --}}
+            <x-staff-stat-tile label="Being worked on" :value="number_format($kpis['in_progress']['value'])"
+                               tone="bright" icon="clock" />
             <x-staff-stat-tile label="Completed" :value="number_format($kpis['completed']['value'])"
                                tone="brightest" icon="check" :note="$delta('completed')" />
+            <x-staff-stat-tile label="Avg. Processing" :value="\App\Support\Duration::days($kpis['avg_processing']['value'])"
+                               tone="deep" icon="stopwatch" :note="$avgNote" />
+            {{-- Amber, not one more green, when anything is late — as on the
+                 analytics page's Overdue Now tile. The word carries the meaning
+                 too, so it never rests on colour alone. --}}
+            <x-staff-stat-tile label="Overdue" :value="number_format($kpis['overdue']['value'])"
+                               :tone="$kpis['overdue']['value'] > 0 ? 'amber' : 'bright'" icon="overdue" :note="$overdueNote" />
         </div>
 
         {{-- ── The frame's two reading panels ───────────────────────────────
-             Which office is carrying the load, and how the whole pipeline
-             splits three ways. Side by side on a wide screen, stacked below it.
+             Which office is carrying the load, and the tiles' requests by
+             stage. Side by side on a wide screen, stacked below it.
              ───────────────────────────────────────────────────────────────── --}}
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
             <section class="cc-panel">
                 <div class="cc-panel-head">
                     <h2 class="cc-panel-title">Document Volume by Department</h2>
-                    <p class="cc-panel-sub">Share of the busiest office</p>
+                    <p class="cc-panel-sub">Requests filed in this period, by office</p>
                 </div>
                 <div class="cc-panel-body">
                     @if ($departmentVolume->isEmpty())
-                        <div class="sp-empty">No documents are routed to an office yet.</div>
+                        <div class="sp-empty">No requests were routed to an office in this period.</div>
                     @else
                         <div class="cc-bars">
                             @foreach ($departmentVolume as $dept)
@@ -166,7 +170,7 @@
                                              role="img"
                                              aria-label="{{ $dept['value'] }} document{{ $dept['value'] === 1 ? '' : 's' }} — {{ $dept['pct'] }}% of the busiest office"></div>
                                     </div>
-                                    <span class="cc-bar-value">{{ $dept['pct'] }}%</span>
+                                    <span class="cc-bar-value">{{ number_format($dept['value']) }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -174,18 +178,21 @@
                 </div>
             </section>
 
+            {{-- The tiles above, broken down by stage. This slot used to hold a
+                 three-bucket donut that only repeated the tiles, while the
+                 eight-stage breakdown sat further down as a second donut. --}}
             <section class="cc-panel">
                 <div class="cc-panel-head">
-                    <h2 class="cc-panel-title">Overall Request Status Breakdown</h2>
-                    <p class="cc-panel-sub">{{ number_format($statusSummary['total']) }} request{{ $statusSummary['total'] === 1 ? '' : 's' }} in total</p>
+                    <h2 class="cc-panel-title">Where requests are now</h2>
+                    <p class="cc-panel-sub">The {{ number_format($sd['total']) }} request{{ $sd['total'] === 1 ? '' : 's' }} above, by stage</p>
                 </div>
                 <div class="cc-panel-body">
                     <div class="cc-donut">
                         <svg viewBox="0 0 140 140" width="152" height="152" style="flex:none" role="img"
-                             aria-label="Request status breakdown">
+                             aria-label="Requests by stage">
                             <g transform="rotate(-90 70 70)" fill="none" stroke-width="22">
-                                @if ($statusSummary['total'] > 0)
-                                    @foreach ($statusSummary['slices'] as $slice)
+                                @if ($sd['total'] > 0)
+                                    @foreach ($sd['slices'] as $slice)
                                         <circle cx="70" cy="70" r="52" pathLength="100"
                                                 stroke="{{ $slice['color'] }}"
                                                 stroke-dasharray="{{ $slice['pct'] }} {{ 100 - $slice['pct'] }}"
@@ -195,12 +202,12 @@
                                     <circle cx="70" cy="70" r="52" stroke="#eef2ef"/>
                                 @endif
                             </g>
-                            <text x="70" y="68" text-anchor="middle" class="mono" font-size="22" font-weight="600" fill="#16211b">{{ number_format($statusSummary['total']) }}</text>
+                            <text x="70" y="68" text-anchor="middle" class="mono" font-size="22" font-weight="600" fill="#16211b">{{ number_format($sd['total']) }}</text>
                             <text x="70" y="86" text-anchor="middle" font-size="10" fill="#5b6b62">requests</text>
                         </svg>
                         <div class="cc-legend">
-                            @foreach ($statusSummary['slices'] as $slice)
-                                <div class="cc-legend-row">
+                            @foreach ($sd['slices'] as $slice)
+                                <div class="cc-legend-row {{ $slice['value'] === 0 ? 'is-empty' : '' }}">
                                     <span class="cc-legend-dot" style="background:{{ $slice['color'] }}"></span>
                                     <span>{{ $slice['label'] }}</span>
                                     <span class="cc-legend-value">{{ number_format($slice['value']) }} · {{ round($slice['pct']) }}%</span>
@@ -212,16 +219,264 @@
             </section>
         </div>
 
+        {{-- ── Region D: what needs doing ──────────────────────────────────
+             Straight under the vitals: the overdue list is the one thing on
+             this page the admin acts on, and it used to sit sixth. --}}
+        <div class="an-grid" x-data="{ open: false, sel: {} }">
+
+            {{-- Overdue table (full width) — click a row to notify its owner.
+                 "Fastest staff" sat beside it and was removed: ranking people
+                 by speed rewards rushing a request instead of checking it. --}}
+            <div class="cc-panel an-span-6">
+                @php $attentionRows = $atRisk->take(12); @endphp
+                <div class="cc-panel-head">
+                    <h2 class="cc-panel-title">Needs Attention</h2>
+                    <p class="cc-panel-sub">
+                        {{ number_format($atRisk->count()) }} overdue{{ $atRisk->count() > $attentionRows->count() ? ' · showing the '.$attentionRows->count().' most overdue' : '' }} · click a row to notify the owner
+                    </p>
+                </div>
+                @if ($atRisk->isEmpty())
+                    <div class="cc-panel-body"><div class="sp-empty">Nothing overdue — the pipeline is on time.</div></div>
+                @else
+                    <div class="table-wrap cc-panel-table">
+                    <table class="reg">
+                        <thead>
+                            <tr><th>Tracking</th><th>Type</th><th>Stage</th><th>Assignee</th><th>Over SLA</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($attentionRows as $row)
+                                @php
+                                    $rowData = [
+                                        'tracking' => $row['document']->tracking_number,
+                                        'type' => $row['document']->document_type,
+                                        'citizen' => $row['document']->citizen_name,
+                                        'purpose' => $row['document']->purpose,
+                                        'stageLabel' => $row['stage']->label(),
+                                        'assignee' => $row['assignee'],
+                                        'assignedTo' => $row['document']->assigned_to,
+                                        'over' => $row['over'],
+                                        'nudgeUrl' => route('admin.nudge', $row['document']),
+                                    ];
+                                @endphp
+                                <tr @click="sel = @js($rowData); open = true" style="cursor:pointer">
+                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
+                                    <td>{{ $row['document']->document_type }}</td>
+                                    <td><x-status-badge :status="$row['stage']->value" /></td>
+                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
+                                    <td class="mono" style="color:var(--red);font-weight:600;white-space:nowrap;">+{{ $row['over'] }}</td>
+                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Notify →</button></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Notify panel — the super admin flags the document for whoever owns
+                 it (the assignee, or the supervisors if it's unassigned) rather
+                 than assigning it themselves. --}}
+            <div x-show="open" x-cloak class="admin-modal" @keydown.escape.window="open = false">
+                <div class="admin-modal-backdrop" @click="open = false"></div>
+                <div class="admin-modal-card">
+                    <div class="admin-modal-head">
+                        <div>
+                            <div style="font-weight:700;color:var(--green-deep);" x-text="sel.type"></div>
+                            <span class="code" x-text="sel.tracking"></span>
+                        </div>
+                        <button type="button" class="cr-btn cr-btn-sm" @click="open = false">✕</button>
+                    </div>
+                    <dl class="admin-modal-body">
+                        <div><dt>Citizen</dt><dd x-text="sel.citizen || '—'"></dd></div>
+                        <div><dt>Purpose</dt><dd x-text="sel.purpose || '—'"></dd></div>
+                        <div><dt>Stage</dt><dd x-text="sel.stageLabel"></dd></div>
+                        <div><dt>Assignee</dt><dd x-text="sel.assignee || 'Unassigned'"></dd></div>
+                        <div><dt>Over SLA</dt><dd x-text="sel.over"></dd></div>
+                    </dl>
+                    <form method="POST" :action="sel.nudgeUrl">
+                        @csrf
+                        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">
+                            Sends a bell notification to
+                            <strong x-text="sel.assignee || 'the supervisors'"></strong>
+                            asking them to follow up. It does not reassign the document.
+                        </p>
+                        <label class="admin-modal-label">Note (optional)
+                            <textarea name="note" rows="2" maxlength="280" placeholder="Add context for the owner…"></textarea>
+                        </label>
+                        <div class="admin-modal-actions">
+                            <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
+                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Send notification</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {{-- Stalled holds (full width) — deliberately its own panel: a hold nulls
+             the stage SLA, so these documents can never appear in the overdue
+             table above. This is the only place they surface on the dashboard,
+             so it shows up only when there is one; an empty card on most days
+             taught the eye to skip it. --}}
+        @if ($stalledHolds->isNotEmpty())
+        <div class="cc-panel">
+            <div class="cc-panel-head">
+                <h2 class="cc-panel-title">Parked and Past Due</h2>
+                <p class="cc-panel-sub">{{ $stalledHolds->count() }} stalled hold{{ $stalledHolds->count() === 1 ? '' : 's' }} · SLA paused, so these never reach the overdue list</p>
+            </div>
+                <div class="table-wrap cc-panel-table">
+                    <table class="reg">
+                        <thead>
+                            <tr><th>Tracking</th><th>Type</th><th>Waiting on</th><th>Assignee</th><th>Held since</th><th>Past due</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($stalledHolds as $row)
+                                <tr>
+                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
+                                    <td>{{ $row['document']->document_type }}</td>
+                                    <td class="muted">{{ $row['blocked_by'] ? ucfirst($row['blocked_by']) : '—' }}</td>
+                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
+                                    <td class="muted">{{ $row['held_since']?->format('M d, Y') ?? '—' }}</td>
+                                    <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['days_over'] }}d</td>
+                                    <td><a class="cr-btn cr-btn-sm" href="{{ $row['url'] }}">Open →</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+        </div>
+        @endif
+
+        {{-- ── Region C: analytics grid ──────────────────────────────────────
+             The charts, after the work that needs doing: the page reads
+             tiles → what is late → why → what happened. --}}
+        <div class="an-grid">
+
+            {{-- Throughput (full width) --}}
+            <div class="cc-panel an-span-6">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Requests Filed vs. Completed</h2><p class="cc-panel-sub">new requests vs. finished, each week</p></div>
+                <div class="cc-panel-body">
+                    @php
+                        $tputCreated = collect($throughput)->sum('created');
+                        $tputCompleted = collect($throughput)->sum('completed');
+                    @endphp
+                    @if ($tputCreated + $tputCompleted === 0)
+                        <div class="sp-empty">No throughput in this window yet.</div>
+                    @else
+                        <p class="chart-summary"><b>{{ $tputCreated }}</b> created · <b>{{ $tputCompleted }}</b> completed in this period</p>
+                        <div class="vbars vbars-axis" style="height:170px;">
+                            @foreach ($throughput as $w)
+                                <div class="vbar">
+                                    <div class="grp">
+                                        <div class="gcol" title="{{ $w['created'] }} created">
+                                            <span class="num">{{ $w['created'] ?: '' }}</span>
+                                            <div class="col pale" style="height:{{ $w['created'] ? max(3, round($w['created'] / $tputMax * 100)) : 0 }}%"></div>
+                                        </div>
+                                        <div class="gcol" title="{{ $w['completed'] }} completed">
+                                            <span class="num">{{ $w['completed'] ?: '' }}</span>
+                                            <div class="col" style="height:{{ $w['completed'] ? max(3, round($w['completed'] / $tputMax * 100)) : 0 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="cap">{{ $w['label'] }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="legend" style="margin-top:10px;"><span><i style="background:#bfe0cb"></i>Created</span><span><i style="background:#167a3a"></i>Completed</span></div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Staff workload (1/3) --}}
+            <div class="cc-panel an-span-2">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Staff Workload</h2><p class="cc-panel-sub">active + completed</p></div>
+                <div class="cc-panel-body" style="padding-top:6px;">
+                    @forelse ($staffWorkload as $s)
+                        <div class="barrow">
+                            <div class="nm">{{ $s['name'] }} @if ($s['overloaded'])<span title="Overloaded" style="color:var(--red)">⚑</span>@endif</div>
+                            <div class="track">
+                                <div style="display:flex;height:100%;width:{{ round(($s['completed'] + $s['active']) / $wlMax * 100) }}%;">
+                                    <span style="display:block;height:100%;background:var(--green);flex:{{ $s['completed'] }}"></span>
+                                    <span style="display:block;height:100%;background:var(--brass);flex:{{ $s['active'] }}"></span>
+                                </div>
+                            </div>
+                            <div class="val">{{ $s['completed'] + $s['active'] }}</div>
+                        </div>
+                    @empty
+                        <div class="sp-empty">No assignments yet.</div>
+                    @endforelse
+                    @if ($staffWorkload->isNotEmpty())
+                        <div class="legend" style="margin-top:10px;"><span><i style="background:#167a3a"></i>Completed</span><span><i style="background:#c79a3e"></i>Active</span></div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Bottlenecks donut (1/3) --}}
+            <div class="cc-panel an-span-2">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Open Requests vs. Deadline</h2><p class="cc-panel-sub">{{ $bottlenecks['total'] }} open</p></div>
+                <div class="cc-panel-body">
+                    @include('admin.partials.donut', ['data' => $bt, 'caption' => 'active'])
+                    @if ($bottlenecks['worst_stage'])
+                        {{-- Most overdue requests, not the slowest average — that is
+                             the next panel's question, and the answers can differ. --}}
+                        <div class="callout">Most overdue in: <b>{{ $bottlenecks['worst_stage'] }}</b></div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Processing time by stage (1/3) --}}
+            <div class="cc-panel an-span-2">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Average Time per Stage</h2><p class="cc-panel-sub">avg time in stage</p></div>
+                <div class="cc-panel-body">
+                    @if (collect($timeByStage)->sum('hours') == 0)
+                        <div class="sp-empty">Not enough stage history yet.</div>
+                    @else
+                        <div class="vbars vbars-axis" style="height:150px;">
+                            @foreach ($timeByStage as $stg)
+                                @php $isMax = $stg['hours'] >= $stageMaxHours && $stg['hours'] > 0; @endphp
+                                <div class="vbar">
+                                    <div class="num">{{ $stg['hours'] ? \App\Support\Duration::hours($stg['hours']) : '' }}</div>
+                                    <div class="col {{ $isMax ? 'red' : 'brass' }}" style="height:{{ round($stg['hours'] / $stageMaxHours * 100) }}%"></div>
+                                    <div class="cap">{{ \Illuminate\Support\Str::of($stg['label'])->limit(10, '') }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Document type breakdown (full width): rows of 6, 2+2+2, 6. --}}
+            <div class="cc-panel an-span-6">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Volume by Request Type</h2><p class="cc-panel-sub">created in window</p></div>
+                <div class="cc-panel-body">
+                    @if ($typeBreakdown->isEmpty())
+                        <div class="sp-empty">No documents in this window yet.</div>
+                    @else
+                        <div class="vbars vbars-axis" style="height:140px;">
+                            @foreach ($typeBreakdown as $t)
+                                <div class="vbar">
+                                    <div class="num">{{ $t['value'] }}</div>
+                                    <div class="col" style="height:{{ round($t['value'] / $typeMax * 100) }}%"></div>
+                                    <div class="cap">{{ \Illuminate\Support\Str::of($t['label'])->limit(12, '') }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- (The duplicate "Current staff load" panel was removed — "Who is overloaded?"
+                 above already covers per-staff load.) --}}
+        </div>
+
         {{-- ── Recent activity ──────────────────────────────────────────────
-             The audit strip the frame closes the page with. Read off the same
-             activity log as the full Audit Log page, so it can never drift
-             from it; the heading links there for everything older.
+             The audit strip that closes the page. Read off the same activity
+             log as the full Audit Log page, so it can never drift from it; the
+             heading links there for everything older, sign-ins included.
              ───────────────────────────────────────────────────────────────── --}}
         <section class="cc-panel" x-data="{ showAll: false }">
             <div class="cc-panel-head flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="cc-panel-title">Recent Activity</h2>
-                    <p class="cc-panel-sub">Latest {{ $recentActivity->count() }} entries, newest first</p>
+                    <p class="cc-panel-sub">Latest {{ $recentActivity->count() }} changes to requests, newest first</p>
                 </div>
                 <a href="{{ route('admin.audit-log.index') }}" class="cr-btn cr-btn-sm">Full audit log →</a>
             </div>
@@ -240,7 +495,7 @@
                     <tbody>
                         @forelse ($recentActivity as $entry)
                             <tr @if ($loop->index >= 5) x-show="showAll" x-cloak @endif>
-                                <td class="mono whitespace-nowrap">{{ $entry['at']?->format('y-m-d h:iA') ?? '—' }}</td>
+                                <td class="whitespace-nowrap">{{ $entry['at']?->format('M j, g:i A') ?? '—' }}</td>
                                 <td class="st-name">{{ $entry['user'] }}</td>
                                 <td>{{ $entry['role'] }}</td>
                                 <td class="font-medium text-ink">{{ $entry['action'] }}</td>
@@ -276,319 +531,6 @@
                 </div>
             @endif
         </section>
-
-        <div class="an-kpis an-kpis-rates">
-            @php
-                $rateDefs = [
-                    ['key' => 'avg_processing', 'label' => 'Avg. Processing', 'fmt' => fn ($v) => $v !== null ? $v.'d' : '—'],
-                    ['key' => 'on_time', 'label' => 'On-Time Rate', 'fmt' => fn ($v) => $v !== null ? $v.'%' : '—'],
-                    // At Risk left the gradient row with the frame's redesign;
-                    // it reads here, next to the rate it belongs with.
-                    ['key' => 'at_risk', 'label' => 'At Risk', 'fmt' => fn ($v) => number_format((int) $v)],
-                ];
-            @endphp
-            @foreach ($rateDefs as $def)
-                @php $k = $kpis[$def['key']]; @endphp
-                <div class="tile">
-                    <div class="kpi-head">
-                        <span class="k">{{ $def['label'] }}</span>
-                        @if (! empty($k['delta']))
-                            <span class="delta {{ $k['delta']['good'] ? 'good' : 'bad' }}">{{ $fmtDelta($k['delta']) }}</span>
-                        @endif
-                    </div>
-                    <div class="v mono">{{ $def['fmt']($k['value']) }}</div>
-
-                    @if ($def['key'] === 'on_time')
-                        <span class="pill p-{{ $k['pill'] === 'healthy' ? 'green' : ($k['pill'] === 'breach' ? 'red' : ($k['pill'] === 'muted' ? 'muted' : 'amber')) }}" style="margin-top:8px;">{{ ['healthy' => 'HEALTHY', 'watch' => 'WATCH', 'breach' => 'AT RISK', 'muted' => 'NO DATA'][$k['pill']] }}</span>
-                    @elseif ($def['key'] === 'at_risk')
-                        <span class="pill p-{{ $k['pill'] === 'watch' ? 'amber' : 'green' }}" style="margin-top:8px;">{{ $k['pill'] === 'watch' ? 'WATCH' : 'CLEAR' }}</span>
-                    @else
-                        <div class="bar brass" style="margin-top:9px;"></div>
-                    @endif
-                </div>
-            @endforeach
-        </div>
-
-        {{-- ── Region C: analytics grid ────────────────────────────────────── --}}
-        <div class="an-grid">
-
-            {{-- Throughput (2/3) --}}
-            <div class="panel an-span-4">
-                <div class="ph"><h2>Is the pipeline keeping up?</h2><span class="sub">new requests vs. finished, each week</span></div>
-                <div class="pb">
-                    @php
-                        $tputCreated = collect($throughput)->sum('created');
-                        $tputCompleted = collect($throughput)->sum('completed');
-                    @endphp
-                    @if ($tputCreated + $tputCompleted === 0)
-                        <div class="sp-empty">No throughput in this window yet.</div>
-                    @else
-                        <p class="chart-summary"><b>{{ $tputCreated }}</b> created · <b>{{ $tputCompleted }}</b> completed in this period</p>
-                        <div class="vbars vbars-axis" style="height:170px;">
-                            @foreach ($throughput as $w)
-                                <div class="vbar">
-                                    <div class="grp">
-                                        <div class="gcol" title="{{ $w['created'] }} created">
-                                            <span class="num">{{ $w['created'] ?: '' }}</span>
-                                            <div class="col pale" style="height:{{ $w['created'] ? max(3, round($w['created'] / $tputMax * 100)) : 0 }}%"></div>
-                                        </div>
-                                        <div class="gcol" title="{{ $w['completed'] }} completed">
-                                            <span class="num">{{ $w['completed'] ?: '' }}</span>
-                                            <div class="col" style="height:{{ $w['completed'] ? max(3, round($w['completed'] / $tputMax * 100)) : 0 }}%"></div>
-                                        </div>
-                                    </div>
-                                    <div class="cap">{{ $w['label'] }}</div>
-                                </div>
-                            @endforeach
-                        </div>
-                        <div class="legend" style="margin-top:10px;"><span><i style="background:#bfe0cb"></i>Created</span><span><i style="background:#167a3a"></i>Completed</span></div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Status distribution donut (1/3) --}}
-            <div class="panel an-span-2">
-                <div class="ph"><h2>Where do documents sit?</h2><span class="sub">{{ $sd['total'] }} total</span></div>
-                <div class="pb">
-                    @include('admin.partials.donut', ['data' => $sd, 'caption' => 'documents'])
-                </div>
-            </div>
-
-            {{-- Staff workload (1/3) --}}
-            <div class="panel an-span-2">
-                <div class="ph"><h2>Who is overloaded?</h2><span class="sub">active + completed</span></div>
-                <div class="pb" style="padding-top:6px;">
-                    @forelse ($staffWorkload as $s)
-                        <div class="barrow">
-                            <div class="nm">{{ $s['name'] }} @if ($s['overloaded'])<span title="Overloaded" style="color:var(--red)">⚑</span>@endif</div>
-                            <div class="track">
-                                <div style="display:flex;height:100%;width:{{ round(($s['completed'] + $s['active']) / $wlMax * 100) }}%;">
-                                    <span style="display:block;height:100%;background:var(--green);flex:{{ $s['completed'] }}"></span>
-                                    <span style="display:block;height:100%;background:var(--brass);flex:{{ $s['active'] }}"></span>
-                                </div>
-                            </div>
-                            <div class="val">{{ $s['completed'] + $s['active'] }}</div>
-                        </div>
-                    @empty
-                        <div class="sp-empty">No assignments yet.</div>
-                    @endforelse
-                    @if ($staffWorkload->isNotEmpty())
-                        <div class="legend" style="margin-top:10px;"><span><i style="background:#167a3a"></i>Completed</span><span><i style="background:#c79a3e"></i>Active</span></div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Bottlenecks donut (1/3) --}}
-            <div class="panel an-span-2">
-                <div class="ph"><h2>What share is at-risk?</h2><span class="sub">{{ $bottlenecks['total'] }} active</span></div>
-                <div class="pb">
-                    @include('admin.partials.donut', ['data' => $bt, 'caption' => 'active'])
-                    @if ($bottlenecks['worst_stage'])
-                        <div class="callout">Worst stage: <b>{{ $bottlenecks['worst_stage'] }}</b></div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Processing time by stage (1/3) --}}
-            <div class="panel an-span-2">
-                <div class="ph"><h2>Which stage is slowest?</h2><span class="sub">avg hours in stage</span></div>
-                <div class="pb">
-                    @if (collect($timeByStage)->sum('hours') == 0)
-                        <div class="sp-empty">Not enough stage history yet.</div>
-                    @else
-                        <div class="vbars vbars-axis" style="height:150px;">
-                            @foreach ($timeByStage as $stg)
-                                @php $isMax = $stg['hours'] >= $stageMaxHours && $stg['hours'] > 0; @endphp
-                                <div class="vbar">
-                                    <div class="num">{{ $stg['hours'] ? $stg['hours'].'h' : '' }}</div>
-                                    <div class="col {{ $isMax ? 'red' : 'brass' }}" style="height:{{ round($stg['hours'] / $stageMaxHours * 100) }}%"></div>
-                                    <div class="cap">{{ \Illuminate\Support\Str::of($stg['label'])->limit(10, '') }}</div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Document type breakdown (1/2) --}}
-            {{-- Full width: with 4+2 and 2+2+2 above, a 3-wide card here would
-                 leave half a row empty and throw the grid out of alignment. --}}
-            <div class="panel an-span-6">
-                <div class="ph"><h2>What volume by type?</h2><span class="sub">created in window</span></div>
-                <div class="pb">
-                    @if ($typeBreakdown->isEmpty())
-                        <div class="sp-empty">No documents in this window yet.</div>
-                    @else
-                        <div class="vbars vbars-axis" style="height:140px;">
-                            @foreach ($typeBreakdown as $t)
-                                <div class="vbar">
-                                    <div class="num">{{ $t['value'] }}</div>
-                                    <div class="col" style="height:{{ round($t['value'] / $typeMax * 100) }}%"></div>
-                                    <div class="cap">{{ \Illuminate\Support\Str::of($t['label'])->limit(12, '') }}</div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- (The duplicate "Current staff load" panel was removed — "Who is overloaded?"
-                 above already covers per-staff load.) --}}
-        </div>
-
-        {{-- ── Region D: supporting data ───────────────────────────────────── --}}
-        <div class="an-grid" x-data="{ open: false, sel: {} }">
-
-            {{-- At-risk table (2/3) — click a row to view + (re)assign in a panel --}}
-            <div class="panel an-span-4">
-                <div class="ph"><h2>Exactly what needs attention</h2><span class="sub">{{ $atRisk->count() }} overdue · click a row to notify the owner</span></div>
-                @if ($atRisk->isEmpty())
-                    <div class="sp-empty">Nothing overdue — the pipeline is on time.</div>
-                @else
-                    <div class="table-wrap">
-                    <table class="reg">
-                        <thead>
-                            <tr><th>Tracking</th><th>Type</th><th>Stage</th><th>Assignee</th><th>Over SLA</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($atRisk as $row)
-                                @php
-                                    $rowData = [
-                                        'tracking' => $row['document']->tracking_number,
-                                        'type' => $row['document']->document_type,
-                                        'citizen' => $row['document']->citizen_name,
-                                        'purpose' => $row['document']->purpose,
-                                        'stageLabel' => $row['stage']->label(),
-                                        'assignee' => $row['assignee'],
-                                        'assignedTo' => $row['document']->assigned_to,
-                                        'hoursOver' => $row['hours_over'],
-                                        'nudgeUrl' => route('admin.nudge', $row['document']),
-                                    ];
-                                @endphp
-                                <tr @click="sel = @js($rowData); open = true" style="cursor:pointer">
-                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
-                                    <td>{{ $row['document']->document_type }}</td>
-                                    <td><x-status-badge :status="$row['stage']->value" /></td>
-                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
-                                    <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['hours_over'] }}h</td>
-                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Notify →</button></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    </div>
-                @endif
-            </div>
-
-            {{-- Ranked widgets (1/3) --}}
-            <div class="an-span-2" style="display:flex;flex-direction:column;gap:14px;">
-                <div class="panel">
-                    <div class="ph"><h2>Fastest staff</h2><span class="sub">avg time</span></div>
-                    <div class="pb" style="padding-top:6px;">
-                        @forelse ($fastestStaff as $i => $s)
-                            <div class="legrow">
-                                <span class="avatar" style="width:22px;height:22px;font-size:10px;">{{ $i + 1 }}</span>
-                                <span class="ln">{{ $s['name'] }}</span>
-                                <span class="lv">{{ $s['avg_days'] }}d</span>
-                                <span class="lp">{{ $s['count'] }}</span>
-                            </div>
-                        @empty
-                            <div class="sp-empty">No completions yet.</div>
-                        @endforelse
-                    </div>
-                </div>
-            </div>
-
-            {{-- Notify panel — the super admin flags the document for whoever owns
-                 it (the assignee, or the supervisors if it's unassigned) rather
-                 than assigning it themselves. --}}
-            <div x-show="open" x-cloak class="admin-modal" @keydown.escape.window="open = false">
-                <div class="admin-modal-backdrop" @click="open = false"></div>
-                <div class="admin-modal-card">
-                    <div class="admin-modal-head">
-                        <div>
-                            <div style="font-weight:700;color:var(--green-deep);" x-text="sel.type"></div>
-                            <span class="code" x-text="sel.tracking"></span>
-                        </div>
-                        <button type="button" class="cr-btn cr-btn-sm" @click="open = false">✕</button>
-                    </div>
-                    <dl class="admin-modal-body">
-                        <div><dt>Citizen</dt><dd x-text="sel.citizen || '—'"></dd></div>
-                        <div><dt>Purpose</dt><dd x-text="sel.purpose || '—'"></dd></div>
-                        <div><dt>Stage</dt><dd x-text="sel.stageLabel"></dd></div>
-                        <div><dt>Assignee</dt><dd x-text="sel.assignee || 'Unassigned'"></dd></div>
-                        <div><dt>Over SLA</dt><dd><span x-text="sel.hoursOver"></span>h</dd></div>
-                    </dl>
-                    <form method="POST" :action="sel.nudgeUrl">
-                        @csrf
-                        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">
-                            Sends a bell notification to
-                            <strong x-text="sel.assignee || 'the supervisors'"></strong>
-                            asking them to follow up. It does not reassign the document.
-                        </p>
-                        <label class="admin-modal-label">Note (optional)
-                            <textarea name="note" rows="2" maxlength="280" placeholder="Add context for the owner…"></textarea>
-                        </label>
-                        <div class="admin-modal-actions">
-                            <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
-                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Send notification</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        {{-- Stalled holds (full width) — deliberately its own panel: a hold nulls
-             the stage SLA, so these documents can never appear in the at-risk
-             table above. This is the only place they surface on the dashboard. --}}
-        <div class="panel">
-            <div class="ph">
-                <h2>Parked and past due</h2>
-                <span class="sub">{{ $stalledHolds->count() }} stalled hold{{ $stalledHolds->count() === 1 ? '' : 's' }} · SLA paused, so these are invisible to the at-risk list</span>
-            </div>
-            @if ($stalledHolds->isEmpty())
-                <div class="sp-empty">No stalled holds — every parked request is still inside its hold date.</div>
-            @else
-                <div class="table-wrap">
-                    <table class="reg">
-                        <thead>
-                            <tr><th>Tracking</th><th>Type</th><th>Waiting on</th><th>Assignee</th><th>Held since</th><th>Past due</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($stalledHolds as $row)
-                                <tr>
-                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
-                                    <td>{{ $row['document']->document_type }}</td>
-                                    <td class="muted">{{ $row['blocked_by'] ? ucfirst($row['blocked_by']) : '—' }}</td>
-                                    <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
-                                    <td class="muted">{{ $row['held_since']?->format('M d, Y') ?? '—' }}</td>
-                                    <td class="mono" style="color:var(--red);font-weight:600;">+{{ $row['days_over'] }}d</td>
-                                    <td><a class="cr-btn cr-btn-sm" href="{{ $row['url'] }}">Open →</a></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </div>
-
-        {{-- System throughput heatmap (full width) --}}
-        <div class="panel">
-            <div class="ph"><h2>System throughput</h2><span class="sub">{{ $heatmap['total'] }} processed · last 26 weeks</span></div>
-            <div class="pb">
-                <div class="heat">
-                    @foreach ($hWeeks as $week)
-                        <div class="heat-col">
-                            @foreach ($week as $day)
-                                <span class="heat-cell heat-l{{ $day['level'] }} {{ $day['future'] ? 'heat-future' : '' }}"
-                                      title="{{ $day['count'] }} on {{ $day['date'] }}"></span>
-                            @endforeach
-                        </div>
-                    @endforeach
-                </div>
-                <div class="heat-legend"><span>Less</span><span class="heat-cell heat-l0"></span><span class="heat-cell heat-l1"></span><span class="heat-cell heat-l2"></span><span class="heat-cell heat-l3"></span><span class="heat-cell heat-l4"></span><span>More</span></div>
-            </div>
-        </div>
 
     </div>
 </x-app-layout>

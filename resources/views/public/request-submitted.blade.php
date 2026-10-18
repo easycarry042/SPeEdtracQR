@@ -2,7 +2,7 @@
      while, see App\Support\CitizenReceipt). It wears the citizen layout like
      every other public page — it used to carry its own grey page and header,
      so the step right after the form looked like a different site. --}}
-<x-citizen-layout hide-speedy>
+<x-citizen-layout :speedy-document="$document">
     <x-slot name="title">Request Submitted</x-slot>
 
     @php

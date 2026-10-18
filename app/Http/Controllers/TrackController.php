@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Models\DocumentComment;
 use App\Support\AssignmentScope;
+use App\Support\CitizenThread;
 use App\Support\CitizenThreadAccess;
 use App\Support\CitizenView;
 use App\Support\CompletionPredictor;
@@ -366,20 +367,12 @@ class TrackController extends Controller
             // Opening the request is what marks the citizen's messages read and
             // clears the ticket's unread badge.
             CommentController::markCitizenMessagesRead($document);
-        } else {
-            $document->load([
-                'comments' => fn ($query) => $query->citizenVisible()->reorder()->oldest(),
-                'comments.replies' => fn ($query) => $query->citizenVisible(),
-            ]);
-
-            // The citizen is looking at the thread now, so staff replies are read
-            // — replies included, hence allComments().
-            $document->allComments()
-                ->citizenVisible()
-                ->where('author_type', '!=', DocumentComment::AUTHOR_CITIZEN)
-                ->whereNull('citizen_read_at')
-                ->update(['citizen_read_at' => now()]);
         }
+
+        // The citizen page no longer carries the conversation: it lives in
+        // Speedy's "Office messages" tab, behind the contact check, and is
+        // marked read when that tab opens (CitizenThread::markRead). Opening
+        // this page used to mark it read — for anyone holding the number.
 
         $user = $citizenView ? null : auth()->user();
         $canAct = false;
@@ -430,6 +423,7 @@ class TrackController extends Controller
 
         $isPublicView = $citizenView;
         $view = $isPublicView ? 'track.show-citizen' : 'track.show';
+        $citizenVerified = $isPublicView && CitizenThreadAccess::isVerified(request(), $document);
 
         return view($view, [
             'document' => $document,
@@ -455,7 +449,8 @@ class TrackController extends Controller
             'sealSvg' => $sealSvg,
             // Citizen composer state: whether this visitor has confirmed a contact
             // detail on the request, and whether confirming is even possible.
-            'citizenVerified' => $isPublicView && CitizenThreadAccess::isVerified(request(), $document),
+            'citizenVerified' => $citizenVerified,
+            'citizenUnread' => $citizenVerified ? CitizenThread::unreadCount($document) : 0,
             'citizenCanVerify' => CitizenThreadAccess::canBeVerified($document),
         ]);
     }

@@ -40,6 +40,27 @@ class CitizenThreadAccess
         $request->session()->put(self::sessionKey($document), true);
     }
 
+    /**
+     * Every request this browser session has confirmed — what Speedy's unread
+     * badge watches on any page. Empty for a visitor who never confirmed one,
+     * which is nearly everyone, so no query runs for them.
+     *
+     * @return list<string>
+     */
+    public static function verifiedTrackingNumbers(Request $request): array
+    {
+        if (! $request->hasSession()) {
+            return [];
+        }
+
+        return collect($request->session()->all())
+            ->filter(fn (mixed $value, string $key): bool => $value === true && str_starts_with($key, self::SESSION_PREFIX))
+            ->keys()
+            ->map(fn (string $key): string => substr($key, strlen(self::SESSION_PREFIX)))
+            ->values()
+            ->all();
+    }
+
     /** Whether posting can be offered at all — with nothing on file, nothing can match. */
     public static function canBeVerified(Document $document): bool
     {

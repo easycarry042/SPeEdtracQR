@@ -50,9 +50,8 @@ class AdminController extends Controller
             'documentTypes' => $documentTypes,
             'updatedAt' => Date::now(),
             'kpis' => $analytics->kpis(),
-            // The three panels the frame draws under the tile row.
+            // The two panels under the tile row, and the audit strip.
             'departmentVolume' => $analytics->departmentVolume(),
-            'statusSummary' => $analytics->statusSummary(),
             'recentActivity' => $analytics->recentActivity(),
             'throughput' => $analytics->throughput(),
             'statusDistribution' => $analytics->statusDistribution(),
@@ -64,8 +63,6 @@ class AdminController extends Controller
             // Held past their hold date: invisible to atRisk() because a hold
             // nulls the stage SLA, so they get their own panel.
             'stalledHolds' => $analytics->stalledHolds(),
-            'fastestStaff' => $analytics->fastestStaff(),
-            'heatmap' => $analytics->throughputHeatmap(),
             // Staff the admin can (re)assign an at-risk document to, from the panel.
             'assignableStaff' => User::permission('advance documents')->orderBy('name')->get(['id', 'name']),
         ]);
@@ -115,7 +112,10 @@ class AdminController extends Controller
             $write(['Requests received', $kpis['total']['value'] ?? 0]);
             $write(['Completed', $kpis['completed']['value'] ?? 0]);
             $write(['Active', $kpis['active']['value'] ?? 0]);
-            $write(['At risk', $kpis['at_risk']['value'] ?? 0]);
+            // The dashboard's own words: past the stage's processing time, and
+            // close to it.
+            $write(['Overdue', $kpis['overdue']['value'] ?? 0]);
+            $write(['At risk (not yet overdue)', $kpis['at_risk']['value'] ?? 0]);
             $write(['Avg processing (days)', $kpis['avg_processing']['value'] ?? 0]);
             $write([]);
 

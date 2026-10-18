@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Mail\CitizenMessage;
 use App\Mail\StaffMessage;
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentComment;
 use App\Models\User;
@@ -56,20 +57,38 @@ class TwoWayMessagingTest extends TestCase
             ->assertRedirect();
     }
 
+    /**
+     * The conversation as Speedy's "Office messages" tab fetches it, for a
+     * confirmed citizen.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function thread(): array
+    {
+        $this->verifyCitizen();
+
+        return $this->getJson(route('track.messages.index', $this->document->tracking_number))
+            ->assertOk()
+            ->json('messages');
+    }
+
     // ── Verification gate ────────────────────────────────────────────────────
 
-    public function test_the_composer_is_locked_until_a_contact_detail_is_confirmed(): void
+    public function test_the_conversation_is_locked_until_a_contact_detail_is_confirmed(): void
     {
-        $this->get(route('track.show', $this->document->tracking_number))
-            ->assertOk()
-            ->assertSee('Confirm the email address or mobile number')
-            ->assertDontSee('Send a message');
+        // Reading needs the check too, not only writing: the tracking number
+        // is printed on slips and stickers, and replies can carry personal
+        // details.
+        $this->getJson(route('track.messages.index', $this->document->tracking_number))
+            ->assertForbidden()
+            ->assertJsonPath('verified', false)
+            ->assertJsonPath('can_verify', true);
 
         $this->verifyCitizen();
 
-        $this->get(route('track.show', $this->document->tracking_number))
+        $this->getJson(route('track.messages.index', $this->document->tracking_number))
             ->assertOk()
-            ->assertSee('Send a message');
+            ->assertJsonPath('verified', true);
     }
 
     public function test_the_mobile_number_matches_however_it_is_formatted(): void
@@ -167,7 +186,7 @@ class TwoWayMessagingTest extends TestCase
 
     // ── Internal notes stay internal ─────────────────────────────────────────
 
-    public function test_internal_notes_never_reach_the_citizen_page(): void
+    public function test_internal_notes_never_reach_the_citizen(): void
     {
         $this->document->comments()->create([
             'author_id' => $this->staff->id,
@@ -182,9 +201,13 @@ class TwoWayMessagingTest extends TestCase
             'visibility' => DocumentComment::VISIBILITY_PUBLIC,
         ]);
 
+        $bodies = array_column($this->thread(), 'body');
+
+        $this->assertContains('Your permit is being processed.', $bodies);
+        $this->assertNotContains('SECRET-INTERNAL-NOTE: applicant is a repeat offender', $bodies);
+
         $this->get(route('track.show', $this->document->tracking_number))
             ->assertOk()
-            ->assertSee('Your permit is being processed.')
             ->assertDontSee('SECRET-INTERNAL-NOTE');
     }
 
@@ -401,10 +424,7 @@ class TwoWayMessagingTest extends TestCase
             ]);
         }
 
-        $html = $this->get(route('track.show', $this->document->tracking_number))->assertOk()->getContent();
-
-        $this->assertLessThan(strpos($html, 'Second message'), strpos($html, 'First message'));
-        $this->assertLessThan(strpos($html, 'Third message'), strpos($html, 'Second message'));
+        $this->assertSame(['First message', 'Second message', 'Third message'], array_column($this->thread(), 'body'));
     }
 
     // ── Who the citizen sees as the sender ──────────────────────────────────
@@ -415,9 +435,8 @@ class TwoWayMessagingTest extends TestCase
 
     public function test_the_citizen_sees_which_staff_member_answered(): void
     {
-        // Deliberately NOT the assignee: "Handled by Jose Reyes" is already on the
-        // page, so asserting the assignee's name would pass without a byline.
-        $supervisor = User::factory()->create(['is_active' => true, 'name' => 'Ana Cruz'])->assignRole('Supervisor');
+        $office = Department::create(['name' => 'Business Permits Office', 'code' => 'BPLO', 'is_active' => true]);
+        $supervisor = User::factory()->create(['is_active' => true, 'name' => 'Ana Cruz', 'department_id' => $office->id])->assignRole('Supervisor');
 
         $this->actingAs($supervisor)
             ->post(route('documents.comments.store', $this->document), [
@@ -425,19 +444,20 @@ class TwoWayMessagingTest extends TestCase
                 'visibility' => 'public',
             ])->assertRedirect();
 
-        // Back to being the public: while still authenticated, track.show renders
-        // the STAFF view, so the citizen page would never be exercised.
         auth()->logout();
         $this->flushSession();
 
-        $this->get(route('track.show', $this->document->tracking_number))
-            ->assertOk()
-            ->assertSee('font-bold text-ink">Ana Cruz</span>', false);
+        $reply = collect($this->thread())->firstWhere('body', 'Your permit is ready for pickup.');
+
+        // A person, named, with their office, and marked as staff — never
+        // passed off as the automated assistant.
+        $this->assertSame('staff', $reply['from']);
+        $this->assertSame('Ana Cruz', $reply['name']);
+        $this->assertSame('Business Permits Office', $reply['office']);
     }
 
     public function test_naming_staff_publicly_does_not_expose_an_internal_notes_author(): void
     {
-        // Neither is the assignee, so each name can only reach the page via a byline.
         $hidden = User::factory()->create(['is_active' => true, 'name' => 'Ramon Dela Cruz'])->assignRole('staff');
         $answering = User::factory()->create(['is_active' => true, 'name' => 'Ana Cruz'])->assignRole('staff');
 
@@ -456,10 +476,10 @@ class TwoWayMessagingTest extends TestCase
             'visibility' => DocumentComment::VISIBILITY_PUBLIC,
         ]);
 
-        $this->get(route('track.show', $this->document->tracking_number))
-            ->assertOk()
-            ->assertSee('font-bold text-ink">Ana Cruz</span>', false)
-            ->assertDontSee('Ramon Dela Cruz');
+        $names = array_column($this->thread(), 'name');
+
+        $this->assertContains('Ana Cruz', $names);
+        $this->assertNotContains('Ramon Dela Cruz', $names);
     }
 
     public function test_the_citizen_sees_their_own_message_as_you_and_a_system_entry_as_update(): void
@@ -468,40 +488,35 @@ class TwoWayMessagingTest extends TestCase
         $this->post(route('track.messages.store', $this->document->tracking_number), ['body' => 'Any update?'])
             ->assertRedirect();
 
-        $system = $this->document->comments()->create([
+        $this->document->comments()->create([
             'author_id' => null,
             'author_type' => DocumentComment::AUTHOR_SYSTEM,
             'body' => 'Status advanced to In Review.',
             'visibility' => DocumentComment::VISIBILITY_PUBLIC,
         ]);
 
-        // Their own words read as "You", not their name echoed back at them.
-        $this->assertSame('You', $this->document->allComments()->citizenVisible()
-            ->where('author_type', DocumentComment::AUTHOR_CITIZEN)->first()->publicAuthorLabel());
-        $this->assertSame('Update', $system->publicAuthorLabel());
+        $byBody = collect($this->thread())->keyBy('body');
 
-        // Anchored to the byline markup: a bare assertSee('You') would also match
-        // ordinary page copy like "Your request".
-        $this->get(route('track.show', $this->document->tracking_number))
-            ->assertOk()
-            ->assertSee('font-bold text-ink">You</span>', false)
-            ->assertSee('font-bold text-ink">Update</span>', false);
+        // Their own words read as "You", not their name echoed back at them.
+        $this->assertSame('You', $byBody['Any update?']['name']);
+        $this->assertSame('citizen', $byBody['Any update?']['from']);
+        $this->assertSame('Update', $byBody['Status advanced to In Review.']['name']);
+        $this->assertSame('system', $byBody['Status advanced to In Review.']['from']);
     }
 
     public function test_a_message_whose_author_record_is_gone_still_has_a_byline(): void
     {
-        $orphan = $this->document->comments()->create([
+        $this->document->comments()->create([
             'author_id' => null,
             'author_type' => DocumentComment::AUTHOR_STAFF,
             'body' => 'Posted before author names were recorded.',
             'visibility' => DocumentComment::VISIBILITY_PUBLIC,
         ]);
 
-        $this->assertSame('Staff', $orphan->publicAuthorLabel());
+        $orphan = collect($this->thread())->firstWhere('body', 'Posted before author names were recorded.');
 
-        $this->get(route('track.show', $this->document->tracking_number))
-            ->assertOk()
-            ->assertSee('Posted before author names were recorded.');
+        $this->assertSame('Staff', $orphan['name']);
+        $this->assertNull($orphan['office']);
     }
 
     public function test_the_citizen_email_names_the_staff_member_who_replied(): void

@@ -142,7 +142,12 @@ class AdminDashboardTest extends TestCase
         $this->assertTrue($volume->first()['busiest']);
     }
 
-    public function test_the_status_breakdown_splits_every_request_three_ways(): void
+    /**
+     * The panel beside the department bars breaks the tiles' requests down by
+     * stage. It replaced a three-bucket donut that only repeated the tiles, and
+     * absorbed the second, eight-stage donut further down the page.
+     */
+    public function test_the_stage_breakdown_adds_back_to_the_tiles(): void
     {
         $this->seedRolesAndPermissions();
         $admin = $this->userWithRole('super_admin');
@@ -158,18 +163,20 @@ class AdminDashboardTest extends TestCase
             ]);
         }
 
-        $summary = $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Overall Request Status Breakdown')
-            ->viewData('statusSummary');
+            ->assertSee('Where requests are now')
+            ->assertDontSee('Overall Request Status Breakdown')
+            ->assertDontSee('Where do documents sit?');
 
-        $this->assertSame(5, $summary['total']);
-        $this->assertSame(
-            ['Completed' => 1, 'In-Progress' => 2, 'Pending Review' => 2],
-            collect($summary['slices'])->pluck('value', 'label')->all(),
-            'a held request is still open work, so the three slices must add back to the total'
-        );
+        $byStage = $response->viewData('statusDistribution')->pluck('value', 'label');
+
+        $this->assertSame(2, $byStage['Pending']);
+        $this->assertSame(1, $byStage['In Progress']);
+        $this->assertSame(1, $byStage['On Hold']);
+        $this->assertSame(1, $byStage['Completed']);
+        $this->assertSame($response->viewData('kpis')['total']['value'], $byStage->sum());
     }
 
     public function test_recent_activity_names_who_changed_a_request_and_to_what(): void

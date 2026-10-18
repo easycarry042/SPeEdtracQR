@@ -41,10 +41,10 @@ class DocumentAssistant
         // Requirements / "what do I need" — answered from the public services
         // catalogue (this document's type, or another service named in the
         // question). Checked first so it wins even for a completed document.
-        if ($this->asksAboutRequirements($question)) {
-            $requirements = $this->resolveRequirements($question, $document);
+        if (RequirementsAnswer::asks($question)) {
+            $requirements = RequirementsAnswer::resolve($question, $document->document_type);
             if ($requirements !== null) {
-                return ['answer' => $this->requirementsAnswer($requirements), 'source' => 'fallback'];
+                return ['answer' => RequirementsAnswer::text($requirements), 'source' => 'fallback'];
             }
         }
 
@@ -76,80 +76,6 @@ class DocumentAssistant
             'who', 'handler', 'handling', 'assigned', 'staff',
             'where', 'status', 'location', 'update', 'progress', 'stage', 'stand',
         ]);
-    }
-
-    /** Whether the question is asking what documents/requirements are needed. */
-    private function asksAboutRequirements(string $question): bool
-    {
-        return Str::contains(Str::lower($question), [
-            'requirement', 'require', 'what do i need', 'need to bring', 'documents needed',
-            'what to bring', 'bring', 'checklist', 'prepare', 'submit', 'documents for',
-        ]);
-    }
-
-    /**
-     * Resolve the requirement checklist the question is about: a service named
-     * in the question if one matches, otherwise this document's own type.
-     *
-     * @return array{service:string, is_current:bool, items:array<int, array{label:string, mandatory:bool}>}|null
-     */
-    private function resolveRequirements(string $question, Document $document): ?array
-    {
-        $types = RequestType::with('requirements')->get(['id', 'name']);
-        if ($types->isEmpty()) {
-            return null;
-        }
-
-        $q = Str::lower($question);
-
-        // A service explicitly named in the question wins; longest name first so
-        // "Mayor's Permit" is preferred over a bare "Permit"-style partial.
-        $match = $types
-            ->sortByDesc(fn (RequestType $t): int => Str::length($t->name))
-            ->first(fn (RequestType $t): bool => Str::contains($q, Str::lower($t->name)));
-
-        // Otherwise, answer for the document the citizen is looking at.
-        $match ??= $types->first(
-            fn (RequestType $t): bool => Str::lower($t->name) === Str::lower((string) $document->document_type)
-        );
-
-        if (! $match) {
-            return null;
-        }
-
-        return [
-            'service' => $match->name,
-            'is_current' => Str::lower($match->name) === Str::lower((string) $document->document_type),
-            'items' => $match->requirements
-                ->map(fn ($r): array => ['label' => $r->label, 'mandatory' => (bool) $r->is_mandatory])
-                ->all(),
-        ];
-    }
-
-    /**
-     * @param  array{service:string, is_current:bool, items:array<int, array{label:string, mandatory:bool}>}  $req
-     */
-    private function requirementsAnswer(array $req): string
-    {
-        if (empty($req['items'])) {
-            return "I don't have a requirements checklist on file for {$req['service']}. Please contact the handling office to confirm what to prepare.";
-        }
-
-        $mandatory = array_values(array_filter($req['items'], fn (array $i): bool => $i['mandatory']));
-        $optional = array_values(array_filter($req['items'], fn (array $i): bool => ! $i['mandatory']));
-
-        $lead = $req['is_current']
-            ? "For your {$req['service']}, you'll typically need:"
-            : "For a {$req['service']}, you'll typically need:";
-
-        $lines = array_map(fn (array $i): string => '• '.$i['label'], $mandatory ?: $req['items']);
-        $text = $lead."\n".implode("\n", $lines);
-
-        if ($mandatory && $optional) {
-            $text .= "\nOptional / if applicable:\n".implode("\n", array_map(fn (array $i): string => '• '.$i['label'], $optional));
-        }
-
-        return $text."\nRequirements can vary by case — the handling office confirms the final list.";
     }
 
     /**
@@ -278,7 +204,7 @@ class DocumentAssistant
         $q = Str::lower($question);
 
         if ($d['is_completed']) {
-            return "Good news — document {$tn} is already completed and ready. If you haven't received it yet, please contact the office that handled it.";
+            return "Good news — document {$tn} is already completed and ready. To claim it, bring your QR code (from your confirmation email or printed slip) to the City Hall counter; staff scan it to release your document.";
         }
 
         $handler = $d['handler']

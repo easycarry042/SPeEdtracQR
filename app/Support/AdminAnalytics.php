@@ -22,7 +22,17 @@ use Spatie\Activitylog\Models\Activity;
  *
  * The document-type "slice" applies everywhere. Flow metrics (created/completed
  * throughput, type mix, KPIs) additionally honour the selected date window;
- * snapshot metrics (status distribution, active load, at-risk) describe "now".
+ * snapshot metrics (status distribution, active load, overdue) describe "now".
+ *
+ * The tile row and the status donut read one COHORT: the requests filed inside
+ * the window, split by where each one is now. They used to mix the two kinds —
+ * Total and Completed from the window, Pending and In Progress from all time —
+ * so the four tiles looked like they added up and only did by coincidence.
+ *
+ * Whether an open request is on time, at risk or overdue is decided in one
+ * place, slaState(). The tile, the breakdown panel and the attention list each
+ * used to work it out themselves, and the page showed 15, 0 and 12 for the
+ * same thing.
  */
 class AdminAnalytics
 {
@@ -52,47 +62,50 @@ class AdminAnalytics
     /** Six instant-read vitals: value + period delta + (where honest) a sparkline. */
     public function kpis(): array
     {
-        $totalNow = $this->countCreated($this->from, $this->to);
-        $totalPrev = $this->countCreated($this->prevFrom, $this->prevTo);
+        // The tile row: requests filed in the window, by where each is now, so
+        // Pending + In Progress + Completed (+ Denied) add back to Total.
+        $cohort = $this->cohortCounts($this->from, $this->to);
+        $cohortPrev = $this->cohortCounts($this->prevFrom, $this->prevTo);
 
-        $completedNow = $this->countCompleted($this->from, $this->to);
-        $completedPrev = $this->countCompleted($this->prevFrom, $this->prevTo);
-
-        $active = $this->scoped()->whereIn('status', DocumentStatus::activeValues())->count();
-        $atRisk = $this->activeDocuments()->filter->isOverdue()->count();
-
-        // The frame's tile row splits the open work in two: requests nobody has
-        // started (Pending) and everything else still moving. `active` stays as
-        // it was — the charts and the CSV read it as "all open".
-        $pending = $this->scoped()->where('status', DocumentStatus::Pending->value)->count();
+        // "All open right now", whenever filed — the charts and the CSV read it.
+        $open = $this->activeDocuments();
+        $states = $open->map(fn (Document $doc): ?string => $this->slaState($doc));
+        $overdue = $states->filter(fn (?string $state): bool => $state === 'overdue')->count();
+        $atRisk = $states->filter(fn (?string $state): bool => $state === 'at_risk')->count();
 
         $avgNow = $this->avgProcessingDays($this->from, $this->to);
         $avgPrev = $this->avgProcessingDays($this->prevFrom, $this->prevTo);
 
-        $onTimeNow = $this->onTimeRate($this->from, $this->to);
-        $onTimePrev = $this->onTimeRate($this->prevFrom, $this->prevTo);
-
         return [
             'total' => [
-                'value' => $totalNow,
-                'delta' => $this->delta($totalNow, $totalPrev),
+                'value' => $cohort['total'],
+                'delta' => $this->delta($cohort['total'], $cohortPrev['total']),
                 'spark' => array_values($this->dailyCreated()),
             ],
             'completed' => [
-                'value' => $completedNow,
-                'delta' => $this->delta($completedNow, $completedPrev),
+                'value' => $cohort['completed'],
+                'delta' => $this->delta($cohort['completed'], $cohortPrev['completed']),
                 'spark' => array_values($this->dailyCompleted()),
             ],
             'active' => [
-                'value' => $active,
+                'value' => $open->count(),
                 'spark' => $this->dailyActive(),
             ],
             'pending' => [
-                'value' => $pending,
+                'value' => $cohort['pending'],
             ],
             'in_progress' => [
-                'value' => max(0, $active - $pending),
+                'value' => $cohort['in_progress'],
             ],
+            'denied' => [
+                'value' => $cohort['denied'],
+            ],
+            // Past their stage's processing time, open now.
+            'overdue' => [
+                'value' => $overdue,
+                'pill' => $overdue > 0 ? 'breach' : 'ok',
+            ],
+            // Not late yet, but three quarters of the way there.
             'at_risk' => [
                 'value' => $atRisk,
                 'pill' => $atRisk > 0 ? 'watch' : 'ok',
@@ -100,19 +113,14 @@ class AdminAnalytics
             'avg_processing' => [
                 'value' => $avgNow,
                 // Lower is better, so invert the delta direction for display.
-                'delta' => $this->delta($avgNow ?? 0, $avgPrev ?? 0, lowerIsBetter: true),
-            ],
-            'on_time' => [
-                'value' => $onTimeNow,
-                'delta' => $this->delta($onTimeNow ?? 0, $onTimePrev ?? 0),
-                'pill' => $onTimeNow === null ? 'muted' : ($onTimeNow >= 85 ? 'healthy' : ($onTimeNow >= 70 ? 'watch' : 'breach')),
+                'delta' => $this->comparableDelta($avgNow, $avgPrev, lowerIsBetter: true),
             ],
         ];
     }
 
     // ── Region C: analytics grid ─────────────────────────────────────────────
 
-    /** "Is the pipeline keeping up?" — created vs completed per week. */
+    /** "Requests Filed vs. Completed" — created vs completed per week. */
     public function throughput(): array
     {
         $created = $this->bucketByWeek('created_at', $this->from, $this->to);
@@ -137,7 +145,10 @@ class AdminAnalytics
     /** "Where do documents sit across stages?" — snapshot count per stage. */
     public function statusDistribution(): Collection
     {
+        // The tiles' cohort — requests filed in the window — so this panel is
+        // the tiles broken down by stage and its rows add back to Total.
         $counts = $this->scoped()
+            ->whereBetween('created_at', [$this->from, $this->to])
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -149,7 +160,7 @@ class AdminAnalytics
         ]);
     }
 
-    /** "Who is overloaded?" — completed (in window) + current active load per assignee. */
+    /** "Staff Workload" — completed (in window) + current active load per assignee. */
     public function staffWorkload(): Collection
     {
         $completed = $this->scoped()
@@ -184,7 +195,7 @@ class AdminAnalytics
             ->values();
     }
 
-    /** "What share is stuck / at-risk?" — split active docs + the worst stage. */
+    /** "Open Requests vs. Deadline" — split open docs + the stage with the most overdue. */
     public function bottlenecks(): array
     {
         $active = $this->activeDocuments();
@@ -195,24 +206,16 @@ class AdminAnalytics
         $breachedByStage = [];
 
         foreach ($active as $doc) {
-            $stage = $doc->statusEnum();
-            $sla = $stage->slaHours();
-            $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
+            $state = $this->slaState($doc);
 
-            if (! $sla || ! $anchor) {
-                $onTime++;
-
-                continue;
-            }
-
-            $elapsed = abs($anchor->getTimestamp() - now()->getTimestamp()) / 3600;
-
-            if ($elapsed > $sla) {
+            if ($state === 'overdue') {
                 $breached++;
-                $breachedByStage[$stage->label()] = ($breachedByStage[$stage->label()] ?? 0) + 1;
-            } elseif ($elapsed >= $sla * self::AT_RISK_FRACTION) {
+                $label = $doc->statusEnum()->label();
+                $breachedByStage[$label] = ($breachedByStage[$label] ?? 0) + 1;
+            } elseif ($state === 'at_risk') {
                 $atRisk++;
             } else {
+                // On time, or no clock running (held, returned).
                 $onTime++;
             }
         }
@@ -229,7 +232,7 @@ class AdminAnalytics
     }
 
     /**
-     * "Which stage is slowest?" — average hours spent in each stage, reconstructed
+     * "Average Time per Stage" — hours spent in each stage on average, reconstructed
      * from the activity log by diffing consecutive status-change timestamps. Only
      * CLOSED intervals (a stage the document has already left) are counted.
      */
@@ -240,36 +243,13 @@ class AdminAnalytics
             return $this->emptyStageSeries();
         }
 
-        $morph = (new Document)->getMorphClass();
-        $activities = Activity::where('subject_type', $morph)
-            ->whereIn('subject_id', $docs->pluck('id'))
-            ->orderBy('created_at')
-            ->get(['subject_id', 'properties', 'created_at'])
-            ->groupBy('subject_id');
-
         $sum = [];   // stage value => total hours
         $count = []; // stage value => closed intervals
 
-        foreach ($docs as $doc) {
-            $prevTime = $doc->created_at;
-            $prevStatus = null;
-
-            foreach ($activities->get($doc->id, collect()) as $act) {
-                $attrs = data_get($act->properties, 'attributes', []);
-                if (! array_key_exists('status', $attrs)) {
-                    continue; // not a status transition
-                }
-
-                $prevStatus ??= data_get($act->properties, 'old.status', DocumentStatus::Pending->value);
-
-                if ($prevTime) {
-                    $hours = abs($act->created_at->getTimestamp() - $prevTime->getTimestamp()) / 3600;
-                    $sum[$prevStatus] = ($sum[$prevStatus] ?? 0) + $hours;
-                    $count[$prevStatus] = ($count[$prevStatus] ?? 0) + 1;
-                }
-
-                $prevTime = $act->created_at;
-                $prevStatus = $attrs['status'];
+        foreach ($this->stageIntervals($docs) as $intervals) {
+            foreach ($intervals as [$status, $hours]) {
+                $sum[$status] = ($sum[$status] ?? 0) + $hours;
+                $count[$status] = ($count[$status] ?? 0) + 1;
             }
         }
 
@@ -285,7 +265,7 @@ class AdminAnalytics
             ->values();
     }
 
-    /** "What volume by type?" — created in window, top 6. */
+    /** "Volume by Request Type" — created in window, top 6. */
     public function typeBreakdown(): Collection
     {
         return $this->scoped()
@@ -303,8 +283,10 @@ class AdminAnalytics
      *
      * The bar is read against the busiest office, not against the total: the
      * frame draws one row at 100% and the rest below it, which is a comparison
-     * between offices rather than a share of a whole. Offices with no documents
-     * in the slice are left out — an empty bar says nothing.
+     * between offices rather than a share of a whole, so the panel prints each
+     * office's COUNT beside its bar (it used to print the bar's percentage,
+     * which read as a share: 100% / 10% / 10%). Requests filed in the window,
+     * like the tiles above it. Offices with none are left out.
      *
      * @return Collection<int, array{label: string, code: ?string, value: int, pct: int, busiest: bool}>
      */
@@ -312,6 +294,7 @@ class AdminAnalytics
     {
         $counts = $this->scoped()
             ->whereNotNull('department_id')
+            ->whereBetween('created_at', [$this->from, $this->to])
             ->selectRaw('department_id, COUNT(*) as total')
             ->groupBy('department_id')
             ->orderByDesc('total')
@@ -335,44 +318,6 @@ class AdminAnalytics
     }
 
     /**
-     * "Overall Request Status Breakdown" — the whole pipeline in three buckets,
-     * the way the frame's donut legend names them. Everything open that is not
-     * sitting untouched counts as in-progress, including the side states (held,
-     * returned), so the three slices always add back to the total.
-     *
-     * @return array{total: int, slices: array<int, array{label: string, value: int, color: string, pct: float, offset: float}>}
-     */
-    public function statusSummary(): array
-    {
-        $counts = $this->scoped()
-            ->selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
-
-        $completed = (int) ($counts[DocumentStatus::Completed->value] ?? 0);
-        $pending = (int) ($counts[DocumentStatus::Pending->value] ?? 0);
-        $inProgress = max(0, (int) $counts->sum() - $completed - $pending);
-
-        $segments = [
-            ['Completed', $completed, '#0f4d28'],
-            ['In-Progress', $inProgress, '#3faf5f'],
-            ['Pending Review', $pending, '#dfe7e1'],
-        ];
-
-        $total = $completed + $inProgress + $pending;
-        $slices = [];
-        $acc = 0.0;
-
-        foreach ($segments as [$label, $value, $color]) {
-            $pct = $total ? round($value / $total * 100, 2) : 0;
-            $slices[] = compact('label', 'value', 'color', 'pct') + ['offset' => -1 * $acc];
-            $acc += $pct;
-        }
-
-        return ['total' => $total, 'slices' => $slices];
-    }
-
-    /**
      * The audit strip at the foot of the command center: who did what, latest
      * first. Read straight off the activity log rather than a second table, so
      * it can never drift from the full Audit Log page.
@@ -382,6 +327,10 @@ class AdminAnalytics
     public function recentActivity(int $limit = 25): Collection
     {
         return Activity::with(['causer.roles', 'subject'])
+            // Work on requests, not sign-ins: the admin's own logins filled the
+            // strip ("Super Admin · Signed In · 127.0.0.1" five times over).
+            // They stay on the full Audit Log page.
+            ->where(fn ($query) => $query->whereNull('log_name')->orWhere('log_name', '!=', 'auth'))
             // Several entries can share a second (a create and the first status
             // change, say), so the id breaks the tie — otherwise "newest first"
             // is whatever order the driver happens to return.
@@ -396,10 +345,6 @@ class AdminAnalytics
                 $tracking = $subject instanceof Document ? $subject->tracking_number : null;
 
                 [$action, $detail] = match (true) {
-                    $entry->log_name === 'auth' => [
-                        str_contains(strtolower((string) $entry->description), 'logged in') ? 'Signed In' : 'Signed Out',
-                        $properties->get('ip'),
-                    ],
                     $entry->event === 'created' => ['Request Created', $changed->get('document_type')],
                     $changed->has('status') => [
                         'Status Updated',
@@ -429,26 +374,30 @@ class AdminAnalytics
 
     // ── Region D: supporting data ────────────────────────────────────────────
 
-    /** "Exactly what needs attention." — overdue active docs, worst first. */
-    public function atRisk(int $limit = 12): Collection
+    /**
+     * "Needs Attention" — every overdue open document, worst
+     * first. Uncapped: the panel shows the first rows and states the true
+     * total. It used to stop at 12 and then report "12 overdue" while the tile
+     * above said 15.
+     */
+    public function atRisk(): Collection
     {
         return $this->activeDocuments(['assignedTo'])
-            ->filter->isOverdue()
+            ->filter(fn (Document $doc): bool => $this->slaState($doc) === 'overdue')
             ->map(function (Document $doc): array {
                 $stage = $doc->statusEnum();
-                $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
-                $elapsed = abs($anchor->getTimestamp() - now()->getTimestamp()) / 3600;
+                $hoursOver = $this->hoursSince($this->clockStart($doc)) - ($stage->slaHours() ?? 0);
 
                 return [
                     'document' => $doc,
                     'stage' => $stage,
                     'assignee' => $doc->assignedTo?->name,
-                    'hours_over' => round($elapsed - ($stage->slaHours() ?? 0), 1),
+                    'hours_over' => round($hoursOver, 1),
+                    'over' => Duration::hours($hoursOver),
                     'url' => route('track.show', $doc->tracking_number),
                 ];
             })
             ->sortByDesc('hours_over')
-            ->take($limit)
             ->values();
     }
 
@@ -480,56 +429,6 @@ class AdminAnalytics
             ->values();
     }
 
-    /** Ranked widget: staff with the lowest average processing time (completed in window). */
-    public function fastestStaff(int $limit = 5): Collection
-    {
-        $docs = $this->scoped()
-            ->whereNotNull('assigned_to')
-            ->whereBetween('completed_at', [$this->from, $this->to])
-            ->get(['assigned_to', 'created_at', 'completed_at']);
-
-        if ($docs->isEmpty()) {
-            return collect();
-        }
-
-        $names = User::whereIn('id', $docs->pluck('assigned_to')->unique())->pluck('name', 'id');
-
-        return $docs->groupBy('assigned_to')
-            ->map(fn (Collection $group, $id): array => [
-                'name' => $names[$id] ?? 'Unknown',
-                'count' => $group->count(),
-                'avg_days' => round($group->avg(
-                    fn (Document $d): float|int => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
-                ), 1),
-            ])
-            ->sortBy('avg_days')
-            ->take($limit)
-            ->values();
-    }
-
-    /**
-     * Org-wide system throughput: documents processed per day over 26 weeks,
-     * shaped for the contribution-style heatmap (weeks × days). "Processed" =
-     * completed_at, falling back to created_at for never-completed documents.
-     */
-    public function throughputHeatmap(): array
-    {
-        $since = now()->startOfWeek(Carbon::SUNDAY)->subWeeks(25);
-
-        $counts = $this->scoped()
-            ->where(fn ($q) => $q->where('completed_at', '>=', $since)->orWhere('created_at', '>=', $since))
-            ->get(['created_at', 'completed_at'])
-            ->groupBy(fn (Document $d) => ($d->completed_at ?? $d->created_at)->toDateString())
-            ->map->count();
-
-        return [
-            'counts' => $counts->all(),
-            'max' => $counts->max() ?? 0,
-            'total' => $counts->sum(),
-            'since' => $since->toDateString(),
-        ];
-    }
-
     // ── internals ────────────────────────────────────────────────────────────
 
     /** Base query carrying the document-type "slice" filter only. */
@@ -553,11 +452,6 @@ class AdminAnalytics
         return $this->scoped()->whereBetween('created_at', [$from, $to])->count();
     }
 
-    private function countCompleted(Carbon $from, Carbon $to): int
-    {
-        return $this->scoped()->whereBetween('completed_at', [$from, $to])->count();
-    }
-
     private function avgProcessingDays(Carbon $from, Carbon $to): ?float
     {
         $docs = $this->scoped()
@@ -569,22 +463,123 @@ class AdminAnalytics
             return null;
         }
 
+        // Three decimals, not one: a day is 1440 minutes, so rounding to a tenth
+        // of a day printed a 53-minute average as "0".
         return round($docs->avg(
             fn (Document $d): float|int => abs($d->completed_at->getTimestamp() - $d->created_at->getTimestamp()) / 86400
-        ), 1);
+        ), 3);
     }
 
-    private function onTimeRate(Carbon $from, Carbon $to): ?int
+    /**
+     * Each document's closed stage intervals, rebuilt from the activity log by
+     * diffing consecutive status changes: [doc id => [[status, hours], …]].
+     * The first interval starts when the document was filed.
+     *
+     * @param  Collection<int, Document>  $docs  each with id and created_at
+     * @return array<int, list<array{0: string, 1: float}>>
+     */
+    private function stageIntervals(Collection $docs): array
     {
-        $docs = $this->scoped()
-            ->whereBetween('completed_at', [$from, $to])
-            ->get(['sla_breached_at']);
+        $activities = Activity::where('subject_type', (new Document)->getMorphClass())
+            ->whereIn('subject_id', $docs->pluck('id'))
+            ->orderBy('created_at')
+            ->get(['subject_id', 'properties', 'created_at'])
+            ->groupBy('subject_id');
 
-        if ($docs->isEmpty()) {
+        $intervals = [];
+
+        foreach ($docs as $doc) {
+            $prevTime = $doc->created_at;
+            $prevStatus = null;
+
+            foreach ($activities->get($doc->id, collect()) as $act) {
+                $attrs = data_get($act->properties, 'attributes', []);
+                if (! array_key_exists('status', $attrs)) {
+                    continue; // not a status transition
+                }
+
+                $prevStatus ??= data_get($act->properties, 'old.status', DocumentStatus::Pending->value);
+
+                if ($prevTime) {
+                    $intervals[$doc->id][] = [
+                        $prevStatus,
+                        abs($act->created_at->getTimestamp() - $prevTime->getTimestamp()) / 3600,
+                    ];
+                }
+
+                $prevTime = $act->created_at;
+                $prevStatus = $attrs['status'];
+            }
+        }
+
+        return $intervals;
+    }
+
+    /**
+     * Where an open document stands against its current stage's clock — the one
+     * definition every overdue figure on the page reads.
+     *
+     * @return 'on_time'|'at_risk'|'overdue'|null null when no clock is running
+     *                                            (held, returned, closed)
+     */
+    private function slaState(Document $doc): ?string
+    {
+        $stage = $doc->statusEnum();
+        $sla = $stage->slaHours();
+        $start = $this->clockStart($doc);
+
+        if ($sla === null || $stage->isTerminal() || ! $start) {
             return null;
         }
 
-        return (int) round($docs->whereNull('sla_breached_at')->count() / $docs->count() * 100);
+        $elapsed = $this->hoursSince($start);
+
+        return match (true) {
+            $elapsed > $sla => 'overdue',
+            $elapsed >= $sla * self::AT_RISK_FRACTION => 'at_risk',
+            default => 'on_time',
+        };
+    }
+
+    /** When the current stage's clock started — the same anchor isOverdue() uses. */
+    private function clockStart(Document $doc): ?\DateTimeInterface
+    {
+        return $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
+    }
+
+    private function hoursSince(\DateTimeInterface $moment): float
+    {
+        return abs(now()->getTimestamp() - $moment->getTimestamp()) / 3600;
+    }
+
+    /**
+     * Requests filed in [$from, $to], by where each one is now. Pending,
+     * in progress (every open stage after Pending, held and returned
+     * included), completed and denied add back to the total.
+     *
+     * @return array{total: int, pending: int, in_progress: int, completed: int, denied: int}
+     */
+    private function cohortCounts(Carbon $from, Carbon $to): array
+    {
+        $counts = $this->scoped()
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn ($n): int => (int) $n);
+
+        $total = (int) $counts->sum();
+        $pending = $counts[DocumentStatus::Pending->value] ?? 0;
+        $completed = $counts[DocumentStatus::Completed->value] ?? 0;
+        $denied = $counts[DocumentStatus::Denied->value] ?? 0;
+
+        return [
+            'total' => $total,
+            'pending' => $pending,
+            'in_progress' => max(0, $total - $pending - $completed - $denied),
+            'completed' => $completed,
+            'denied' => $denied,
+        ];
     }
 
     /** @return array<string,int> date => count, every day in the window present */
@@ -672,6 +667,20 @@ class AdminAnalytics
      *
      * @return array{dir:string,pct:?int,abs:int|float}|null
      */
+    /**
+     * A delta for a rate or an average, which can be undefined (no completions
+     * in a window). Undefined on either side means no comparison: treating it
+     * as 0 printed "▲ +100" for an on-time rate that had nothing to compare to.
+     */
+    private function comparableDelta(int|float|null $now, int|float|null $prev, bool $lowerIsBetter = false): ?array
+    {
+        if ($now === null || $prev === null) {
+            return null;
+        }
+
+        return $this->delta($now, $prev, $lowerIsBetter);
+    }
+
     private function delta(int|float $now, int|float $prev, bool $lowerIsBetter = false): ?array
     {
         if ($prev == 0) {
