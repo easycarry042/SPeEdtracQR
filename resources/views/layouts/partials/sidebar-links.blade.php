@@ -31,6 +31,13 @@
          History moved into the account menu (header-actions). The Staff
          directory was folded into Users (same people, now with their
          workload), and the Services report into the Dashboard and Resources. --}}
+    {{-- Every citizen request and where it stands. --}}
+    <a href="{{ route('admin.requests.index') }}" {!! $row(request()->routeIs('admin.requests*')) !!}>
+        <span class="{{ $glyph }}">
+            <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 12h6M9 16h4"/></svg>
+        </span>
+        <span class="{{ $label }}">Requests</span>
+    </a>
     @can('manage users')
         <a href="{{ route('admin.users.index') }}" {!! $row(request()->routeIs('admin.users*')) !!}>
             <span class="{{ $glyph }}">
@@ -96,14 +103,17 @@
          one request. The dashboard carries both halves now. The QR hub it also
          served is still a click away on the header's Scan QR Code button. --}}
 
-    @canany(['act on internal requests', 'create internal requests'])
+    {{-- Supervisors work internal requests on their dashboard, so they have no
+         separate Internal tab (App\Support\InternalInbox::livesOnDashboard). --}}
+    @if((auth()->user()?->canAny(['act on internal requests', 'create internal requests']) ?? false)
+        && ! \App\Support\InternalInbox::livesOnDashboard(auth()->user()))
         <a href="{{ route('requests.index') }}" {!! $row(request()->routeIs('requests.*')) !!}>
             <span class="{{ $glyph }}">
                 <img src="{{ asset('images/staff/nav-internal.svg') }}" alt="" class="sb-icon">
             </span>
             <span class="{{ $label }}">Internal</span>
         </a>
-    @endcanany
+    @endif
 
     @can('manage bookings')
         <a href="{{ route('bookings.index') }}" {!! $row(request()->routeIs('bookings*')) !!}>

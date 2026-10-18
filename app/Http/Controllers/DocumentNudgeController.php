@@ -17,8 +17,10 @@ class DocumentNudgeController extends Controller
      * nudge, not a reassignment: the super admin never claims or reroutes the
      * work, they only notify whoever should act on it.
      *
-     * Recipients: the current assignee if there is one, otherwise every
-     * supervisor who can pick it up (minus the actor).
+     * Recipients: the current assignee if there is one, otherwise the
+     * supervisors of the office handling it (DocumentEvent::departmentTriagers,
+     * minus the actor). It used to be every supervisor in the city, so one
+     * reminder about a GSO request rang ten offices' bells.
      */
     public function store(Request $request, Document $document): RedirectResponse
     {
@@ -31,7 +33,7 @@ class DocumentNudgeController extends Controller
 
         $recipients = $document->assignedTo
             ? collect([$document->assignedTo])
-            : DocumentEvent::supervisors(excludeUserId: $actor->id);
+            : DocumentEvent::departmentTriagers($document->department_id, $actor->id);
 
         if ($recipients->isEmpty()) {
             return back()->with('status', 'No one is available to notify for this document yet.');
@@ -47,7 +49,8 @@ class DocumentNudgeController extends Controller
             ->causedBy($actor)
             ->log('Nudged the responsible staff about an overdue document');
 
-        $who = $document->assignedTo?->name ?? 'the supervisors';
+        $who = $document->assignedTo?->name
+            ?? ($document->department ? "the {$document->department->name} supervisors" : 'the supervisors');
 
         return back()->with('status', "Notified {$who} about {$document->tracking_number}.");
     }

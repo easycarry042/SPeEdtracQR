@@ -245,6 +245,23 @@
                                    You can adjust the claiming date and answer the citizen from here; the stage itself is theirs to advance.</p>
                             </section>
                         </template>
+                    @elseif($mode === 'oversight')
+                        {{-- The super admin's Requests page: they watch every
+                             request and can nudge whoever owns it, but the
+                             assignment is the office's and the stage is the
+                             staff member's. --}}
+                        <section class="dm-panel-strong mt-7 text-[length:var(--fs-small)] text-ink">
+                            <template x-if="active.assigned_to">
+                                <p>Being handled by <strong class="text-green-deep" x-text="active.assigned_staff || 'a staff member'"></strong>
+                                   <span x-show="active.department" x-text="'at the ' + active.department"></span>.
+                                   The stage is theirs to advance; use <strong>Notify</strong> if it needs a push.</p>
+                            </template>
+                            <template x-if="! active.assigned_to">
+                                <p x-text="active.department
+                                    ? `Not assigned yet. The ${active.department} supervisors assign it.`
+                                    : 'This request reached no office: its request type has none. Give the type an office on the Request Types page.'"></p>
+                            </template>
+                        </section>
                     @else
                         {{-- Triage: this assignment is still awaiting Accept / Decline / Revision. --}}
                         <template x-if="active && active.needs_triage">
@@ -268,10 +285,23 @@
 
                     <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
                         <button type="button" @click="close()" class="cr-btn">
-                            <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
+                            <span x-text="(active && active.needs_triage) || mode === 'oversight' ? 'Close' : 'Cancel'"></span>
                         </button>
 
-                        @if($mode === 'supervisor')
+                        @if($mode === 'oversight')
+                            {{-- Opens the shared Notify dialog (admin/partials/notify-dialog). --}}
+                            <template x-if="active && active.nudge_url">
+                                <button type="button" class="cr-btn cr-btn-primary"
+                                        @click="$dispatch('admin-notify', {
+                                            tracking: active.tracking_number, type: active.document_type,
+                                            citizen: active.citizen_name, purpose: active.purpose,
+                                            stageLabel: active.status_label, assignee: active.assigned_staff,
+                                            office: active.department, over: active.over_sla, nudgeUrl: active.nudge_url,
+                                        })">
+                                    Notify
+                                </button>
+                            </template>
+                        @elseif($mode === 'supervisor')
                             <template x-if="! active.assigned_to">
                                 <div class="flex flex-wrap items-center justify-end gap-2">
                                     <button type="button" @click="denyOpen = true" :disabled="submitting"

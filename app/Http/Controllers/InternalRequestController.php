@@ -9,12 +9,14 @@ use App\Models\Document;
 use App\Models\RequestStep;
 use App\Notifications\DocumentEvent;
 use App\Services\QrCodeService;
+use App\Support\InternalInbox;
 use App\Support\InternalRequestForm;
 use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -40,7 +42,7 @@ class InternalRequestController extends Controller
      * everything. Guarded here (not by route middleware) because two different
      * permissions may enter.
      */
-    public function index(Request $request): Factory|View
+    public function index(Request $request): Factory|View|RedirectResponse
     {
         $user = auth()->user();
         abort_unless(
@@ -50,52 +52,20 @@ class InternalRequestController extends Controller
             403,
         );
 
-        $department = $user->department;
-        $search = trim((string) $request->get('q'));
+        // A supervisor's internal queues are on their dashboard. Old links —
+        // bell notifications, bookmarks, a decision made in the modal — land
+        // there, still opening the request they named.
+        if (InternalInbox::livesOnDashboard($user)) {
+            // Keep a decision's "Approved — …" message through the extra hop.
+            $request->session()->reflash();
 
-        $base = (fn () => Document::where('origin', Document::ORIGIN_INTERNAL)
-            ->with(['requestingDepartment', 'creator', 'requestSteps.department'])
-            ->when($search !== '', fn ($q) => $q->where(function ($qq) use ($search): void {
-                $qq->where('tracking_number', 'like', "%{$search}%")
-                    ->orWhere('purpose', 'like', "%{$search}%");
-            }))
-            ->latest());
-
-        $active = DocumentStatus::activeValues();
-        $terminal = [DocumentStatus::Completed->value, DocumentStatus::Denied->value];
-
-        if ($department) {
-            $awaiting = $base()->whereIn('status', $active)
-                ->whereHas('requestSteps', fn ($q) => $q
-                    ->where('status', RequestStep::STATUS_CURRENT)
-                    ->where('department_id', $department->id))
-                ->get();
-
-            $filed = $base()->whereIn('status', $active)
-                ->where('requesting_department_id', $department->id)
-                ->get();
-
-            // Closed history stays office-scoped: filed here or passed through here.
-            $closed = $base()->whereIn('status', $terminal)
-                ->where(fn ($q) => $q
-                    ->where('requesting_department_id', $department->id)
-                    ->orWhereHas('requestSteps', fn ($qq) => $qq->where('department_id', $department->id)))
-                ->get();
-        } else {
-            $awaiting = $base()->whereIn('status', $active)->get();
-            $filed = collect();
-            $closed = $base()->whereIn('status', $terminal)->get();
+            return to_route('dashboard', array_filter($request->only('open', 'q')));
         }
 
-        return view('requests.index', [
-            'department' => $department,
-            'awaiting' => $awaiting,
-            'filed' => $filed,
-            'closed' => $closed,
-            'search' => $search,
+        return view('requests.index', InternalInbox::for($user, (string) $request->get('q')) + [
             // Drives the "+" action in the page bar: without a department there
             // is no office to file on behalf of, so the control is withheld.
-            'canFile' => $user->can('create internal requests') && $department !== null,
+            'canFile' => $user->can('create internal requests') && $user->department !== null,
         ]);
     }
 

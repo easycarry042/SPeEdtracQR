@@ -27,8 +27,7 @@
              moving (In Progress), it is done (Completed). At Risk is not one of
              them — risk is not a stage, it cuts across all of them — and the
              named at-risk list now sits on each staff member's own dashboard,
-             where the person who can advance the request will see it. The slip
-             below still names this office's worst offender. --}}
+             where the person who can advance the request will see it. --}}
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <x-staff-stat-tile label="Pending" :value="$pendingOnly" tone="deep" icon="hourglass" />
             <x-staff-stat-tile label="Unassigned" :value="$unassigned" tone="mid" icon="people" />
@@ -36,28 +35,10 @@
             <x-staff-stat-tile label="Completed" :value="$completed" tone="brightest" icon="check" />
         </div>
 
-        @if(($internalAwaiting ?? 0) > 0)
-            <a href="{{ route('requests.index') }}"
-               class="flex items-center justify-between gap-4 rounded-2xl border border-hairline-strong bg-green-wash px-6 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div class="flex items-center gap-4">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-deep text-on-green">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4"/></svg>
-                    </span>
-                    <div>
-                        <p class="text-sm font-bold text-green-deep">
-                            {{ $internalAwaiting }} internal request{{ $internalAwaiting !== 1 ? 's' : '' }} awaiting your office
-                        </p>
-                        <p class="text-xs text-ink-soft">Approve, return, or deny them on the Internal Requests page.</p>
-                    </div>
-                </div>
-                <span class="text-sm font-semibold text-green">Open inbox →</span>
-            </a>
-        @endif
-
-        {{-- The single worst offender, in full, as a routing slip. --}}
-        @if($slip)
-            <x-routing-slip :slip="$slip" />
-        @endif
+        {{-- No SLA routing slip: a supervisor assigns, the staff member
+             advances, so the at-risk warning is on each staff member's own
+             dashboard. The banner that sent supervisors off to the Internal
+             page is gone too — those queues are further down this page. --}}
 
         {{-- ── Staff workload ──────────────────────────────────────────────────
              The department head's primary lens: who is carrying how much.
@@ -301,30 +282,22 @@
 
             @include('partials.review-modal', ['mode' => 'supervisor'])
         </section>
+
+        {{-- ── Internal requests ──────────────────────────────────────────────
+             Office-to-office requests awaiting this office, filed by it, and
+             closed — the Internal page's queues and its request modal, here so
+             a supervisor works everything from one screen.
+             ───────────────────────────────────────────────────────────────── --}}
+        @if($internalInbox)
+            <section id="internal" class="flex flex-col">
+                <div class="mb-4 flex flex-wrap items-center gap-3">
+                    <h2 class="st-section-title">Internal requests</h2>
+                    <span class="pill p-muted">Between offices</span>
+                </div>
+                @include('requests.partials.inbox', $internalInbox + ['inboxClass' => 'flex flex-col'])
+            </section>
+        @endif
     </div>
 
-    {{-- Same keyword rules as the <x-request-type-icon> component, which serves
-         the server-rendered lists. Kept in step by hand: the table above is
-         built in the browser from the Alpine payload. --}}
-    <script>
-        window.REQUEST_TYPE_ICON_BASE = @json(asset('images/request-types'));
-
-        window.requestTypeIcon = function (type) {
-            const needle = (type || '').toLowerCase();
-            const rules = [
-                [['lei', 'flower', 'wreath'], 'color-triangle.svg'],
-                [['plaza', 'hall', 'venue', 'court', 'gym', 'facility', 'building'], 'office-building.svg'],
-                [['flag'], 'flag.png'],
-                [['banner', 'tarpaulin', 'spider', 'streamer'], 'web.png'],
-            ];
-
-            for (const rule of rules) {
-                if (rule[0].some(function (keyword) { return needle.includes(keyword); })) {
-                    return window.REQUEST_TYPE_ICON_BASE + '/' + rule[1];
-                }
-            }
-
-            return window.REQUEST_TYPE_ICON_BASE + '/task-list-pen.svg';
-        };
-    </script>
+    @include('partials.request-type-icon-script')
 </x-app-layout>

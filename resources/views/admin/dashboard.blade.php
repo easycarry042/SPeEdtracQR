@@ -79,6 +79,14 @@
             </form>
         </div>
 
+        {{-- "Notified … about SPD-…" after a notification goes out. --}}
+        @if (session('status'))
+            <div class="dm-callout dm-callout-green" role="status">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p>{{ session('status') }}</p>
+            </div>
+        @endif
+
         {{-- The two sides of the command center. Citizen requests and
              office-to-office requests used to be counted together, so INT-
              requests sat in the citizen overdue list judged by citizen stage
@@ -177,7 +185,9 @@
                 </div>
                 <div class="cc-panel-body flex flex-wrap gap-2">
                     @foreach ($unrouted as $doc)
-                        <a href="{{ route('track.show', $doc->tracking_number) }}" class="cc-chip">
+                        {{-- track.show sends a super admin back to this page, so
+                             these chips did nothing; the Requests page opens them. --}}
+                        <a href="{{ route('admin.requests.index', ['open' => $doc->tracking_number]) }}" class="cc-chip">
                             <span class="code">{{ $doc->tracking_number }}</span> {{ $doc->document_type }}
                         </a>
                     @endforeach
@@ -263,7 +273,7 @@
         {{-- ── Region D: what needs doing ──────────────────────────────────
              Straight under the vitals: the overdue list is the one thing on
              this page the admin acts on, and it used to sit sixth. --}}
-        <div class="an-grid" x-data="{ open: false, sel: {} }">
+        <div class="an-grid">
 
             {{-- Overdue table (full width) — click a row to notify its owner.
                  "Fastest staff" sat beside it and was removed: ranking people
@@ -273,7 +283,7 @@
                 <div class="cc-panel-head">
                     <h2 class="cc-panel-title">Needs Attention</h2>
                     <p class="cc-panel-sub">
-                        {{ number_format($atRisk->count()) }} overdue{{ $atRisk->count() > $attentionRows->count() ? ' · showing the '.$attentionRows->count().' most overdue' : '' }} · click a row to notify the owner
+                        {{ number_format($atRisk->count()) }} overdue{{ $atRisk->count() > $attentionRows->count() ? ' · showing the '.$attentionRows->count().' most overdue' : '' }} · open a row for its details, or notify whoever owns it
                     </p>
                 </div>
                 @if ($atRisk->isEmpty())
@@ -294,18 +304,21 @@
                                         'purpose' => $row['document']->purpose,
                                         'stageLabel' => $row['stage']->label(),
                                         'assignee' => $row['assignee'],
-                                        'assignedTo' => $row['document']->assigned_to,
+                                        'office' => $row['document']->department?->name,
                                         'over' => $row['over'],
                                         'nudgeUrl' => route('admin.nudge', $row['document']),
                                     ];
+                                    $detailsUrl = route('admin.requests.index', ['open' => $row['document']->tracking_number]);
                                 @endphp
-                                <tr @click="sel = @js($rowData); open = true" style="cursor:pointer">
-                                    <td><span class="code">{{ $row['document']->tracking_number }}</span></td>
+                                {{-- The row opens the request (on the Requests page);
+                                     Notify is its own button, not the whole row. --}}
+                                <tr onclick="window.location = @js($detailsUrl)" style="cursor:pointer">
+                                    <td><a href="{{ $detailsUrl }}" class="code hover:underline" onclick="event.stopPropagation()">{{ $row['document']->tracking_number }}</a></td>
                                     <td>{{ $row['document']->document_type }}</td>
                                     <td><x-status-badge :status="$row['stage']->value" /></td>
                                     <td class="muted">{{ $row['assignee'] ?? 'Unassigned' }}</td>
                                     <td class="mono" style="color:var(--red);font-weight:600;white-space:nowrap;">+{{ $row['over'] }}</td>
-                                    <td><button type="button" class="cr-btn cr-btn-sm" @click.stop="sel = @js($rowData); open = true">Notify →</button></td>
+                                    <td><button type="button" class="cr-btn cr-btn-sm" onclick="event.stopPropagation()" @click="$dispatch('admin-notify', @js($rowData))">Notify →</button></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -314,44 +327,9 @@
                 @endif
             </div>
 
-            {{-- Notify panel — the super admin flags the document for whoever owns
-                 it (the assignee, or the supervisors if it's unassigned) rather
-                 than assigning it themselves. --}}
-            <div x-show="open" x-cloak class="admin-modal" @keydown.escape.window="open = false">
-                <div class="admin-modal-backdrop" @click="open = false"></div>
-                <div class="admin-modal-card">
-                    <div class="admin-modal-head">
-                        <div>
-                            <div style="font-weight:700;color:var(--green-deep);" x-text="sel.type"></div>
-                            <span class="code" x-text="sel.tracking"></span>
-                        </div>
-                        <button type="button" class="cr-btn cr-btn-sm" @click="open = false">✕</button>
-                    </div>
-                    <dl class="admin-modal-body">
-                        <div><dt>Citizen</dt><dd x-text="sel.citizen || '—'"></dd></div>
-                        <div><dt>Purpose</dt><dd x-text="sel.purpose || '—'"></dd></div>
-                        <div><dt>Stage</dt><dd x-text="sel.stageLabel"></dd></div>
-                        <div><dt>Assignee</dt><dd x-text="sel.assignee || 'Unassigned'"></dd></div>
-                        <div><dt>Over SLA</dt><dd x-text="sel.over"></dd></div>
-                    </dl>
-                    <form method="POST" :action="sel.nudgeUrl">
-                        @csrf
-                        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">
-                            Sends a bell notification to
-                            <strong x-text="sel.assignee || 'the supervisors'"></strong>
-                            asking them to follow up. It does not reassign the document.
-                        </p>
-                        <label class="admin-modal-label">Note (optional)
-                            <textarea name="note" rows="2" maxlength="280" placeholder="Add context for the owner…"></textarea>
-                        </label>
-                        <div class="admin-modal-actions">
-                            <button type="button" class="cr-btn cr-btn-sm" @click="open = false">Cancel</button>
-                            <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Send notification</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
         </div>
+
+        @include('admin.partials.notify-dialog')
 
         {{-- Stalled holds (full width) — deliberately its own panel: a hold nulls
              the stage SLA, so these documents can never appear in the overdue

@@ -2197,6 +2197,14 @@ a.dm-thumb:hover { border-color: var(--green); }
 .cc-chip:hover { border-color: rgba(180, 83, 9, .6); }
 .cc-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* Four-stage progress in a table row (the super admin's Requests page): the
+   Review modal's rail, shrunk to segments. Done is green, the current stage
+   brass; the cell's aria-label says "Stage 2 of 4: In review" in words. */
+.ro-rail { display: flex; gap: 3px; width: 92px; }
+.ro-rail span { flex: 1; height: 6px; border-radius: 3px; background: #dbe3de; }
+.ro-rail span.is-done { background: var(--green); }
+.ro-rail span.is-now { background: var(--brass); }
+
 /* A small word pill beside a row (overdue, returned) — the word carries the
    meaning, the colour only repeats it. */
 .cc-tag { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -2672,18 +2680,8 @@ a.dm-thumb:hover { border-color: var(--green); }
 .vbar .grp .gcol .num { font-size: 10px; font-family: var(--mono); color: var(--ink); line-height: 1; }
 .vbar .grp .gcol .col { width: 100%; max-width: 22px; }
 
-/* Admin at-risk reassign modal */
-.admin-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-.admin-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 33, 27, .45); }
-.admin-modal-card { position: relative; width: 100%; max-width: 440px; background: #fff; border: 1px solid var(--hairline); border-radius: 14px; box-shadow: 0 20px 50px -12px rgba(15,77,40,.4); padding: 18px; }
-.admin-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.admin-modal-body { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 0 0 14px; font-size: 13px; }
-.admin-modal-body > div { display: flex; gap: 10px; }
-.admin-modal-body dt { width: 90px; flex: none; color: var(--ink-soft); }
-.admin-modal-body dd { margin: 0; color: var(--ink); font-weight: 500; }
-.admin-modal-label { display: block; font-size: 12px; color: var(--ink-soft); }
-.admin-modal-label select { display: block; width: 100%; margin-top: 4px; border: 1px solid var(--hairline-strong); border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; color: var(--ink); }
-.admin-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+/* (The admin "Notify" pop-up is admin/partials/notify-dialog, drawn with the
+   same Tailwind classes as the Review modal's own dialogs.) */
 
 /* ── Super-admin analytics command center (Direction 1a) ─────────────────── */
 .an-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

@@ -103,9 +103,14 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 - Two sides, never added together (`?view=citizen|internal`): citizen numbers come from `App\Support\AdminAnalytics` (scoped with `Document::citizenFacing()`), internal ones from `App\Support\InternalAnalytics` (`Document::internal()`; overdue = held at an office longer than that office's `internal_step_hours`; returned = waiting on the filing office, no deadline).
 - Citizen side: six tiles read one cohort (requests filed in the selected range) plus Avg. Processing (with its sample size) and Overdue; overdue/at-risk is decided only by `slaState()`. "Reached no office" alert lists open requests whose type has no office. Durations via `App\Support\Duration`. On-time rate, "Fastest staff" and the deadline donut were removed on purpose. All panels use `cc-panel`.
-- Super admin sidebar: Dashboard, Users (absorbed the Staff directory's workload via `App\Support\StaffLoad`), Internal Requests, Audit Log, then a "Setup" group (Departments, Route Templates, Request Types, Resources). The Services report is gone from it (checklist → dashboard, booking use → Resources); the route still serves supervisors.
+- `/admin/requests` (`RequestOverviewController`): every citizen request, read-only, in the shared Review modal with `mode: 'oversight'` (no assign/advance; a Notify button). Super admin request links land here with `?open=SPD-…` — `track.show` redirects them here, as do the command center's lists and the unrouted alert. Notify is one dialog, `admin/partials/notify-dialog` (`$dispatch('admin-notify', {...})`); an unassigned request notifies its office's supervisors only.
+- Super admin sidebar: Dashboard, Requests, Users (absorbed the Staff directory's workload via `App\Support\StaffLoad`), Internal Requests, Audit Log, then a "Setup" group (Departments, Route Templates, Request Types, Resources). The Services report is gone from it (checklist → dashboard, booking use → Resources); the route still serves supervisors.
 - Audit lines are worded by `App\Support\ActivityLine` (tracking numbers, not "Document #19"; empty "updated" rows hidden). Login/logout listeners are auto-discovered — don't also `Event::listen` them (that logged everything twice).
 - Super admins are not belled for every new citizen request: `DocumentEvent::departmentTriagers` goes to that office's supervisors, and only falls back to super admins when the office has no active supervisor (no office at all → every triager, as before).
+
+### Supervisor dashboard (`/dashboard`)
+
+- No SLA routing slip (the staff member advances the work; at-risk lives on the staff dashboard). Supervisors have no Internal tab: their internal queues (Awaiting / Filed / Closed + the request modal) are drawn on the dashboard from `requests/partials/inbox` with `App\Support\InternalInbox`. `/requests` redirects them to `/dashboard` (keeping `?open=`), so notification links and modal decisions still land. Staff and super admins keep the Internal page.
 
 ### Internal requests: hard copy vs soft copy
 

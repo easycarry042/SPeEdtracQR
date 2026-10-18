@@ -153,8 +153,11 @@ class TrackController extends Controller
             abort(404);
         }
 
+        // A super admin reads requests on the Requests page, opened on this one.
+        // (It used to send them to the dashboard, so every request link they
+        // clicked appeared to do nothing.)
         if (! $citizenView && auth()->user()->can('manage system')) {
-            return to_route('admin.dashboard');
+            return to_route('admin.requests.index', ['open' => $document->tracking_number]);
         }
 
         $documents = collect();

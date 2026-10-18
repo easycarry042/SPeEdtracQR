@@ -367,7 +367,7 @@ class AdminAnalytics
                     'assignee' => $doc->assignedTo?->name,
                     'hours_over' => round($hoursOver, 1),
                     'over' => Duration::hours($hoursOver),
-                    'url' => route('track.show', $doc->tracking_number),
+                    'url' => route('admin.requests.index', ['open' => $doc->tracking_number]),
                 ];
             })
             ->sortByDesc('hours_over')
@@ -395,7 +395,7 @@ class AdminAnalytics
                 'blocked_by' => $doc->blocked_by,
                 'days_over' => $doc->holdOverdueDays(),
                 'held_since' => $doc->held_at,
-                'url' => route('track.show', $doc->tracking_number),
+                'url' => route('admin.requests.index', ['open' => $doc->tracking_number]),
             ])
             ->sortByDesc('days_over')
             ->take($limit)

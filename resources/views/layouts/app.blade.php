@@ -54,6 +54,7 @@
         request()->routeIs('track.*'), request()->routeIs('scan.*') => 'Look up',
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
+        request()->routeIs('admin.requests*') => 'Requests',
         request()->routeIs('admin.assignments*') => 'Assignments',
         request()->routeIs('bookings*') => 'Booking',
         request()->routeIs('reports.services') => 'Services report',

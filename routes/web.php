@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\RequestOverviewController;
 use App\Http\Controllers\Admin\RequestTypeController;
 use App\Http\Controllers\Admin\ResourceController;
 use App\Http\Controllers\Admin\RouteTemplateController;
@@ -211,6 +212,9 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
         // Nudge the responsible staff/supervisor about an overdue document
         // (the super admin notifies rather than assigns from the command center).
         Route::post('nudge/{document}', [DocumentNudgeController::class, 'store'])->name('nudge');
+
+        // Every citizen request and where it stands (read-only, with Notify).
+        Route::get('requests', [RequestOverviewController::class, 'index'])->name('requests.index');
 
         // Audit log
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');

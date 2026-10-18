@@ -297,7 +297,8 @@ class ReviewModalMergeTest extends TestCase
         $department = Department::factory()->create();
         $supervisor = User::factory()->create(['department_id' => $department->id])->assignRole('Supervisor');
 
-        foreach (['dashboard', 'track.index', 'requests.index', 'staff.index'] as $route) {
+        // (A supervisor's internal requests are on the dashboard, not a page of their own.)
+        foreach (['dashboard', 'track.index', 'staff.index'] as $route) {
             $this->actingAs($supervisor)
                 ->get(route($route))
                 ->assertOk()

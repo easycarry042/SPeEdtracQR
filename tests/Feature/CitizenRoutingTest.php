@@ -62,7 +62,7 @@ class CitizenRoutingTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('track.show', $document->tracking_number))
-            ->assertRedirect(route('admin.dashboard'));
+            ->assertRedirect(route('admin.requests.index', ['open' => $document->tracking_number]));
 
         $this->actingAs($supervisor)
             ->get(route('track.show', $document->tracking_number))

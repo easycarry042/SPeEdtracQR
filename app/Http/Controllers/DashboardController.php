@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
-use App\Models\RequestStep;
 use App\Models\User;
 use App\Support\AssignmentScope;
+use App\Support\InternalInbox;
 use App\Support\RequestReview;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -109,26 +109,16 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        // ── Routing slip: the single most at-risk active document ─────────────
-        // The named at-risk LIST lives on the staff dashboard now (see
-        // StaffDashboardController): a supervisor can reassign a slipping
-        // request, but only its assignee can advance it, so the warning belongs
-        // where it can be acted on. This desk keeps the one-document slip as
-        // the office's headline.
-        $slip = $this->buildRoutingSlip($deptId);
+        // No SLA slip here: the supervisor assigns, the staff member advances,
+        // so the at-risk warning lives on each staff member's own dashboard.
 
-        // Internal requests currently sitting at this supervisor's office (0
-        // for org-wide accounts — they triage from the inbox instead).
-        $internalAwaiting = $user->department_id
-            ? Document::where('origin', Document::ORIGIN_INTERNAL)
-                ->whereIn('status', DocumentStatus::activeValues())
-                ->whereHas('requestSteps', fn ($q) => $q
-                    ->where('status', RequestStep::STATUS_CURRENT)
-                    ->where('department_id', $user->department_id))
-                ->count()
-            : 0;
+        // Internal requests are worked from this dashboard too, rather than a
+        // separate Internal page (App\Support\InternalInbox::livesOnDashboard).
+        $internalInbox = InternalInbox::livesOnDashboard($user)
+            ? InternalInbox::for($user, (string) request('q'))
+            : null;
 
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'slip' => $slip, 'internalAwaiting' => $internalAwaiting]);
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'internalInbox' => $internalInbox]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */
@@ -149,61 +139,5 @@ class DashboardController extends Controller
                 ->where('department_id', $deptId)
                 ->orWhereNull('department_id')
         ));
-    }
-
-    /**
-     * Pick the single most at-risk in-transit document and shape it for the
-     * dashboard routing slip (<x-routing-slip>). Largest overdue wins; if none
-     * are overdue, the one closest to breaching its current department's SLA.
-     *
-     * @return array{type: string, citizen: string, code: string, overdue: bool, status_text: string, stages: array<int, string>, current: int, public_url: string}|null
-     */
-    private function buildRoutingSlip(?int $deptId = null): ?array
-    {
-        $doc = $this->deptScope($this->scopeDocuments(
-            Document::whereIn('status', DocumentStatus::activeValues())
-        ), $deptId)->get()
-            ->map(function ($doc) {
-                $sla = $doc->statusEnum()->slaHours();
-                $anchor = $doc->status_changed_at ?? $doc->updated_at ?? $doc->created_at;
-
-                // Signed hours past the stage SLA: positive = overdue, negative = time left.
-                $doc->slipHoursOver = ($sla && $anchor)
-                    ? $anchor->diffInHours(now()) - $sla
-                    : null;
-
-                return $doc;
-            })
-            ->filter(fn ($doc): bool => $doc->slipHoursOver !== null)
-            ->sortByDesc('slipHoursOver')
-            ->first();
-
-        if (! $doc) {
-            return null;
-        }
-
-        // The four-stage rail, not the five-status flow. Look Up, the review
-        // modal and this slip all show the same document, and a citizen who is
-        // told "stage 3 of 4" at the counter must not find "stage 3 of 5" on
-        // the supervisor's screen. In Progress and In Review are one stage on
-        // the rail; the status underneath keeps its own label elsewhere.
-        $stages = array_column(DocumentStatus::railStages(), 'label');
-        $current = $doc->statusEnum()->railStage(
-            DocumentStatus::tryFrom((string) $doc->status_before_hold)
-        );
-
-        $over = (int) round($doc->slipHoursOver);
-        $overdue = $over > 0;
-
-        return [
-            'type' => $doc->document_type,
-            'citizen' => $doc->citizen_name ?? '—',
-            'code' => $doc->tracking_number,
-            'overdue' => $overdue,
-            'status_text' => $overdue ? '+'.$over.'h overdue' : '~'.abs($over).'h left',
-            'stages' => $stages,
-            'current' => $current,
-            'public_url' => route('track.show', $doc->tracking_number),
-        ];
     }
 }

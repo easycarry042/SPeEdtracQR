@@ -56,11 +56,11 @@ class InternalRequestTest extends TestCase
             ->assertSee('First Department Route');
     }
 
-    public function test_the_internal_page_files_requests_in_a_modal(): void
+    public function test_the_supervisor_files_requests_in_a_modal_from_the_dashboard(): void
     {
         $supervisor = $this->tourismSupervisor();
 
-        $this->actingAs($supervisor)->get(route('requests.index'))
+        $this->actingAs($supervisor)->get(route('dashboard'))
             ->assertOk()
             // The header's "File Request" opens the modal; its href still reaches the form without JS.
             ->assertSee('@click.prevent="$dispatch(\'open-file-request\')"', false)
@@ -77,11 +77,11 @@ class InternalRequestTest extends TestCase
         $supervisor = $this->tourismSupervisor();
 
         $this->actingAs($supervisor)
-            ->from(route('requests.index'))
+            ->from(route('dashboard'))
             ->post(route('requests.store'), ['purpose' => ''])
-            ->assertRedirect(route('requests.index'));
+            ->assertRedirect(route('dashboard'));
 
-        $this->actingAs($supervisor)->get(route('requests.index'))
+        $this->actingAs($supervisor)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('x-data="{ open: true }"', false);
     }

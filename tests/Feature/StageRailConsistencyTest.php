@@ -90,22 +90,26 @@ class StageRailConsistencyTest extends TestCase
         $this->assertStringNotContainsString('class="cap', $content, 'the old citizen stepper should be gone');
     }
 
-    public function test_the_supervisor_dashboard_slip_counts_in_fours(): void
+    /**
+     * The supervisor assigns and the staff member advances, so an overdue
+     * request is the staff member's warning — the supervisor desk no longer
+     * leads with an SLA routing slip.
+     */
+    public function test_the_supervisor_dashboard_carries_no_sla_slip(): void
     {
         $this->seedRolesAndPermissions();
 
         $dept = Department::create(['name' => 'General Services', 'code' => 'GSO', 'is_active' => true]);
         $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
 
-        // Old enough to be at risk, which is what the slip picks up.
         $document = $this->document();
         $document->update(['department_id' => $dept->id, 'status_changed_at' => now()->subDays(30)]);
 
-        $slip = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk()->viewData('slip');
+        $response = $this->actingAs($supervisor)->get(route('dashboard'))->assertOk();
 
-        $this->assertNotNull($slip, 'An overdue document should surface on the slip.');
-        $this->assertSame($this->railLabels(), $slip['stages']);
-        $this->assertLessThanOrEqual(4, $slip['current']);
+        $this->assertArrayNotHasKey('slip', $response->original->getData());
+        $response->assertDontSee('Live document journey')
+            ->assertDontSee('h overdue');
     }
 
     /**
@@ -193,7 +197,7 @@ class StageRailConsistencyTest extends TestCase
         $response->assertDontSee('SPD-LATE-THEIRS');
     }
 
-    /** The supervisor desk keeps the slip and no longer repeats the list. */
+    /** The supervisor desk no longer repeats the at-risk list. */
     public function test_the_supervisor_dashboard_no_longer_carries_the_at_risk_list(): void
     {
         $this->seedRolesAndPermissions();
@@ -211,6 +215,5 @@ class StageRailConsistencyTest extends TestCase
 
         $response->assertDontSee('At-risk documents');
         $response->assertDontSee('At-risk requests');
-        $this->assertNotNull($response->viewData('slip'), 'The worst offender still leads as a slip.');
     }
 }
