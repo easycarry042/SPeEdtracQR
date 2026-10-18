@@ -27,7 +27,7 @@ final class SpeedyContext
     {
         return Document::where('tracking_number', trim($trackingNumber))
             ->where('origin', '!=', Document::ORIGIN_INTERNAL)
-            ->with('assignedTo')
+            ->with('department')
             ->first();
     }
 

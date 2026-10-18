@@ -27,7 +27,12 @@
             {{-- QR + actions --}}
             <section class="panel">
                 <div class="pb p-8 text-center">
-                    <p class="text-[13px] text-ink-soft">Paste the QR sticker on the paper request — every office it reaches scans it to confirm custody.</p>
+                    @if($document->isSoftCopy())
+                        @php $firstRecipient = $document->requestSteps->firstWhere('step_order', 1)?->recipient; @endphp
+                        <p class="text-[13px] text-ink-soft">Soft copy only — nothing to print or carry. It is already with {{ $firstRecipient?->name ?? 'the first office' }}, who has been notified.</p>
+                    @else
+                        <p class="text-[13px] text-ink-soft">Paste the QR sticker on the paper request — every office it reaches scans it to confirm custody.</p>
+                    @endif
 
                     <div class="mx-auto mt-6 flex h-56 w-56 items-center justify-center rounded-[10px] border border-hairline bg-white p-3 [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full"
                          role="img" aria-label="QR code for tracking number {{ $document->tracking_number }}">
@@ -41,10 +46,12 @@
                     </p>
 
                     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-                        <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-primary">
-                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
-                            Print QR sticker
-                        </a>
+                        @unless($document->isSoftCopy())
+                            <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-primary">
+                                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18h12M6 14h12M6 10h12M6 6h12"/></svg>
+                                Print QR sticker
+                            </a>
+                        @endunless
                         @if($stampedCopy)
                             <a href="{{ $stampedCopy->authorizedUrl() }}" target="_blank" class="cr-btn">QR-stamped digital copy</a>
                         @endif

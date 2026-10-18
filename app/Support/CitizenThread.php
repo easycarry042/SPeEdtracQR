@@ -31,13 +31,13 @@ final class CitizenThread
      * The thread, flattened: replies sit in time order with everything else,
      * the way a chat reads.
      *
-     * @return list<array{id: int, from: string, name: string, office: ?string, body: string, at: ?string, attachment: ?array{name: string, url: string}}>
+     * @return list<array{id: int, from: string, name: string, body: string, at: ?string, attachment: ?array{name: string, url: string}}>
      */
     public static function messages(Document $document): array
     {
         return $document->allComments()
             ->citizenVisible()
-            ->with('author.department')
+            ->with(['author.department', 'document.department'])
             ->reorder()
             ->oldest()
             ->oldest('id')
@@ -47,9 +47,6 @@ final class CitizenThread
                 // citizen | staff | system — how the bubble is drawn.
                 'from' => $comment->author_type,
                 'name' => $comment->publicAuthorLabel(),
-                'office' => $comment->author_type === DocumentComment::AUTHOR_STAFF
-                    ? $comment->author?->department?->name
-                    : null,
                 'body' => $comment->body,
                 'at' => $comment->created_at?->format('M j, g:i A'),
                 'attachment' => $comment->hasAttachment() ? [

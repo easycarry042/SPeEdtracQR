@@ -15,3 +15,12 @@
     <p class="mt-1 text-[12px] text-ink-soft">Letters and numbers only, up to 10 characters. Shown on badges and routing chains.</p>
     @error('code')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
 </div>
+
+<div class="sm:w-1/2">
+    <label for="dept-turnaround" class="block text-[13px] font-semibold text-ink">Internal request turnaround (hours)</label>
+    <input id="dept-turnaround" type="number" name="internal_step_hours" min="1" max="720" step="1"
+           value="{{ old('internal_step_hours', $department?->internalStepHours() ?? \App\Models\Department::DEFAULT_INTERNAL_STEP_HOURS) }}"
+           class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25 @error('internal_step_hours') border-status-red @enderror">
+    <p class="mt-1 text-[12px] text-ink-soft">How long this office has to act on an internal request once it reaches them. Past this, the command center counts it overdue. 72 hours is three days.</p>
+    @error('internal_step_hours')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
+</div>

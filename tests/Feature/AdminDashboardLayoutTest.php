@@ -44,7 +44,7 @@ class AdminDashboardLayoutTest extends TestCase
         ]);
 
         $this->dashboard()->assertSeeInOrder([
-            'Total Documents',
+            'Requests filed',
             'Overdue',
             'Where requests are now',
             'Needs Attention',
@@ -112,7 +112,7 @@ class AdminDashboardLayoutTest extends TestCase
         // row under the panels, a second style of KPI on the same page.
         $this->dashboard()
             ->assertDontSee('an-kpis-rates', false)
-            ->assertSeeInOrder(['Total Documents', 'Pending', 'Being worked on', 'Completed', 'Avg. Processing', 'Overdue'])
+            ->assertSeeInOrder(['Requests filed', 'Pending', 'Being worked on', 'Completed', 'Avg. Processing', 'Overdue'])
             ->assertSee('stat-avg-time.svg', false)
             ->assertSee('stat-overdue.svg', false);
     }

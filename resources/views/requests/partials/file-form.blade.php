@@ -93,6 +93,39 @@
                                placeholder="e.g. 10 Monoblock chairs and a flower vase…"
                                class="st-filter-field @error('purpose') !border-status-red @enderror">
                     </div>
+
+                    {{-- Paper or not. A hard copy travels as a folder each office
+                         scans in; without one there is nothing to carry or scan,
+                         so the request goes straight to a person the filer names. --}}
+                    <div>
+                        <input type="hidden" name="has_hard_copy" :value="form.has_hard_copy ? 1 : 0">
+                        <label class="ff-toggle">
+                            <input type="checkbox" role="switch" x-model="form.has_hard_copy" class="ff-toggle-input">
+                            <span class="ff-toggle-track" aria-hidden="true"><span class="ff-toggle-thumb"></span></span>
+                            <span class="min-w-0">
+                                <span class="block text-[length:var(--fs-small)] font-semibold text-ink">A hard copy goes to the first office</span>
+                                <span class="block text-[length:var(--fs-caption)] text-ink-soft"
+                                      x-text="form.has_hard_copy
+                                          ? 'Someone from your office hands over the paper; they scan its QR to receive it.'
+                                          : 'Soft copy only: it reaches the person you choose below as soon as you file.'"></span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div x-show="! form.has_hard_copy" x-cloak>
+                        <label for="recipient-select" class="st-filter-label">Who in the first office receives it? <span class="text-status-red">*</span></label>
+                        <select id="recipient-select" name="recipient_id" x-model="form.recipient_id"
+                                :required="! form.has_hard_copy" :disabled="form.has_hard_copy || ! form.first_department_id"
+                                class="st-filter-field @error('recipient_id') !border-status-red @enderror">
+                            <option value="" x-text="form.first_department_id ? 'Select a person…' : 'Choose the first department first'"></option>
+                            <template x-for="person in recipientOptions" :key="person.id">
+                                <option :value="person.id" x-text="`${person.name} · ${person.role}`" :selected="String(person.id) === String(form.recipient_id)"></option>
+                            </template>
+                        </select>
+                        <p x-show="form.first_department_id && recipientOptions.length === 0" x-cloak class="mt-1 text-[length:var(--fs-caption)] font-semibold text-status-amber">
+                            No one in that office has an active account yet. Send a hard copy instead, or ask an administrator to add them.
+                        </p>
+                    </div>
                 </div>
 
                 <div class="flex flex-col">
@@ -142,6 +175,8 @@
                         <div class="dm-info-row"><dt>Requesting office</dt><dd>{{ $department->name }} ({{ $department->code }})</dd></div>
                         <div class="dm-info-row"><dt>First department</dt><dd x-text="selectedDepartment ? `${selectedDepartment.name} (${selectedDepartment.code})` : '—'"></dd></div>
                         <div class="dm-info-row"><dt>Request</dt><dd x-text="form.purpose"></dd></div>
+                        <div class="dm-info-row"><dt>Hard copy</dt><dd x-text="form.has_hard_copy ? 'Yes — paper goes to the first office' : 'No — soft copy only'"></dd></div>
+                        <div class="dm-info-row" x-show="! form.has_hard_copy"><dt>Received by</dt><dd x-text="selectedRecipient ? `${selectedRecipient.name} (${selectedRecipient.role})` : '—'"></dd></div>
                         <div class="dm-info-row"><dt>Scanned document</dt><dd x-text="fileName || 'None attached'"></dd></div>
                     </dl>
 
@@ -263,7 +298,28 @@
         return {
             step: 1,
             departments: @json($departmentsJson),
+            // Per office: who can be named to receive a soft copy, fetched
+            // when the office is picked and kept for the session of the form.
+            recipients: {},
+            recipientsUrl: @js(route('requests.recipients', ['department' => '__DEPT__'])),
             fileName: '',
+
+            init() {
+                this.$watch('form.first_department_id', () => this.loadRecipients());
+                this.loadRecipients();
+            },
+
+            async loadRecipients() {
+                const id = this.form.first_department_id;
+                if (!id || this.recipients[id]) { return; }
+                try {
+                    const response = await fetch(this.recipientsUrl.replace('__DEPT__', id), { headers: { Accept: 'application/json' } });
+                    if (response.ok) { this.recipients = { ...this.recipients, [id]: await response.json() }; }
+                } catch (error) {
+                    // Left empty: the picker then says no one is available,
+                    // and a hard copy still files.
+                }
+            },
             previewUrl: null,
             qrModal: false,
             dragOver: false,
@@ -282,10 +338,20 @@
             form: {
                 first_department_id: @json(old('first_department_id', '')),
                 purpose: @json(old('purpose', '')),
+                has_hard_copy: @json((bool) old('has_hard_copy', true)),
+                recipient_id: @json(old('recipient_id', '')),
             },
 
             get selectedDepartment() {
                 return this.departments.find(d => String(d.id) === String(this.form.first_department_id)) ?? null;
+            },
+
+            get recipientOptions() {
+                return this.recipients[this.form.first_department_id] ?? [];
+            },
+
+            get selectedRecipient() {
+                return this.recipientOptions.find(p => String(p.id) === String(this.form.recipient_id)) ?? null;
             },
 
             /** One forward hop now: the department the filer chose. */
@@ -420,7 +486,8 @@
             },
 
             get canReview() {
-                return Boolean(this.form.first_department_id) && this.form.purpose.trim() !== '' && this.fileName !== '';
+                return Boolean(this.form.first_department_id) && this.form.purpose.trim() !== '' && this.fileName !== ''
+                    && (this.form.has_hard_copy || this.selectedRecipient !== null);
             },
 
             goReview() {

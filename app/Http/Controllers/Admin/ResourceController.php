@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\Resource;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -15,7 +16,16 @@ class ResourceController extends Controller
 {
     public function index(): Factory|View
     {
-        $resources = Resource::withCount('bookings')->orderBy('sort_order')->orderBy('name')->get();
+        // Booking use per resource, moved here from the retired Services
+        // report: pending is what is waiting on staff, upcoming is approved
+        // and still ahead on the calendar.
+        $resources = Resource::withCount([
+            'bookings',
+            'bookings as pending_count' => fn ($q) => $q->where('status', Booking::STATUS_PENDING),
+            'bookings as upcoming_count' => fn ($q) => $q
+                ->where('status', Booking::STATUS_APPROVED)
+                ->where('ends_at', '>=', now()),
+        ])->orderBy('sort_order')->orderBy('name')->get();
 
         return view('admin.resources.index', ['resources' => $resources]);
     }

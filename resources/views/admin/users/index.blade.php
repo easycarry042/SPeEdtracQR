@@ -56,8 +56,11 @@
                                 <input type="checkbox" id="selectAllUsers" aria-label="Select all accounts on this page" class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
                             </th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Name</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Email</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Office</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Role</th>
+                            {{-- From the old Staff directory: what each person is
+                                 carrying, beside their account. --}}
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Workload</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Actions</th>
                         </tr>
@@ -75,16 +78,32 @@
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
                                             {{ strtoupper(mb_substr($user->name, 0, 1)) }}
                                         </span>
-                                        <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
+                                        <div class="min-w-0">
+                                            <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
+                                            <div class="truncate text-xs text-gray-500">{{ $user->email }}</div>
+                                        </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $user->email }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600" title="{{ $user->department?->name }}">{{ $user->department?->code ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     @foreach($user->roles as $role)
                                         <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                                             {{ ucfirst($role->name) }}
                                         </span>
                                     @endforeach
+                                </td>
+                                @php $work = $load[$user->id] ?? null; @endphp
+                                <td class="px-4 py-3 text-sm">
+                                    @if($work)
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-700">
+                                            <span><b class="font-semibold">{{ $work['assigned'] }}</b> open</span>
+                                            <span class="text-gray-500"><b class="font-semibold text-gray-700">{{ $work['completed'] }}</b> done</span>
+                                            @if($work['overdue'] > 0)
+                                                <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{{ $work['overdue'] }} overdue</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-gray-400">{{ $work['last_active'] ? 'Active '.$work['last_active'] : 'No activity yet' }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3">
                                     @if($user->trashed())
@@ -158,7 +177,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     @if(request()->hasAny(['search','role']))
                                         <x-empty-state icon="search" title="No users match your filters">
                                             Try a different name, email, or role — or clear the filters to see everyone.

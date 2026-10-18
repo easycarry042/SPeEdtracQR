@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\DocumentStatus;
 use App\Models\Department;
 use App\Models\Document;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -13,12 +14,15 @@ use Illuminate\Support\Facades\Date;
 use Spatie\Activitylog\Models\Activity;
 
 /**
- * Org-wide read model for the super-admin analytics command center (Direction 1a).
+ * Org-wide read model for the CITIZEN side of the super-admin command center.
+ * Internal (office-to-office) requests are left out entirely — they have their
+ * own lifecycle (endorsement hops, returns to the filing office) and their own
+ * read model, {@see InternalAnalytics}. Mixed in, they were judged against the
+ * citizen stage clocks and padded the overdue list with INT- requests.
  *
  * Every metric is sourced from the MANUAL status model — documents.status,
  * status_changed_at, completed_at, assigned_to — plus the Spatie activity log
- * for per-stage timing. Department has been removed from the system; analytics
- * are by-staff and by-document-type only.
+ * for per-stage timing.
  *
  * The document-type "slice" applies everywhere. Flow metrics (created/completed
  * throughput, type mix, KPIs) additionally honour the selected date window;
@@ -114,6 +118,9 @@ class AdminAnalytics
                 'value' => $avgNow,
                 // Lower is better, so invert the delta direction for display.
                 'delta' => $this->comparableDelta($avgNow, $avgPrev, lowerIsBetter: true),
+                // How many completions the average stands on: one request
+                // finished in 53 minutes is not a processing time.
+                'sample' => $this->completedCount($this->from, $this->to),
             ],
         ];
     }
@@ -160,8 +167,13 @@ class AdminAnalytics
         ]);
     }
 
-    /** "Staff Workload" — completed (in window) + current active load per assignee. */
-    public function staffWorkload(): Collection
+    /**
+     * "Staff Workload" — completed (in window) + current active load for every
+     * active staff member who can work requests, idle ones included: an empty
+     * row is the answer to "who has room for more?", and leaving it out made
+     * the panel look like the whole office was busy.
+     */
+    public function staffWorkload(int $limit = 10): Collection
     {
         $completed = $this->scoped()
             ->whereNotNull('assigned_to')
@@ -177,7 +189,14 @@ class AdminAnalytics
             ->groupBy('assigned_to')
             ->pluck('total', 'assigned_to');
 
-        $ids = $completed->keys()->merge($active->keys())->unique();
+        // Super admins hold every permission but work no requests.
+        $staff = User::permission('advance documents')
+            ->where('is_active', true)
+            ->get(['id', 'name'])
+            ->reject(fn (User $user): bool => $user->can('manage system'));
+
+        // Anyone holding work who is no longer on the staff list still counts.
+        $ids = $staff->pluck('id')->merge($completed->keys())->merge($active->keys())->unique();
         if ($ids->isEmpty()) {
             return collect();
         }
@@ -190,45 +209,12 @@ class AdminAnalytics
             'active' => (int) ($active[$id] ?? 0),
             'overloaded' => (int) ($active[$id] ?? 0) >= self::OVERLOADED_AT,
         ])
-            ->sortByDesc(fn ($r): float|int|array => $r['active'] + $r['completed'])
-            ->take(8)
+            ->sortBy([
+                fn (array $a, array $b): int => ($b['active'] + $b['completed']) <=> ($a['active'] + $a['completed']),
+                fn (array $a, array $b): int => $a['name'] <=> $b['name'],
+            ])
+            ->take($limit)
             ->values();
-    }
-
-    /** "Open Requests vs. Deadline" — split open docs + the stage with the most overdue. */
-    public function bottlenecks(): array
-    {
-        $active = $this->activeDocuments();
-
-        $onTime = 0;
-        $atRisk = 0;
-        $breached = 0;
-        $breachedByStage = [];
-
-        foreach ($active as $doc) {
-            $state = $this->slaState($doc);
-
-            if ($state === 'overdue') {
-                $breached++;
-                $label = $doc->statusEnum()->label();
-                $breachedByStage[$label] = ($breachedByStage[$label] ?? 0) + 1;
-            } elseif ($state === 'at_risk') {
-                $atRisk++;
-            } else {
-                // On time, or no clock running (held, returned).
-                $onTime++;
-            }
-        }
-
-        arsort($breachedByStage);
-
-        return [
-            'on_time' => $onTime,
-            'at_risk' => $atRisk,
-            'breached' => $breached,
-            'total' => $active->count(),
-            'worst_stage' => array_key_first($breachedByStage),
-        ];
     }
 
     /**
@@ -279,42 +265,72 @@ class AdminAnalytics
     }
 
     /**
-     * "Document Volume by Department" — how much work each office is carrying.
+     * "Requests by Office" — how much work each office is carrying.
      *
      * The bar is read against the busiest office, not against the total: the
      * frame draws one row at 100% and the rest below it, which is a comparison
      * between offices rather than a share of a whole, so the panel prints each
-     * office's COUNT beside its bar (it used to print the bar's percentage,
-     * which read as a share: 100% / 10% / 10%). Requests filed in the window,
-     * like the tiles above it. Offices with none are left out.
+     * office's COUNT beside its bar. Requests filed in the window, like the
+     * tiles above it.
+     *
+     * Every office that owns a citizen service is listed, at zero when nothing
+     * came in: leaving empty offices out hid that a whole office had received
+     * nothing, which is exactly what a misrouted service looks like.
      *
      * @return Collection<int, array{label: string, code: ?string, value: int, pct: int, busiest: bool}>
      */
-    public function departmentVolume(int $limit = 6): Collection
+    public function departmentVolume(): Collection
     {
         $counts = $this->scoped()
             ->whereNotNull('department_id')
             ->whereBetween('created_at', [$this->from, $this->to])
             ->selectRaw('department_id, COUNT(*) as total')
             ->groupBy('department_id')
-            ->orderByDesc('total')
-            ->take($limit)
-            ->pluck('total', 'department_id');
+            ->pluck('total', 'department_id')
+            ->map(fn ($n): int => (int) $n);
 
-        if ($counts->isEmpty()) {
+        $serviceOffices = RequestType::where('is_active', true)
+            ->whereNotNull('department_id')
+            ->distinct()
+            ->pluck('department_id');
+
+        $ids = $serviceOffices->merge($counts->keys())->unique();
+        if ($ids->isEmpty()) {
             return collect();
         }
 
-        $departments = Department::whereIn('id', $counts->keys())->get(['id', 'name', 'code'])->keyBy('id');
+        $departments = Department::whereIn('id', $ids)->get(['id', 'name', 'code']);
         $max = max(1, (int) $counts->max());
 
-        return $counts->map(fn ($total, $id): array => [
-            'label' => $departments[$id]->name ?? 'Unassigned office',
-            'code' => $departments[$id]->code ?? null,
-            'value' => (int) $total,
-            'pct' => (int) round($total / $max * 100),
-            'busiest' => (int) $total === $max,
-        ])->values();
+        return $departments
+            ->map(fn (Department $department): array => [
+                'label' => $department->name,
+                'code' => $department->code,
+                'value' => $counts[$department->id] ?? 0,
+                'pct' => (int) round(($counts[$department->id] ?? 0) / $max * 100),
+                'busiest' => ($counts[$department->id] ?? 0) === $max,
+            ])
+            ->sortBy([
+                fn (array $a, array $b): int => $b['value'] <=> $a['value'],
+                fn (array $a, array $b): int => $a['label'] <=> $b['label'],
+            ])
+            ->values();
+    }
+
+    /**
+     * Open citizen requests that reached no office: their request type has no
+     * handling office, so no supervisor was told about them and they wait
+     * unseen. Fixed on the Request Types page, then moved by hand.
+     *
+     * @return Collection<int, Document>
+     */
+    public function unrouted(): Collection
+    {
+        return $this->scoped()
+            ->whereNull('department_id')
+            ->whereIn('status', DocumentStatus::activeValues())
+            ->oldest()
+            ->get(['id', 'tracking_number', 'document_type', 'created_at']);
     }
 
     /**
@@ -326,50 +342,7 @@ class AdminAnalytics
      */
     public function recentActivity(int $limit = 25): Collection
     {
-        return Activity::with(['causer.roles', 'subject'])
-            // Work on requests, not sign-ins: the admin's own logins filled the
-            // strip ("Super Admin · Signed In · 127.0.0.1" five times over).
-            // They stay on the full Audit Log page.
-            ->where(fn ($query) => $query->whereNull('log_name')->orWhere('log_name', '!=', 'auth'))
-            // Several entries can share a second (a create and the first status
-            // change, say), so the id breaks the tie — otherwise "newest first"
-            // is whatever order the driver happens to return.
-            ->latest()
-            ->latest('id')
-            ->take($limit)
-            ->get()
-            ->map(function (Activity $entry): array {
-                $properties = $entry->properties ?? collect();
-                $changed = collect($properties->get('attributes') ?? []);
-                $subject = $entry->subject;
-                $tracking = $subject instanceof Document ? $subject->tracking_number : null;
-
-                [$action, $detail] = match (true) {
-                    $entry->event === 'created' => ['Request Created', $changed->get('document_type')],
-                    $changed->has('status') => [
-                        'Status Updated',
-                        '→ '.DocumentStatus::fromLoose($changed->get('status'))->label(),
-                    ],
-                    $changed->has('assigned_to') => [
-                        'Staff Assigned',
-                        $changed->get('assigned_to')
-                            ? '→ '.(User::find($changed->get('assigned_to'))?->name ?? 'Unknown')
-                            : '→ Unassigned',
-                    ],
-                    default => [ucfirst((string) ($entry->description ?: $entry->event ?: 'Change')), null],
-                };
-
-                $role = $entry->causer?->roles->first()?->name;
-
-                return [
-                    'at' => $entry->created_at,
-                    'user' => $entry->causer?->name ?? 'System',
-                    'role' => $role ? str_replace('_', ' ', ucwords($role, '_')) : 'System',
-                    'action' => $action,
-                    'subject' => $tracking,
-                    'detail' => $detail,
-                ];
-            });
+        return ActivityLine::recentOnRequests(internal: false, limit: $limit);
     }
 
     // ── Region D: supporting data ────────────────────────────────────────────
@@ -431,10 +404,11 @@ class AdminAnalytics
 
     // ── internals ────────────────────────────────────────────────────────────
 
-    /** Base query carrying the document-type "slice" filter only. */
+    /** Base query: citizen requests only, plus the document-type "slice". */
     private function scoped(): Builder
     {
         return Document::query()
+            ->citizenFacing()
             ->when($this->documentType, fn ($q) => $q->where('document_type', $this->documentType));
     }
 
@@ -450,6 +424,11 @@ class AdminAnalytics
     private function countCreated(Carbon $from, Carbon $to): int
     {
         return $this->scoped()->whereBetween('created_at', [$from, $to])->count();
+    }
+
+    private function completedCount(Carbon $from, Carbon $to): int
+    {
+        return $this->scoped()->whereBetween('completed_at', [$from, $to])->count();
     }
 
     private function avgProcessingDays(Carbon $from, Carbon $to): ?float

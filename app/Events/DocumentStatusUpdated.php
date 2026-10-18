@@ -39,16 +39,15 @@ class DocumentStatusUpdated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         $stage = $this->document->statusEnum();
-        $actor = $this->actor?->name ? explode(' ', $this->actor->name)[0] : 'Staff';
 
         return [
             'status' => $this->document->status,
             'status_label' => $stage->label(),
-            // "Handled by" value for the citizen page — the assigned staff member
-            // in the manual model (null → the JS shows "Not yet assigned").
-            'current_department' => $this->document->assignedTo?->name,
-            'event' => "Status updated to {$stage->label()} by {$actor}",
-            'assignee' => $this->document->assignedTo?->name,
+            // This is a public channel: the handling office, never a staff
+            // member's name (staff stay anonymous to the public). The event text
+            // matches the server-rendered activity log.
+            'current_department' => $this->document->department?->name,
+            'event' => "Updated to {$stage->label()}",
             'timestamp' => ($this->document->status_changed_at ?? now())?->format('M d, Y h:i A'),
         ];
     }

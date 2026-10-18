@@ -40,30 +40,10 @@
         };
 
         /* ---------- region C chart data ---------- */
-        // Throughput grouped bars
+        // Throughput grouped bars (both sides have one)
         $tputMax = max(1, collect($throughput)->max('created') ?? 0, collect($throughput)->max('completed') ?? 0);
 
-        // Requests by stage, for the panel beside the department bars. One
-        // colour per stage (Pending, In Progress, In Review, Approved, Completed,
-        // Returned, On Hold, Denied) — the old palette had seven for eight.
-        $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309', '#d8920f', '#c98a8a'];
-        $sd = $donut($statusDistribution->values()->map(fn ($r, $i) => [$r['label'], $r['value'], $stageColors[$i % count($stageColors)]])->all());
-
-        // Bottlenecks donut
-        $bt = $donut([
-            ['On time', $bottlenecks['on_time'], '#167a3a'],
-            ['At risk', $bottlenecks['at_risk'], '#b45309'],
-            ['Overdue', $bottlenecks['breached'], '#b91c1c'],
-        ]);
-
-        // Processing time by stage — tallest bar is the bottleneck (red)
-        $stageMaxHours = max(0.01, collect($timeByStage)->max('hours') ?? 0);
-
-        // Document type breakdown
-        $typeMax = max(1, collect($typeBreakdown)->max('value') ?? 0);
-
-        // Staff workload
-        $wlMax = max(1, $staffWorkload->max(fn ($r) => $r['completed'] + $r['active']) ?? 0);
+        $isInternal = $filters['view'] === 'internal';
     @endphp
 
     <div class="page-shell">
@@ -77,22 +57,58 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('admin.dashboard') }}" class="toolbar">
+                <input type="hidden" name="view" value="{{ $filters['view'] }}">
                 <x-select-menu name="range" label="Range" submit-on-change panel-width="w-48" class="w-48"
                                :options="[7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days']"
                                :selected="$filters['range']"/>
-                <x-select-menu name="document_type" label="Type" submit-on-change panel-width="w-56" class="w-56"
-                               :options="collect($documentTypes)->mapWithKeys(fn ($t) => [$t => $t])->prepend('All', '')->all()"
-                               :selected="$filters['document_type']"/>
+                {{-- Every internal request shares one type, so the slice is
+                     citizen-only. --}}
+                @unless ($isInternal)
+                    <x-select-menu name="document_type" label="Type" submit-on-change panel-width="w-56" class="w-56"
+                                   :options="collect($documentTypes)->mapWithKeys(fn ($t) => [$t => $t])->prepend('All', '')->all()"
+                                   :selected="$filters['document_type']"/>
+                @endunless
                 <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm">Apply</button>
                 @if ($filters['active'])
-                    <a href="{{ route('admin.dashboard') }}" class="cr-btn cr-btn-sm">Reset</a>
+                    <a href="{{ route('admin.dashboard', ['view' => $filters['view']]) }}" class="cr-btn cr-btn-sm">Reset</a>
                 @endif
-                <a href="{{ route('admin.dashboard.export', ['range' => $filters['range'], 'document_type' => $filters['document_type']]) }}"
+                <a href="{{ route('admin.dashboard.export', array_filter(['view' => $filters['view'], 'range' => $filters['range'], 'document_type' => $filters['document_type']])) }}"
                    class="cr-btn cr-btn-sm" title="Download these figures as a CSV (opens in Excel)">
                     Export CSV
                 </a>
             </form>
         </div>
+
+        {{-- The two sides of the command center. Citizen requests and
+             office-to-office requests used to be counted together, so INT-
+             requests sat in the citizen overdue list judged by citizen stage
+             clocks. Now each side is read on its own. --}}
+        <nav class="st-tabs self-start" aria-label="Which requests">
+            <a href="{{ route('admin.dashboard', ['view' => 'citizen', 'range' => $filters['range']]) }}"
+               class="{{ $isInternal ? '' : 'on' }}" @unless ($isInternal) aria-current="page" @endunless>Citizen requests</a>
+            <a href="{{ route('admin.dashboard', ['view' => 'internal', 'range' => $filters['range']]) }}"
+               class="{{ $isInternal ? 'on' : '' }}" @if ($isInternal) aria-current="page" @endif>Internal requests</a>
+        </nav>
+
+        @if ($isInternal)
+            @include('admin.partials.internal-dashboard')
+        @else
+        @php
+            // Requests by stage, for the panel beside the office bars. One
+            // colour per stage (Pending, In Progress, In Review, Approved,
+            // Completed, Returned, On Hold, Denied).
+            $stageColors = ['#cdd9d1', '#c79a3e', '#e0b15a', '#46a268', '#167a3a', '#b45309', '#d8920f', '#c98a8a'];
+            $sd = $donut($statusDistribution->values()->map(fn ($r, $i) => [$r['label'], $r['value'], $stageColors[$i % count($stageColors)]])->all());
+
+            // Processing time by stage — tallest bar is the bottleneck (red)
+            $stageMaxHours = max(0.01, collect($timeByStage)->max('hours') ?? 0);
+
+            // Document type breakdown
+            $typeMax = max(1, collect($typeBreakdown)->max('value') ?? 0);
+
+            // Staff workload
+            $wlMax = max(1, $staffWorkload->max(fn ($r) => $r['completed'] + $r['active']) ?? 0);
+        @endphp
 
         {{-- ── Region B: KPI vitals ─────────────────────────────────────────
              Six counts on the same gradient tiles the staff and supervisor
@@ -116,7 +132,10 @@
 
         @php
             $avgDelta = $kpis['avg_processing']['delta'] ?? null;
-            $avgNote = 'Filing to completion'
+            $avgSample = $kpis['avg_processing']['sample'] ?? 0;
+            // How many completions the average stands on, so one fast request
+            // is not read as the office's processing time.
+            $avgNote = ($avgSample > 0 ? 'From '.number_format($avgSample).' completed' : 'Filing to completion')
                 .($avgDelta && $avgDelta['pct'] !== null ? ' · '.$avgDelta['pct'].'% '.($avgDelta['dir'] === 'up' ? 'slower' : 'faster') : '');
             $overdueNote = 'Open now, any filing date'
                 .($kpis['at_risk']['value'] > 0 ? ' · +'.number_format($kpis['at_risk']['value']).' at risk' : '');
@@ -125,7 +144,7 @@
         {{-- Three across on a wide screen: six tiles in one row left each too
              narrow for its label and drawing. --}}
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            <x-staff-stat-tile label="Total Documents" :value="number_format($kpis['total']['value'])"
+            <x-staff-stat-tile label="Requests filed" :value="number_format($kpis['total']['value'])"
                                tone="deep" icon="doc" :note="$delta('total')" />
             <x-staff-stat-tile label="Pending" :value="number_format($kpis['pending']['value'])"
                                tone="mid" icon="hourglass" />
@@ -144,6 +163,28 @@
                                :tone="$kpis['overdue']['value'] > 0 ? 'amber' : 'bright'" icon="overdue" :note="$overdueNote" />
         </div>
 
+        {{-- Requests that reached no office. Their request type has no
+             handling office, so no supervisor was told and they wait unseen —
+             only this page can show them. --}}
+        @if ($unrouted->isNotEmpty())
+            <section class="cc-panel cc-alert" role="alert">
+                <div class="cc-panel-head flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="cc-panel-title">{{ $unrouted->count() }} {{ Str::plural('request', $unrouted->count()) }} reached no office</h2>
+                        <p class="cc-panel-sub">Their request type has no handling office, so no supervisor was notified. Give the type an office, then route these by hand.</p>
+                    </div>
+                    <a href="{{ route('admin.request-types.index') }}" class="cr-btn cr-btn-sm">Open Request Types →</a>
+                </div>
+                <div class="cc-panel-body flex flex-wrap gap-2">
+                    @foreach ($unrouted as $doc)
+                        <a href="{{ route('track.show', $doc->tracking_number) }}" class="cc-chip">
+                            <span class="code">{{ $doc->tracking_number }}</span> {{ $doc->document_type }}
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         {{-- ── The frame's two reading panels ───────────────────────────────
              Which office is carrying the load, and the tiles' requests by
              stage. Side by side on a wide screen, stacked below it.
@@ -152,16 +193,16 @@
 
             <section class="cc-panel">
                 <div class="cc-panel-head">
-                    <h2 class="cc-panel-title">Document Volume by Department</h2>
-                    <p class="cc-panel-sub">Requests filed in this period, by office</p>
+                    <h2 class="cc-panel-title">Requests by Office</h2>
+                    <p class="cc-panel-sub">Filed in this period · every office with a citizen service, idle ones included</p>
                 </div>
                 <div class="cc-panel-body">
                     @if ($departmentVolume->isEmpty())
-                        <div class="sp-empty">No requests were routed to an office in this period.</div>
+                        <div class="sp-empty">No office handles a citizen service yet. Give each request type an office on the Request Types page.</div>
                     @else
                         <div class="cc-bars">
                             @foreach ($departmentVolume as $dept)
-                                <div class="cc-bar-row {{ $dept['busiest'] ? 'is-busiest' : '' }}">
+                                <div class="cc-bar-row {{ $dept['value'] === 0 ? 'is-idle' : ($dept['busiest'] ? 'is-busiest' : '') }}">
                                     <span class="cc-bar-label">{{ $dept['label'] }}</span>
                                     <div class="cc-bar-track">
                                         {{-- The count is the fact; the bar is only how it is read,
@@ -385,9 +426,11 @@
                 </div>
             </div>
 
-            {{-- Staff workload (1/3) --}}
-            <div class="cc-panel an-span-2">
-                <div class="cc-panel-head"><h2 class="cc-panel-title">Staff Workload</h2><p class="cc-panel-sub">active + completed</p></div>
+            {{-- Staff workload (1/2). "Open Requests vs. Deadline" sat between
+                 this and the stage chart and was removed: it repeated the
+                 Overdue tile and the Needs Attention list above. --}}
+            <div class="cc-panel an-span-3">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Staff Workload</h2><p class="cc-panel-sub">active + completed · idle staff included</p></div>
                 <div class="cc-panel-body" style="padding-top:6px;">
                     @forelse ($staffWorkload as $s)
                         <div class="barrow">
@@ -398,10 +441,10 @@
                                     <span style="display:block;height:100%;background:var(--brass);flex:{{ $s['active'] }}"></span>
                                 </div>
                             </div>
-                            <div class="val">{{ $s['completed'] + $s['active'] }}</div>
+                            <div class="val">{{ $s['completed'] + $s['active'] ?: 'idle' }}</div>
                         </div>
                     @empty
-                        <div class="sp-empty">No assignments yet.</div>
+                        <div class="sp-empty">No staff accounts yet.</div>
                     @endforelse
                     @if ($staffWorkload->isNotEmpty())
                         <div class="legend" style="margin-top:10px;"><span><i style="background:#167a3a"></i>Completed</span><span><i style="background:#c79a3e"></i>Active</span></div>
@@ -409,21 +452,8 @@
                 </div>
             </div>
 
-            {{-- Bottlenecks donut (1/3) --}}
-            <div class="cc-panel an-span-2">
-                <div class="cc-panel-head"><h2 class="cc-panel-title">Open Requests vs. Deadline</h2><p class="cc-panel-sub">{{ $bottlenecks['total'] }} open</p></div>
-                <div class="cc-panel-body">
-                    @include('admin.partials.donut', ['data' => $bt, 'caption' => 'active'])
-                    @if ($bottlenecks['worst_stage'])
-                        {{-- Most overdue requests, not the slowest average — that is
-                             the next panel's question, and the answers can differ. --}}
-                        <div class="callout">Most overdue in: <b>{{ $bottlenecks['worst_stage'] }}</b></div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Processing time by stage (1/3) --}}
-            <div class="cc-panel an-span-2">
+            {{-- Processing time by stage (1/2) --}}
+            <div class="cc-panel an-span-3">
                 <div class="cc-panel-head"><h2 class="cc-panel-title">Average Time per Stage</h2><p class="cc-panel-sub">avg time in stage</p></div>
                 <div class="cc-panel-body">
                     @if (collect($timeByStage)->sum('hours') == 0)
@@ -463,9 +493,35 @@
                 </div>
             </div>
 
-            {{-- (The duplicate "Current staff load" panel was removed — "Who is overloaded?"
-                 above already covers per-staff load.) --}}
+            {{-- Requirement checklist health — moved here from the retired
+                 Services report: of the mandatory requirements on citizen
+                 requests, how many were handed in, and how many staff checked. --}}
+            <div class="cc-panel an-span-6">
+                <div class="cc-panel-head"><h2 class="cc-panel-title">Requirement Checklist</h2><p class="cc-panel-sub">mandatory requirements on citizen requests · all time</p></div>
+                <div class="cc-panel-body">
+                    @if ($requirementStats['mandatory_total'] === 0)
+                        <div class="sp-empty">No mandatory requirements attached to requests yet.</div>
+                    @else
+                        <div class="cc-bars">
+                            @foreach ([
+                                ['Handed in by the citizen', $requirementStats['submitted'], $requirementStats['submitted_pct']],
+                                ['Checked by staff', $requirementStats['verified'], $requirementStats['verified_pct']],
+                            ] as [$label, $count, $pct])
+                                <div class="cc-bar-row">
+                                    <span class="cc-bar-label">{{ $label }}</span>
+                                    <div class="cc-bar-track">
+                                        <div class="cc-bar-fill" style="width:{{ $pct }}%" role="img"
+                                             aria-label="{{ $count }} of {{ $requirementStats['mandatory_total'] }} ({{ $pct }}%)"></div>
+                                    </div>
+                                    <span class="cc-bar-value">{{ $count }} / {{ $requirementStats['mandatory_total'] }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
+        @endif
 
         {{-- ── Recent activity ──────────────────────────────────────────────
              The audit strip that closes the page. Read off the same activity
@@ -476,7 +532,7 @@
             <div class="cc-panel-head flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="cc-panel-title">Recent Activity</h2>
-                    <p class="cc-panel-sub">Latest {{ $recentActivity->count() }} changes to requests, newest first</p>
+                    <p class="cc-panel-sub">Latest {{ $recentActivity->count() }} changes to {{ $isInternal ? 'internal' : 'citizen' }} requests, newest first</p>
                 </div>
                 <a href="{{ route('admin.audit-log.index') }}" class="cr-btn cr-btn-sm">Full audit log →</a>
             </div>

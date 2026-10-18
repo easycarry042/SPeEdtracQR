@@ -19,6 +19,7 @@
                     <thead>
                         <tr>
                             <th>Request Type</th>
+                            <th>Handling office</th>
                             <th>Kind</th>
                             <th>Requirements</th>
                             <th>Status</th>
@@ -32,6 +33,15 @@
                                     <p class="nm text-ink">{{ $type->name }}</p>
                                     @if($type->description)
                                         <p class="mt-0.5 max-w-md truncate text-[11px] text-ink-soft">{{ $type->description }}</p>
+                                    @endif
+                                </td>
+                                {{-- Requests of a type with no office reach no
+                                     supervisor, so the gap is called out in words. --}}
+                                <td>
+                                    @if($type->department)
+                                        <span class="text-[13px] text-ink" title="{{ $type->department->name }}">{{ $type->department->name }}</span>
+                                    @else
+                                        <span class="pill p-amber">No office — requests go unrouted</span>
                                     @endif
                                 </td>
                                 <td>
@@ -58,7 +68,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="py-10 text-center text-[13px] text-ink-soft">
+                                <td colspan="6" class="py-10 text-center text-[13px] text-ink-soft">
                                     No request types yet. Seed the defaults with <code class="code">php artisan db:seed --class=RequestTypeSeeder</code> or add one above.
                                 </td>
                             </tr>

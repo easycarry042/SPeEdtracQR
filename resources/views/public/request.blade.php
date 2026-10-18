@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- Inline, ahead of every stylesheet: hides x-cloak parts (Speedy's panel,
+         its scanner and forms) until Alpine starts, even on a slow load. --}}
+    <style>[x-cloak]{display:none!important}</style>
     <meta name="theme-color" content="#ffffff">
     <title>Submit a Request — SPeED TraQR</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])

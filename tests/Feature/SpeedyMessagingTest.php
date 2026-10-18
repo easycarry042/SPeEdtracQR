@@ -124,7 +124,8 @@ class SpeedyMessagingTest extends TestCase
             ->assertJsonPath('verified', true)
             ->assertJsonPath('messages.0.body', 'We received your request.')
             ->assertJsonPath('messages.0.from', 'staff')
-            ->assertJsonPath('messages.0.name', 'Jose Reyes');
+            ->assertJsonPath('messages.0.name', 'City Hall')
+            ->assertDontSee('Jose Reyes');
     }
 
     public function test_a_wrong_detail_is_refused_without_saying_what_is_on_file(): void

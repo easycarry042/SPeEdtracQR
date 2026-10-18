@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\StaffHighlight;
 use App\Models\User;
 use App\Support\AssignmentScope;
+use App\Support\StaffLoad;
 use App\Support\StaffProfile;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
@@ -44,57 +42,16 @@ class StaffProfileController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
-        // One grouped query each — avoids per-user KPI recomputation (N+1).
-        $assigned = Document::whereNotNull('assigned_to')
-            ->whereIn('status', DocumentStatus::activeValues())
-            ->select('assigned_to', DB::raw('COUNT(*) as total'))
-            ->groupBy('assigned_to')
-            ->pluck('total', 'assigned_to');
-
-        $completed = Document::whereNotNull('assigned_to')
-            ->where('status', DocumentStatus::Completed->value)
-            ->select('assigned_to', DB::raw('COUNT(*) as total'))
-            ->groupBy('assigned_to')
-            ->pluck('total', 'assigned_to');
-
-        $completedThisMonth = Document::whereNotNull('assigned_to')
-            ->where('status', DocumentStatus::Completed->value)
-            ->where('status_changed_at', '>=', now()->startOfMonth())
-            ->select('assigned_to', DB::raw('COUNT(*) as total'))
-            ->groupBy('assigned_to')
-            ->pluck('total', 'assigned_to');
-
-        // Overdue = active docs past their per-stage SLA budget. The budget is
-        // per-stage PHP logic (DocumentStatus::slaHours), so evaluate the small
-        // active set in memory rather than duplicating it in SQL.
-        $overdue = Document::whereNotNull('assigned_to')
-            ->whereIn('status', DocumentStatus::activeValues())
-            ->get(['id', 'assigned_to', 'status', 'status_changed_at', 'updated_at', 'created_at'])
-            ->filter(fn (Document $d): bool => $d->isOverdue())
-            ->countBy('assigned_to');
-
-        // Presence: most recent activity-log entry per user.
-        $lastActive = DB::table('activity_log')
-            ->where('causer_type', User::class)
-            ->whereNotNull('causer_id')
-            ->select('causer_id', DB::raw('MAX(created_at) as last'))
-            ->groupBy('causer_id')
-            ->pluck('last', 'causer_id');
+        // One grouped query per figure — avoids per-user KPI recomputation (N+1).
+        $load = StaffLoad::for($users->pluck('id'));
 
         $staff = $users->map(fn (User $u): array => [
             'id' => $u->id,
             'name' => $u->name,
             'role' => $u->getRoleNames()->first(),
             'initials' => collect(explode(' ', $u->name))->filter()->take(2)->map(fn ($p): string => mb_strtoupper(mb_substr((string) $p, 0, 1)))->implode(''),
-            'assigned' => (int) ($assigned[$u->id] ?? 0),
-            'completed' => (int) ($completed[$u->id] ?? 0),
-            'month' => (int) ($completedThisMonth[$u->id] ?? 0),
-            'overdue' => (int) ($overdue[$u->id] ?? 0),
-            'last_active' => isset($lastActive[$u->id])
-                ? Date::parse($lastActive[$u->id])->diffForHumans(short: true)
-                : null,
             'url' => route('staff.profile', $u->id),
-        ]);
+        ] + $load[$u->id]);
 
         $staff = match ($sort) {
             'load' => $staff->sortByDesc('assigned')->values(),

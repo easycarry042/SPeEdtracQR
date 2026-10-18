@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\DocumentStatus;
 use App\Support\CitizenView;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +28,7 @@ class Document extends Model
         'citizen_email',
         'source',
         'origin',
+        'has_hard_copy',
         'requesting_department_id',
         'department_id',
         'amount',
@@ -72,6 +75,29 @@ class Document extends Model
     /** Dept-to-dept request (supervisor created) travelling an endorsement chain. */
     public const ORIGIN_INTERNAL = 'internal';
 
+    /**
+     * Citizen requests only. Origin is the one line between the two kinds;
+     * a row with no origin predates it and was a citizen ticket.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function citizenFacing(Builder $query): void
+    {
+        $query->where(fn (Builder $q) => $q->whereNull('origin')->orWhere('origin', '!=', self::ORIGIN_INTERNAL));
+    }
+
+    /**
+     * Office-to-office requests only.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function internal(Builder $query): void
+    {
+        $query->where('origin', self::ORIGIN_INTERNAL);
+    }
+
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
@@ -83,6 +109,7 @@ class Document extends Model
         'sla_breach_notified_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'notify_citizen' => 'boolean',
+        'has_hard_copy' => 'boolean',
         'amount' => 'decimal:2',
         'quantity' => 'integer',
         'needed_by' => 'date',
@@ -103,7 +130,10 @@ class Document extends Model
                 'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
                 'hold_reason', 'hold_until', 'blocked_by', 'status_before_hold',
             ])
-            ->logOnlyDirty();
+            ->logOnlyDirty()
+            // A save that touched none of the fields above used to write an
+            // empty "updated" row to the audit log.
+            ->dontSubmitEmptyLogs();
     }
 
     /**
@@ -283,10 +313,26 @@ class Document extends Model
 
         $step = $this->currentRequestStep();
 
-        return $step instanceof RequestStep
-            && $user->can('act on internal requests')
-            && $user->department_id !== null
-            && (int) $user->department_id === (int) $step->department_id;
+        if (! $step instanceof RequestStep
+            || $user->department_id === null
+            || (int) $user->department_id !== (int) $step->department_id) {
+            return false;
+        }
+
+        // The office's supervisor, or the person the filing office named to
+        // receive a soft copy there (a soft copy has no folder to hand to
+        // whoever is at the desk, so it goes to someone by name).
+        return $user->can('act on internal requests')
+            || ($step->recipient_id !== null && (int) $step->recipient_id === (int) $user->id);
+    }
+
+    /**
+     * A paper-backed request travels as a folder that each office scans in;
+     * a soft copy exists only in the system.
+     */
+    public function isSoftCopy(): bool
+    {
+        return $this->isInternal() && $this->has_hard_copy === false;
     }
 
     /**
@@ -298,6 +344,12 @@ class Document extends Model
      */
     public function currentStepHasCustody(): bool
     {
+        // No paper, nothing to take custody of: a soft copy is "in hand" the
+        // moment it reaches the office.
+        if ($this->isSoftCopy()) {
+            return $this->currentRequestStep() instanceof RequestStep;
+        }
+
         $step = $this->currentRequestStep();
 
         if (! $step instanceof RequestStep || $step->started_at === null) {

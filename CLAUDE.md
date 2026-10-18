@@ -59,7 +59,7 @@ php artisan db:seed --class=RolesAndPermissionsSeeder
 |---|---|---|
 | `Document` | `documents` | SoftDeletes + Spatie ActivityLog. Status: `pending`, `in_transit`, `completed`. |
 | `DocumentScan` | `document_scans` | `action` = `in` or `out`. Has `offline_uuid` for dedup on sync. |
-| `Department` | `departments` | Has `sla_hours` column. |
+| `Department` | `departments` | `internal_step_hours` = turnaround for internal requests (default 72, `internalStepHours()`). No citizen SLA column — citizen stage clocks are `DocumentStatus::slaHours()`. |
 | `RoutingRule` | `routing_rules` | `document_type + from_department_id → to_department_id + step_order`. Drives the routing on OUT scans. |
 
 ### Roles and permissions (Spatie)
@@ -89,6 +89,7 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 - **One look.** Landing, request form, receipt, track lookup, tracking result and privacy notice share the "Citizen surface set" in `resources/css/app.css` (`cz-*` classes: `cz-card`, `cz-btn cz-btn-primary/secondary`, `cz-title`, …), the header `layouts/partials/portal-header.blade.php` (landing passes `landing: true`) and `<x-page-intro>`. Use these, not new one-off styles.
 - `/citizen` (the old portal page) only redirects to the landing page (`CitizenView::homeUrl()`). Citizen links carry `?view=citizen` so a staff login on a shared counter PC can't divert them.
+- **Staff are anonymous to the public (legal).** Citizen surfaces (tracking page, its status poll and the public `.moved` broadcast, Speedy answers, message bylines, the reply email) name the handling office (`documents.department_id`), never the staff member. Staff-only pages may still name them.
 - The public tracking page masks email/phone (`App\Support\ContactMask`). Internal (`INT-`) requests are "not found" on every public surface, including Speedy.
 - The site FAQ lives in `App\Support\SiteFaq` — the landing page and Speedy both read it.
 
@@ -100,7 +101,15 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 ### Super admin command center (`/admin/dashboard`)
 
-- Numbers come from `App\Support\AdminAnalytics`. The six tiles read one cohort (requests filed in the selected range) plus Avg. Processing and Overdue; overdue/at-risk is decided only by `slaState()`. Durations are formatted with `App\Support\Duration`. On-time rate and "Fastest staff" were removed on purpose (no agreed target; speed rankings reward rushing). All panels use `cc-panel`.
+- Two sides, never added together (`?view=citizen|internal`): citizen numbers come from `App\Support\AdminAnalytics` (scoped with `Document::citizenFacing()`), internal ones from `App\Support\InternalAnalytics` (`Document::internal()`; overdue = held at an office longer than that office's `internal_step_hours`; returned = waiting on the filing office, no deadline).
+- Citizen side: six tiles read one cohort (requests filed in the selected range) plus Avg. Processing (with its sample size) and Overdue; overdue/at-risk is decided only by `slaState()`. "Reached no office" alert lists open requests whose type has no office. Durations via `App\Support\Duration`. On-time rate, "Fastest staff" and the deadline donut were removed on purpose. All panels use `cc-panel`.
+- Super admin sidebar: Dashboard, Users (absorbed the Staff directory's workload via `App\Support\StaffLoad`), Internal Requests, Audit Log, then a "Setup" group (Departments, Route Templates, Request Types, Resources). The Services report is gone from it (checklist → dashboard, booking use → Resources); the route still serves supervisors.
+- Audit lines are worded by `App\Support\ActivityLine` (tracking numbers, not "Document #19"; empty "updated" rows hidden). Login/logout listeners are auto-discovered — don't also `Event::listen` them (that logged everything twice).
+- Super admins are not belled for every new citizen request: `DocumentEvent::departmentTriagers` goes to that office's supervisors, and only falls back to super admins when the office has no active supervisor (no office at all → every triager, as before).
+
+### Internal requests: hard copy vs soft copy
+
+- `documents.has_hard_copy` (default true). Hard copy = a folder each office scans in (custody before any decision, QR scan to confirm). Soft copy (`Document::isSoftCopy()`) = no folder: the filer names a recipient at the first office (`request_steps.recipient_id`), forwarding names one at the next office, no custody/scan steps. The named recipient may act on their step even as plain staff (`canActOnCurrentStep`), so the step routes are gated in the controller, not by `permission:act on internal requests`. The filing form fetches recipients per office from `requests.recipients`.
 
 ### Local dev notes (this machine)
 

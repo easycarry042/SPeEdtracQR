@@ -120,7 +120,8 @@ class DocumentAssistant
             'document_type' => $document->document_type,
             'applicant' => $document->citizen_name,
             'status_label' => $stage->label(),
-            'handler' => $document->assignedTo?->name,
+            // The office, never the staff member: staff stay anonymous to the public.
+            'handler' => $document->department?->name,
             'submitted' => $document->created_at?->format('M d, Y'),
             'last_update' => ($document->status_changed_at ?? $document->updated_at)?->format('M d, Y'),
             'completed_on' => $document->completed_at ? $document->completed_at->format('M d, Y') : null,
@@ -157,7 +158,7 @@ class DocumentAssistant
             'Applicant: '.($d['applicant'] ?? 'N/A'),
             "Submitted: {$d['submitted']}",
             "Current status: {$d['status_label']}",
-            'Handled by: '.($d['handler'] ?? 'Not yet assigned to a staff member'),
+            'Handled by (office): '.($d['handler'] ?? 'Not yet routed to an office'),
             'Last updated: '.($d['last_update'] ?? 'N/A'),
         ];
 
@@ -208,8 +209,8 @@ class DocumentAssistant
         }
 
         $handler = $d['handler']
-            ? "It is being handled by {$d['handler']}."
-            : 'It has not been assigned to a staff member yet.';
+            ? "It is being handled by the {$d['handler']}."
+            : 'It has not been routed to an office yet.';
 
         $asksWhen = Str::contains($q, ['when', 'how long', 'ready', 'finish', 'done', 'complete', 'eta', 'days', 'time', 'wait', 'soon']);
         if ($asksWhen) {

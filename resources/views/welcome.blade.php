@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- Inline, ahead of every stylesheet: hides x-cloak parts (Speedy's panel,
+         its scanner and forms) until Alpine starts, even on a slow load. --}}
+    <style>[x-cloak]{display:none!important}</style>
     <meta name="theme-color" content="#ffffff">
     <meta name="description" content="File a request with the City Government of San Pedro, Laguna online and track it from filing to pickup with a QR-coded tracking number.">
     <title>SPeED TraQR — Track Your City Hall Requests | City of San Pedro</title>

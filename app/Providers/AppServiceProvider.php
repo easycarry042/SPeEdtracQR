@@ -2,17 +2,12 @@
 
 namespace App\Providers;
 
-use App\Listeners\LogUserLogin;
-use App\Listeners\LogUserLogout;
 use App\Support\Ai\LlmProvider;
 use App\Support\Ai\NullProvider;
 use App\Support\Ai\OllamaProvider;
 use App\Support\DocumentFormOptions;
 use App\Support\InternalRequestForm;
 use App\Support\StaleViteHotFile;
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
@@ -53,8 +48,9 @@ class AppServiceProvider extends ServiceProvider
             Vite::useHotFile(storage_path('framework/vite-hot-disabled'));
         }
 
-        Event::listen(Login::class, LogUserLogin::class);
-        Event::listen(Logout::class, LogUserLogout::class);
+        // LogUserLogin / LogUserLogout are picked up by listener discovery
+        // (app/Listeners). Registering them here as well logged every sign-in
+        // and sign-out twice.
 
         // Laravel Pulse dashboard (/pulse) — restrict to system admins so it is
         // safe outside local (Pulse defaults to local-only without this gate).

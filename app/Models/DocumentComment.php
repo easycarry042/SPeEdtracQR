@@ -170,20 +170,19 @@ class DocumentComment extends Model
     /**
      * What the CITIZEN sees as the sender.
      *
-     * Staff are named, the same way the tracking page already names the assignee
-     * under "Handled by": a citizen is entitled to know who answered them, and
-     * anonymising only the message byline would contradict the panel beside it.
-     *
-     * The stored author_name wins over the live relation so a byline keeps the
-     * name it was posted under after a rename or deactivation; 'Staff' is the
-     * last resort so a removed user never renders a blank sender.
+     * Staff stay anonymous to the public (legal advice): a reply is signed by
+     * the office — the author's department, else the request's handling office
+     * (a super admin has no department) — never by the person. 'City Hall' is
+     * the last resort so a byline is never blank.
      */
     public function publicAuthorLabel(): string
     {
         return match ($this->author_type) {
             self::AUTHOR_SYSTEM => 'Update',
             self::AUTHOR_CITIZEN => 'You',
-            default => $this->author_name ?: ($this->author?->name ?? 'Staff'),
+            default => $this->author?->department?->name
+                ?? $this->document?->department?->name
+                ?? 'City Hall',
         };
     }
 }

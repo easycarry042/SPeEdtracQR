@@ -65,8 +65,6 @@ class AdminDashboardNumbersTest extends TestCase
 
         $this->assertSame(14, $response->viewData('kpis')['overdue']['value']);
         $this->assertSame(1, $response->viewData('kpis')['at_risk']['value']);
-        $this->assertSame(14, $response->viewData('bottlenecks')['breached']);
-        $this->assertSame(1, $response->viewData('bottlenecks')['at_risk']);
         $this->assertCount(14, $response->viewData('atRisk'), 'the attention list is no longer capped before it is counted');
 
         // The table still shows only the worst rows, but states the real total.

@@ -134,7 +134,7 @@ class AdminDashboardTest extends TestCase
         $volume = $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Document Volume by Department')
+            ->assertSee('Requests by Office')
             ->viewData('departmentVolume');
 
         $this->assertSame(['Mayors Office', 'Comelec Office'], $volume->pluck('label')->all());

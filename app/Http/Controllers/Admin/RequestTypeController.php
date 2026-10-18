@@ -18,7 +18,7 @@ class RequestTypeController extends Controller
 {
     public function index(): Factory|View
     {
-        $requestTypes = RequestType::withCount('requirements')->orderBy('sort_order')->orderBy('name')->get();
+        $requestTypes = RequestType::with('department:id,name,code')->withCount('requirements')->orderBy('sort_order')->orderBy('name')->get();
 
         return view('admin.request-types.index', ['requestTypes' => $requestTypes]);
     }
