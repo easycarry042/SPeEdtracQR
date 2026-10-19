@@ -15,7 +15,7 @@
 @endphp
 
 <p class="cc-tiles-caption" data-tile-caption>
-    Internal requests filed in the last {{ $filters['range'] }} days, by where they are now
+    Internal requests {{ ($audience ?? 'admin') === 'office' ? 'your office filed or handled — ' : '' }}filed in the last {{ $filters['range'] }} days, by where they are now
     @if ($k['denied'] > 0)
         · {{ number_format($k['denied']) }} denied
     @endif

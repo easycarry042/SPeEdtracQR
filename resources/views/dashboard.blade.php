@@ -37,8 +37,24 @@
 
         {{-- No SLA routing slip: a supervisor assigns, the staff member
              advances, so the at-risk warning is on each staff member's own
-             dashboard. The banner that sent supervisors off to the Internal
-             page is gone too — those queues are further down this page. --}}
+             dashboard. Internal requests are on the Internal tab.
+
+             One line from Reports instead of its charts: the queue below is
+             this page's job, so the numbers stay a glance and a link. --}}
+        @if($glance)
+            @php
+                $glanceOverdue = $glance['overdue']['value'];
+                $glanceAvg = \App\Support\Duration::days($glance['avg_processing']['value']);
+            @endphp
+            <a href="{{ route('reports.index') }}" class="glance-strip" data-soft-nav-link>
+                <span class="glance-label">Last 30 days</span>
+                <span><b>{{ number_format($glance['total']['value']) }}</b> filed</span>
+                <span><b>{{ number_format($glance['completed']['value']) }}</b> completed</span>
+                <span>avg. <b>{{ $glanceAvg }}</b> to complete</span>
+                <span @class(['is-late' => $glanceOverdue > 0])><b>{{ number_format($glanceOverdue) }}</b> overdue now</span>
+                <span class="glance-link">Open reports →</span>
+            </a>
+        @endif
 
         {{-- ── Staff workload ──────────────────────────────────────────────────
              The department head's primary lens: who is carrying how much.

@@ -98,6 +98,21 @@ class Document extends Model
         $query->where('origin', self::ORIGIN_INTERNAL);
     }
 
+    /**
+     * Internal requests one office has a hand in: filed by it, or routed
+     * through it at any hop. An internal request has no department_id of its
+     * own, so this — not department_id — is what "this office's" means.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function involvingOffice(Builder $query, int $departmentId): void
+    {
+        $query->internal()->where(fn (Builder $q) => $q
+            ->where('requesting_department_id', $departmentId)
+            ->orWhereHas('requestSteps', fn (Builder $steps) => $steps->where('department_id', $departmentId)));
+    }
+
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',

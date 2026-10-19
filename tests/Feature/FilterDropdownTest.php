@@ -45,14 +45,14 @@ class FilterDropdownTest extends TestCase
             ->assertSee('data-filter-control', false);
     }
 
-    public function test_analytics_filters_render_for_a_supervisor(): void
+    public function test_reports_filters_render_for_a_supervisor(): void
     {
         $this->seedRolesAndPermissions();
         $department = Department::create(['name' => 'Records', 'code' => 'REC', 'is_active' => true]);
         $supervisor = User::factory()->create(['department_id' => $department->id])->assignRole('Supervisor');
 
         $this->actingAs($supervisor)
-            ->get(route('analytics'))
+            ->get(route('reports.index'))
             ->assertOk()
             ->assertSee('aria-haspopup="listbox"', false);
     }

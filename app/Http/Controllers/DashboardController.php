@@ -6,9 +6,11 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Models\User;
+use App\Support\AdminAnalytics;
 use App\Support\AssignmentScope;
 use App\Support\RequestReview;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -113,7 +115,13 @@ class DashboardController extends Controller
         // Internal requests have their own Internal tab (with a badge in the
         // sidebar when one arrives), not a section on this page.
 
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments]);
+        // A one-line glance at the office's last 30 days, from the same numbers
+        // as Reports (the queue stays the page's job; the charts live there).
+        $glance = $deptId
+            ? (new AdminAnalytics(Date::now()->subDays(29)->startOfDay(), Date::now()->endOfDay(), null, $deptId))->kpis()
+            : null;
+
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'glance' => $glance]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */

@@ -35,10 +35,9 @@ class PageTitleDuplicationTest extends TestCase
     public static function pages(): array
     {
         return [
-            'services report' => ['reports.services'],
             'staff directory' => ['staff.index'],
             'internal requests' => ['requests.index'],
-            'analytics' => ['analytics'],
+            'reports' => ['reports.index'],
             'history' => ['history'],
             'dashboard' => ['dashboard'],
         ];

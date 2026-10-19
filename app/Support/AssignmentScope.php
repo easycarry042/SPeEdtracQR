@@ -65,9 +65,25 @@ class AssignmentScope
                 return $query;
             }
 
+            // "No office" meant two things: unrouted citizen intake (every
+            // triager's) and EVERY internal request, which never carries a
+            // department_id — so every office's internal requests leaked into
+            // each supervisor's History, Look Up and Analytics. Internal ones
+            // are this office's only when it filed them or they passed through.
+            $departmentId = $user->department_id;
+
             return $query->where(fn (Builder $q) => $q
-                ->where('documents.department_id', $user->department_id)
-                ->orWhereNull('documents.department_id'));
+                ->where('documents.department_id', $departmentId)
+                ->orWhere(fn (Builder $unrouted) => $unrouted
+                    ->whereNull('documents.department_id')
+                    ->where(fn (Builder $citizen) => $citizen
+                        ->whereNull('documents.origin')
+                        ->orWhere('documents.origin', '!=', Document::ORIGIN_INTERNAL)))
+                ->orWhere(fn (Builder $internal) => $internal
+                    ->where('documents.origin', Document::ORIGIN_INTERNAL)
+                    ->where(fn (Builder $mine) => $mine
+                        ->where('documents.requesting_department_id', $departmentId)
+                        ->orWhereHas('requestSteps', fn (Builder $steps) => $steps->where('department_id', $departmentId)))));
         }
 
         return $query->where(function (Builder $q) use ($user): void {

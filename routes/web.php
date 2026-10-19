@@ -33,10 +33,10 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RequestStepController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ScanController;
-use App\Http\Controllers\ServiceReportController;
 use App\Http\Controllers\SignatureController;
 use App\Http\Controllers\SpeedyController;
 use App\Http\Controllers\StaffBadgeController;
@@ -438,10 +438,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/documents/{document}/status', [DocumentStatusController::class, 'set'])->name('documents.status.set');
 
     Route::middleware('permission:view reports')->group(function () {
-        Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
+        // A supervisor's Reports: their office on the command-center page
+        // (citizen / internal sides). It replaced Analytics and the Services
+        // report, whose old addresses now lead here.
+        Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
+        Route::get('/analytics', fn () => to_route('reports.index'))->name('analytics');
         Route::get('/analytics/data', [AnalyticsController::class, 'chartData'])->name('analytics.data');
-        Route::get('/reports/services', [ServiceReportController::class, 'index'])->name('reports.services');
+        Route::get('/reports/services', fn () => to_route('reports.index'))->name('reports.services');
     });
+
+    // A supervisor nudges whoever holds an overdue request in their office
+    // (the super admin's is admin.nudge; the controller checks the office).
+    Route::post('/reports/nudge/{document}', [DocumentNudgeController::class, 'store'])
+        ->middleware('permission:assign documents')
+        ->name('reports.nudge');
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');

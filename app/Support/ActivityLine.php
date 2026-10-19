@@ -64,12 +64,15 @@ final class ActivityLine
      *
      * @return Collection<int, array{at: Carbon, user: string, role: string, action: string, subject: ?string, detail: ?string}>
      */
-    public static function recentOnRequests(bool $internal, int $limit = 25): Collection
+    public static function recentOnRequests(bool $internal, int $limit = 25, ?int $departmentId = null): Collection
     {
         $query = Activity::with(['causer.roles', 'subject'])
-            ->whereHasMorph('subject', [Document::class], fn (Builder $documents) => $internal
-                ? $documents->internal()
-                : $documents->citizenFacing())
+            ->whereHasMorph('subject', [Document::class], fn (Builder $documents) => match (true) {
+                $internal && $departmentId !== null => $documents->involvingOffice($departmentId),
+                $internal => $documents->internal(),
+                $departmentId !== null => $documents->citizenFacing()->where('department_id', $departmentId),
+                default => $documents->citizenFacing(),
+            })
             // Several entries can share a second (a create and the first status
             // change, say), so the id breaks the tie — otherwise "newest first"
             // is whatever order the driver happens to return.

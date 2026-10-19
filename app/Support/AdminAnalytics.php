@@ -54,6 +54,8 @@ class AdminAnalytics
         private readonly Carbon $from,
         private readonly Carbon $to,
         private readonly ?string $documentType = null,
+        // One office's numbers (a supervisor's Reports page); null = the city.
+        private readonly ?int $departmentId = null,
     ) {
         // Previous window of equal length, ending just before $from, for deltas.
         $seconds = $this->from->diffInSeconds($this->to);
@@ -192,6 +194,7 @@ class AdminAnalytics
         // Super admins hold every permission but work no requests.
         $staff = User::permission('advance documents')
             ->where('is_active', true)
+            ->when($this->departmentId, fn ($q) => $q->where('department_id', $this->departmentId))
             ->get(['id', 'name'])
             ->reject(fn (User $user): bool => $user->can('manage system'));
 
@@ -342,7 +345,7 @@ class AdminAnalytics
      */
     public function recentActivity(int $limit = 25): Collection
     {
-        return ActivityLine::recentOnRequests(internal: false, limit: $limit);
+        return ActivityLine::recentOnRequests(internal: false, limit: $limit, departmentId: $this->departmentId);
     }
 
     // ── Region D: supporting data ────────────────────────────────────────────
@@ -404,11 +407,12 @@ class AdminAnalytics
 
     // ── internals ────────────────────────────────────────────────────────────
 
-    /** Base query: citizen requests only, plus the document-type "slice". */
+    /** Base query: citizen requests only, plus the office and document-type "slices". */
     private function scoped(): Builder
     {
         return Document::query()
             ->citizenFacing()
+            ->when($this->departmentId, fn ($q) => $q->where('department_id', $this->departmentId))
             ->when($this->documentType, fn ($q) => $q->where('document_type', $this->documentType));
     }
 

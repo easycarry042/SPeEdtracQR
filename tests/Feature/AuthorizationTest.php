@@ -25,16 +25,16 @@ class AuthorizationTest extends TestCase
         $this->actingAs($this->userWithRole('super_admin'))->get(route('documents.create'))->assertForbidden();
     }
 
-    public function test_analytics_requires_view_reports_permission(): void
+    public function test_reports_require_view_reports_permission(): void
     {
         $this->seedRolesAndPermissions();
 
         $this->actingAs($this->userWithRole('staff'))
-            ->get(route('analytics'))
+            ->get(route('reports.index'))
             ->assertForbidden();
 
         $this->actingAs($this->userWithRole('Supervisor'))
-            ->get(route('analytics'))
+            ->get(route('reports.index'))
             ->assertOk();
     }
 

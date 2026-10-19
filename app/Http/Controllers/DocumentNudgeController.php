@@ -31,6 +31,13 @@ class DocumentNudgeController extends Controller
         $actor = $request->user();
         $note = $validated['note'] ?? null;
 
+        // A supervisor (Reports) may nudge only about their own office's work.
+        abort_unless(
+            $actor->can('manage system')
+                || ($actor->department_id !== null && (int) $document->department_id === (int) $actor->department_id),
+            403,
+        );
+
         $recipients = $document->assignedTo
             ? collect([$document->assignedTo])
             : DocumentEvent::departmentTriagers($document->department_id, $actor->id);

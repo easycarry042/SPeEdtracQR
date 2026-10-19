@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\Document;
 use App\Models\RequestType;
 use App\Models\User;
+use App\Support\AssignmentScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -62,21 +63,21 @@ class DepartmentDataScopeTest extends TestCase
         ]);
     }
 
-    public function test_analytics_counts_only_this_departments_work(): void
+    public function test_reports_count_only_this_departments_work(): void
     {
         $this->request($this->mine, 'SPD-GSO-1', 'Chairs Borrowing');
         $this->request($this->theirs, 'SPD-TRSY-1', 'Tax Clearance');
         $this->request($this->theirs, 'SPD-TRSY-2', 'Tax Clearance');
 
-        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('analytics'))->assertOk();
+        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('reports.index'))->assertOk();
 
-        $types = collect($response->viewData('byType'))->pluck('label');
+        $types = collect($response->viewData('typeBreakdown'))->pluck('label');
 
         $this->assertContains('Chairs Borrowing', $types);
         $this->assertNotContains('Tax Clearance', $types, "Another office's request types must not appear.");
     }
 
-    public function test_analytics_staff_ranking_does_not_list_other_offices(): void
+    public function test_reports_staff_workload_does_not_list_other_offices(): void
     {
         $mineStaff = User::factory()->create(['name' => 'Ana Cruz', 'department_id' => $this->mine->id])->assignRole('staff');
         $theirStaff = User::factory()->create(['name' => 'Ben Reyes', 'department_id' => $this->theirs->id])->assignRole('staff');
@@ -84,25 +85,45 @@ class DepartmentDataScopeTest extends TestCase
         $this->request($this->mine, 'SPD-GSO-2', 'Chairs Borrowing')->update(['assigned_to' => $mineStaff->id]);
         $this->request($this->theirs, 'SPD-TRSY-3', 'Tax Clearance')->update(['assigned_to' => $theirStaff->id]);
 
-        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('analytics'))->assertOk();
+        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('reports.index'))->assertOk();
 
-        $names = collect($response->viewData('topStaff'))->pluck('name');
+        $names = collect($response->viewData('staffWorkload'))->pluck('name');
 
         $this->assertContains('Ana Cruz', $names);
         $this->assertNotContains('Ben Reyes', $names, "Another office's staff must not be ranked here.");
     }
 
-    public function test_the_services_report_lists_only_this_departments_request_types(): void
+    public function test_reports_type_filter_lists_only_this_departments_request_types(): void
     {
-        $this->type($this->mine, 'Chairs Borrowing');
-        $this->type($this->theirs, 'Tax Clearance');
+        $this->request($this->mine, 'SPD-GSO-3', 'Chairs Borrowing');
+        $this->request($this->theirs, 'SPD-TRSY-4', 'Tax Clearance');
 
-        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('reports.services'))->assertOk();
+        $response = $this->actingAs($this->departmentHead($this->mine))->get(route('reports.index'))->assertOk();
 
-        $names = $response->viewData('volumeByType')->pluck('name');
+        $names = $response->viewData('documentTypes');
 
         $this->assertContains('Chairs Borrowing', $names);
         $this->assertNotContains('Tax Clearance', $names, "Another office's services must not appear.");
+    }
+
+    /**
+     * Internal requests carry no department_id, so "unrouted intake is every
+     * triager's" used to hand every office's internal requests to each
+     * supervisor too: their Analytics counted them, their History listed them.
+     */
+    public function test_another_offices_internal_requests_are_not_this_offices(): void
+    {
+        $ours = Document::create(['tracking_number' => 'INT-20261019-OUR234', 'document_type' => 'Internal Request', 'status' => 'pending', 'origin' => Document::ORIGIN_INTERNAL, 'requesting_department_id' => $this->mine->id]);
+        $theirs = Document::create(['tracking_number' => 'INT-20261019-THR234', 'document_type' => 'Internal Request', 'status' => 'pending', 'origin' => Document::ORIGIN_INTERNAL, 'requesting_department_id' => $this->theirs->id]);
+        $passing = Document::create(['tracking_number' => 'INT-20261019-PAS234', 'document_type' => 'Internal Request', 'status' => 'pending', 'origin' => Document::ORIGIN_INTERNAL, 'requesting_department_id' => $this->theirs->id]);
+        $passing->requestSteps()->create(['step_order' => 1, 'department_id' => $this->mine->id, 'action' => 'Review and action', 'status' => 'current', 'started_at' => now()]);
+
+        $this->actingAs($this->departmentHead($this->mine));
+        $visible = AssignmentScope::applyDocumentScope(Document::query())->pluck('tracking_number')->all();
+
+        $this->assertContains($ours->tracking_number, $visible, 'Filed by this office.');
+        $this->assertContains($passing->tracking_number, $visible, 'Routed through this office.');
+        $this->assertNotContains($theirs->tracking_number, $visible, "Another office's internal request.");
     }
 
     public function test_history_shows_only_this_departments_completed_work(): void

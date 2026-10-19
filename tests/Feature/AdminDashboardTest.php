@@ -60,10 +60,10 @@ class AdminDashboardTest extends TestCase
     {
         $this->seedRolesAndPermissions();
 
-        // Analytics is folded into the command center for super admins.
-        $this->actingAs($this->userWithRole('super_admin'))
-            ->get(route('analytics'))
-            ->assertRedirect(route('admin.dashboard'));
+        // Analytics became Reports; a super admin's numbers are the command center.
+        $admin = $this->userWithRole('super_admin');
+        $this->actingAs($admin)->get(route('analytics'))->assertRedirect(route('reports.index'));
+        $this->actingAs($admin)->get(route('reports.index'))->assertRedirect(route('admin.dashboard'));
     }
 
     /**

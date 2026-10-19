@@ -196,7 +196,8 @@ class JourneyMapTest extends TestCase
         $this->assertSame('pending', $doc->fresh()->status);
 
         // 4. The supervisor's other day-to-day screens answer.
-        foreach (['track.index', 'requests.index', 'history', 'analytics', 'reports.services'] as $name) {
+        // (Analytics and the Services report became one Reports page.)
+        foreach (['track.index', 'requests.index', 'history', 'reports.index'] as $name) {
             $this->assertSame(
                 200,
                 $this->actingAs($supervisor)->get(route($name))->getStatusCode(),
@@ -405,7 +406,6 @@ class JourneyMapTest extends TestCase
             'admin.route-templates.index',
             'admin.audit-log.index',
             'admin.assignments.index',
-            'reports.services',
             'history',
             'bookings.index',
             'requests.index',
@@ -421,12 +421,13 @@ class JourneyMapTest extends TestCase
             );
         }
 
-        // Two screens deliberately redirect a super admin rather than render:
-        // `analytics` sends them to their own command centre, and
+        // These deliberately redirect a super admin rather than render:
+        // `analytics`, `reports.index` and `reports.services` lead to their own
+        // command centre, and
         // `requests.create` bounces because an org-wide admin has no department
         // of its own to file from. These are controller business rules, not
         // denials.
-        foreach (['analytics', 'requests.create'] as $name) {
+        foreach (['analytics', 'reports.index', 'reports.services', 'requests.create'] as $name) {
             $this->assertSame(
                 302,
                 $this->actingAs($admin)->get(route($name))->getStatusCode(),

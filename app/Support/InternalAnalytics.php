@@ -34,6 +34,9 @@ class InternalAnalytics
     public function __construct(
         private readonly Carbon $from,
         private readonly Carbon $to,
+        // One office's internal requests — filed by it or routed through it
+        // (Document::involvingOffice) — for a supervisor's Reports; null = all.
+        private readonly ?int $departmentId = null,
     ) {
         $seconds = $this->from->diffInSeconds($this->to);
         $this->prevTo = $this->from->copy()->subSecond();
@@ -145,7 +148,9 @@ class InternalAnalytics
             ->whereNotNull('started_at')
             ->whereNotNull('acted_at')
             ->whereBetween('acted_at', [$this->from, $this->to])
-            ->whereHas('document', fn (Builder $q) => $q->internal())
+            ->whereHas('document', fn (Builder $q) => $this->departmentId
+                ? $q->involvingOffice($this->departmentId)
+                : $q->internal())
             ->get(['id', 'department_id', 'started_at', 'acted_at']);
 
         return $steps
@@ -240,14 +245,16 @@ class InternalAnalytics
     /** @return Collection<int, array<string, mixed>> */
     public function recentActivity(int $limit = 25): Collection
     {
-        return ActivityLine::recentOnRequests(internal: true, limit: $limit);
+        return ActivityLine::recentOnRequests(internal: true, limit: $limit, departmentId: $this->departmentId);
     }
 
     // ── internals ────────────────────────────────────────────────────────────
 
     private function scoped(): Builder
     {
-        return Document::query()->internal();
+        return $this->departmentId
+            ? Document::query()->involvingOffice($this->departmentId)
+            : Document::query()->internal();
     }
 
     /** @return Collection<int, Document> */

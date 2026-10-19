@@ -147,18 +147,15 @@
         </a>
     @endcan
 
+    {{-- One Reports row: the office's numbers on the command-center page
+         (citizen / internal sides). It replaced Analytics and the Services
+         report, whose figures disagreed with the dashboard. --}}
     @can('view reports')
-        <a href="{{ route('analytics') }}" {!! $row(request()->routeIs('analytics*')) !!}>
+        <a href="{{ route('reports.index') }}" {!! $row(request()->routeIs('reports.*') || request()->routeIs('analytics*')) !!}>
             <span class="{{ $glyph }}">
                 <svg class="sb-icon" fill="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="10" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
             </span>
-            <span class="{{ $label }}">Analytics</span>
-        </a>
-        <a href="{{ route('reports.services') }}" {!! $row(request()->routeIs('reports.services')) !!}>
-            <span class="{{ $glyph }}">
-                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m3 6V7m3 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-            </span>
-            <span class="{{ $label }}">Services</span>
+            <span class="{{ $label }}">Reports</span>
         </a>
     @endcan
 

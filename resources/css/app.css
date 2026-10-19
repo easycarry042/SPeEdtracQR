@@ -1104,6 +1104,21 @@ aside.sidebar-pinned {
     color: rgba(255, 255, 255, .55);
 }
 
+/* Supervisor dashboard: the office's last 30 days in one line, linking to
+   Reports — a glance, so the request queue stays the page's job. */
+.glance-strip {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px;
+    padding: 12px 20px; border: 1px solid var(--hairline-strong); border-radius: 14px;
+    background: #fff; font-size: var(--fs-small); color: var(--ink-soft);
+    transition: border-color .15s, box-shadow .15s;
+}
+.glance-strip b { font-weight: 800; color: var(--green-deep); }
+.glance-strip .is-late b { color: #a12a1a; }
+.glance-label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.glance-link { margin-left: auto; font-weight: 700; color: var(--green); }
+.glance-strip:hover { border-color: var(--green); box-shadow: 0 6px 18px -12px rgba(15, 77, 40, .5); }
+.glance-strip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 /* Requests waiting on this person (App\Support\NavBadges), at the row's end.
    The number carries the meaning; the red only draws the eye. */
 .sb-badge {
