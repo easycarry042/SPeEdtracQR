@@ -45,6 +45,11 @@ class QrCodeService
     /**
      * Render and store the request's QR. It encodes a signed TrackingQr payload,
      * not the tracking URL, so only this application's scanners can use it.
+     *
+     * An internal (INT-) request's QR wraps that payload in a link to the
+     * public internal tracker (TrackingQr::content()), so any phone camera can
+     * open it — the client's request — while the signature still decides
+     * whether it is one of ours.
      */
     public function generateAndStore(string $trackingNumber): array
     {
@@ -53,7 +58,7 @@ class QrCodeService
                 throw new \RuntimeException('GD extension is required for QR generation.');
             }
 
-            $binaryPng = $this->renderPngWithGd(TrackingQr::payload($trackingNumber));
+            $binaryPng = $this->renderPngWithGd(TrackingQr::content($trackingNumber));
 
             $relativePath = "qrcodes/{$trackingNumber}.png";
             Storage::disk('public')->put($relativePath, $binaryPng);

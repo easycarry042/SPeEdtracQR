@@ -37,6 +37,7 @@ class PageTitleDuplicationTest extends TestCase
         return [
             'services report' => ['reports.services'],
             'staff directory' => ['staff.index'],
+            'internal requests' => ['requests.index'],
             'analytics' => ['analytics'],
             'history' => ['history'],
             'dashboard' => ['dashboard'],
@@ -62,9 +63,8 @@ class PageTitleDuplicationTest extends TestCase
     {
         // Removing the heading must not take the page's only action with it.
         // "File Request" now lives in the header, on every page.
-        // Supervisors work internal requests from the dashboard now.
         $this->actingAs($this->supervisor())
-            ->get(route('dashboard'))
+            ->get(route('requests.index'))
             ->assertOk()
             ->assertSee('<span>File Request</span>', false)
             ->assertSee('href="'.route('requests.create').'"', false);

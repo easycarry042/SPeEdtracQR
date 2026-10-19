@@ -282,21 +282,6 @@
 
             @include('partials.review-modal', ['mode' => 'supervisor'])
         </section>
-
-        {{-- ── Internal requests ──────────────────────────────────────────────
-             Office-to-office requests awaiting this office, filed by it, and
-             closed — the Internal page's queues and its request modal, here so
-             a supervisor works everything from one screen.
-             ───────────────────────────────────────────────────────────────── --}}
-        @if($internalInbox)
-            <section id="internal" class="flex flex-col">
-                <div class="mb-4 flex flex-wrap items-center gap-3">
-                    <h2 class="st-section-title">Internal requests</h2>
-                    <span class="pill p-muted">Between offices</span>
-                </div>
-                @include('requests.partials.inbox', $internalInbox + ['inboxClass' => 'flex flex-col'])
-            </section>
-        @endif
     </div>
 
     @include('partials.request-type-icon-script')

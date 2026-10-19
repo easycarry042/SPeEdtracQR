@@ -68,4 +68,32 @@ class TrackingQrTest extends TestCase
         $this->assertSame('SPD-20260728-K7M9Q2', ScannedCode::trackingNumber($payload));
         $this->assertNull(ScannedCode::trackingNumber(substr($payload, 0, -2).'AA'));
     }
+
+    public function test_a_citizen_qr_stays_a_bare_signed_payload(): void
+    {
+        $this->assertSame(TrackingQr::payload('SPD-20260728-K7M9Q2'), TrackingQr::content('SPD-20260728-K7M9Q2'));
+    }
+
+    /**
+     * An internal request's QR is a link to the public internal tracker, so a
+     * phone's own camera opens it (the client's request) — with the signed
+     * payload inside, so our scanners still decide whether it is ours.
+     */
+    public function test_an_internal_qr_links_to_the_tracker_and_still_reads_back(): void
+    {
+        $content = TrackingQr::content('INT-20261016-ABC234');
+
+        $this->assertStringStartsWith(route('internal.track'), $content);
+        $this->assertStringContainsString('qr='.TrackingQr::payload('INT-20261016-ABC234'), urldecode($content));
+        $this->assertSame('INT-20261016-ABC234', ScannedCode::trackingNumber($content));
+    }
+
+    public function test_a_tracker_link_with_a_forged_payload_is_refused(): void
+    {
+        $forged = route('internal.track', ['qr' => substr(TrackingQr::payload('INT-20261016-ABC234'), 0, -2).'AA']);
+        $foreignHost = str_replace(parse_url(route('internal.track'), PHP_URL_HOST), 'evil.example', TrackingQr::content('INT-20261016-ABC234'));
+
+        $this->assertNull(ScannedCode::trackingNumber($forged));
+        $this->assertNull(ScannedCode::trackingNumber($foreignHost));
+    }
 }

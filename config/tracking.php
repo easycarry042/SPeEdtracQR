@@ -84,4 +84,21 @@ return [
         'remind_every_days' => (int) env('TRACKING_HOLD_REMIND_DAYS', 7),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Public internal-request tracker
+    |--------------------------------------------------------------------------
+    |
+    | Anyone holding an internal request's QR or number can see which office
+    | has it (route internal.track, no sign-in). Whether it also names the
+    | person handling it is this switch: the client asked for names, while the
+    | citizen tracker keeps staff anonymous for legal reasons. Set
+    | TRACKING_PUBLIC_INTERNAL_NAMES=false to show offices only.
+    |
+    */
+
+    'public_internal_tracker' => [
+        'show_names' => env('TRACKING_PUBLIC_INTERNAL_NAMES', true),
+    ],
+
 ];

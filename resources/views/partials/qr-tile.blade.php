@@ -23,7 +23,11 @@
     </div>
 </div>
 
+{{-- show-/hide-request-qr: the Receive card's "Select the QR on screen" opens
+     this viewer for the snipping tool, and closes it again if the snip fails. --}}
 <div x-show="qrOpen" x-cloak x-transition.opacity.duration.150ms
+     x-on:show-request-qr.window="if ($event.detail === {{ $record }}?.tracking_number) qrOpen = true"
+     x-on:hide-request-qr.window="if ($event.detail === {{ $record }}?.tracking_number) qrOpen = false"
      class="dm-qr-layer" @click.self="qrOpen = false"
      role="dialog" aria-modal="true" aria-label="QR code">
     <div class="dm-qr-panel">
@@ -44,7 +48,13 @@
         </template>
 
         <p class="mono mt-3 text-center text-[length:var(--fs-body)] font-bold tracking-wide text-ink" x-text="{{ $record }}?.tracking_number"></p>
-        <p class="mt-1 text-center text-[length:var(--fs-caption)] text-ink-soft">Scanning it opens this request's public tracking page.</p>
+        {{-- An internal request's QR opens the public internal tracker
+             (App\Support\TrackingQr::content()): which office has it and who is
+             handling it, no account needed. --}}
+        <p class="mt-1 text-center text-[length:var(--fs-caption)] text-ink-soft"
+           x-text="({{ $record }}?.tracking_number || '').startsWith('INT-')
+               ? 'Any phone camera can scan it to see which office has it — no account needed.'
+               : 'Scanning it opens this request\'s public tracking page.'"></p>
 
         <div class="dm-actions mt-4 justify-center">
             <a x-show="{{ $record }}?.qr_url" :href="{{ $record }}?.qr_url" :download="{{ $record }}?.tracking_number + '.png'" class="cr-btn">

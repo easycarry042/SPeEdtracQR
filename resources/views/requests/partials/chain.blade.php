@@ -46,7 +46,14 @@
                 @endunless
             </div>
             <div class="pb-5">
-                @php $badge = $step->statusBadge(); @endphp
+                @php
+                    $badge = $step->statusBadge();
+                    // Sent but not yet picked up — the same word as the request's
+                    // own status pill (Document::internalStatusLabel()).
+                    if ($isCurrent && ! $document->currentStepHasCustody()) {
+                        $badge['label'] = 'Awaiting receipt';
+                    }
+                @endphp
                 <p class="flex flex-wrap items-center gap-1.5 text-[13px] font-semibold {{ $isCurrent ? 'text-status-amber' : ($isHalted ? 'text-status-red' : 'text-ink') }}">
                     {{ $step->department?->name }}
                     <span class="rounded bg-[#eef2ef] px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">{{ $step->department?->code }}</span>

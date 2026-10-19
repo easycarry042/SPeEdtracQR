@@ -279,9 +279,13 @@ class Document extends Model
                 }
 
                 // step_order 0 is the requesting department's own endorsement hop.
-                return $step->step_order === 0 && (int) $step->department_id === (int) $this->requesting_department_id
-                    ? 'Awaiting endorsement'
-                    : 'Under review';
+                if ($step->step_order === 0 && (int) $step->department_id === (int) $this->requesting_department_id) {
+                    return 'Awaiting endorsement';
+                }
+
+                // Sent but not yet picked up: nobody at the office has scanned
+                // (or, for a soft copy, dropped) its QR to receive it.
+                return $this->currentStepHasCustody() ? 'Under review' : 'Awaiting receipt';
             })(),
         };
     }
@@ -341,15 +345,14 @@ class Document extends Model
      * on the endorsement chain: it binds every digital endorsement to a QR scan
      * (an audited manual override still counts). Custody recorded while the
      * request sat at an earlier office does not carry over to the new hop.
+     *
+     * A soft copy has no folder, but it still has to be RECEIVED: the person it
+     * was sent to (or their supervisor) scans its QR — or drops the QR image —
+     * and that receipt is recorded the same way, so nothing moves until someone
+     * at the office has actually picked it up.
      */
     public function currentStepHasCustody(): bool
     {
-        // No paper, nothing to take custody of: a soft copy is "in hand" the
-        // moment it reaches the office.
-        if ($this->isSoftCopy()) {
-            return $this->currentRequestStep() instanceof RequestStep;
-        }
-
         $step = $this->currentRequestStep();
 
         if (! $step instanceof RequestStep || $step->started_at === null) {

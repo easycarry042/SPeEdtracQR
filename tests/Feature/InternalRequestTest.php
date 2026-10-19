@@ -56,11 +56,11 @@ class InternalRequestTest extends TestCase
             ->assertSee('First Department Route');
     }
 
-    public function test_the_supervisor_files_requests_in_a_modal_from_the_dashboard(): void
+    public function test_the_internal_page_files_requests_in_a_modal(): void
     {
         $supervisor = $this->tourismSupervisor();
 
-        $this->actingAs($supervisor)->get(route('dashboard'))
+        $this->actingAs($supervisor)->get(route('requests.index'))
             ->assertOk()
             // The header's "File Request" opens the modal; its href still reaches the form without JS.
             ->assertSee('@click.prevent="$dispatch(\'open-file-request\')"', false)
@@ -77,11 +77,11 @@ class InternalRequestTest extends TestCase
         $supervisor = $this->tourismSupervisor();
 
         $this->actingAs($supervisor)
-            ->from(route('dashboard'))
+            ->from(route('requests.index'))
             ->post(route('requests.store'), ['purpose' => ''])
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('requests.index'));
 
-        $this->actingAs($supervisor)->get(route('dashboard'))
+        $this->actingAs($supervisor)->get(route('requests.index'))
             ->assertOk()
             ->assertSee('x-data="{ open: true }"', false);
     }
@@ -473,7 +473,7 @@ class InternalRequestTest extends TestCase
 
         // No review by the filing office itself.
         $this->assertNotSame($supervisor->department_id, $first->department_id);
-        $this->assertSame('Under review', $document->internalStatusLabel());
+        $this->assertSame('Awaiting receipt', $document->internalStatusLabel());
         $this->assertSame('amber', $document->internalStatusBand());
         // The filer's custody record starts the trail, but the receiving office
         // must still scan the folder in before it can act.
@@ -508,7 +508,7 @@ class InternalRequestTest extends TestCase
 
         // No endorsement by the filing office: the receiving office holds it,
         // and the filing office's head cannot act on it.
-        $this->assertSame('Under review', $document->internalStatusLabel());
+        $this->assertSame('Awaiting receipt', $document->internalStatusLabel());
         $this->assertNotSame($tourism->id, $document->currentRequestStep()->department_id);
         $this->assertFalse($document->canActOnCurrentStep($head));
     }

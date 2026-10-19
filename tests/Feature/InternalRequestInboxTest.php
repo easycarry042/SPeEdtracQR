@@ -52,7 +52,6 @@ class InternalRequestInboxTest extends TestCase
         return $document;
     }
 
-    /** Supervisors read their office's queues on the dashboard. */
     public function test_department_supervisor_sees_office_scoped_tabs(): void
     {
         $this->makeInternal('SPD-TEST-INB001', 'Chairs for the lobby', DocumentStatus::Pending->value, $this->mayor);
@@ -62,7 +61,7 @@ class InternalRequestInboxTest extends TestCase
             ->create(['department_id' => $this->mayor->id])
             ->assignRole('Supervisor');
 
-        $this->actingAs($mayorSupervisor)->get(route('dashboard'))
+        $this->actingAs($mayorSupervisor)->get(route('requests.index'))
             ->assertOk()
             ->assertSee('Awaiting my office')
             ->assertSee('Chairs for the lobby')
@@ -77,7 +76,7 @@ class InternalRequestInboxTest extends TestCase
             ->create(['department_id' => $this->tourism->id])
             ->assignRole('Supervisor');
 
-        $this->actingAs($tourismSupervisor)->get(route('dashboard'))
+        $this->actingAs($tourismSupervisor)->get(route('requests.index'))
             ->assertOk()
             ->assertSee('Filed by my office')
             ->assertSee('Vase for reception');
@@ -121,13 +120,17 @@ class InternalRequestInboxTest extends TestCase
             ->create(['department_id' => $this->mayor->id])
             ->assignRole('Supervisor');
 
-        $this->actingAs($mayorSupervisor)->get(route('dashboard', ['q' => 'Projector']))
+        $this->actingAs($mayorSupervisor)->get(route('requests.index', ['q' => 'Projector']))
             ->assertOk()
             ->assertSee('Projector rental')
             ->assertDontSee('Chairs for the lobby');
     }
 
-    public function test_the_dashboard_carries_the_offices_internal_queue(): void
+    /**
+     * The count of requests awaiting the office sits on the sidebar's
+     * Internal row now, on every page, rather than a banner on the dashboard.
+     */
+    public function test_the_internal_tab_counts_requests_awaiting_the_supervisors_office(): void
     {
         $this->makeInternal('SPD-TEST-INB007', 'Chairs for the lobby', DocumentStatus::Pending->value, $this->mayor);
 
@@ -137,9 +140,7 @@ class InternalRequestInboxTest extends TestCase
 
         $this->actingAs($mayorSupervisor)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Internal requests')
-            ->assertSee('SPD-TEST-INB007')
-            // The queues are here; there is no banner sending them elsewhere.
+            ->assertSee('<span class="sb-badge" x-data="{ n: 1 }" @nav-badges.window="n = $event.detail.internal"', false)
             ->assertDontSee('awaiting your office');
     }
 

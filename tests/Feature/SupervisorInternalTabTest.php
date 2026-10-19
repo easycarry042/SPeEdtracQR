@@ -10,10 +10,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Supervisors work internal requests from their dashboard: the separate
- * Internal page was one more stop for the same people.
+ * Supervisors handle internal requests on their own Internal tab — receiving
+ * them by QR and deciding them there — not as a section of the dashboard.
+ * Both rows carry a count when a request comes to them.
  */
-class SupervisorInternalOnDashboardTest extends TestCase
+class SupervisorInternalTabTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -51,57 +52,33 @@ class SupervisorInternalOnDashboardTest extends TestCase
         ]);
     }
 
-    public function test_the_dashboard_lists_what_awaits_the_office(): void
+    public function test_supervisors_have_their_own_internal_tab(): void
     {
-        $response = $this->actingAs($this->supervisor)->get(route('dashboard'))->assertOk();
+        $this->actingAs($this->supervisor)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('href="'.route('requests.index').'"', false)
+            ->assertSee('<span class="nav-text whitespace-nowrap">Internal</span>', false);
 
-        $response->assertSee('Internal requests')
+        $this->actingAs($this->supervisor)->get(route('requests.index'))
+            ->assertOk()
             ->assertSee('Awaiting my office')
-            ->assertSee('Filed by my office')
             ->assertSee('INT-20261018-GSO234')
-            ->assertSee('Folding tables for the fiesta')
-            // The request modal comes with it.
             ->assertSee('internalRequestModal', false);
     }
 
-    public function test_closing_the_request_modal_keeps_its_box_for_the_next_one(): void
-    {
-        // Destroying the box itself dropped its x-ref, so every request opened
-        // after the first failed: "Cannot set properties of undefined
-        // (setting 'innerHTML')".
-        $this->actingAs($this->supervisor)->get(route('dashboard'))
-            ->assertOk()
-            ->assertDontSee('destroyTree(box)', false)
-            ->assertSee('[...box.children].forEach((child) => window.Alpine?.destroyTree(child))', false);
-    }
-
-    public function test_supervisors_have_no_separate_internal_tab(): void
+    public function test_the_dashboard_no_longer_carries_the_internal_queues(): void
     {
         $this->actingAs($this->supervisor)->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('<span class="nav-text whitespace-nowrap">Internal</span>', false);
+            ->assertDontSee('Filed by my office')
+            ->assertDontSee('INT-20261018-GSO234');
     }
 
-    public function test_staff_and_super_admins_keep_the_internal_page(): void
+    public function test_a_decision_made_in_the_modal_comes_back_to_the_internal_page(): void
     {
-        $staff = User::factory()->create(['department_id' => $this->gso->id, 'is_active' => true])->assignRole('staff');
-        $admin = User::factory()->create(['is_active' => true])->assignRole('super_admin');
-
-        $this->actingAs($staff)->get(route('requests.index'))->assertOk()->assertSee('INT-20261018-GSO234');
-        $this->actingAs($admin)->get(route('requests.index'))->assertOk()->assertSee('INT-20261018-GSO234');
-    }
-
-    public function test_old_internal_links_land_on_the_dashboard_with_the_request_open(): void
-    {
-        $this->actingAs($this->supervisor)
-            ->get(route('requests.index', ['open' => $this->request->id]))
-            ->assertRedirect(route('dashboard', ['open' => $this->request->id]));
-    }
-
-    public function test_a_decision_made_in_the_modal_comes_back_to_the_dashboard_with_its_message(): void
-    {
-        // A soft copy needs no folder scan, so the decision goes straight through.
+        // Received first: nothing is decided until someone at the office has it.
         $this->request->update(['has_hard_copy' => false]);
+        $this->request->custodyEvents()->create(['user_id' => $this->supervisor->id, 'capture_method' => 'image']);
 
         $this->actingAs($this->supervisor)
             ->post(route('requests.steps.return', $this->request), [
@@ -111,14 +88,22 @@ class SupervisorInternalOnDashboardTest extends TestCase
             ->assertRedirect(route('requests.index', ['open' => $this->request->id]));
 
         $this->get(route('requests.index', ['open' => $this->request->id]))
-            ->assertRedirect(route('dashboard', ['open' => $this->request->id]));
-
-        $this->get(route('dashboard', ['open' => $this->request->id]))
             ->assertOk()
             ->assertSee('Request returned to the filing office for revision.');
     }
 
-    public function test_the_sla_slip_is_gone(): void
+    public function test_closing_the_request_modal_keeps_its_box_for_the_next_one(): void
+    {
+        // Destroying the box itself dropped its x-ref, so every request opened
+        // after the first failed: "Cannot set properties of undefined
+        // (setting 'innerHTML')".
+        $this->actingAs($this->supervisor)->get(route('requests.index'))
+            ->assertOk()
+            ->assertDontSee('destroyTree(box)', false)
+            ->assertSee('[...box.children].forEach((child) => window.Alpine?.destroyTree(child))', false);
+    }
+
+    public function test_the_sla_slip_stays_gone(): void
     {
         Document::create([
             'tracking_number' => 'SPD-LATE-1',

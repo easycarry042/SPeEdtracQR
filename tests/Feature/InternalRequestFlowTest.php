@@ -374,14 +374,8 @@ class InternalRequestFlowTest extends TestCase
             ])
             ->assertRedirect(route('requests.index', ['open' => $document->id]));
 
-        // A supervisor's internal queues are on their dashboard, so the
-        // Internal page hands them on there, still opening the request.
         $this->actingAs($mayorSupervisor)
             ->get(route('requests.index', ['open' => $document->id]))
-            ->assertRedirect(route('dashboard', ['open' => $document->id]));
-
-        $this->actingAs($mayorSupervisor)
-            ->get(route('dashboard', ['open' => $document->id]))
             ->assertOk()
             ->assertSee('internalRequestModal(', false)
             // @js escapes slashes: the URL reads \/requests\/{id} in the page.

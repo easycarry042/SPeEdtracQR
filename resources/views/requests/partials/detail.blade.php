@@ -89,11 +89,10 @@
                         </div>
                     </section>
 
-                    {{-- Who scanned this folder: every custody hand-off, newest first.
-                         A soft copy has no folder, so no trail. --}}
-                    @unless($document->isSoftCopy())
+                    {{-- Who scanned this folder (or, for a soft copy, who received
+                         it): every hand-off, newest first. --}}
                     <section class="mt-7">
-                        <h2 class="dm-section">Scan Trail</h2>
+                        <h2 class="dm-section">{{ $document->isSoftCopy() ? 'Received by' : 'Scan Trail' }}</h2>
                         <ul class="dm-logs">
                             @forelse($custodyTrail as $event)
                                 <li class="dm-log items-start">
@@ -102,7 +101,7 @@
                                         <span class="dm-log-event block">{{ $event->user->name ?? 'Unknown staff' }}</span>
                                         <span class="block text-[length:var(--fs-caption)] text-ink-soft">
                                             {{ $event->user?->department?->name ?? 'No department' }} ·
-                                            {{ $event->capture_method === 'manual' ? 'recorded manually' : 'QR scanned' }}
+                                            {{ match ($event->capture_method) { 'manual' => 'recorded manually', 'image' => 'QR image', 'screen' => 'QR on screen', default => 'QR scanned' } }}
                                             @if($event->capture_method === 'manual' && $event->override_reason)
                                                 — {{ $event->override_reason }}
                                             @endif
@@ -111,11 +110,10 @@
                                     <span class="dm-log-time">{{ $event->created_at->format('M d, h:i A') }}</span>
                                 </li>
                             @empty
-                                <li class="text-[length:var(--fs-small)] text-ink-soft">Nobody has scanned this folder yet.</li>
+                                <li class="text-[length:var(--fs-small)] text-ink-soft">{{ $document->isSoftCopy() ? 'Nobody has received it yet.' : 'Nobody has scanned this folder yet.' }}</li>
                             @endforelse
                         </ul>
                     </section>
-                    @endunless
 
                     <section class="mt-7">
                         <h2 class="dm-section">More Info</h2>
@@ -162,19 +160,29 @@
             {{-- ── This office's decision ──────────────────────────────── --}}
             @if($canAct && $currentStep && ! $hasCustody)
                 {{-- QR is load-bearing: the endorsement stays locked until this
-                     office scans the folder to prove the paper is in hand. --}}
+                     office scans the folder to prove the paper is in hand — or,
+                     for a soft copy, until the person it was sent to receives
+                     it by scanning or dropping its QR. --}}
                 <section class="dm-card dm-page-card @if($inModal) dm-in-modal @endif lg:sticky lg:top-24">
                     <div class="dm-head">
                         <div class="min-w-0">
-                            <h2 class="dm-section">Scan to take custody</h2>
+                            <h2 class="dm-section">{{ $document->isSoftCopy() ? 'Receive this request' : 'Scan to take custody' }}</h2>
                             <p class="text-[length:var(--fs-caption)] text-ink-soft">{{ $currentStep->action }}</p>
                         </div>
                     </div>
                     <div class="dm-body space-y-4">
-                        <p class="text-[length:var(--fs-small)] text-ink-soft">
-                            Your office holds this hop, but you must <b class="text-ink">scan the document's QR Code</b> to
-                            confirm the paper is physically here before you can approve, return, or deny it.
-                        </p>
+                        @if($document->isSoftCopy())
+                            <p class="text-[length:var(--fs-small)] text-ink-soft">
+                                {{ (int) $currentStep->recipient_id === (int) auth()->id() ? 'This request was sent to you.' : 'This request was sent to your office.' }}
+                                Scan its QR to receive it: click <b class="text-ink">Select the QR on screen</b> — the QR opens and the page
+                                dims — and drag a box around the QR. Or use the camera. Then you can approve, return or deny it.
+                            </p>
+                        @else
+                            <p class="text-[length:var(--fs-small)] text-ink-soft">
+                                Your office holds this hop, but you must <b class="text-ink">scan the document's QR Code</b> to
+                                confirm the paper is physically here before you can approve, return, or deny it.
+                            </p>
+                        @endif
                         @include('partials.custody-scan', ['document' => $document])
                     </div>
                 </section>
@@ -204,7 +212,7 @@
                             @if($custody)
                                 <div class="mb-4 flex items-center gap-2 rounded-[8px] border border-green/25 bg-green/5 px-4 py-2.5 text-[13px] text-ink" role="status">
                                     <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true" class="text-green"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                    <span>Document in hand — held by <b>{{ $custody->user->name ?? 'your office' }}</b>{{ $custody->capture_method === 'manual' ? ' (recorded manually)' : ' (QR scanned)' }}.</span>
+                                    <span>{{ $document->isSoftCopy() ? 'Received by' : 'Document in hand — held by' }} <b>{{ $custody->user->name ?? 'your office' }}</b>{{ match ($custody->capture_method) { 'manual' => ' (recorded manually)', 'image' => ' (QR image)', 'screen' => ' (QR on screen)', default => ' (QR scanned)' } }}.</span>
                                 </div>
                             @endif
 
@@ -330,7 +338,7 @@
                                             <span x-text="scanning ? 'Cancel scan' : 'Scan request QR'"></span>
                                         </button>
                                         <div x-show="scanning" x-cloak class="mt-3">
-                                            <div id="folderReader" class="min-h-[200px] max-w-[320px] overflow-hidden rounded-[8px]"></div>
+                                            @include('partials.qr-camera', ['id' => 'folderReader'])
                                             <p class="mt-1 text-[12px] text-ink-soft">Point the camera at the QR sticker on this folder.</p>
                                         </div>
                                     </div>

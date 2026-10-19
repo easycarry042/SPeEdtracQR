@@ -12,8 +12,8 @@ use Illuminate\Support\Collection;
 
 /**
  * One office's internal (dept-to-dept) requests, in the three queues the
- * Internal page and the supervisor dashboard both draw: what awaits the
- * office, what it filed and is still open, and what has closed. An account
+ * Internal page draws: what awaits the office, what it filed and is still
+ * open, and what has closed. An account
  * with no office (a super admin) sees every open request and every closed one.
  */
 final class InternalInbox
@@ -65,18 +65,5 @@ final class InternalInbox
             'closed' => $base()->whereIn('status', $terminal)->get(),
             'search' => $search,
         ];
-    }
-
-    /**
-     * Supervisors work their office's internal requests from their dashboard;
-     * the separate Internal page was one more stop for the same people. Staff
-     * (who may file, or be named on a soft copy) and super admins keep it.
-     */
-    public static function livesOnDashboard(?User $user): bool
-    {
-        return $user !== null
-            && $user->hasRole('Supervisor')
-            && $user->department_id !== null
-            && ! $user->can('manage system');
     }
 }

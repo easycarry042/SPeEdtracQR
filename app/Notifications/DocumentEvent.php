@@ -137,6 +137,18 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** Someone at the next office picked it up — tell whoever filed it. */
+    public static function internalReceived(Document $document, string $who, string $office): self
+    {
+        return new self(
+            event: 'internal_received',
+            title: 'Internal request received',
+            body: ($document->purpose ?? $document->document_type)." — received by {$who} at {$office}.",
+            url: route('requests.show', $document),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /** The chain moved (approved/denied/returned/completed) — tell the filing supervisor. */
     public static function internalOutcome(Document $document, string $summary): self
     {

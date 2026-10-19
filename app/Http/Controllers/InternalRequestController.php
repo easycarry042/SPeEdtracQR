@@ -16,7 +16,6 @@ use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -42,7 +41,7 @@ class InternalRequestController extends Controller
      * everything. Guarded here (not by route middleware) because two different
      * permissions may enter.
      */
-    public function index(Request $request): Factory|View|RedirectResponse
+    public function index(Request $request): Factory|View
     {
         $user = auth()->user();
         abort_unless(
@@ -51,16 +50,6 @@ class InternalRequestController extends Controller
                 || $user->can('manage system'),
             403,
         );
-
-        // A supervisor's internal queues are on their dashboard. Old links —
-        // bell notifications, bookmarks, a decision made in the modal — land
-        // there, still opening the request they named.
-        if (InternalInbox::livesOnDashboard($user)) {
-            // Keep a decision's "Approved — …" message through the extra hop.
-            $request->session()->reflash();
-
-            return to_route('dashboard', array_filter($request->only('open', 'q')));
-        }
 
         return view('requests.index', InternalInbox::for($user, (string) $request->get('q')) + [
             // Drives the "+" action in the page bar: without a department there

@@ -18,6 +18,19 @@
 
     $glyph = 'sb-glyph';
     $label = 'nav-text whitespace-nowrap';
+
+    /*
+     * The count of requests that have come to this person (App\Support\NavBadges).
+     * Rendered fresh with every page — the sidebar is swapped on each soft
+     * navigation — and kept current in between by the layout's poller, which
+     * broadcasts `nav-badges` every minute.
+     */
+    $badges = \App\Support\NavBadges::for(auth()->user());
+    $badge = fn (string $key, string $what): string => '<span class="sb-badge" x-data="{ n: '.$badges[$key].' }"'
+        .' @nav-badges.window="n = $event.detail.'.$key.'" x-show="n > 0"'.($badges[$key] > 0 ? '' : ' x-cloak')
+        .' x-text="n > 99 ? \'99+\' : n" aria-live="polite">'.$badges[$key].'</span>'
+        .'<span class="sr-only" x-data="{ n: '.$badges[$key].' }" @nav-badges.window="n = $event.detail.'.$key.'"'
+        .' x-text="n > 0 ? \' (\' + n + \' '.$what.')\' : \'\'"></span>';
 @endphp
 
 @if($isSystemAdmin)
@@ -96,6 +109,7 @@
             <img src="{{ asset('images/staff/nav-home.svg') }}" alt="" class="sb-icon">
         </span>
         <span class="{{ $label }}">Dashboard</span>
+        {!! $badge('home', 'new') !!}
     </a>
 
     {{-- No "Look Up" row: the desk it opened was a second copy of this role's
@@ -103,15 +117,13 @@
          one request. The dashboard carries both halves now. The QR hub it also
          served is still a click away on the header's Scan QR Code button. --}}
 
-    {{-- Supervisors work internal requests on their dashboard, so they have no
-         separate Internal tab (App\Support\InternalInbox::livesOnDashboard). --}}
-    @if((auth()->user()?->canAny(['act on internal requests', 'create internal requests']) ?? false)
-        && ! \App\Support\InternalInbox::livesOnDashboard(auth()->user()))
+    @if(auth()->user()?->canAny(['act on internal requests', 'create internal requests']) ?? false)
         <a href="{{ route('requests.index') }}" {!! $row(request()->routeIs('requests.*')) !!}>
             <span class="{{ $glyph }}">
                 <img src="{{ asset('images/staff/nav-internal.svg') }}" alt="" class="sb-icon">
             </span>
             <span class="{{ $label }}">Internal</span>
+            {!! $badge('internal', 'waiting') !!}
         </a>
     @endif
 

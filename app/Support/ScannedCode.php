@@ -28,6 +28,9 @@ class ScannedCode
     /** Our own scannable paths and the tracking number each carries. */
     private const PATH_PATTERN = '#^/(?:track|verify)/((?:SPD|INT)-\d{8}-[0-9A-Z]{6})(?:/.*)?$#i';
 
+    /** Where an internal request's QR link points (route internal.track). */
+    private const INTERNAL_TRACKER_PATH = '/internal-requests/track';
+
     public const FOREIGN_CODE_MESSAGE = 'That code was not issued by SPeED TraQR. Scan the QR printed on the claim slip or folder.';
 
     /**
@@ -59,6 +62,15 @@ class ScannedCode
 
         if (isset($parts['host']) && ! self::isOurHost($parts['host'])) {
             return null;
+        }
+
+        // An internal request's QR: a link to our internal tracker carrying the
+        // signed payload (TrackingQr::content()). The signature decides.
+        if (self::normalisePath($parts['path']) === self::INTERNAL_TRACKER_PATH) {
+            parse_str($parts['query'] ?? '', $query);
+            $signed = $query[TrackingQr::URL_PARAMETER] ?? null;
+
+            return is_string($signed) ? TrackingQr::trackingNumber($signed) : null;
         }
 
         if (preg_match(self::PATH_PATTERN, self::normalisePath($parts['path']), $matches) !== 1) {

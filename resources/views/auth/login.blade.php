@@ -45,8 +45,20 @@
                 <p class="auth-foot">City Government of San Pedro, Laguna</p>
             </div>
 
-            {{-- Form half --}}
-            <div class="auth-right">
+            {{-- Form half. Two jobs on one card: staff sign in, and — for anyone,
+                 no account needed — tracking an internal request by its QR or
+                 number (the client's request). --}}
+            <div class="auth-right" x-data="{ tab: @js(request('tab') === 'track' ? 'track' : 'signin') }">
+                <div class="auth-tabs" role="tablist" aria-label="What would you like to do?">
+                    <button type="button" role="tab" :aria-selected="tab === 'signin'" :class="tab === 'signin' && 'on'" @click="tab = 'signin'">Staff sign in</button>
+                    <button type="button" role="tab" :aria-selected="tab === 'track'" :class="tab === 'track' && 'on'" @click="tab = 'track'">Track a request</button>
+                </div>
+
+                <div x-show="tab === 'track'" x-cloak>
+                    @include('requests.partials.public-track-form', ['heading' => true])
+                </div>
+
+                <div x-show="tab === 'signin'">
                 <h2 class="auth-heading">Welcome</h2>
                 <p class="auth-subheading">Input your credentials to continue</p>
 
@@ -99,6 +111,7 @@
                         <svg fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
                     </button>
                 </form>
+                </div>
             </div>
         </section>
     </div>

@@ -34,6 +34,25 @@ class TrackingQr
 
     private const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
+    /** The query parameter the internal tracker reads a signed payload from. */
+    public const URL_PARAMETER = 'qr';
+
+    /**
+     * What a request's QR image encodes. Citizen requests: the bare signed
+     * payload. Internal requests: the payload inside a link to the public
+     * internal tracker, so a phone's own camera opens it — anyone may see who
+     * is handling an internal request (the client's request) — and our
+     * scanners still read and verify the payload out of the link.
+     */
+    public static function content(string $trackingNumber): string
+    {
+        $payload = self::payload($trackingNumber);
+
+        return str_starts_with(strtoupper($trackingNumber), 'INT-')
+            ? route('internal.track', [self::URL_PARAMETER => $payload])
+            : $payload;
+    }
+
     public static function payload(string $trackingNumber): string
     {
         $trackingNumber = strtoupper($trackingNumber);

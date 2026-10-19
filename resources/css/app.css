@@ -387,10 +387,41 @@ html { zoom: var(--ui-zoom); }
 .custody-scan { border-top: 1px solid var(--hairline); padding: 10px 12px; }
 .custody-scan .cs-hint { margin: 0 0 8px; font-size: 12px; color: var(--ink-soft); }
 .custody-scan .cs-hint b { color: var(--ink); }
-/* min-height reserves the frame while the camera warms up, so revealing the
-   scanner does not jolt the page from 0px to full video height. */
-#custodyReader { max-width: 320px; min-height: 200px; overflow: hidden; border: 1px solid var(--hairline-strong); border-radius: 8px; }
 .cs-error { margin: 0; border-top: 1px solid var(--hairline); padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--red); }
+
+/* QR snipping tool (window.SpeedQr.scanFromScreen): the page fades, the
+   pointer becomes a crosshair, and the dragged box is read as a scan. */
+.qr-snip {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .55);
+    cursor: crosshair; touch-action: none; user-select: none;
+}
+.qr-snip-frame { display: block; pointer-events: none; box-shadow: 0 0 0 9999px rgba(15, 33, 27, .35); }
+.qr-snip-hint {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    margin: 0; padding: 8px 16px; border-radius: 9999px;
+    background: var(--green-deep); color: #fff; font-size: 14px; font-weight: 700;
+    box-shadow: 0 6px 18px -6px rgba(15, 33, 27, .5); pointer-events: none;
+}
+.qr-snip-box {
+    position: fixed; border: 2px dashed var(--green-deep);
+    background: rgba(255, 255, 255, .15); box-shadow: 0 0 0 1px #fff;
+    pointer-events: none;
+}
+
+/* Receiving a soft copy: the snipping-tool card (same dashed well as the
+   filing form's upload, smaller). */
+.qr-drop {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    margin: 10px 12px; padding: 16px 12px; text-align: center;
+    border: 1.5px dashed rgba(22, 122, 58, .55); border-radius: 12px;
+    background: #f1fbf1; transition: background-color .15s, border-color .15s;
+}
+.qr-drop svg { width: 28px; height: 28px; color: var(--green); }
+.qr-drop-hint { font-size: var(--fs-caption); color: var(--ink-soft); }
+.qr-drop-alt { cursor: pointer; background: none; border: 0; padding: 0; font-size: var(--fs-caption); font-weight: 600; color: var(--green); text-decoration: underline; }
+.qr-drop-alt:focus-within { border-radius: 4px; box-shadow: var(--focus-ring); }
 .custody-manual { border-top: 1px solid var(--hairline); padding: 6px 12px 8px; }
 .cs-manual-link { background: none; border: 0; padding: 0; font-size: 11.5px; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
 .cs-manual-link:hover { color: var(--ink); }
@@ -1071,6 +1102,15 @@ aside.sidebar-pinned {
     padding: 0 var(--sb-inset) 8px;
     font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
     color: rgba(255, 255, 255, .55);
+}
+
+/* Requests waiting on this person (App\Support\NavBadges), at the row's end.
+   The number carries the meaning; the red only draws the eye. */
+.sb-badge {
+    margin-left: auto; min-width: 22px; padding: 0 7px;
+    border-radius: 9999px; background: #d64545; color: #fff;
+    font-size: 12px; font-weight: 800; line-height: 22px; text-align: center;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .18);
 }
 
 /* A heading inside the menu (the super admin's "Setup" group). */
@@ -3752,4 +3792,61 @@ a.dm-thumb:hover { border-color: var(--green); }
     outline-offset: 3px;
     border-radius: 3px;
     color: #ffffff;
+}
+
+/* ── Sign-in card: "Staff sign in" / "Track a request" tabs, and the public
+   internal-request tracker (requests/public-track). Same card, fields and
+   button as the sign-in form. ─────────────────────────────────────────── */
+.auth-tabs {
+    display: flex; gap: 4px; margin-bottom: 26px; padding: 4px;
+    border: 1px solid var(--hairline-strong); border-radius: 12px; background: var(--green-wash);
+}
+.auth-tabs button {
+    flex: 1; height: 38px; border-radius: 8px;
+    font-size: 14px; font-weight: 700; color: var(--ink-soft);
+    transition: background-color .15s, color .15s;
+}
+.auth-tabs button:hover:not(.on) { background: rgba(255, 255, 255, .7); color: var(--green-deep); }
+.auth-tabs button.on { background: var(--green-deep); color: #fff; }
+.auth-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Doubled class: the guest layout's inline .auth-card (two columns) loads after this file. */
+.auth-card.it-card { grid-template-columns: 1fr; min-height: 0; max-width: 720px; margin: 0 auto; }
+.it-actions { display: grid; grid-template-columns: auto 1fr; gap: 10px; }
+.it-secondary {
+    display: inline-flex; height: 52px; align-items: center; gap: 8px; padding: 0 18px;
+    border: 1px solid var(--hairline-strong); border-radius: 12px; background: #fff;
+    font-size: 15px; font-weight: 700; color: var(--green-deep);
+    transition: border-color .15s, background-color .15s;
+}
+.it-secondary svg { width: 20px; height: 20px; }
+.it-secondary:hover { border-color: var(--green); background: var(--green-wash); }
+.it-secondary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.it-camera { margin-top: 14px; overflow: hidden; border-radius: 12px; }
+.it-alt-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; margin-top: 12px; font-size: 14px; color: var(--ink-soft); }
+.it-image-link {
+    cursor: pointer; background: none; border: 0; padding: 0;
+    font-size: 14px; font-weight: 600; color: var(--green); text-decoration: underline;
+}
+.it-image-link:focus-within { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+
+.it-note { margin-top: 20px; padding: 12px 14px; border-radius: 12px; background: var(--green-wash); font-size: 15px; color: var(--green-deep); }
+.it-note a { font-weight: 700; text-decoration: underline; }
+.it-note.is-error { background: #fbe9e7; color: #a12a1a; }
+
+.it-result { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--hairline); }
+.it-result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 18px; color: var(--ink); }
+.it-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; margin: 18px 0 0; }
+.it-facts dt { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.it-facts dd { margin: 4px 0 0; font-size: 16px; color: var(--ink); }
+.it-facts-wide { grid-column: 1 / -1; }
+.it-subhead { margin: 26px 0 10px; font-size: 15px; font-weight: 800; color: var(--green-deep); }
+.it-steps { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.it-steps li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border-radius: 10px; }
+.it-steps li.is-current { background: var(--green-wash); }
+.it-dot { flex: none; width: 10px; height: 10px; margin-top: 6px; border-radius: 9999px; background: #c5d3ca; }
+.it-steps li.is-current .it-dot { background: var(--brass); box-shadow: 0 0 0 4px rgba(199, 154, 62, .2); }
+@media (max-width: 640px) {
+    .it-facts { grid-template-columns: 1fr; }
+    .it-actions { grid-template-columns: 1fr; }
 }

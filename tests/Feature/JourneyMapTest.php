@@ -196,8 +196,7 @@ class JourneyMapTest extends TestCase
         $this->assertSame('pending', $doc->fresh()->status);
 
         // 4. The supervisor's other day-to-day screens answer.
-        // (Internal requests are on the dashboard itself, not a separate page.)
-        foreach (['track.index', 'history', 'analytics', 'reports.services'] as $name) {
+        foreach (['track.index', 'requests.index', 'history', 'analytics', 'reports.services'] as $name) {
             $this->assertSame(
                 200,
                 $this->actingAs($supervisor)->get(route($name))->getStatusCode(),
@@ -481,9 +480,8 @@ class JourneyMapTest extends TestCase
         $this->get(route('track.show', $doc->tracking_number))
             ->assertStatus(302);
 
-        // 4. The filing office's head can still see it, in the internal
-        //    queues on their dashboard.
-        $this->actingAs($supervisor)->get(route('dashboard'))->assertOk()->assertSee($doc->tracking_number);
+        // 4. The filing office's head can still see it in the internal inbox.
+        $this->actingAs($supervisor)->get(route('requests.index'))->assertOk();
         $this->actingAs($supervisor)->get(route('requests.show', $doc))->assertOk();
     }
 

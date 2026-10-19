@@ -32,8 +32,9 @@ class LoginPageDesignTest extends TestCase
         $response->assertSee('placeholder="Enter your email"', false);
         $response->assertSee('placeholder="Enter your password"', false);
         $response->assertSee('form-input-with-icon', false);
+        // Email and password, plus the request number on the "Track a request" tab.
         $this->assertSame(
-            2,
+            3,
             substr_count($response->getContent(), 'class="field-icon" aria-hidden="true"')
         );
     }

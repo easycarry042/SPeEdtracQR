@@ -28,6 +28,7 @@ use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\InternalRequestController;
+use App\Http\Controllers\InternalTrackerController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\TrackController;
 use App\Http\Controllers\VerificationController;
 use App\Support\CitizenReceipt;
 use App\Support\CitizenView;
+use App\Support\NavBadges;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Spatie\Health\Http\Controllers\HealthCheckResultsController;
@@ -74,6 +76,13 @@ Route::get('/', function (Request $request) {
 // The RA 10173 notice the request form's consent checkbox refers to. Public
 // for everyone, signed in or not.
 Route::view('/privacy', 'privacy')->name('privacy');
+
+// Public tracker for internal (INT-) requests: which office has it and who is
+// handling it, by QR or number, no account needed. Linked from the sign-in
+// page. Throttled like the citizen tracker — it resolves tracking numbers.
+Route::get('/internal-requests/track', [InternalTrackerController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('internal.track');
 
 Route::get('/home', function () {
     $user = auth()->user();
@@ -322,6 +331,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Staff operational dashboard — requests assigned to the authenticated staff member.
     Route::get('/my-dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
+
+    // The sidebar's Dashboard / Internal counts, polled while a page stays open.
+    Route::get('/nav/badges', fn () => response()->json(NavBadges::for(auth()->user())))
+        ->middleware('throttle:30,1')
+        ->name('nav.badges');
 
     // Internal dept-to-dept requests (supervisor wizard: OCR upload → route → QR).
     // The inbox authorizes in-controller: dept supervisors AND org-wide admins enter.

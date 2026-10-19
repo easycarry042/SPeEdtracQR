@@ -221,5 +221,27 @@
     <x-error-alert />
 
     @include('layouts.partials.bfcache-guard')
+
+    {{-- Keeps the sidebar's Dashboard / Internal counts current while a page
+         stays open (they are also re-rendered on every navigation). Lives
+         outside the swapped regions, so it runs once per full page load. --}}
+    @auth
+        @unless(auth()->user()->can('manage system'))
+            <script>
+                (function () {
+                    const url = @js(route('nav.badges'));
+                    const refresh = () => {
+                        if (document.hidden) return;
+                        fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((response) => (response.ok ? response.json() : null))
+                            .then((counts) => counts && window.dispatchEvent(new CustomEvent('nav-badges', { detail: counts })))
+                            .catch(() => {});
+                    };
+                    setInterval(refresh, 60000);
+                    document.addEventListener('visibilitychange', refresh);
+                })();
+            </script>
+        @endunless
+    @endauth
 </body>
 </html>

@@ -17,7 +17,10 @@
         /** Paths of ours that a QR may legitimately point at. */
         const OUR_PATHS = /^\/(track|verify)\/((?:SPD|INT)-\d{8}-[0-9A-Z]{6})(?:\/|$)/i;
 
-        /** Signed request QRs (see App\Support\TrackingQr) — never a URL. */
+        /** Where an internal request's QR link points (route internal.track). */
+        const INTERNAL_TRACKER_PATH = '/internal-requests/track';
+
+        /** Signed request QRs (see App\Support\TrackingQr). */
         const SIGNED_PREFIX = 'SPDQR1:';
         const SIGNATURE_BYTES = 8;
         const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -72,6 +75,14 @@
             }
 
             if (url.origin !== window.location.origin) return null;
+
+            // An internal request's QR: a link to our internal tracker carrying
+            // the signed payload (App\Support\TrackingQr::content()).
+            if (url.pathname.replace(/\/+$/, '').endsWith(INTERNAL_TRACKER_PATH)) {
+                const signed = (url.searchParams.get('qr') || '').toUpperCase();
+
+                return signed.startsWith(SIGNED_PREFIX) ? decodeSigned(signed) : null;
+            }
 
             const match = url.pathname.match(OUR_PATHS);
 
@@ -371,7 +382,313 @@
                 .catch(() => false);
         }
 
-        return { TRACKING_RE, FOREIGN_CODE_MESSAGE, extractTracking, isStaffBadge, describe, start, stop, hasCamera };
+        /**
+         * Read a QR from a picture instead of the camera — the QR image of a
+         * soft-copy request, dropped onto the page or chosen from disk. Uses a
+         * hidden reader of its own, so it never disturbs a running camera.
+         *
+         * @returns {Promise<string>} the decoded text
+         */
+        function decodeImage(file) {
+            let box = document.getElementById('speedqr-image-reader');
+            if (! box) {
+                box = document.createElement('div');
+                box.id = 'speedqr-image-reader';
+                box.hidden = true;
+                document.body.appendChild(box);
+            }
+
+            const reader = new Html5Qrcode(box.id, scannerOptions());
+
+            return reader.scanFile(file, false)
+                .catch(() => {
+                    throw new Error('No QR code could be read from that picture. Use a clear, straight-on picture of the request\'s QR.');
+                })
+                .finally(() => {
+                    try { reader.clear(); } catch (e) { /* nothing was drawn */ }
+                });
+        }
+
+        /**
+         * The picture in a drop: an image file dragged in from the desktop or
+         * the downloads bar, or an image dragged from this page itself (the
+         * browser hands over its URL, which must be one of ours).
+         *
+         * @returns {Promise<File>}
+         */
+        async function imageFromDrop(dataTransfer) {
+            const files = [...(dataTransfer?.files || [])];
+            const image = files.find((file) => file.type.startsWith('image/'));
+            if (image) return image;
+            if (files.length) {
+                throw new Error('That file is not a picture. Drop the QR image (PNG or JPG) — a PDF can\'t be read here.');
+            }
+
+            const link = (dataTransfer?.getData('text/uri-list') || dataTransfer?.getData('text/plain') || '')
+                .split(/\r?\n/).find((line) => line && ! line.startsWith('#'));
+            if (! link) throw new Error('Drop the request\'s QR image here.');
+
+            const url = new URL(link.trim(), window.location.href);
+            if (url.origin !== window.location.origin) {
+                throw new Error('That picture is from another site. Use this request\'s own QR image.');
+            }
+
+            const response = await fetch(url, { credentials: 'same-origin' });
+            if (! response.ok) throw new Error('That picture could not be opened.');
+            const blob = await response.blob();
+
+            return new File([blob], 'qr-image', { type: blob.type || 'image/png' });
+        }
+
+        // ─── Snip a QR off the screen ───────────────────────────────────────
+        // Like a browser authenticator's "scan QR code": the page dims, the
+        // pointer becomes a crosshair, and the box dragged around a QR is read
+        // as if it had been scanned.
+
+        /**
+         * Dim the page and let the user drag a box. Resolves with the box in
+         * viewport pixels, or null on Esc / a click without a drag.
+         *
+         * @param {HTMLCanvasElement|null} frame — show this captured frame
+         *        instead of the live page (a capture of another window)
+         */
+        function selectRegion(frame = null) {
+            return new Promise((resolve) => {
+                const layer = document.createElement('div');
+                layer.className = 'qr-snip';
+                layer.setAttribute('role', 'dialog');
+                layer.setAttribute('aria-label', 'Select the QR code: drag a box around it, or press Escape to cancel');
+                if (frame) {
+                    frame.className = 'qr-snip-frame';
+                    layer.appendChild(frame);
+                }
+                const hint = document.createElement('p');
+                hint.className = 'qr-snip-hint';
+                hint.textContent = 'Drag a box around the QR code · Esc to cancel';
+                const box = document.createElement('div');
+                box.className = 'qr-snip-box';
+                box.hidden = true;
+                layer.append(hint, box);
+                document.body.appendChild(layer);
+
+                // Fit a captured frame to the window, and remember where it sits
+                // so the box can be mapped back onto the frame's own pixels.
+                let shown = null;
+                if (frame) {
+                    const k = Math.min(window.innerWidth / frame.width, window.innerHeight / frame.height);
+                    Object.assign(frame.style, { width: frame.width * k + 'px', height: frame.height * k + 'px' });
+                    shown = frame.getBoundingClientRect();
+                }
+
+                let start = null;
+                const rectFrom = (event) => {
+                    const left = Math.min(start.x, event.clientX);
+                    const top = Math.min(start.y, event.clientY);
+
+                    return { left, top, width: Math.abs(event.clientX - start.x), height: Math.abs(event.clientY - start.y) };
+                };
+                const finish = (rect) => {
+                    window.removeEventListener('keydown', onKey, true);
+                    layer.remove();
+                    resolve(rect);
+                };
+                const onKey = (event) => {
+                    if (event.key === 'Escape') {
+                        // Ours alone: the modal underneath must not close too.
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        finish(null);
+                    }
+                };
+
+                window.addEventListener('keydown', onKey, true);
+                layer.addEventListener('pointerdown', (event) => {
+                    event.preventDefault();
+                    layer.setPointerCapture(event.pointerId);
+                    start = { x: event.clientX, y: event.clientY };
+                    hint.hidden = true;
+                });
+                layer.addEventListener('pointermove', (event) => {
+                    if (! start) return;
+                    const r = rectFrom(event);
+                    Object.assign(box.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+                    box.hidden = false;
+                });
+                layer.addEventListener('pointerup', (event) => {
+                    if (! start) return;
+                    const r = rectFrom(event);
+                    r.shown = shown;
+                    finish(r.width >= 12 && r.height >= 12 ? r : null);
+                });
+            });
+        }
+
+        /** A canvas for the box, with a white margin: decoders need a quiet zone round a QR. */
+        function paddedCanvas(width, height, scale) {
+            const pad = Math.round(Math.max(width, height) * scale * 0.12);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(width * scale) + pad * 2;
+            canvas.height = Math.round(height * scale) + pad * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            return { canvas, ctx, pad };
+        }
+
+        function canvasToFile(canvas) {
+            return new Promise((resolve, reject) => {
+                try {
+                    canvas.toBlob((blob) => (blob ? resolve(new File([blob], 'qr-snip.png', { type: 'image/png' })) : reject(new Error('empty'))), 'image/png');
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        /**
+         * The box, rebuilt from the pictures on this page that it covers — the
+         * QR viewer, a QR-stamped scan, an inline QR. No permission needed.
+         * Null when no picture lies under the box.
+         */
+        async function regionFromPage(rect) {
+            const scale = Math.max(2, window.devicePixelRatio || 1);
+            const { canvas, ctx, pad } = paddedCanvas(rect.width, rect.height, scale);
+            let drew = false;
+
+            const sources = [...document.querySelectorAll('img, svg, canvas')].filter((el) => ! el.closest('.qr-snip'));
+            for (const el of sources) {
+                const r = el.getBoundingClientRect();
+                const left = Math.max(r.left, rect.left);
+                const top = Math.max(r.top, rect.top);
+                const right = Math.min(r.right, rect.left + rect.width);
+                const bottom = Math.min(r.bottom, rect.top + rect.height);
+                if (right <= left || bottom <= top || r.width < 8 || r.height < 8) continue;
+                if (getComputedStyle(el).visibility === 'hidden') continue;
+
+                let source = el;
+                let naturalWidth = el.naturalWidth || el.width;
+                let naturalHeight = el.naturalHeight || el.height;
+
+                if (el instanceof SVGElement) {
+                    // Inline SVG (some pages draw the QR this way): rasterise it.
+                    if (! el.querySelector('path, rect')) continue;
+                    const svg = new Blob([new XMLSerializer().serializeToString(el)], { type: 'image/svg+xml' });
+                    source = new Image();
+                    source.src = URL.createObjectURL(svg);
+                    try { await source.decode(); } catch (e) { continue; }
+                    naturalWidth = r.width * scale;
+                    naturalHeight = r.height * scale;
+                } else if (el instanceof HTMLImageElement && (! el.complete || ! el.naturalWidth)) {
+                    continue;
+                }
+
+                const sx = (left - r.left) * naturalWidth / r.width;
+                const sy = (top - r.top) * naturalHeight / r.height;
+                const sw = (right - left) * naturalWidth / r.width;
+                const sh = (bottom - top) * naturalHeight / r.height;
+                try {
+                    ctx.drawImage(source, sx, sy, sw, sh,
+                        pad + (left - rect.left) * scale, pad + (top - rect.top) * scale,
+                        (right - left) * scale, (bottom - top) * scale);
+                    drew = true;
+                } catch (e) { /* a picture from another site — skip it */ }
+            }
+
+            if (! drew) return null;
+            try {
+                return await canvasToFile(canvas);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        /** One still frame of a screen capture (the browser asks which tab / window first). */
+        async function captureFrame(preferCurrentTab) {
+            if (! navigator.mediaDevices?.getDisplayMedia) {
+                throw new Error('This browser cannot capture the screen. Open the QR on this page, or scan it with the camera.');
+            }
+
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { frameRate: 5 },
+                    audio: false,
+                    preferCurrentTab,
+                    selfBrowserSurface: 'include',
+                });
+            } catch (e) {
+                throw new Error('Screen capture was not allowed, so the QR could not be read.');
+            }
+
+            try {
+                const video = document.createElement('video');
+                video.muted = true;
+                video.srcObject = stream;
+                await video.play();
+                await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+                const frame = document.createElement('canvas');
+                frame.width = video.videoWidth;
+                frame.height = video.videoHeight;
+                frame.getContext('2d').drawImage(video, 0, 0);
+
+                return frame;
+            } finally {
+                stream.getTracks().forEach((track) => track.stop());
+            }
+        }
+
+        /** Crop the box out of a frame shown at `shown` (its on-screen rect). */
+        function cropFrame(frame, rect, shown) {
+            const kx = frame.width / shown.width;
+            const ky = frame.height / shown.height;
+            const { canvas, ctx, pad } = paddedCanvas(rect.width * kx, rect.height * ky, 1);
+            ctx.drawImage(frame,
+                (rect.left - shown.left) * kx, (rect.top - shown.top) * ky, rect.width * kx, rect.height * ky,
+                pad, pad, rect.width * kx, rect.height * ky);
+
+            return canvasToFile(canvas);
+        }
+
+        /**
+         * Snip a QR off the screen and decode it.
+         *
+         * 'page' (default): box drawn over this page; read from its pictures,
+         * no permission prompt — the QR has to be a picture on this page (the
+         * request's QR viewer is).
+         * 'any': capture a tab, window or screen first, then draw the box on
+         * that frozen frame — for a QR open somewhere else.
+         *
+         * @returns {Promise<string|null>} decoded text, or null if cancelled
+         */
+        async function scanFromScreen(mode = 'page') {
+            if (mode === 'any') {
+                const frame = await captureFrame(false);
+                const rect = await selectRegion(frame);
+                if (! rect) return null;
+
+                return decodeImage(await cropFrame(frame, rect, rect.shown));
+            }
+
+            const rect = await selectRegion();
+            if (! rect) return null;
+
+            // Read from the page's own pictures only. Falling back to a screen
+            // capture here sprang a browser permission prompt on anyone who
+            // just missed the QR; a QR in another window is mode 'any'.
+            const fromPage = await regionFromPage(rect);
+            if (! fromPage) {
+                throw new Error('No QR code was found in that box. Drag it around the whole QR — or, if the QR is open in another window, use that option instead.');
+            }
+
+            try {
+                return await decodeImage(fromPage);
+            } catch (e) {
+                throw new Error('No QR code could be read in that box. Drag it around the whole QR, corners included.');
+            }
+        }
+
+        return { TRACKING_RE, FOREIGN_CODE_MESSAGE, extractTracking, isStaffBadge, describe, start, stop, hasCamera, decodeImage, imageFromDrop, scanFromScreen };
     })();
 </script>
 @endonce

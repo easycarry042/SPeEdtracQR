@@ -7,7 +7,6 @@ use App\Http\Controllers\Concerns\ScopesToAssignedWork;
 use App\Models\Document;
 use App\Models\User;
 use App\Support\AssignmentScope;
-use App\Support\InternalInbox;
 use App\Support\RequestReview;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -111,14 +110,10 @@ class DashboardController extends Controller
 
         // No SLA slip here: the supervisor assigns, the staff member advances,
         // so the at-risk warning lives on each staff member's own dashboard.
+        // Internal requests have their own Internal tab (with a badge in the
+        // sidebar when one arrives), not a section on this page.
 
-        // Internal requests are worked from this dashboard too, rather than a
-        // separate Internal page (App\Support\InternalInbox::livesOnDashboard).
-        $internalInbox = InternalInbox::livesOnDashboard($user)
-            ? InternalInbox::for($user, (string) request('q'))
-            : null;
-
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'internalInbox' => $internalInbox]);
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */
