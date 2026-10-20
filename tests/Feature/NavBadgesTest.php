@@ -62,7 +62,7 @@ class NavBadgesTest extends TestCase
         $this->internalAt($this->gso);
         $this->internalAt($this->mayor);
 
-        $this->assertSame(['home' => 1, 'internal' => 1], NavBadges::for($head));
+        $this->assertSame(['home' => 1, 'internal' => 1, 'resources' => 0], NavBadges::for($head));
     }
 
     public function test_assigning_a_request_takes_it_off_the_supervisors_count(): void
@@ -96,7 +96,7 @@ class NavBadgesTest extends TestCase
         $admin = User::factory()->create(['is_active' => true])->assignRole('super_admin');
         Document::create(['tracking_number' => 'SPD-BDG-4', 'document_type' => 'Chairs Borrowing', 'status' => 'pending']);
 
-        $this->assertSame(['home' => 0, 'internal' => 0], NavBadges::for($admin));
+        $this->assertSame(['home' => 0, 'internal' => 0, 'resources' => 0], NavBadges::for($admin));
     }
 
     public function test_the_counts_are_served_for_the_pages_poller(): void
@@ -106,7 +106,7 @@ class NavBadgesTest extends TestCase
 
         $this->actingAs($head)->getJson(route('nav.badges'))
             ->assertOk()
-            ->assertExactJson(['home' => 0, 'internal' => 1]);
+            ->assertExactJson(['home' => 0, 'internal' => 1, 'resources' => 0]);
 
         $this->actingAs($head)->get(route('dashboard'))
             ->assertOk()

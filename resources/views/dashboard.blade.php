@@ -119,26 +119,33 @@
              filtered and paged in the browser for the same reason.
              ───────────────────────────────────────────────────────────────── --}}
         <section x-data="reviewPanel(@js([
-            'requests' => $pendingPayload->concat($activePayload),
+            'requests' => $pendingPayload->concat($activePayload)->concat($completedPayload),
             'mode' => 'supervisor',
             'staff' => $assignableStaff,
             'assignBase' => url('/documents'),
+            'reassignBase' => url('/admin/assignments'),
             'denyBase' => url('/documents'),
             'openBase' => url('/documents'),
         ]))">
             <div x-data="{
                      ...window.stFilterMixin(),
-                     tab: 'pending',
-                     q: '',
+                     /* ?tab= / ?q= — where the old Assignments page's links land. */
+                     tab: ['pending', 'active', 'done'].includes(new URLSearchParams(location.search).get('tab'))
+                         ? new URLSearchParams(location.search).get('tab') : 'pending',
+                     q: new URLSearchParams(location.search).get('q') || '',
                      page: 1,
                      perPage: 10,
                      typeOptions() {
                          return this.uniqueTypes(this.requests.map((r) => r.document_type));
                      },
-                     /* Unassigned vs in flight, decided by the row itself so the
-                        two tabs cannot drift apart from the modal's payload. */
+                     /* Unassigned, in flight or done, decided by the row itself so
+                        the tabs cannot drift apart from the modal's payload. */
                      inQueue(req, which) {
-                         return which === 'pending' ? ! req.assigned_to : !! req.assigned_to;
+                         if (req.status === 'completed') {
+                             return which === 'done';
+                         }
+
+                         return which === 'pending' ? ! req.assigned_to : which === 'active' && !! req.assigned_to;
                      },
                      queueCount(which) {
                          return this.requests.filter((r) => this.inQueue(r, which)).length;
@@ -197,6 +204,10 @@
                                 :class="tab === 'active' ? 'on' : ''" :aria-selected="tab === 'active'">
                             In Progress <span class="st-tab-count" x-text="queueCount('active')"></span>
                         </button>
+                        <button type="button" role="tab" @click="tab = 'done'; page = 1"
+                                :class="tab === 'done' ? 'on' : ''" :aria-selected="tab === 'done'">
+                            Completed <span class="st-tab-count" x-text="queueCount('done')"></span>
+                        </button>
                     </div>
 
                     <div class="flex min-w-0 flex-1 items-center justify-end gap-3">
@@ -228,7 +239,7 @@
                                     <th>Requested by</th>
                                     {{-- Only meaningful on the In Progress tab: on the
                                          Unassigned one it would be a column of dashes. --}}
-                                    <th x-show="tab === 'active'">Handled by</th>
+                                    <th x-show="tab !== 'pending'">Handled by</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -265,26 +276,26 @@
                                         @endif
                                         <td class="mono" x-text="req.submitted_at"></td>
                                         <td x-text="req.citizen_name || '—'"></td>
-                                        <td x-show="tab === 'active'" x-text="req.assigned_staff || '—'"></td>
+                                        <td x-show="tab !== 'pending'" x-text="req.assigned_staff || '—'"></td>
                                         <td>
                                             <button type="button" @click="open(req)" class="st-action">
                                                 <img src="{{ asset('images/staff/icon-eye.svg') }}" alt="">
-                                                <span x-text="tab === 'active' ? 'View details' : 'Review'"></span>
+                                                <span x-text="tab === 'pending' ? 'Review' : 'View details'"></span>
                                             </button>
                                         </td>
                                     </tr>
                                 </template>
 
                                 <tr x-show="matches.length === 0" class="st-empty">
-                                    <td :colspan="{{ $spansDepartments ? 6 : 5 }} + (tab === 'active' ? 1 : 0)">
+                                    <td :colspan="{{ $spansDepartments ? 6 : 5 }} + (tab === 'pending' ? 0 : 1)">
                                         <div class="mx-auto flex max-w-sm flex-col items-center">
                                             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
                                             </div>
                                             <p class="mt-3 text-sm font-semibold text-ink"
-                                               x-text="q || filterCount() ? 'No requests match' : (tab === 'active' ? 'Nothing in progress' : 'No unassigned requests')"></p>
+                                               x-text="q || filterCount() ? 'No requests match' : ({ active: 'Nothing in progress', done: 'Nothing completed lately' }[tab] || 'No unassigned requests')"></p>
                                             <p class="mt-1 text-sm text-ink-soft"
-                                               x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : (tab === 'active' ? 'Requests your staff are working on appear here.' : 'New citizen submissions awaiting approval will appear here.')"></p>
+                                               x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : ({ active: 'Requests your staff are working on appear here.', done: 'Requests finished in the last 90 days appear here.' }[tab] || 'New citizen submissions awaiting approval will appear here.')"></p>
                                         </div>
                                     </td>
                                 </tr>

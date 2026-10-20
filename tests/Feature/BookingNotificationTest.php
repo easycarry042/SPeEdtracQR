@@ -30,7 +30,10 @@ class BookingNotificationTest extends TestCase
             'document_type' => 'Covered Court Reservation',
             'citizen_name' => 'Juan Dela Cruz',
             'citizen_email' => 'juan@example.com',
-            'status' => 'pending',
+            // Assigned and accepted: a reservation is only approved after that.
+            'status' => 'in_progress',
+            'assigned_to' => User::factory()->create()->id,
+            'accepted_at' => now(),
         ], $documentAttributes));
 
         return $resource->bookings()->create([

@@ -389,7 +389,7 @@
          *
          * @returns {Promise<string>} the decoded text
          */
-        function decodeImage(file) {
+        async function decodeImage(file) {
             let box = document.getElementById('speedqr-image-reader');
             if (! box) {
                 box = document.createElement('div');
@@ -399,14 +399,164 @@
             }
 
             const reader = new Html5Qrcode(box.id, scannerOptions());
+            const read = async (picture) => {
+                try {
+                    return await reader.scanFile(picture, false);
+                } catch (e) {
+                    return null;
+                } finally {
+                    box.replaceChildren(); // scanFile leaves its canvas behind
+                }
+            };
 
-            return reader.scanFile(file, false)
-                .catch(() => {
-                    throw new Error('No QR code could be read from that picture. Use a clear, straight-on picture of the request\'s QR.');
-                })
-                .finally(() => {
-                    try { reader.clear(); } catch (e) { /* nothing was drawn */ }
-                });
+            try {
+                const direct = await read(file);
+                if (direct) return direct;
+
+                // The bundled decoder gives up on a QR that is a little soft —
+                // a snip of a scaled-down viewer, a compressed screenshot, a
+                // phone photo. Retry on cleaned-up copies before saying no.
+                for await (const variant of cleanedCopies(file)) {
+                    const text = await read(variant);
+                    if (text) return text;
+                }
+            } finally {
+                try { reader.clear(); } catch (e) { /* nothing was drawn */ }
+            }
+
+            throw new Error('No QR code could be read from that picture. Use a clear, straight-on picture of the request\'s QR.');
+        }
+
+        /**
+         * Copies of a picture that a strict decoder reads more easily, most
+         * likely first: the whole picture resized, then zoomed in on where the
+         * dark marks are, then overlapping sections (a small QR in a corner of
+         * a screenshot, a photo or a stamped page is where it gives up). Each
+         * comes as-is and in pure black and white (Otsu's threshold), which
+         * undoes blur and grey edges. Built lazily: it stops at the first read.
+         *
+         * @returns {AsyncGenerator<File>}
+         */
+        async function* cleanedCopies(file) {
+            let bitmap;
+            try {
+                bitmap = await createImageBitmap(file);
+            } catch (e) {
+                return;
+            }
+
+            const W = bitmap.width, H = bitmap.height;
+            const crops = [{ x: 0, y: 0, w: W, h: H, sizes: [Math.max(W, H), 1200, 800] }];
+
+            const marks = darkBounds(bitmap);
+            if (marks && (marks.w < W * 0.8 || marks.h < H * 0.8)) {
+                crops.push({ ...marks, sizes: [900] });
+            }
+            for (const n of [2, 3]) {
+                const w = W / n * 1.5, h = H / n * 1.5;
+                for (let row = 0; row < n; row++) {
+                    for (let col = 0; col < n; col++) {
+                        crops.push({ x: Math.min(W - w, col * W / n - w / 6), y: Math.min(H - h, row * H / n - h / 6), w, h, sizes: [900] });
+                    }
+                }
+            }
+
+            try {
+                for (const crop of crops) {
+                    // A box past the edge is fine: drawImage clips it, the rest stays white.
+                    const { x, y } = crop;
+                    const sizes = crop.sizes.filter((size, i, all) =>
+                        all.findIndex((other) => Math.abs(other - size) / size < 0.2) === i);
+
+                    for (const size of sizes) {
+                        const k = size / Math.max(crop.w, crop.h);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round(crop.w * k));
+                        canvas.height = Math.max(1, Math.round(crop.h * k));
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(bitmap, x, y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
+
+                        const untouched = crop === crops[0] && size === Math.max(W, H);
+                        for (const copy of untouched ? [blackAndWhite(canvas)] : [canvas, blackAndWhite(canvas)]) {
+                            try { yield await canvasToFile(copy); } catch (e) { /* skip */ }
+                        }
+                    }
+                }
+            } finally {
+                bitmap.close?.();
+            }
+        }
+
+        /** The box round a picture's dark marks (padded), or null on a blank one. */
+        function darkBounds(bitmap) {
+            const k = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * k));
+            canvas.height = Math.max(1, Math.round(bitmap.height * k));
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+            let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (px[i] + px[i + 1] + px[i + 2] < 300) {
+                        left = Math.min(left, x); right = Math.max(right, x);
+                        top = Math.min(top, y); bottom = Math.max(bottom, y);
+                    }
+                }
+            }
+            if (right < 0) return null;
+
+            const pad = Math.max(right - left, bottom - top) * 0.15 + 2;
+
+            return {
+                x: (left - pad) / k, y: (top - pad) / k,
+                w: (right - left + pad * 2) / k, h: (bottom - top + pad * 2) / k,
+            };
+        }
+
+        /** A black-and-white copy of a canvas, split at Otsu's threshold. */
+        function blackAndWhite(source) {
+            const canvas = document.createElement('canvas');
+            canvas.width = source.width;
+            canvas.height = source.height;
+            const ctx = canvas.getContext('2d');
+            const image = source.getContext('2d').getImageData(0, 0, source.width, source.height);
+            const px = image.data;
+
+            const grey = new Uint8ClampedArray(px.length / 4);
+            const histogram = new Array(256).fill(0);
+            for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+                grey[j] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+                histogram[grey[j]]++;
+            }
+
+            let sum = 0;
+            for (let t = 0; t < 256; t++) sum += t * histogram[t];
+            let sumBelow = 0, below = 0, best = 0, threshold = 128;
+            for (let t = 0; t < 256; t++) {
+                below += histogram[t];
+                if (! below) continue;
+                const above = grey.length - below;
+                if (! above) break;
+                sumBelow += t * histogram[t];
+                const between = below * above * (sumBelow / below - (sum - sumBelow) / above) ** 2;
+                if (between > best) { best = between; threshold = t; }
+            }
+
+            for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+                const v = grey[j] > threshold ? 255 : 0;
+                px[i] = px[i + 1] = px[i + 2] = v;
+                px[i + 3] = 255;
+            }
+            ctx.putImageData(image, 0, 0);
+
+            return canvas;
         }
 
         /**
@@ -688,7 +838,48 @@
             }
         }
 
-        return { TRACKING_RE, FOREIGN_CODE_MESSAGE, extractTracking, isStaffBadge, describe, start, stop, hasCamera, decodeImage, imageFromDrop, scanFromScreen };
+        const TRACK_BASE = @json(url('/track'));
+        const RECEIVE_URL = @json(auth()->check() ? route('documents.custody.scan') : null);
+
+        /**
+         * Open what a scanned QR points at (the header's Scan QR Code, Look Up).
+         * An internal request is also RECEIVED by that same scan when the
+         * person scanning is the one to receive it and nobody at the office
+         * has yet (DocumentCustodyController::receiveByScan) — one scan pulls
+         * it up and logs it, not two. 'image' = a picture was uploaded, which
+         * receives a soft copy but never a paper folder.
+         */
+        async function openScanned(decodedText, method = 'scan') {
+            const tracking = extractTracking(decodedText);
+            if (! tracking) {
+                throw new Error(FOREIGN_CODE_MESSAGE);
+            }
+
+            let url = `${TRACK_BASE}/${encodeURIComponent(tracking)}`;
+
+            if (RECEIVE_URL && tracking.startsWith('INT-')) {
+                try {
+                    const response = await fetch(RECEIVE_URL, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                        },
+                        body: JSON.stringify({ scanned_value: decodedText, capture_method: method }),
+                    });
+                    if (response.ok) {
+                        url = (await response.json()).url || url;
+                    }
+                } catch (e) {
+                    // Receiving failed; opening the request still works.
+                }
+            }
+
+            window.location.href = url;
+        }
+
+        return { TRACKING_RE, FOREIGN_CODE_MESSAGE, extractTracking, isStaffBadge, describe, start, stop, hasCamera, decodeImage, imageFromDrop, scanFromScreen, openScanned };
     })();
 </script>
 @endonce

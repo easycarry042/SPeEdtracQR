@@ -41,6 +41,8 @@ class PublicTicketController extends Controller
         // a resource + date/time. The form branches on kind client-side.
         $requestTypes = RequestType::query()
             ->where('is_active', true)
+            // A deactivated item (Resources page) is not offered either.
+            ->where(fn ($q) => $q->whereNull('resource_id')->orWhereHas('resource', fn ($r) => $r->where('is_active', true)))
             ->with(['requirements', 'resource'])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -103,6 +105,12 @@ class PublicTicketController extends Controller
         $type = RequestType::where('name', $validated['document_type'])
             ->with(['requirements', 'resource'])
             ->first();
+
+        if ($type?->resource && ! $type->resource->is_active) {
+            return back()->withInput()->withErrors([
+                'document_type' => "{$type->resource->name} is not available to request right now.",
+            ]);
+        }
 
         $isFacility = $type && $type->kind === RequestType::KIND_BOOKING;
         $isEquipment = $type && $type->kind === RequestType::KIND_EQUIPMENT;

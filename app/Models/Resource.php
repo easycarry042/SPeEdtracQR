@@ -81,29 +81,54 @@ class Resource extends Model
     }
 
     /**
-     * Units already promised to approved borrowings overlapping the window.
-     *
-     * The borrowed quantity lives on the document, not the booking, so this
-     * reads through the join. Only approved bookings count — a pending request
-     * has not been granted yet and must not reserve stock against itself.
+     * Units already promised to, or out with, approved borrowings during the
+     * window (Booking::unitsHeldDuring). Only approved bookings count — a
+     * pending request has not been granted and must not reserve stock against
+     * itself — and an overdue loan counts against every window until someone
+     * records its return.
      */
     public function unitsCommitted(CarbonInterface $starts, CarbonInterface $ends, ?int $ignoreBookingId = null): int
     {
+        $now = now();
+
         return (int) $this->bookings()
-            ->where('bookings.status', Booking::STATUS_APPROVED)
-            ->where('bookings.starts_at', '<', $ends)
-            ->where('bookings.ends_at', '>', $starts)
+            ->open()
+            ->where(fn ($q) => $q->whereNotNull('released_at')
+                ->orWhere(fn ($inner) => $inner->where('starts_at', '<', $ends)->where('ends_at', '>', $starts)))
             ->when($ignoreBookingId, fn ($q) => $q->whereKeyNot($ignoreBookingId))
-            ->join('documents', 'documents.id', '=', 'bookings.document_id')
-            // A deleted request is not holding anything.
-            ->whereNull('documents.deleted_at')
-            ->sum('documents.quantity');
+            ->with('document')
+            ->get()
+            ->sum(fn (Booking $booking): int => $booking->unitsHeldDuring($starts, $ends, $now));
     }
 
     /** Units free to lend across the window. */
     public function unitsAvailable(CarbonInterface $starts, CarbonInterface $ends, ?int $ignoreBookingId = null): int
     {
         return max(0, $this->serviceableUnits() - $this->unitsCommitted($starts, $ends, $ignoreBookingId));
+    }
+
+    /** Units handed over and not back yet, overdue ones included. */
+    public function unitsOnLoan(): int
+    {
+        return (int) $this->bookings()->open()->whereNotNull('released_at')->with('document')->get()
+            ->sum(fn (Booking $booking): int => $booking->unitsOutstanding());
+    }
+
+    /**
+     * Units promised to approved borrowings still to be collected, whatever
+     * their date. A missed pickup (window over, never collected) holds nothing.
+     */
+    public function unitsReserved(): int
+    {
+        return (int) $this->bookings()->open()->whereNull('released_at')->where('ends_at', '>', now())
+            ->with('document')->get()
+            ->sum(fn (Booking $booking): int => $booking->units());
+    }
+
+    /** In the stockroom right now: serviceable, less what is out on loan. */
+    public function unitsOnHand(): int
+    {
+        return max(0, $this->serviceableUnits() - $this->unitsOnLoan());
     }
 
     /**
@@ -114,6 +139,8 @@ class Resource extends Model
     {
         return $this->bookings()
             ->where('status', Booking::STATUS_APPROVED)
+            // Marked done early: the venue is free again.
+            ->whereNull('returned_at')
             ->where('starts_at', '<=', $at)
             ->where('ends_at', '>', $at)
             ->with('document')
@@ -125,6 +152,7 @@ class Resource extends Model
     {
         return $this->bookings()
             ->where('status', Booking::STATUS_APPROVED)
+            ->whereNull('returned_at')
             ->where('starts_at', '>', $at)
             ->orderBy('starts_at')
             ->with('document')
@@ -143,6 +171,8 @@ class Resource extends Model
             ->where('status', '!=', Booking::STATUS_CANCELLED)
             ->where('starts_at', '<', $ends)
             ->where('ends_at', '>', $starts)
+            // A reservation marked done early no longer holds the rest of its slot.
+            ->where(fn ($q) => $q->whereNull('returned_at')->orWhere('returned_at', '>', $starts))
             ->when($ignoreBookingId, fn ($q) => $q->whereKeyNot($ignoreBookingId))
             ->get();
     }
@@ -159,6 +189,8 @@ class Resource extends Model
             ->where('status', Booking::STATUS_APPROVED)
             ->where('starts_at', '<', $ends)
             ->where('ends_at', '>', $starts)
+            // A reservation marked done early no longer holds the rest of its slot.
+            ->where(fn ($q) => $q->whereNull('returned_at')->orWhere('returned_at', '>', $starts))
             ->when($ignoreBookingId, fn ($q) => $q->whereKeyNot($ignoreBookingId))
             ->get();
     }

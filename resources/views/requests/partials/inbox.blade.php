@@ -150,6 +150,7 @@
                                                 'green' => 'p-green',
                                                 'red' => 'p-red',
                                                 'returned' => 'p-orange',
+                                                'muted' => 'p-muted',
                                                 default => 'p-amber',
                                             } }}">{{ $doc->internalStatusLabel() }}</span>
                                         </td>

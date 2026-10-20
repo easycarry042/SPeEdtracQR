@@ -14,8 +14,9 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * Sent to the citizen when staff act on their booking request — approved,
- * rescheduled, or cancelled. Gated by config/tracking.php + the per-ticket
- * notify_citizen flag (see BookingController).
+ * rescheduled, cancelled, its return date changed, its items received back, or a reminder that they
+ * are overdue. Gated by config/tracking.php + the per-ticket notify_citizen
+ * flag (see App\Support\Lending::notifyCitizen).
  */
 class BookingUpdated extends Mailable implements ShouldQueue
 {
@@ -26,6 +27,15 @@ class BookingUpdated extends Mailable implements ShouldQueue
     public const OUTCOME_RESCHEDULED = 'rescheduled';
 
     public const OUTCOME_CANCELLED = 'cancelled';
+
+    /** Everything borrowed is back — the loan is closed. */
+    public const OUTCOME_RETURNED = 'returned';
+
+    /** The return date moved — usually the borrower keeping it longer. */
+    public const OUTCOME_EXTENDED = 'extended';
+
+    /** Past the return date and not yet brought back. */
+    public const OUTCOME_OVERDUE = 'overdue';
 
     public function __construct(public Booking $booking, public string $outcome) {}
 
@@ -39,6 +49,9 @@ class BookingUpdated extends Mailable implements ShouldQueue
                 self::OUTCOME_APPROVED => "Your booking for {$resource} is confirmed — {$tracking}",
                 self::OUTCOME_RESCHEDULED => "Your booking for {$resource} was rescheduled — {$tracking}",
                 self::OUTCOME_CANCELLED => "Your booking for {$resource} was cancelled — {$tracking}",
+                self::OUTCOME_RETURNED => "We received {$resource} back — {$tracking}",
+                self::OUTCOME_EXTENDED => "New return date for {$resource}: {$this->booking->ends_at->format('M j')} — {$tracking}",
+                self::OUTCOME_OVERDUE => "Please return {$resource} — overdue — {$tracking}",
                 default => "Update on your booking — {$tracking}",
             },
         );
@@ -56,6 +69,10 @@ class BookingUpdated extends Mailable implements ShouldQueue
                 'startsAt' => $this->booking->starts_at,
                 'endsAt' => $this->booking->ends_at,
                 'citizenName' => $document?->citizen_name,
+                // Equipment only: how many were lent, and how many are still out.
+                'units' => $this->booking->resource?->isEquipment() ? $this->booking->units() : null,
+                'outstanding' => $this->booking->unitsOutstanding(),
+                'daysOverdue' => $this->booking->daysOverdue(),
                 'trackingUrl' => $document ? $document->citizenTrackingUrl() : url('/'),
             ],
         );

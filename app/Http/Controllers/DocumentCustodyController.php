@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Models\DocumentCustodyEvent;
 use App\Models\RequestStep;
@@ -10,6 +9,7 @@ use App\Models\User;
 use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use App\Support\ScannedCode;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -85,6 +85,68 @@ class DocumentCustodyController extends Controller
             }
         }
 
+        $message = $this->record($document, $user, $validated['capture_method'], $isScan ? null : $validated['override_reason'], $validated['note'] ?? null);
+
+        return $this->respond($request, $message);
+    }
+
+    /**
+     * Open what the header's Scan QR Code (or Look Up) just read — and, for an
+     * internal request nobody at the holding office has received yet, receive
+     * it with that same scan when the scanner is someone who may: one scan
+     * pulls the request up and logs it as received, rather than a second scan
+     * on the request's own Receive card. Answers with where to go next.
+     *
+     * A paper request is still received by camera only: a QR picture proves
+     * someone had the file, not that the folder arrived.
+     */
+    public function receiveByScan(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'scanned_value' => ['required', 'string', 'max:2000'],
+            'capture_method' => ['required', 'in:scan,image'],
+        ]);
+
+        $tracking = ScannedCode::trackingNumber($validated['scanned_value']);
+
+        if ($tracking === null) {
+            throw ValidationException::withMessages(['scanned_value' => ScannedCode::FOREIGN_CODE_MESSAGE]);
+        }
+
+        $document = Document::where('tracking_number', $tracking)->first();
+
+        if (! $document || ! $document->isInternal()) {
+            return response()->json(['url' => route('track.show', $tracking), 'received' => false]);
+        }
+
+        $url = route('requests.show', $document);
+        $user = $request->user();
+
+        if (! $document->canReceiveCurrentStep($user) || $document->currentStepHasCustody()) {
+            return response()->json(['url' => $url, 'received' => false]);
+        }
+
+        if ($validated['capture_method'] === 'image' && ! $document->isSoftCopy()) {
+            return response()->json(['url' => $url, 'received' => false]);
+        }
+
+        $message = $this->record($document, $user, $validated['capture_method']);
+
+        // Shown on the request page the scanner is sent to.
+        session()->flash('status', $message);
+
+        return response()->json(['url' => $url, 'received' => true, 'message' => $message]);
+    }
+
+    /**
+     * Write one custody event and everything that follows from it: the
+     * activity line, the request's own feed, the endorsement chain, and the
+     * filer's "received" bell. Returns the confirmation to show.
+     */
+    private function record(Document $document, User $user, string $method, ?string $overrideReason = null, ?string $note = null): string
+    {
+        $isScan = in_array($method, ['scan', 'image', 'screen'], true);
+
         // Whether this scan is the one that RECEIVES an internal request at an
         // office (the first since it got there) — the filer hears about that.
         $stepBefore = $document->isInternal() ? $document->currentRequestStep() : null;
@@ -93,29 +155,29 @@ class DocumentCustodyController extends Controller
         DocumentCustodyEvent::create([
             'document_id' => $document->id,
             'user_id' => $user->id,
-            'capture_method' => $validated['capture_method'],
-            'override_reason' => $isScan ? null : $validated['override_reason'],
-            'note' => $validated['note'] ?? null,
+            'capture_method' => $method,
+            'override_reason' => $isScan ? null : $overrideReason,
+            'note' => $note,
         ]);
 
-        $how = match ($validated['capture_method']) {
+        $how = match ($method) {
             'scan' => 'scanned',
             'image' => 'QR image',
             'screen' => 'QR on screen',
-            default => "manual: {$validated['override_reason']}",
+            default => "manual: {$overrideReason}",
         };
 
         activity()
             ->performedOn($document)
             ->causedBy($user)
             ->withProperties(array_filter([
-                'capture_method' => $validated['capture_method'],
-                'override_reason' => $isScan ? null : $validated['override_reason'],
+                'capture_method' => $method,
+                'override_reason' => $isScan ? null : $overrideReason,
             ]))
             ->log(match (true) {
                 $document->isSoftCopy() => "Received the request ({$how})",
                 $isScan => 'Took physical custody of the folder (scanned)',
-                default => "Recorded custody manually (QR unreadable): {$validated['override_reason']}",
+                default => "Recorded custody manually (QR unreadable): {$overrideReason}",
             });
 
         $document->logSystemComment($document->isSoftCopy()
@@ -126,11 +188,12 @@ class DocumentCustodyController extends Controller
 
         $this->tellTheFilerItWasReceived($document, $user, $appended !== null || ($stepBefore !== null && ! $heldBefore));
 
-        return $this->respond($request, match (true) {
+        return match (true) {
             $document->isSoftCopy() => 'Received — you can now approve, return or deny this request.',
             $appended !== null => "Custody recorded — {$appended->department->name} added to the endorsement chain.",
+            $document->isInternal() && ! $document->canActOnCurrentStep($user) => 'Received — the folder is logged as at your office. Your supervisor approves, returns or denies it.',
             default => 'Custody recorded — the folder is now with you.',
-        });
+        };
     }
 
     /**
@@ -145,7 +208,7 @@ class DocumentCustodyController extends Controller
             return null;
         }
 
-        if (in_array($document->statusEnum(), [DocumentStatus::Completed, DocumentStatus::Denied], true)) {
+        if ($document->statusEnum()->isTerminal()) {
             return null;
         }
 

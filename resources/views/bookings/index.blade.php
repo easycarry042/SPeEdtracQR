@@ -153,8 +153,16 @@
 
                                         <div class="mt-3 flex flex-wrap items-center gap-2">
                                             @if($b->status !== 'approved')
-                                                <form method="POST" action="{{ route('bookings.approve', $b) }}">
+                                                <form method="POST" action="{{ route('bookings.approve', $b) }}" class="flex items-center gap-1.5">
                                                     @csrf @method('PATCH')
+                                                    {{-- Equipment: how many are being lent (whole
+                                                         numbers), defaulting to the citizen's ask. --}}
+                                                    @if($b->resource?->isEquipment())
+                                                        <label class="sr-only" for="bk-qty-{{ $b->id }}">How many to lend</label>
+                                                        <input id="bk-qty-{{ $b->id }}" type="number" name="quantity" min="1" step="1" required inputmode="numeric"
+                                                               value="{{ max(1, (int) $b->document?->quantity) }}" class="st-filter-field inv-num !h-[var(--control-h-sm)]"
+                                                               onkeydown="if (['.', ',', 'e', 'E', '-', '+'].includes(event.key)) { event.preventDefault(); }">
+                                                    @endif
                                                     <button type="submit" class="cr-btn cr-btn-sm cr-btn-primary">Approve</button>
                                                 </form>
                                             @endif

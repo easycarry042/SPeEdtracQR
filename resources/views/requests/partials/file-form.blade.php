@@ -144,8 +144,9 @@
                         <span x-show="!fileName" class="ff-upload-title">Click or Drop to upload a file</span>
                         <span x-show="fileName" x-cloak class="ff-upload-title max-w-full truncate" x-text="fileName"></span>
                         <span class="ff-upload-hint" x-text="fileName ? 'Click or drop another file to replace it' : 'JPG, PNG, WEBP or PDF up to 10 MB'"></span>
+                        <span x-show="fileError" x-cloak class="mt-2 text-[length:var(--fs-small)] font-semibold text-status-red" role="alert" x-text="fileError"></span>
                         {{-- sr-only (not hidden) keeps the input keyboard-focusable. --}}
-                        <input type="file" name="paper_scan" accept="{{ \App\Support\UploadRules::accept() }}"
+                        <input type="file" name="paper_scan" accept="{{ \App\Support\UploadRules::accept(\App\Support\UploadRules::PAPER_SCAN_EXTENSIONS) }}"
                                class="sr-only" x-ref="paperInput" @change="onFileChange($event)">
                     </label>
                 </div>
@@ -303,6 +304,7 @@
             recipients: {},
             recipientsUrl: @js(route('requests.recipients', ['department' => '__DEPT__'])),
             fileName: '',
+            fileError: '',
 
             init() {
                 this.$watch('form.first_department_id', () => this.loadRecipients());
@@ -370,7 +372,20 @@
                 this.pdfPage = 1;
                 this.pdfPageCount = 1;
                 this.pdfError = '';
+                this.fileError = '';
                 if (!file) { this.fileName = ''; this.previewUrl = null; return; }
+
+                // Only what the QR can be stamped onto (UploadRules::PAPER_SCAN_EXTENSIONS);
+                // a dropped file skips the picker's filter, so check here too.
+                if (!/\.(pdf|jpe?g|png|webp)$/i.test(file.name)) {
+                    event.target.value = '';
+                    this.fileName = '';
+                    this.previewUrl = null;
+                    this.fileError = 'That file can\'t carry the QR. Upload the signed paper as a PDF or a picture (JPG, PNG or WEBP) — save a Word file as PDF first.';
+
+                    return;
+                }
+
                 this.fileName = file.name;
 
                 if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {

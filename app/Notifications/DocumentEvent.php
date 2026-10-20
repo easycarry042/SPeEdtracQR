@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\Booking;
 use App\Models\Document;
 use App\Models\RequestStep;
 use App\Models\User;
@@ -158,6 +159,23 @@ class DocumentEvent extends Notification
             body: ($document->purpose ?? $document->document_type)." — {$summary}",
             url: route('requests.show', $document),
             tracking: $document->tracking_number,
+        );
+    }
+
+    /** Borrowed items are past their return date and nobody has marked them back. */
+    public static function loanOverdue(Booking $booking): self
+    {
+        $document = $booking->document;
+        $what = $booking->resource?->isEquipment()
+            ? number_format($booking->unitsOutstanding()).' × '.$booking->resource->name
+            : (string) $booking->resource?->name;
+
+        return new self(
+            event: 'loan_overdue',
+            title: 'Borrowed items overdue',
+            body: "{$what} with ".($document?->citizen_name ?: 'a borrower')." — {$booking->daysOverdue()} day(s) overdue.",
+            url: route('inventory.index'),
+            tracking: (string) $document?->tracking_number,
         );
     }
 

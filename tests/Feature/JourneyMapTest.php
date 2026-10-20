@@ -173,13 +173,8 @@ class JourneyMapTest extends TestCase
         $this->post(route('public.request.store'), $this->filing());
         $doc = Document::latest('id')->firstOrFail();
 
-        // 1. Both desks a supervisor triages from must show the new request.
-        //    The dashboard is the intake list; Assignments is the full desk.
+        // 1. The dashboard a supervisor triages from must show the new request.
         $this->actingAs($supervisor)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee($doc->tracking_number);
-
-        $this->actingAs($supervisor)->get(route('admin.assignments.index'))
             ->assertOk()
             ->assertSee($doc->tracking_number);
 
@@ -401,11 +396,10 @@ class JourneyMapTest extends TestCase
             'admin.departments.create',
             'admin.request-types.index',
             'admin.request-types.create',
-            'admin.resources.index',
+            'inventory.index',
             'admin.resources.create',
             'admin.route-templates.index',
             'admin.audit-log.index',
-            'admin.assignments.index',
             'history',
             'bookings.index',
             'requests.index',

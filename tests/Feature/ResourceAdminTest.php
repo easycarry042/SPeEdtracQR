@@ -22,10 +22,10 @@ class ResourceAdminTest extends TestCase
     public function test_admin_can_create_a_resource(): void
     {
         $this->actingAs($this->admin())
-            ->post(route('admin.resources.store'), ['name' => 'Municipal Plaza'])
-            ->assertRedirect(route('admin.resources.index'));
+            ->post(route('admin.resources.store'), ['name' => 'Municipal Plaza', 'kind' => Resource::KIND_FACILITY, 'capacity' => 500])
+            ->assertRedirect(route('inventory.index'));
 
-        $this->assertDatabaseHas('resources', ['name' => 'Municipal Plaza', 'is_active' => true]);
+        $this->assertDatabaseHas('resources', ['name' => 'Municipal Plaza', 'kind' => 'facility', 'capacity' => 500, 'is_active' => true]);
     }
 
     public function test_admin_can_create_a_booking_type_linked_to_a_resource(): void

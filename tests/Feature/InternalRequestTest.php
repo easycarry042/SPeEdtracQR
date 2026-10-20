@@ -173,6 +173,34 @@ class InternalRequestTest extends TestCase
         $this->assertSame(0, Document::where('origin', Document::ORIGIN_INTERNAL)->count());
     }
 
+    /**
+     * The QR is stamped onto a picture (server) or a PDF (browser). A Word
+     * file used to be filed anyway, with no stamped copy and no warning.
+     */
+    public function test_the_paper_scan_must_be_a_pdf_or_a_picture_the_qr_can_be_stamped_on(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $supervisor = $this->tourismSupervisor();
+        $firstOffice = Department::where('id', '!=', $supervisor->department_id)->firstOrFail()->id;
+
+        foreach (['letter.docx', 'budget.xlsx', 'notes.txt', 'photo.heic'] as $name) {
+            $this->actingAs($supervisor)
+                ->post(route('requests.store'), [
+                    'first_department_id' => $firstOffice,
+                    'purpose' => '10 chairs please',
+                    'paper_scan' => UploadedFile::fake()->create($name, 40),
+                ])
+                ->assertSessionHasErrors(['paper_scan' => 'Upload the signed paper as a PDF or a picture (JPG, PNG or WEBP) so the QR can be stamped on it. Word and other files can\'t be stamped — save or scan them as a PDF first.']);
+        }
+
+        $this->assertSame(0, Document::where('origin', Document::ORIGIN_INTERNAL)->count());
+
+        $this->actingAs($supervisor)->get(route('requests.create'))
+            ->assertOk()
+            ->assertSee('accept=".pdf,.jpg,.jpeg,.png,.webp"', false);
+    }
+
     public function test_the_wizard_lists_every_active_department(): void
     {
         $supervisor = $this->tourismSupervisor();
@@ -513,7 +541,7 @@ class InternalRequestTest extends TestCase
         $this->assertFalse($document->canActOnCurrentStep($head));
     }
 
-    public function test_internal_requests_do_not_appear_on_the_assignment_desk(): void
+    public function test_internal_requests_do_not_appear_on_the_dashboard_queues(): void
     {
         Storage::fake('local');
         Storage::fake('public');
@@ -526,9 +554,9 @@ class InternalRequestTest extends TestCase
         ]);
         $document = Document::where('origin', Document::ORIGIN_INTERNAL)->firstOrFail();
 
-        // An org-wide admin's assignment desk must not list the internal request.
-        $admin = User::factory()->create()->assignRole('super_admin');
-        $this->actingAs($admin)->get(route('admin.assignments.index'))
+        // The dashboard's Unassigned / In Progress / Completed queues are for
+        // citizen requests; internal ones live on the Internal tab.
+        $this->actingAs($supervisor)->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee($document->tracking_number);
     }

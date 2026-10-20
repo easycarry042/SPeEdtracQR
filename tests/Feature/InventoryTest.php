@@ -8,6 +8,8 @@ use App\Models\Resource;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -56,7 +58,10 @@ class InventoryTest extends TestCase
         $document = Document::create([
             'tracking_number' => 'SPD-INV-'.strtoupper(uniqid()),
             'document_type' => 'Chairs Borrowing',
-            'status' => 'pending',
+            // Assigned and accepted: a reservation is only approved after that.
+            'status' => 'in_progress',
+            'assigned_to' => User::factory()->create()->id,
+            'accepted_at' => now(),
             'quantity' => $quantity,
         ]);
 
@@ -118,7 +123,10 @@ class InventoryTest extends TestCase
     public function test_staff_can_open_the_inventory_and_see_what_is_free(): void
     {
         $chairs = $this->chairs(owned: 300, damaged: 18);
-        $this->borrowing($chairs, 100, '2026-11-02 08:00', '2026-11-03 17:00');
+        $handedOver = $this->borrowing($chairs, 100, '2026-11-02 08:00', '2026-11-03 17:00');
+        $handedOver->update(['released_at' => Carbon::parse('2026-11-02 08:30')]);
+        // Approved for later in the week, not collected yet: promised, not out.
+        $this->borrowing($chairs, 30, '2026-11-05 08:00', '2026-11-06 17:00');
 
         $this->travelTo(Carbon::parse('2026-11-02 10:00'));
 
@@ -128,9 +136,12 @@ class InventoryTest extends TestCase
 
         $this->assertSame(300, $row['owned']);
         $this->assertSame(18, $row['damaged']);
-        $this->assertSame(100, $row['out']);
-        // 300 owned, less 18 broken, less 100 out on loan today.
-        $this->assertSame(182, $row['free']);
+        $this->assertSame(100, $row['on_loan']);
+        $this->assertSame(30, $row['reserved']);
+        // 300 owned, less 18 broken, less 100 out on loan: 182 in the stockroom.
+        $this->assertSame(182, $row['on_hand']);
+        // ...of which 30 are promised to Thursday's pickup.
+        $this->assertSame(152, $row['available']);
     }
 
     public function test_a_signed_out_visitor_cannot_see_the_inventory(): void
@@ -228,5 +239,50 @@ class InventoryTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertSame(Booking::STATUS_PENDING, $clashing->fresh()->status);
+    }
+
+    /* ── The Resources tab ─────────────────────────────────────────────────── */
+
+    /** @return list<array{0: string}> */
+    public static function rolesWithTheResourcesTab(): array
+    {
+        return [['staff'], ['Supervisor']];
+    }
+
+    #[DataProvider('rolesWithTheResourcesTab')]
+    public function test_staff_and_supervisors_have_the_resources_tab(string $role): void
+    {
+        $this->seedRolesAndPermissions();
+        $user = User::factory()->create()->assignRole($role);
+
+        $this->actingAs($user)->followingRedirects()->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('href="'.route('inventory.index').'"', false)
+            ->assertSee('Resources');
+
+        $this->actingAs($user)->get(route('inventory.index'))->assertOk()->assertSee('Resources');
+    }
+
+    public function test_a_supervisor_is_not_sent_to_the_staff_booking_calendar(): void
+    {
+        $this->seedRolesAndPermissions();
+        $supervisor = User::factory()->create()->assignRole('Supervisor');
+
+        $this->actingAs($supervisor)->get(route('inventory.index'))
+            ->assertOk()
+            ->assertDontSee('href="'.route('bookings.index').'"', false)
+            ->assertSee('Reservations are managed by staff');
+    }
+
+    public function test_the_migration_gives_the_tab_to_databases_seeded_before_it(): void
+    {
+        $this->seedRolesAndPermissions();
+        Role::findByName('staff')->revokePermissionTo('manage inventory');
+        Role::findByName('Supervisor')->revokePermissionTo('manage inventory');
+
+        (require database_path('migrations/2026_10_20_012646_grant_resources_tab_to_staff_and_supervisors.php'))->up();
+
+        $this->assertTrue(User::factory()->create()->assignRole('staff')->can('manage inventory'));
+        $this->assertTrue(User::factory()->create()->assignRole('Supervisor')->can('manage inventory'));
     }
 }

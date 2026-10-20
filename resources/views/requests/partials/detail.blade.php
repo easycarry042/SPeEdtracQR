@@ -8,7 +8,14 @@
 @php $inModal = $inModal ?? false; @endphp
     @php
         $stage = $document->statusEnum();
-        $hasActionPanel = $canAct && $currentStep;
+        $canReceive = $canReceive ?? $canAct;
+        $canRevise = $canRevise ?? false;
+        $returnedStep = $returnedStep ?? null;
+        // Receiving comes first (anyone at the office, for paper); deciding
+        // waits for it. A returned request waits on the office that filed it.
+        $showReceive = $canReceive && $currentStep && ! $hasCustody;
+        $showDecision = $canAct && $currentStep && $hasCustody;
+        $hasActionPanel = $showReceive || $showDecision || $canRevise;
         // The QR tile (partials/qr-tile) reads these off the record.
         $qrRecord = [
             'tracking_number' => $document->tracking_number,
@@ -40,6 +47,7 @@
                             'green' => 'p-green',
                             'red' => 'p-red',
                             'returned' => 'p-orange',
+                            'muted' => 'p-muted',
                             default => 'p-amber',
                         } }}">{{ $document->internalStatusLabel() }}</span>
                     @if($inModal)
@@ -158,7 +166,7 @@
             </section>
 
             {{-- ── This office's decision ──────────────────────────────── --}}
-            @if($canAct && $currentStep && ! $hasCustody)
+            @if($showReceive)
                 {{-- QR is load-bearing: the endorsement stays locked until this
                      office scans the folder to prove the paper is in hand — or,
                      for a soft copy, until the person it was sent to receives
@@ -177,16 +185,21 @@
                                 Scan its QR to receive it: click <b class="text-ink">Select the QR on screen</b> — the QR opens and the page
                                 dims — and drag a box around the QR. Or use the camera. Then you can approve, return or deny it.
                             </p>
-                        @else
+                        @elseif($canAct)
                             <p class="text-[length:var(--fs-small)] text-ink-soft">
                                 Your office holds this hop, but you must <b class="text-ink">scan the document's QR Code</b> to
                                 confirm the paper is physically here before you can approve, return, or deny it.
+                            </p>
+                        @else
+                            <p class="text-[length:var(--fs-small)] text-ink-soft">
+                                This folder was sent to your office. If you have it, <b class="text-ink">scan its QR Code</b> to
+                                record that it arrived. Your supervisor then approves, returns or denies it.
                             </p>
                         @endif
                         @include('partials.custody-scan', ['document' => $document])
                     </div>
                 </section>
-            @elseif($canAct && $currentStep)
+            @elseif($showDecision)
                 @php $hasSignature = (bool) auth()->user()->signature_path; @endphp
                 <section class="dm-card dm-page-card dm-decision @if($inModal) dm-in-modal @endif lg:sticky lg:top-24"
                          x-data="{ mode: 'approve', denyAck: false, hasSignature: {{ $hasSignature ? 'true' : 'false' }}, nextDept: @js((string) old('next_department_id', '')) }">
@@ -407,6 +420,90 @@
                                     <span x-show="mode === 'deny'" x-cloak>Deny request</span>
                                 </button>
                             </form>
+                    </div>
+                </section>
+            @elseif($canRevise)
+                {{-- Returned to the office that filed it: revise and send it back
+                     to the office that returned it (which receives it again), or
+                     close it. --}}
+                <section class="dm-card dm-page-card @if($inModal) dm-in-modal @endif lg:sticky lg:top-24"
+                         x-data="{ mode: @js(old('reason') !== null ? 'withdraw' : 'resend'), withdrawAck: false }">
+                    <div class="dm-head">
+                        <div class="min-w-0">
+                            <h2 class="dm-section">Returned to your office</h2>
+                            <p class="text-[length:var(--fs-caption)] text-ink-soft">Revise it and send it back, or withdraw it</p>
+                        </div>
+                    </div>
+                    <div class="dm-body">
+                        @if($errors->any())
+                            <div class="mb-4 rounded-[8px] border border-status-red-wash bg-status-red-wash px-4 py-3 text-[13px] font-medium text-status-red">
+                                <ul class="list-inside list-disc space-y-0.5">
+                                    @foreach($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
+                        @if($returnedStep)
+                            <div class="dm-note !mt-0 mb-4">
+                                <p class="dm-note-label">Returned by {{ $returnedStep->actedBy?->name ?? 'the office' }} · {{ $returnedStep->department?->name }}</p>
+                                <p class="whitespace-pre-line">{{ $returnedStep->remarks ?: 'No reason given.' }}</p>
+                            </div>
+                        @endif
+
+                        <div class="st-tabs dm-decision-tabs w-full" role="tablist" aria-label="What to do">
+                            <button type="button" role="tab" :aria-selected="mode === 'resend'" @click="mode = 'resend'"
+                                    :class="mode === 'resend' ? 'on' : ''" class="flex-1 justify-center">Resend</button>
+                            <button type="button" role="tab" :aria-selected="mode === 'withdraw'" @click="mode = 'withdraw'; withdrawAck = false"
+                                    :class="mode === 'withdraw' ? 'on' : ''" class="flex-1 justify-center">Withdraw</button>
+                        </div>
+
+                        <form x-show="mode === 'resend'" method="POST" action="{{ route('requests.resend', $document) }}" enctype="multipart/form-data" class="mt-5 space-y-4">
+                            @csrf
+                            @if($inModal)<input type="hidden" name="from" value="internal">@endif
+                            <p class="text-[13px] text-ink-soft">
+                                Goes back to <span class="font-semibold text-ink">{{ $returnedStep?->department?->name ?? 'the office that returned it' }}</span>.
+                                {{ $document->isSoftCopy()
+                                    ? 'They receive it again, then decide.'
+                                    : 'Take the revised paper there — they scan it in again, then decide.' }}
+                            </p>
+                            <div>
+                                <label for="resend-note" class="block text-[13px] font-semibold text-ink">What did you change? <span class="text-status-red">*</span></label>
+                                <textarea id="resend-note" name="note" rows="3" maxlength="500" required
+                                          placeholder="e.g. Attached the signed canvass and corrected the amount."
+                                          class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ old('note') }}</textarea>
+                            </div>
+                            <div>
+                                <label for="resend-scan" class="block text-[13px] font-semibold text-ink">Revised scan <span class="font-normal text-ink-soft">(optional)</span></label>
+                                <input id="resend-scan" type="file" name="paper_scan" accept="{{ \App\Support\UploadRules::accept(\App\Support\UploadRules::PAPER_SCAN_EXTENSIONS) }}"
+                                       class="mt-1 block w-full text-[13px] text-ink file:mr-3 file:rounded-full file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-green-deep">
+                                <p class="mt-1 text-[12px] text-ink-soft">PDF or picture. Added to the request's files; the original stays.</p>
+                            </div>
+                            <button type="submit" class="cr-btn cr-btn-primary w-full justify-center py-2.5 text-[13px] font-semibold">
+                                Resend to {{ $returnedStep?->department?->name ?? 'the office' }}
+                            </button>
+                        </form>
+
+                        <form x-show="mode === 'withdraw'" x-cloak method="POST" action="{{ route('requests.withdraw', $document) }}" class="mt-5 space-y-4">
+                            @csrf
+                            @if($inModal)<input type="hidden" name="from" value="internal">@endif
+                            <p class="text-[13px] text-ink-soft">Withdrawing closes this request for good. Nothing more happens to it; file a new one if it is needed later.</p>
+                            <div>
+                                <label for="withdraw-reason" class="block text-[13px] font-semibold text-ink">Reason <span class="font-normal text-ink-soft">(optional)</span></label>
+                                <textarea id="withdraw-reason" name="reason" rows="2" maxlength="500"
+                                          placeholder="e.g. No longer needed."
+                                          class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink shadow-none transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">{{ old('reason') }}</textarea>
+                            </div>
+                            <label class="flex items-start gap-2 rounded-[8px] border border-status-red-wash bg-status-red-wash px-3 py-2.5 text-[13px] text-status-red">
+                                <input type="checkbox" x-model="withdrawAck" class="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red focus:ring-status-red/30">
+                                <span>I understand withdrawing <strong>closes</strong> this request and cannot be undone.</span>
+                            </label>
+                            <button type="submit" :disabled="! withdrawAck"
+                                    class="cr-btn cr-btn-danger w-full justify-center py-2.5 text-[13px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">
+                                Withdraw request
+                            </button>
+                        </form>
                     </div>
                 </section>
             @endif

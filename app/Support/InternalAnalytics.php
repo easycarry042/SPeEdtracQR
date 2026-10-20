@@ -284,10 +284,12 @@ class InternalAnalytics
         $returned = $counts[DocumentStatus::Returned->value] ?? 0;
         $completed = $counts[DocumentStatus::Completed->value] ?? 0;
         $denied = $counts[DocumentStatus::Denied->value] ?? 0;
+        // Closed by the office that filed it: no longer moving, and not a denial.
+        $withdrawn = $counts[DocumentStatus::Withdrawn->value] ?? 0;
 
         return [
             'total' => $total,
-            'moving' => max(0, $total - $returned - $completed - $denied),
+            'moving' => max(0, $total - $returned - $completed - $denied - $withdrawn),
             'returned' => $returned,
             'completed' => $completed,
             'denied' => $denied,

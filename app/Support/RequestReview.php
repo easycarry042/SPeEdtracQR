@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\DocumentStatus;
 use App\Http\Controllers\CommentController;
+use App\Models\Booking;
 use App\Models\Document;
 use App\Models\DocumentComment;
 use App\Models\DocumentRequirement;
@@ -56,6 +57,7 @@ class RequestReview
         // with the row. Internal staff notes are deliberately excluded — that
         // thread is not this panel's.
         $documents->loadMissing([
+            'booking.resource',
             'allComments' => fn ($q) => $q
                 ->where('visibility', DocumentComment::VISIBILITY_PUBLIC)
                 ->oldest(),
@@ -117,7 +119,7 @@ class RequestReview
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements');
+        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements', 'booking.resource');
 
         return [
             'id' => $document->id,
@@ -178,6 +180,9 @@ class RequestReview
             // cockpit that says a parked request has overrun its own deadline.
             'hold_overdue_days' => $document->isHoldOverdue() ? $document->holdOverdueDays() : null,
             'remarks' => $document->remarks,
+            // The chairs or venue this request reserves, so the modal shows
+            // the reservation beside the stages it gates.
+            'booking' => self::bookingPayload($document),
             'attachments' => $document->attachments->map(function ($a): array {
                 $ext = strtolower(pathinfo((string) $a->file_path, PATHINFO_EXTENSION));
 
@@ -203,6 +208,55 @@ class RequestReview
                     'is_image' => $hasFile && self::isImageExtension($ext),
                 ];
             })->values()->all(),
+        ];
+    }
+
+    /**
+     * A request's reservation for the Review modal — what, how many, when,
+     * where it stands — and whether this viewer can approve it from there.
+     * Hand-over and returns stay on the Resources page's lending desk.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function bookingPayload(Document $document): ?array
+    {
+        $booking = $document->booking;
+        $resource = $booking?->resource;
+
+        if (! $booking || ! $resource) {
+            return null;
+        }
+
+        $state = $booking->lendingState();
+        $isEquipment = $resource->isEquipment();
+        $pending = $state === Booking::LENDING_PENDING;
+
+        return [
+            'id' => $booking->id,
+            'item' => $resource->name,
+            'is_equipment' => $isEquipment,
+            'state' => $state,
+            'state_label' => $booking->lendingLabel(),
+            'tone' => match ($state) {
+                Booking::LENDING_OVERDUE, Booking::LENDING_CANCELLED => 'red',
+                Booking::LENDING_PENDING, Booking::LENDING_MISSED => 'amber',
+                Booking::LENDING_RETURNED => 'muted',
+                default => 'green',
+            },
+            'requested' => $booking->unitsRequested(),
+            'units' => $booking->units(),
+            'outstanding' => $booking->unitsOutstanding(),
+            'window' => Lending::window($booking),
+            'pickup' => $booking->starts_at->format('D, M j · g:i A'),
+            'return_by' => $booking->ends_at->format('D, M j · g:i A'),
+            'days_overdue' => $booking->daysOverdue(),
+            'free' => $pending && $isEquipment ? $resource->unitsAvailable($booking->starts_at, $booking->ends_at, $booking->id) : null,
+            'serviceable' => $isEquipment ? $resource->serviceableUnits() : null,
+            'clash' => $pending && ! $isEquipment && $resource->approvedConflicts($booking->starts_at, $booking->ends_at, $booking->id)->isNotEmpty(),
+            'not_ready' => $pending ? Lending::requestNotReady($booking) : null,
+            'can_manage' => (bool) auth()->user()?->can('manage inventory'),
+            'approve_url' => route('inventory.loans.approve', $booking),
+            'desk_url' => route('inventory.index'),
         ];
     }
 

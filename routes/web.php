@@ -30,6 +30,7 @@ use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\InternalRequestController;
 use App\Http\Controllers\InternalTrackerController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\LendingController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTicketController;
@@ -291,6 +292,14 @@ Route::middleware(['auth', 'verified', 'permission:manage inventory'])
     ->group(function () {
         Route::get('inventory', [InventoryController::class, 'index'])->name('inventory.index');
         Route::patch('inventory/{resource}', [InventoryController::class, 'update'])->name('inventory.update');
+
+        // The lending desk: approve with a count, hand over, take back, chase.
+        Route::patch('inventory/loans/{booking}/approve', [LendingController::class, 'approve'])->name('inventory.loans.approve');
+        Route::patch('inventory/loans/{booking}/release', [LendingController::class, 'release'])->name('inventory.loans.release');
+        Route::patch('inventory/loans/{booking}/return', [LendingController::class, 'receive'])->name('inventory.loans.return');
+        Route::patch('inventory/loans/{booking}/extend', [LendingController::class, 'extend'])->name('inventory.loans.extend');
+        Route::post('inventory/loans/{booking}/remind', [LendingController::class, 'remind'])->name('inventory.loans.remind');
+        Route::patch('inventory/loans/{booking}/cancel', [LendingController::class, 'cancel'])->name('inventory.loans.cancel');
     });
 
 // System health dashboard (DB, disk, scheduler, prod-posture checks). Restricted
@@ -348,6 +357,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // PDF scans are QR-stamped in the browser (no PDF toolchain on the
         // server); this stores the result the confirmation screen produces.
         Route::post('/requests/{document}/qr-stamp', [InternalRequestController::class, 'storeStampedScan'])->name('requests.qr-stamp');
+        // A request returned to the office that filed it: send it back revised,
+        // or close it (Document::canBeRevisedBy).
+        Route::post('/requests/{document}/resend', [InternalRequestController::class, 'resend'])->name('requests.resend');
+        Route::post('/requests/{document}/withdraw', [InternalRequestController::class, 'withdraw'])->name('requests.withdraw');
     });
     Route::get('/requests/{document}/created', [InternalRequestController::class, 'created'])->name('requests.created');
     Route::get('/requests/{document}', [InternalRequestController::class, 'show'])->name('requests.show');
@@ -426,6 +439,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Physical custody trail — "the folder is now with me" (scan or click).
     Route::post('/documents/{document}/custody', [DocumentCustodyController::class, 'store'])->name('documents.custody.store');
+    // The header's Scan QR Code: opens what was scanned, and receives an
+    // internal request with that same scan when it is the scanner's to receive.
+    Route::post('/custody/scan', [DocumentCustodyController::class, 'receiveByScan'])
+        ->middleware('throttle:60,1')
+        ->name('documents.custody.scan');
 
     // QR-gated release: citizen presents their QR, staff mark the hand-over.
     Route::patch('/documents/{document}/release', [DocumentReleaseController::class, 'store'])->name('documents.release');

@@ -56,10 +56,36 @@ class UploadRules
         ];
     }
 
-    /** The `accept` attribute for a file input, so the picker matches the rules. */
-    public static function accept(): string
+    /**
+     * The signed paper of an internal request: only what the QR can be stamped
+     * onto — a picture (GD, on the server) or a PDF (pdf-lib, in the browser).
+     * A Word file used to be accepted and silently filed without a stamped copy.
+     */
+    public const PAPER_SCAN_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    /**
+     * Validation rules for an internal request's paper scan.
+     *
+     * @return list<string>
+     */
+    public static function paperScanRules(): array
     {
-        return collect(self::extensions())
+        return [
+            'required',
+            'file',
+            'mimes:'.implode(',', self::PAPER_SCAN_EXTENSIONS),
+            'max:'.self::MAX_KILOBYTES,
+        ];
+    }
+
+    /**
+     * The `accept` attribute for a file input, so the picker matches the rules.
+     *
+     * @param  list<string>  $extensions  defaults to every accepted extension
+     */
+    public static function accept(array $extensions = []): string
+    {
+        return collect($extensions ?: self::extensions())
             ->map(fn (string $extension): string => '.'.$extension)
             ->implode(',');
     }

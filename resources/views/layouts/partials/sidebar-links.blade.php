@@ -68,6 +68,15 @@
             </span>
             <span class="{{ $label }}">Internal Requests</span>
         </a>
+        {{-- The same Resources page staff and supervisors run (lending desk,
+             stock, facilities), plus the catalog controls only a super admin
+             has: add, edit, deactivate, delete. --}}
+        <a href="{{ route('inventory.index') }}" {!! $row(request()->routeIs('inventory*') || request()->routeIs('admin.resources*')) !!}>
+            <span class="{{ $glyph }}">
+                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            </span>
+            <span class="{{ $label }}">Resources</span>
+        </a>
         <a href="{{ route('admin.audit-log.index') }}" {!! $row(request()->routeIs('admin.audit-log*')) !!}>
             <span class="{{ $glyph }}">
                 <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 002 2h2a2 2 0 002-2M9 4a2 2 0 012-2h2a2 2 0 012 2"/></svg>
@@ -95,12 +104,6 @@
                 <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
             </span>
             <span class="{{ $label }}">Request Types</span>
-        </a>
-        <a href="{{ route('admin.resources.index') }}" {!! $row(request()->routeIs('admin.resources*')) !!}>
-            <span class="{{ $glyph }}">
-                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-            </span>
-            <span class="{{ $label }}">Resources</span>
         </a>
     @endcan
 @else
@@ -136,14 +139,17 @@
         </a>
     @endcan
 
-    {{-- Next to Booking: the calendar says when a thing is taken, Inventory
-         says how much of it there is. Staff-owned for the same reason. --}}
+    {{-- Resources, next to Booking: the calendar says when a thing is taken,
+         this says how much of it there is. Staff and supervisors both have it
+         (the team asked for it back); it is meant to grow into the office's
+         inventory management. --}}
     @can('manage inventory')
         <a href="{{ route('inventory.index') }}" {!! $row(request()->routeIs('inventory*')) !!}>
             <span class="{{ $glyph }}">
                 <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             </span>
-            <span class="{{ $label }}">Inventory</span>
+            <span class="{{ $label }}">Resources</span>
+            {!! $badge('resources', 'waiting') !!}
         </a>
     @endcan
 
@@ -160,13 +166,7 @@
     @endcan
 
     {{-- No Users link: only super_admin can manage users, and they get the
-         configuration set above. --}}
-    @can('assign documents')
-        <a href="{{ route('admin.assignments.index') }}" {!! $row(request()->routeIs('admin.assignments*')) !!}>
-            <span class="{{ $glyph }}">
-                <svg class="sb-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-            </span>
-            <span class="{{ $label }}">Assignments</span>
-        </a>
-    @endcan
+         configuration set above. No Assignments link either: the dashboard's
+         Unassigned / In Progress / Completed tabs and its Review modal
+         (assign, reassign) replaced that page. --}}
 @endif

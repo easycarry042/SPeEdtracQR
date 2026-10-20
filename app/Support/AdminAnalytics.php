@@ -162,7 +162,7 @@ class AdminAnalytics
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        return collect(DocumentStatus::cases())->map(fn (DocumentStatus $s): array => [
+        return collect(DocumentStatus::citizenCases())->map(fn (DocumentStatus $s): array => [
             'label' => $s->label(),
             'value' => (int) ($counts[$s->value] ?? 0),
             'band' => $s->band(),
@@ -242,7 +242,7 @@ class AdminAnalytics
             }
         }
 
-        return collect(DocumentStatus::cases())
+        return collect(DocumentStatus::citizenCases())
             ->reject(fn (DocumentStatus $s): bool => $s === DocumentStatus::OnHold) // paused time isn't a "slow stage"
             ->map(fn (DocumentStatus $s): array => [
                 'label' => $s->label(),
@@ -635,7 +635,7 @@ class AdminAnalytics
 
     private function emptyStageSeries(): Collection
     {
-        return collect(DocumentStatus::cases())
+        return collect(DocumentStatus::citizenCases())
             ->reject(fn (DocumentStatus $s): bool => $s === DocumentStatus::OnHold)
             ->map(fn (DocumentStatus $s): array => [
                 'label' => $s->label(),

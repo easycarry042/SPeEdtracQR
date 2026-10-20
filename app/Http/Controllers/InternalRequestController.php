@@ -88,8 +88,9 @@ class InternalRequestController extends Controller
                 },
             ],
             // The signed paper is the request: filing without the scan leaves
-            // the receiving office nothing to act on, so it is required.
-            'paper_scan' => UploadRules::rules(required: true),
+            // the receiving office nothing to act on, so it is required. A PDF
+            // or picture only, so the QR can be stamped onto it.
+            'paper_scan' => UploadRules::paperScanRules(),
             // Optional supervisor-chosen QR placement on the scanned page.
             'qr_x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'qr_y' => ['nullable', 'numeric', 'min:0', 'max:1'],
@@ -98,6 +99,7 @@ class InternalRequestController extends Controller
             'qr_page' => ['nullable', 'integer', 'min:1', 'max:500'],
         ], [
             'recipient_id.required' => 'Without a hard copy, choose who in the first office receives this request.',
+            'paper_scan.mimes' => 'Upload the signed paper as a PDF or a picture (JPG, PNG or WEBP) so the QR can be stamped on it. Word and other files can\'t be stamped — save or scan them as a PDF first.',
         ]);
 
         $hasHardCopy = (bool) ($validated['has_hard_copy'] ?? true);
@@ -245,6 +247,14 @@ class InternalRequestController extends Controller
         return view($request->boolean('modal') ? 'requests.detail-modal' : 'requests.show', [
             'document' => $document,
             'canAct' => $document->canActOnCurrentStep(auth()->user()),
+            // Anyone at the holding office may scan a paper folder in; only
+            // the supervisor (or a soft copy's recipient) decides.
+            'canReceive' => $document->canReceiveCurrentStep(auth()->user()),
+            // Returned to the filing office: resend it revised, or withdraw it.
+            'canRevise' => $document->canBeRevisedBy(auth()->user()),
+            'returnedStep' => $document->statusEnum() === DocumentStatus::Returned
+                ? $document->requestSteps->where('status', RequestStep::STATUS_RETURNED)->sortByDesc('acted_at')->first()
+                : null,
             'currentStep' => $currentStep,
             'hasCustody' => $document->currentStepHasCustody(),
             // The office holding the paper decides where it goes next, unless a
@@ -332,6 +342,145 @@ class InternalRequestController extends Controller
         return response()->json([
             'url' => $attachment->authorizedUrl(),
         ]);
+    }
+
+    /**
+     * Send a returned request back to the office that returned it, saying what
+     * changed (with the revised scan, if there is one). That office receives
+     * it again before acting: the folder is scanned in, or a soft copy is
+     * picked up by the person it goes to.
+     */
+    public function resend(Request $request, Document $document)
+    {
+        $user = $request->user();
+        abort_unless($document->canBeRevisedBy($user), 403);
+
+        $request->validate([
+            'note' => ['required', 'string', 'max:500'],
+            'paper_scan' => ['nullable', ...array_diff(UploadRules::paperScanRules(), ['required'])],
+        ], [
+            'note.required' => 'Say what you changed, so the office knows what to look at.',
+            'paper_scan.mimes' => 'Upload the revised paper as a PDF or a picture (JPG, PNG or WEBP).',
+        ]);
+
+        $returned = $document->requestSteps()
+            ->where('status', RequestStep::STATUS_RETURNED)
+            ->orderByDesc('acted_at')->orderByDesc('id')
+            ->first();
+        $department = $returned ? Department::active()->find($returned->department_id) : null;
+
+        if (! $department) {
+            throw ValidationException::withMessages([
+                'note' => 'The office that returned this request is no longer active. File it again to send it somewhere else.',
+            ]);
+        }
+
+        // A soft copy goes to a person: whoever it went to before, or failing
+        // that whoever returned it, while they still work there. Otherwise the
+        // office's supervisor receives it.
+        $recipientId = null;
+        if ($document->isSoftCopy()) {
+            $recipientId = collect([$returned->recipient_id, $returned->acted_by])
+                ->filter()
+                ->first(fn (int $id): bool => InternalRequestForm::isRecipientAt($id, $department->id));
+        }
+
+        $step = DB::transaction(function () use ($document, $department, $recipientId, $user): RequestStep {
+            $step = $document->requestSteps()->create([
+                'step_order' => (int) $document->requestSteps()->max('step_order') + 1,
+                'department_id' => $department->id,
+                'recipient_id' => $recipientId,
+                'action' => 'Review the revision',
+                'status' => RequestStep::STATUS_CURRENT,
+                'started_at' => now(),
+            ]);
+
+            $document->applyStatus($document->requestSteps()->where('status', RequestStep::STATUS_APPROVED)->exists()
+                ? DocumentStatus::InProgress
+                : DocumentStatus::Pending);
+            $document->save();
+
+            // The returned folder came back to the filing office; the trail
+            // shows it there until the office it goes to scans it in.
+            if (! $document->isSoftCopy()) {
+                $document->custodyEvents()->create([
+                    'user_id' => $user->id,
+                    'capture_method' => 'manual',
+                    'override_reason' => 'Filing office holds the revised paper.',
+                ]);
+            }
+
+            return $step;
+        });
+
+        if ($request->hasFile('paper_scan')) {
+            $this->storeAttachmentsForDocument($document, [$request->file('paper_scan')]);
+        }
+
+        $summary = sprintf('Resent to %s by %s after revision: %s', $department->name, $user->name, $request->input('note'));
+        activity()->performedOn($document)->causedBy($user)
+            ->withProperties(['department' => $department->name, 'note' => $request->input('note')])
+            ->log($summary);
+        $document->logSystemComment($summary);
+
+        Notification::send(
+            DocumentEvent::hopRecipients($step, $user->id),
+            DocumentEvent::internalHopArrived($document, $step->action),
+        );
+
+        return $this->backToRequest($request, $document, "Resent to {$department->name}. They receive it again before acting on it.");
+    }
+
+    /**
+     * The filing office closes a returned request instead of revising it.
+     * Final, like a denial, but the filer's own choice — counted apart from
+     * denials.
+     */
+    public function withdraw(Request $request, Document $document)
+    {
+        $user = $request->user();
+        abort_unless($document->canBeRevisedBy($user), 403);
+
+        $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        $document->requestSteps()
+            ->whereIn('status', [RequestStep::STATUS_PENDING, RequestStep::STATUS_CURRENT])
+            ->update(['status' => RequestStep::STATUS_SKIPPED]);
+
+        $document->applyStatus(DocumentStatus::Withdrawn);
+        $document->decided_by = $user->id;
+        $document->decided_at = now();
+        $document->save();
+
+        $summary = sprintf(
+            'Withdrawn by %s (%s)%s',
+            $user->name,
+            $document->requestingDepartment?->name ?? 'filing office',
+            $request->filled('reason') ? ': '.$request->input('reason') : '.',
+        );
+        activity()->performedOn($document)->causedBy($user)->log($summary);
+        $document->logSystemComment($summary);
+
+        // Whoever returned it stops waiting for a revision.
+        $returnedBy = $document->requestSteps()
+            ->where('status', RequestStep::STATUS_RETURNED)
+            ->orderByDesc('acted_at')->orderByDesc('id')
+            ->first()?->actedBy;
+        if ($returnedBy && (int) $returnedBy->id !== (int) $user->id) {
+            $returnedBy->notify(DocumentEvent::internalOutcome($document, $summary));
+        }
+
+        return $this->backToRequest($request, $document, 'Withdrawn — the request is closed.');
+    }
+
+    /** Back to the request: the Internal page's modal when it was opened there. */
+    private function backToRequest(Request $request, Document $document, string $message)
+    {
+        if ($request->input('from') === 'internal') {
+            return to_route('requests.index', ['open' => $document->id])->with('status', $message);
+        }
+
+        return to_route('requests.show', $document)->with('status', $message);
     }
 
     /** Whether a stored path is a PDF (stamped in the browser, not with GD). */

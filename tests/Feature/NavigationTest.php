@@ -141,25 +141,23 @@ class NavigationTest extends TestCase
             ->assertSeeInOrder(['Type the tracking number', 'Upload QR image', 'Open camera scanner']);
     }
 
-    public function test_unclaimed_queue_is_a_tab_on_the_assignments_desk(): void
+    public function test_old_assignments_links_land_on_the_dashboard_tabs(): void
     {
         $this->seedRolesAndPermissions();
 
         $supervisor = $this->userWithRole('Supervisor');
 
-        $claimed = $this->makeDocument(['assigned_to' => $supervisor->id, 'status' => 'in_progress']);
-        $unclaimed = $this->makeDocument(['assigned_to' => null]);
-
-        // Old standalone URL redirects into the tab.
         $this->actingAs($supervisor)
             ->get(route('admin.assignments.unclaimed'))
-            ->assertRedirect(route('admin.assignments.index', ['filter' => 'unclaimed']));
-
-        // The tab lists only unassigned documents.
+            ->assertRedirect(route('dashboard', ['tab' => 'pending']));
         $this->actingAs($supervisor)
             ->get(route('admin.assignments.index', ['filter' => 'unclaimed']))
-            ->assertOk()
-            ->assertSee($unclaimed->tracking_number)
-            ->assertDontSee($claimed->tracking_number);
+            ->assertRedirect(route('dashboard', ['tab' => 'pending']));
+        $this->actingAs($supervisor)
+            ->get(route('admin.assignments.index', ['status' => 'completed']))
+            ->assertRedirect(route('dashboard', ['tab' => 'done']));
+        $this->actingAs($supervisor)
+            ->get(route('admin.assignments.index', ['assignee' => $supervisor->id]))
+            ->assertRedirect(route('dashboard', ['tab' => 'active', 'q' => $supervisor->name]));
     }
 }

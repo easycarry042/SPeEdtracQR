@@ -43,7 +43,7 @@ class SuperAdminHousekeepingTest extends TestCase
             ->assertOk()
             ->assertDontSee('>Staff</span>', false)
             ->assertDontSee('Services report')
-            ->assertSeeInOrder(['Dashboard', 'Users', 'Internal Requests', 'Audit Log', 'Setup', 'Departments', 'Route Templates', 'Request Types', 'Resources']);
+            ->assertSeeInOrder(['Dashboard', 'Users', 'Internal Requests', 'Resources', 'Audit Log', 'Setup', 'Departments', 'Route Templates', 'Request Types']);
     }
 
     // ── Users carries the staff directory's workload ─────────────────────
@@ -119,11 +119,14 @@ class SuperAdminHousekeepingTest extends TestCase
         $booking(Booking::STATUS_APPROVED, 5);
         $booking(Booking::STATUS_APPROVED, -9);
 
+        // The super admin's Resources is the shared page: the court's pending
+        // request is on the lending desk, its next reservation on the table.
         $this->actingAs($this->admin)->get(route('admin.resources.index'))
-            ->assertOk()
-            ->assertSee('Awaiting approval')
-            ->assertSee('1 pending')
-            ->assertSee('Upcoming');
+            ->assertRedirect(route('inventory.index'));
+
+        $page = $this->actingAs($this->admin)->get(route('inventory.index'))->assertOk()->assertSee('Lending desk');
+        $this->assertCount(1, $page->viewData('desk')['approve']);
+        $this->assertNotNull($page->viewData('facilities')->firstWhere('name', 'Covered Court')['next']);
     }
 
     // ── the audit log ────────────────────────────────────────────────────

@@ -55,7 +55,6 @@
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
         request()->routeIs('admin.requests*') => 'Requests',
-        request()->routeIs('admin.assignments*') => 'Assignments',
         request()->routeIs('bookings*') => 'Booking',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',

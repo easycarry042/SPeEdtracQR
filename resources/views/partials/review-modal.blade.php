@@ -114,6 +114,78 @@
                         </template>
                     @endif
 
+                    {{-- Reservation: the chairs or venue this request books. Its
+                         approval gates the request's own Approved stage, so it
+                         sits here beside the stages. Approving (with the number
+                         being lent) works from here; hand-over and returns are on
+                         the Resources page's lending desk. --}}
+                    <template x-if="active && active.booking">
+                        <section class="dm-booking mt-5" aria-label="Reservation">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="dm-date-label" x-text="active.booking.is_equipment ? 'Borrowing' : 'Reservation'"></p>
+                                    <p class="text-[15px] font-bold text-ink">
+                                        <span x-text="active.booking.item"></span>
+                                        <template x-if="active.booking.is_equipment">
+                                            <span class="font-semibold text-ink-soft"
+                                                  x-text="' · ' + (active.booking.state === 'pending' ? 'asked for ' + active.booking.requested : active.booking.units + ' lent')"></span>
+                                        </template>
+                                    </p>
+                                    <p class="mt-1 text-[13px] text-ink-soft">
+                                        <span x-text="active.booking.is_equipment ? 'Pickup ' : 'From '"></span><span x-text="active.booking.pickup"></span>
+                                        <span x-text="active.booking.is_equipment ? ' · Return by ' : ' · Until '"></span><span x-text="active.booking.return_by"></span>
+                                    </p>
+                                </div>
+                                <span class="pill" :class="{ 'p-green': active.booking.tone === 'green', 'p-amber': active.booking.tone === 'amber', 'p-red': active.booking.tone === 'red', 'p-muted': active.booking.tone === 'muted' }"
+                                      x-text="active.booking.state_label + (active.booking.days_overdue ? ' · ' + active.booking.days_overdue + 'd' : '')"></span>
+                            </div>
+
+                            <template x-if="active.booking.state === 'pending'">
+                                <div class="mt-3 border-t border-hairline pt-3">
+                                    <template x-if="active.booking.not_ready">
+                                        <p class="text-[13px] text-ink-soft" x-text="active.booking.not_ready"></p>
+                                    </template>
+                                    <template x-if="! active.booking.not_ready && active.booking.clash">
+                                        <p class="text-[13px] font-semibold text-status-red">Another approved reservation already holds these hours. Adjust the date, or settle it on the Booking calendar.</p>
+                                    </template>
+                                    <template x-if="! active.booking.not_ready && active.booking.is_equipment && active.booking.serviceable === 0">
+                                        <p class="text-[13px] font-semibold text-status-red">No count is set for this item yet. Set how many the office owns on the Resources page.</p>
+                                    </template>
+                                    @if($mode !== 'oversight')
+                                        <template x-if="! active.booking.not_ready && active.booking.can_manage && ! active.booking.clash && ! (active.booking.is_equipment && active.booking.serviceable === 0)">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <template x-if="active.booking.is_equipment">
+                                                    <label class="flex items-center gap-2 text-[13px] text-ink">
+                                                        Lend
+                                                        <input type="number" min="1" step="1" inputmode="numeric" x-model.number="bookingQty"
+                                                               @keydown="['.', ',', 'e', 'E', '-', '+'].includes($event.key) && $event.preventDefault()"
+                                                               class="st-filter-field inv-num" aria-label="How many to lend">
+                                                    </label>
+                                                </template>
+                                                <button type="button" @click="approveBooking()" class="cr-btn cr-btn-sm cr-btn-primary"
+                                                        :disabled="bookingBusy || (active.booking.is_equipment && ! (Number.isInteger(bookingQty) && bookingQty >= 1 && bookingQty <= active.booking.free))"
+                                                        x-text="active.booking.is_equipment ? 'Approve borrowing' : 'Approve reservation'"></button>
+                                                <template x-if="active.booking.is_equipment">
+                                                    <span class="text-[12px]" :class="bookingQty > active.booking.free ? 'font-semibold text-status-red' : 'text-ink-soft'"
+                                                          x-text="bookingQty > active.booking.free ? 'Not enough: only ' + active.booking.free + ' free for these dates.' : active.booking.free + ' free for these dates'"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    @endif
+                                    <p x-show="bookingError" x-cloak class="mt-2 text-[13px] font-semibold text-status-red" role="alert" x-text="bookingError"></p>
+                                </div>
+                            </template>
+
+                            <p class="mt-3 text-[12px] text-ink-soft">
+                                <span x-show="active.booking.state === 'pending'">The request can't move to Approved until this is approved.</span>
+                                <span x-show="['reserved', 'missed'].includes(active.booking.state)">Handing the items over completes the request.</span>
+                                <template x-if="active.booking.can_manage">
+                                    <a :href="active.booking.desk_url" class="text-green underline">Open the lending desk</a>
+                                </template>
+                            </p>
+                        </section>
+                    </template>
+
                     {{-- More Info --}}
                     <section class="mt-7">
                         <h2 class="dm-section">More Info</h2>
@@ -243,6 +315,30 @@
                             <section class="dm-panel-strong mt-7 text-[length:var(--fs-small)] text-ink">
                                 <p>Being handled by <strong class="text-green-deep" x-text="active.assigned_staff || 'a staff member'"></strong>.
                                    You can adjust the claiming date and answer the citizen from here; the stage itself is theirs to advance.</p>
+
+                                {{-- Reassigning used to need the Assignments page. It is a
+                                     deliberate second click here, so opening a request
+                                     never invites handing it off by accident. --}}
+                                <template x-if="active.status !== 'completed'">
+                                    <div class="mt-3">
+                                        <button type="button" x-show="! reassignOpen" @click="reassignOpen = true" class="cr-btn cr-btn-sm">Reassign…</button>
+                                        <div x-show="reassignOpen" x-cloak>
+                                            <label for="reviewReassignee" class="block font-bold text-green-deep">Reassign to</label>
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <select id="reviewReassignee" x-model="selectedStaff" class="st-filter-field min-w-0 flex-1">
+                                                    <option value="">Select a staff member…</option>
+                                                    <template x-for="member in staff.filter((m) => m.id !== active.assigned_to)" :key="member.id">
+                                                        <option :value="member.id" x-text="member.name"></option>
+                                                    </template>
+                                                </select>
+                                                <button type="button" @click="reassignOpen = false; selectedStaff = ''" class="cr-btn">Cancel</button>
+                                                <button type="button" @click="reassign()" :disabled="!selectedStaff || submitting"
+                                                        class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">Reassign</button>
+                                            </div>
+                                            <p class="mt-2 text-ink-soft">The stage stays where it is; the new staff member accepts it on their Requests page before carrying on.</p>
+                                        </div>
+                                    </div>
+                                </template>
                             </section>
                         </template>
                     @elseif($mode === 'oversight')
@@ -799,6 +895,12 @@
             staff: cfg.staff || [],
             flow: cfg.flow || [],
             assignBase: cfg.assignBase || '',
+            reassignBase: cfg.reassignBase || '',
+            reassignOpen: false,
+            /* The request's reservation card (approve with a count). */
+            bookingQty: null,
+            bookingBusy: false,
+            bookingError: '',
             denyBase: cfg.denyBase || cfg.assignBase || '',
             openBase: cfg.openBase || '',
             completeBase: cfg.completeBase || '',
@@ -1102,6 +1204,9 @@
                 this.calMonth = anchor.getMonth();
 
                 this.selectedStaff = '';
+                this.reassignOpen = false;
+                this.bookingQty = req?.booking ? Math.max(1, req.booking.requested || 1) : null;
+                this.bookingError = '';
                 this.denyOpen = false;
                 this.denyReason = '';
                 this.declineOpen = false;
@@ -1336,6 +1441,75 @@
                 }).catch(() => {
                     this.gateError = 'That message could not be sent.';
                     this.sending = false;
+                });
+            },
+
+            /**
+             * Supervisor: hand in-progress work to another staff member. The
+             * row stays on the In Progress tab with its new name — in place,
+             * like assign and deny.
+             */
+            /**
+             * Approve the request's reservation from the modal, on the same
+             * rules as the lending desk (App\Support\Lending). The card
+             * redraws in place from the reply.
+             */
+            approveBooking() {
+                const booking = this.active?.booking;
+                if (!booking || this.bookingBusy) return;
+
+                const fd = new FormData();
+                fd.append('_method', 'PATCH');
+                if (booking.is_equipment) fd.append('quantity', this.bookingQty);
+
+                this.bookingBusy = true;
+                this.bookingError = '';
+                fetch(booking.approve_url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))).then(({ ok, d }) => {
+                    this.bookingBusy = false;
+                    if (!ok) {
+                        this.bookingError = d.errors ? Object.values(d.errors).flat().join(' ') : (d.message || 'Could not approve. Please try again.');
+                        return;
+                    }
+                    const row = this.requests.find((r) => r.id === this.active.id);
+                    if (row && row !== this.active) row.booking = d.booking;
+                    this.active.booking = d.booking;
+                }).catch(() => {
+                    this.bookingBusy = false;
+                    this.bookingError = 'Network error. Please try again.';
+                });
+            },
+
+            reassign() {
+                if (!this.active || !this.selectedStaff || this.submitting) return;
+
+                const fd = new FormData();
+                fd.append('_method', 'PATCH');
+                fd.append('assigned_to', this.selectedStaff);
+
+                this.submitting = true;
+                this.gateError = '';
+                fetch(`${this.reassignBase}/${this.active.id}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))).then(({ ok, d }) => {
+                    this.submitting = false;
+                    if (!ok) {
+                        this.gateError = d.errors ? Object.values(d.errors).flat().join(' ') : (d.message || 'Could not reassign. Please try again.');
+                        return;
+                    }
+                    const row = this.requests.find((r) => r.id === this.active.id);
+                    if (row && row !== this.active) Object.assign(row, d.request);
+                    Object.assign(this.active, d.request);
+                    this.reassignOpen = false;
+                    this.selectedStaff = '';
+                }).catch(() => {
+                    this.submitting = false;
+                    this.gateError = 'Network error. Please try again.';
                 });
             },
 

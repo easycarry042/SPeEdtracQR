@@ -59,6 +59,14 @@ class StatusGate
                     'label' => 'All required documents verified',
                     'passed' => $document->unverifiedMandatoryRequirements()->isEmpty(),
                 ],
+                // A borrowing or reservation is approved as a whole: the
+                // request cannot read "Approved" to the citizen while its
+                // chairs or venue are still unconfirmed (or were cancelled).
+                [
+                    'key' => 'reservation_approved',
+                    'label' => 'The reservation is approved on the Resources page (or Booking calendar)',
+                    'passed' => ($booking = $document->booking()->first()) === null || $booking->isApproved(),
+                ],
             ],
             default => [],
         };

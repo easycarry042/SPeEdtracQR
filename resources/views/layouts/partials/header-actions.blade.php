@@ -95,8 +95,6 @@
         </div>
     </template>
 
-    {{-- html5-qrcode's scanFile needs a container in the DOM. --}}
-    <div id="headerScanFileReader" class="hidden"></div>
 </div>
 
 @include('partials.qr-scan-helpers')
@@ -122,26 +120,26 @@
                 this.error = '';
                 this.starting = true;
                 window.SpeedQr.start('headerScanReader', (decodedText) => {
-                    this.handle(decodedText);
+                    this.handle(decodedText, 'scan');
                 }, (cameraError) => {
                     this.starting = false;
                     this.error = window.SpeedQr.describe(cameraError) + ' You can upload a QR image instead.';
                 }).then(() => { this.starting = false; });
             },
 
-            /** Only codes this system issued may open a record. */
-            handle(decodedText) {
-                const tracking = window.SpeedQr.extractTracking(decodedText);
+            /**
+             * Only codes this system issued may open a record. An internal
+             * request waiting for this person to receive it is received by the
+             * same scan (SpeedQr.openScanned).
+             */
+            handle(decodedText, method) {
                 window.SpeedQr.stop();
-                if (! tracking) {
-                    this.error = window.SpeedQr.FOREIGN_CODE_MESSAGE;
-
-                    return;
-                }
-                window.location.href = @json(url('/track')) + '/' + encodeURIComponent(tracking);
+                window.SpeedQr.openScanned(decodedText, method).catch((e) => {
+                    this.error = e.message;
+                });
             },
 
-            readFile(event) {
+            async readFile(event) {
                 const file = event.target.files && event.target.files[0];
                 event.target.value = '';
                 if (! file) {
@@ -149,11 +147,15 @@
                 }
                 this.error = '';
                 window.SpeedQr.stop();
-                new Html5Qrcode('headerScanFileReader', false).scanFile(file, false)
-                    .then((decodedText) => this.handle(decodedText))
-                    .catch(() => {
-                        this.error = 'Could not read a QR code from that image. Use a clearer, well-lit photo.';
-                    });
+                let decodedText;
+                try {
+                    decodedText = await window.SpeedQr.decodeImage(file);
+                } catch (e) {
+                    this.error = 'Could not read a QR code from that image. Use a clearer, well-lit photo.';
+
+                    return;
+                }
+                this.handle(decodedText, 'image');
             },
         }));
     });

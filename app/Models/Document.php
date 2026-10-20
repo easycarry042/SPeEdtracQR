@@ -286,6 +286,7 @@ class Document extends Model
             DocumentStatus::Completed => 'Completed',
             DocumentStatus::Denied => 'Denied',
             DocumentStatus::Returned => 'Returned for revision',
+            DocumentStatus::Withdrawn => 'Withdrawn',
             default => (function (): string {
                 $step = $this->currentRequestStep();
 
@@ -307,7 +308,7 @@ class Document extends Model
 
     /**
      * Colour band for {@see internalStatusLabel()} — maps to a pill/dot tone.
-     * One of: green | amber | red | returned.
+     * One of: green | amber | red | returned | muted.
      */
     public function internalStatusBand(): string
     {
@@ -315,6 +316,7 @@ class Document extends Model
             DocumentStatus::Completed => 'green',
             DocumentStatus::Denied => 'red',
             DocumentStatus::Returned => 'returned',
+            DocumentStatus::Withdrawn => 'muted',
             default => 'amber',
         };
     }
@@ -343,6 +345,44 @@ class Document extends Model
         // whoever is at the desk, so it goes to someone by name).
         return $user->can('act on internal requests')
             || ($step->recipient_id !== null && (int) $step->recipient_id === (int) $user->id);
+    }
+
+    /**
+     * Whether this person may RECEIVE the request at the office holding it:
+     * scan the paper folder in, or pick up a soft copy. Wider than deciding
+     * (canActOnCurrentStep): whoever at the office is handed the folder scans
+     * it in, but only the office's supervisor — or a soft copy's named
+     * recipient — approves, returns, denies or completes it. A soft copy is
+     * still received only by the person it was sent to or their supervisor.
+     */
+    public function canReceiveCurrentStep(?User $user): bool
+    {
+        if ($this->canActOnCurrentStep($user)) {
+            return true;
+        }
+
+        if (! $user || ! $this->isInternal() || $this->isSoftCopy() || $user->department_id === null) {
+            return false;
+        }
+
+        return (int) $this->currentRequestStep()?->department_id === (int) $user->department_id;
+    }
+
+    /**
+     * Whether this person may resend or withdraw a request returned to the
+     * office that filed it: whoever filed it, or anyone at that office who can
+     * file internal requests (the same people who could have filed it).
+     */
+    public function canBeRevisedBy(?User $user): bool
+    {
+        if (! $user || ! $this->isInternal() || $this->statusEnum() !== DocumentStatus::Returned) {
+            return false;
+        }
+
+        return (int) $this->created_by === (int) $user->id
+            || ($this->requesting_department_id !== null
+                && (int) $this->requesting_department_id === (int) $user->department_id
+                && $user->can('create internal requests'));
     }
 
     /**

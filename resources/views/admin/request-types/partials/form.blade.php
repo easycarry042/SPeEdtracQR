@@ -41,10 +41,10 @@
                 class="mt-1 w-full rounded-[8px] border border-hairline-strong bg-white px-3 py-2 text-[13px] text-ink transition focus:border-green focus:outline-none focus:ring-2 focus:ring-green/25">
             <option value="">Select a resource…</option>
             @foreach($resources as $resource)
-                <option value="{{ $resource->id }}" @selected((int) old('resource_id', $requestType?->resource_id) === $resource->id)>{{ $resource->name }}</option>
+                <option value="{{ $resource->id }}" @selected((int) old('resource_id', $requestType?->resource_id) === $resource->id)>{{ $resource->name }} ({{ $resource->isEquipment() ? 'equipment' : 'facility' }})</option>
             @endforeach
         </select>
-        <p class="mt-1 text-[12px] text-ink-soft">Manage resources under <a href="{{ route('admin.resources.index') }}" class="text-green underline">Resources</a>. The requirements checklist below applies to every kind.</p>
+        <p class="mt-1 text-[12px] text-ink-soft">A facility booking needs a facility, an equipment borrowing needs equipment. Manage them under <a href="{{ route('inventory.index') }}" class="text-green underline">Resources</a>. The requirements checklist below applies to every kind.</p>
         @error('resource_id')<p class="mt-1 text-[12px] text-status-red">{{ $message }}</p>@enderror
     </div>
 </div>

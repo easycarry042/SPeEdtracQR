@@ -29,6 +29,7 @@
         DocumentStatus::Returned => 'Returned for revision',
         DocumentStatus::OnHold => 'On hold',
         DocumentStatus::Denied => 'Denied',
+        DocumentStatus::Withdrawn => 'Withdrawn',
         default => null,
     };
 @endphp

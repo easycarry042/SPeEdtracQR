@@ -26,7 +26,10 @@ class BookingManagementTest extends TestCase
         $doc = Document::create([
             'tracking_number' => 'SPD-BK-'.strtoupper(uniqid()),
             'document_type' => 'Covered Court Reservation',
-            'status' => 'pending',
+            // Assigned and accepted: a reservation is only approved after that.
+            'status' => 'in_progress',
+            'assigned_to' => User::factory()->create()->id,
+            'accepted_at' => now(),
         ]);
 
         return $resource->bookings()->create([

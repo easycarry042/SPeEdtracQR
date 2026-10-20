@@ -9,7 +9,7 @@
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
             </div>
             <p class="mt-3 font-semibold text-ink">Look up a document</p>
-            <p class="mt-1 text-sm text-ink-soft">Finding a document only opens it — status is changed on the document itself.</p>
+            <p class="mt-1 text-sm text-ink-soft">Finding a document only opens it — status is changed on the document itself. Scanning an internal request sent to your office also records that you received it.</p>
 
             @if($errors->has('lookup'))
                 <div class="mt-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm font-semibold text-status-red" role="alert">
@@ -54,7 +54,6 @@
     @include('partials.qr-scan-helpers')
     <script>
         (function () {
-            const trackBase = @json(url('/track'));
             const uploadBtn = document.getElementById('qrUploadBtn');
             const uploadLabel = document.getElementById('qrUploadLabel');
             const fileInput = document.getElementById('qrFile');
@@ -72,10 +71,6 @@
                 errorEl.classList.remove('hidden');
             }
 
-            function openDocument(tracking) {
-                window.location.href = `${trackBase}/${encodeURIComponent(tracking)}`;
-            }
-
             // ── Primary: upload / drag-and-drop a QR image ──
             function readQrFile(file) {
                 if (!file) return;
@@ -83,8 +78,7 @@
                 uploadLabel.textContent = 'Reading image…';
                 uploadBtn.disabled = true;
 
-                const reader = new Html5Qrcode('qr-file-reader-temp', /* verbose= */ false);
-                reader.scanFile(file, false)
+                window.SpeedQr.decodeImage(file)
                     .then((decodedText) => {
                         const tracking = extractTracking(decodedText);
                         if (!tracking) {
@@ -93,7 +87,7 @@
                         }
                         if (trackingInput) trackingInput.value = tracking;
                         uploadLabel.textContent = 'Opening…';
-                        openDocument(tracking);
+                        window.SpeedQr.openScanned(decodedText, 'image');
                     })
                     .catch(() => {
                         showError('Could not read a QR code from that image. Use a clearer, well-lit photo — or type the tracking number above.');
@@ -153,7 +147,9 @@
 
                         return;
                     }
-                    openDocument(tracking);
+                    // An internal request waiting for this person is received
+                    // by the same scan.
+                    window.SpeedQr.openScanned(decodedText, 'scan');
                 }, (cameraError) => {
                     stopCamera();
                     showError(window.SpeedQr.describe(cameraError) + ' You can upload a QR image instead — it works the same.');
@@ -162,6 +158,4 @@
         })();
     </script>
 
-    {{-- html5-qrcode's scanFile needs a container element to exist in the DOM. --}}
-    <div id="qr-file-reader-temp" class="hidden"></div>
 </x-app-layout>

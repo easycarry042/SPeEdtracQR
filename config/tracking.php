@@ -86,6 +86,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Overdue loans
+    |--------------------------------------------------------------------------
+    |
+    | A borrowing only closes when staff record the return on the Resources
+    | page, so late items stay counted as out instead of rejoining the stock on
+    | their return date. The hourly `inventory:check-overdue` sweep emails the
+    | borrower a reminder and bells the handling staff and their supervisors,
+    | then repeats every 'remind_every_days' while the loan stays overdue.
+    |
+    */
+
+    'loans' => [
+        'enabled' => env('TRACKING_LOAN_SWEEP', true),
+
+        /** Re-remind cadence while borrowed items stay overdue. */
+        'remind_every_days' => (int) env('TRACKING_LOAN_REMIND_DAYS', 3),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Public internal-request tracker
     |--------------------------------------------------------------------------
     |

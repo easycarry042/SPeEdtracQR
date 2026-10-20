@@ -1614,6 +1614,11 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
     background: #fdf6e3;
 }
 .dm-date-label { font-size: var(--fs-small); font-weight: 500; color: #7a5a12; }
+
+/* The request's reservation (chairs, a venue) in the Review modal: the same
+   quiet card family as the claiming date, in the green of the Resources page. */
+.dm-booking { padding: 14px 16px; border: 1px solid var(--hairline-strong); border-radius: 12px; background: #f7fbf8; }
+.dm-booking .dm-date-label { color: var(--green-deep); }
 .dm-date-value { margin-top: 2px; font-size: var(--fs-body); font-weight: 700; color: #6a4c0c; }
 .dm-tile {
     display: flex; width: 100px; min-height: 80px; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
@@ -1745,6 +1750,25 @@ button.bk-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--
 /* The edit row sits back from the row it belongs to, so an open panel reads as
    attached to that item rather than as another item. */
 .inv-edit { background: #fafcfb; }
+
+/* An empty lending queue or stock table: one quiet centred line. */
+.inv-empty { padding: 36px 16px !important; text-align: center; font-size: 13px; color: var(--ink-soft); }
+
+/* The lending desk's tabs and search share a row on a wide screen and stack
+   on a narrow one, where the tab track scrolls on its own. */
+.inv-desk-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.inv-desk-tabs { min-width: 0; max-width: 100%; overflow-x: auto; }
+
+/* Overdue is the one desk count that must not read as more green. */
+.st-tab-count.inv-tab-alert { background: var(--red); color: #fff; }
+
+/* Count and text fields inside the desk and edit rows. .st-filter-field is a
+   full-width filter control; here a count should look like a count. */
+.st-filter-field.inv-num { width: 6.5rem; }
+.st-filter-field.inv-text { width: 14rem; max-width: 100%; }
+
+/* An item's recent changes, beside its count form. */
+.inv-history { display: flex; flex-direction: column; gap: 8px; max-height: 15rem; overflow-y: auto; padding-left: 12px; border-left: 2px solid var(--hairline, #e3ebe6); }
 
 /* ── Date field on the public forms ───────────────────────────────────────
    The same calendar as the Look Up picker above, in a popover under a form

@@ -23,6 +23,7 @@ enum DocumentStatus: string
     case Returned = 'returned'; // side state — off the linear flow
     case OnHold = 'on_hold';    // side state — blocked/waiting; SLA paused
     case Denied = 'denied';     // terminal — supervisor rejected the request
+    case Withdrawn = 'withdrawn'; // terminal — the filing office closed a returned internal request
 
     /** EDIT LABELS HERE. */
     public function label(): string
@@ -36,6 +37,7 @@ enum DocumentStatus: string
             self::Returned => 'Returned / For Revision',
             self::OnHold => 'On Hold',
             self::Denied => 'Denied',
+            self::Withdrawn => 'Withdrawn',
         };
     }
 
@@ -51,6 +53,7 @@ enum DocumentStatus: string
             self::Returned => 'Something needs to be corrected. Please check for a message from staff.',
             self::OnHold => 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
             self::Denied => 'Your request could not be approved. Staff should have included a reason.',
+            self::Withdrawn => 'The office that filed this request closed it.',
         };
     }
 
@@ -82,7 +85,7 @@ enum DocumentStatus: string
     {
         $onRail = match ($this) {
             self::Returned => self::InReview,
-            self::OnHold, self::Denied => $before && $before->railStageOrNull() ? $before : self::InReview,
+            self::OnHold, self::Denied, self::Withdrawn => $before && $before->railStageOrNull() ? $before : self::InReview,
             default => $this,
         };
 
@@ -115,7 +118,18 @@ enum DocumentStatus: string
     /** Stages where the document is finished and the SLA clock stops. */
     public function isTerminal(): bool
     {
-        return $this === self::Completed || $this === self::Denied;
+        return $this === self::Completed || $this === self::Denied || $this === self::Withdrawn;
+    }
+
+    /**
+     * The stages a citizen request can be in: Withdrawn belongs to internal
+     * requests only, so citizen pages and citizen reports leave it out.
+     *
+     * @return array<int, self>
+     */
+    public static function citizenCases(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $s): bool => $s !== self::Withdrawn));
     }
 
     /** All stored status values. */
@@ -127,7 +141,7 @@ enum DocumentStatus: string
     /** Open/active stages (everything except the terminal ones) — used for "in progress" counts. */
     public static function activeValues(): array
     {
-        $terminal = [self::Completed->value, self::Denied->value];
+        $terminal = [self::Completed->value, self::Denied->value, self::Withdrawn->value];
 
         return array_values(array_filter(
             self::values(),
@@ -185,7 +199,7 @@ enum DocumentStatus: string
             // Terminal + off-line side states have no SLA. On Hold PAUSES the
             // clock — a null budget means isOverdue() is always false and the
             // hourly CheckDocumentSla sweep skips it.
-            self::Completed, self::Returned, self::OnHold, self::Denied => null,
+            self::Completed, self::Returned, self::OnHold, self::Denied, self::Withdrawn => null,
         };
     }
 
@@ -202,7 +216,7 @@ enum DocumentStatus: string
             self::InProgress, self::InReview => 'brass',
             self::Returned, self::Denied => 'warn',
             self::OnHold => 'hold',
-            self::Pending => 'muted',
+            self::Pending, self::Withdrawn => 'muted',
         };
     }
 

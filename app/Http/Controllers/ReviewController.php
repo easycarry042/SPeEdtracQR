@@ -10,6 +10,7 @@ use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
+use App\Support\Lending;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -122,6 +123,13 @@ class ReviewController extends Controller
         $actor = auth()->user()?->name ?? 'Supervisor';
         $comment = $document->logSystemComment("Denied by {$actor}".($reason ? " — {$reason}" : ''));
         event(new DocumentCommentPosted($comment));
+
+        // A denied request holds no chairs and no venue: free them for others.
+        // Quietly — the denial itself is what the citizen hears about.
+        $booking = $document->booking;
+        if ($booking && ! $booking->isCancelled() && ! $booking->isReleased()) {
+            Lending::cancel($booking, notify: false);
+        }
 
         return $this->done($document, "{$document->tracking_number} denied.");
     }
@@ -341,6 +349,15 @@ class ReviewController extends Controller
 
         $claimDate = Carbon::parse($validated['claim_date'])->startOfDay();
 
+        // A borrowing or reservation moves with it, or the Booking calendar
+        // and the Resources page keep showing the old day. Refused (and
+        // nothing saved) when the stock or the venue can't cover the new one.
+        $hadBooking = $this->bookingStart($document);
+
+        if ($refusal = Lending::followClaimDate($document, $claimDate)) {
+            throw ValidationException::withMessages(['claim_date' => $refusal]);
+        }
+
         $document->update(['claim_date' => $claimDate]);
 
         // Recorded as a staff note so the change shows in the feed and in Logs,
@@ -352,7 +369,16 @@ class ReviewController extends Controller
             'visibility' => 'internal',
         ]);
 
-        return $this->done($document, 'Claiming date set to '.$claimDate->format('M d, Y').'.');
+        $moved = $hadBooking !== null && $hadBooking !== $this->bookingStart($document);
+
+        return $this->done($document, 'Claiming date set to '.$claimDate->format('M d, Y').'.'
+            .($moved ? ' The booking moved to '.Lending::window($document->booking->fresh()).'.' : ''));
+    }
+
+    /** The current start of the request's booking, to tell whether it moved. */
+    private function bookingStart(Document $document): ?string
+    {
+        return $document->booking()->first()?->starts_at?->toDateTimeString();
     }
 
     private function authorizeReview(Document $document): void

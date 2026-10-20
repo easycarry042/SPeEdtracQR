@@ -60,7 +60,7 @@ class RequestTypeAdminTest extends TestCase
     public function test_admin_can_create_an_equipment_type_with_a_resource_and_requirement(): void
     {
         $admin = $this->admin();
-        $resource = \App\Models\Resource::create(['name' => 'Monoblock Chairs']);
+        $resource = \App\Models\Resource::create(['name' => 'Monoblock Chairs', 'kind' => \App\Models\Resource::KIND_EQUIPMENT]);
 
         $this->actingAs($admin)
             ->post(route('admin.request-types.store'), [

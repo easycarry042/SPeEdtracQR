@@ -79,6 +79,10 @@ final class InternalTracking
             return ['office' => null, 'person' => null, 'note' => 'This request was denied.'];
         }
 
+        if ($stage === DocumentStatus::Withdrawn) {
+            return ['office' => null, 'person' => null, 'note' => 'The office that filed it withdrew this request.'];
+        }
+
         if ($stage === DocumentStatus::Returned) {
             return [
                 'office' => $document->requestingDepartment?->name,

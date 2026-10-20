@@ -75,7 +75,7 @@
                     </div>
 
                     @can('assign documents')
-                        <a href="{{ route('admin.assignments.index', ['assignee' => $person['id']]) }}" class="dir-action">
+                        <a href="{{ route('dashboard', ['tab' => 'active', 'q' => $person['name']]) }}" class="dir-action">
                             View assignments
                             <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
                         </a>

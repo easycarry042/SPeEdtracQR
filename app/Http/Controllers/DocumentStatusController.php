@@ -8,6 +8,7 @@ use App\Events\DocumentStatusUpdated;
 use App\Mail\ActionNeededMail;
 use App\Mail\StatusUpdated;
 use App\Models\Document;
+use App\Support\Lending;
 use App\Support\StatusGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -59,6 +60,11 @@ class DocumentStatusController extends Controller
         // Hard stage gates: unmet requirements block the transition with a
         // per-requirement message.
         StatusGate::validate($document, $next, $note);
+
+        // The booking follows the claiming date (see ReviewController::setClaimDate).
+        if ($refusal = Lending::followClaimDate($document, $claimDate)) {
+            return $this->fail($refusal);
+        }
 
         $document->update(['claim_date' => $claimDate]);
 

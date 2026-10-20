@@ -25,7 +25,6 @@ class FilterDropdownTest extends TestCase
         return [
             'admin dashboard' => ['admin.dashboard'],
             'audit log' => ['admin.audit-log.index'],
-            'assignments' => ['admin.assignments.index'],
             'users' => ['admin.users.index'],
             'history' => ['history'],
             'staff directory' => ['staff.index'],

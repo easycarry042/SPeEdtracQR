@@ -116,7 +116,26 @@ class RequestTypeController extends Controller
             'name' => ['required', 'string', 'max:255', Rule::unique('request_types', 'name')->ignore($ignore?->id)],
             'kind' => ['required', Rule::in([RequestType::KIND_DOCUMENT, RequestType::KIND_BOOKING, RequestType::KIND_EQUIPMENT, RequestType::KIND_SERVICE])],
             'department_id' => ['nullable', 'exists:departments,id'],
-            'resource_id' => [Rule::requiredIf(fn (): bool => in_array($request->input('kind'), RequestType::RESOURCE_KINDS, true)), 'nullable', 'exists:resources,id'],
+            'resource_id' => [
+                Rule::requiredIf(fn (): bool => in_array($request->input('kind'), RequestType::RESOURCE_KINDS, true)),
+                'nullable',
+                'exists:resources,id',
+                // A booking type reserves a facility by time; an equipment type
+                // lends from a counted pile. Pointing one at the other would
+                // run the wrong stock rules on every request it files.
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    $resource = Resource::find($value);
+                    $kind = $request->input('kind');
+
+                    if ($resource && $kind === RequestType::KIND_EQUIPMENT && ! $resource->isEquipment()) {
+                        $fail("{$resource->name} is a facility. An equipment borrowing needs an equipment item.");
+                    }
+
+                    if ($resource && $kind === RequestType::KIND_BOOKING && $resource->isEquipment()) {
+                        $fail("{$resource->name} is equipment. A facility booking needs a facility.");
+                    }
+                },
+            ],
             'description' => ['nullable', 'string', 'max:500'],
             'requirements' => ['nullable', 'array'],
             'requirements.*.label' => ['required', 'string', 'max:255'],

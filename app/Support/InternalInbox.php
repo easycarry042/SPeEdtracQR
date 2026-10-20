@@ -35,7 +35,7 @@ final class InternalInbox
             ->latest();
 
         $active = DocumentStatus::activeValues();
-        $terminal = [DocumentStatus::Completed->value, DocumentStatus::Denied->value];
+        $terminal = [DocumentStatus::Completed->value, DocumentStatus::Denied->value, DocumentStatus::Withdrawn->value];
 
         if ($department) {
             return [

@@ -144,7 +144,7 @@
                         What do the statuses mean?
                     </summary>
                     <dl class="mt-2 space-y-1.5 border-t border-hairline pt-2">
-                        @foreach(\App\Enums\DocumentStatus::cases() as $s)
+                        @foreach(\App\Enums\DocumentStatus::citizenCases() as $s)
                             <div class="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
                                 <dt class="shrink-0 font-semibold text-ink sm:w-40">{{ $s->label() }}</dt>
                                 <dd class="text-ink-soft">{{ $s->description() }}</dd>
@@ -185,6 +185,11 @@
 
         {{-- ── Predicted completion (self-hosted analytics) ─────────────────── --}}
         <x-eta-estimate :prediction="$prediction ?? null" :document="$document" citizen />
+
+        {{-- ── Borrowing / reservation ──────────────────────────────────────── --}}
+        @if($document->booking?->resource)
+            @include('track.partials.citizen-booking', ['booking' => $document->booking])
+        @endif
 
         {{-- ── Document details ─────────────────────────────────────────────── --}}
         {{-- Internal document images are intentionally NOT shown on the public
@@ -603,7 +608,7 @@
         };
 
         // Plain-language status descriptions (mirrors DocumentStatus::description()).
-        const statusDesc = @json(collect(\App\Enums\DocumentStatus::cases())->mapWithKeys(fn ($s) => [$s->value => $s->description()]));
+        const statusDesc = @json(collect(\App\Enums\DocumentStatus::citizenCases())->mapWithKeys(fn ($s) => [$s->value => $s->description()]));
 
         function getStatusClasses(status) {
             return statusPill[status] ?? statusPill['in_transit'];

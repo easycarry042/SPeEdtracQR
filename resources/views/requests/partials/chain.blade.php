@@ -107,7 +107,7 @@
 
     {{-- The chain is open-ended: with nothing holding the request and no
          decision recorded, the next office joins it by scanning the folder. --}}
-    @if(! $document->currentRequestStep() && ! in_array($document->status, ['completed', 'denied', 'returned'], true))
+    @if(! $document->currentRequestStep() && ! in_array($document->status, ['completed', 'denied', 'withdrawn', 'returned'], true))
         <li class="flex gap-3">
             <div class="flex flex-col items-center">
                 <span class="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-hairline-strong bg-white text-xs font-bold text-ink-soft">?</span>
