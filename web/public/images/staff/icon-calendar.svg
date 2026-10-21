@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="fi-bs-calendar" clip-path="url(#clip0_0_101)">
+<path id="Vector" d="M19.25 1.83333H16.5V0H13.75V1.83333H8.25V0H5.5V1.83333H2.75C2.02065 1.83333 1.32118 2.12306 0.805456 2.63879C0.289731 3.15451 0 3.85399 0 4.58333L0 22H22V4.58333C22 3.85399 21.7103 3.15451 21.1945 2.63879C20.6788 2.12306 19.9793 1.83333 19.25 1.83333ZM2.75 19.25V9.16667H19.25V19.25H2.75Z" fill="#004004"/>
+</g>
+<defs>
+<clipPath id="clip0_0_101">
+<rect width="22" height="22" fill="white"/>
+</clipPath>
+</defs>
+</svg>

@@ -16,6 +16,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // The Laravel app at the repo root has its own package-lock.json, so Next
+  // guesses the wrong workspace root without this.
+  outputFileTracingRoot: import.meta.dirname,
   // Legacy storage paths: QR PNGs used to be served from /storage/qrcodes/*.
   async rewrites() {
     return [{ source: '/storage/:path*', destination: '/api/storage/:path*' }];
