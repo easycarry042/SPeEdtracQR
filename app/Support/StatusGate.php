@@ -56,8 +56,10 @@ class StatusGate
             DocumentStatus::Approved => [
                 [
                     'key' => 'requirements_verified',
-                    'label' => 'All required documents verified',
-                    'passed' => $document->unverifiedMandatoryRequirements()->isEmpty(),
+                    'label' => ($unchecked = $document->unverifiedMandatoryRequirements())->isEmpty()
+                        ? 'All required documents checked'
+                        : 'All required documents checked (still to check: '.$unchecked->pluck('label')->join(', ').')',
+                    'passed' => $unchecked->isEmpty(),
                 ],
                 // A borrowing or reservation is approved as a whole: the
                 // request cannot read "Approved" to the citizen while its

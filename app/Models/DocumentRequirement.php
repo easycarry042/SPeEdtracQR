@@ -31,6 +31,8 @@ class DocumentRequirement extends Model
         'label',
         'is_mandatory',
         'uploaded_file_path',
+        'opened_at',
+        'opened_by',
         'verified_at',
         'verified_by',
         'notes',
@@ -42,6 +44,7 @@ class DocumentRequirement extends Model
 
     protected $casts = [
         'is_mandatory' => 'boolean',
+        'opened_at' => 'datetime',
         'verified_at' => 'datetime',
         'reviewed_at' => 'datetime',
     ];
@@ -49,6 +52,15 @@ class DocumentRequirement extends Model
     public function isVerified(): bool
     {
         return $this->verified_at !== null;
+    }
+
+    /**
+     * Whether staff have looked at what the citizen sent. Nothing uploaded
+     * means the original is checked over the counter, so there is nothing to open.
+     */
+    public function hasBeenOpened(): bool
+    {
+        return $this->uploaded_file_path === null || $this->opened_at !== null;
     }
 
     public function needsRevision(): bool
@@ -85,6 +97,11 @@ class DocumentRequirement extends Model
     public function verifier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function opener(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'opened_by');
     }
 
     public function requirement(): BelongsTo

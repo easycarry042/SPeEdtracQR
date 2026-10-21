@@ -58,16 +58,23 @@ class SupervisorDashboardQueuesTest extends TestCase
             ->assertSee('Completed <span class="st-tab-count"', false);
     }
 
-    public function test_recently_completed_requests_ride_with_the_dashboard(): void
+    public function test_the_completed_tab_pages_through_the_offices_whole_history(): void
     {
-        $this->request('SPD-DONE-NEW', ['status' => 'completed', 'assigned_to' => $this->paolo->id]);
-        $this->request('SPD-DONE-OLD', ['status' => 'completed', 'assigned_to' => $this->paolo->id, 'status_changed_at' => now()->subDays(120)]);
-        $this->request('SPD-DONE-OM', ['status' => 'completed', 'department_id' => $this->mayor->id]);
+        $this->request('SPD-DONE-NEW', ['status' => 'completed', 'assigned_to' => $this->paolo->id, 'completed_at' => now()]);
+        $this->request('SPD-DONE-OLD', ['status' => 'completed', 'assigned_to' => $this->paolo->id, 'completed_at' => now()->subDays(120)]);
+        $this->request('SPD-DONE-OM', ['status' => 'completed', 'department_id' => $this->mayor->id, 'completed_at' => now()]);
 
-        $tracking = $this->actingAs($this->head)->get(route('dashboard'))
-            ->viewData('completedPayload')->pluck('tracking_number');
+        $this->actingAs($this->head)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Completed <span class="st-tab-count">2</span>', false);
 
-        $this->assertSame(['SPD-DONE-NEW'], $tracking->all());
+        $tracking = collect($this->actingAs($this->head)->getJson(route('history.data'))
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->json('data'))->pluck('tracking_number');
+
+        // No 90-day cut-off any more, and never another office's.
+        $this->assertSame(['SPD-DONE-NEW', 'SPD-DONE-OLD'], $tracking->all());
     }
 
     public function test_a_supervisor_reassigns_in_progress_work_from_the_modal(): void

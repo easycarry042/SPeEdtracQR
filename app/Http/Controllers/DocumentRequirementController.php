@@ -8,10 +8,12 @@ use App\Mail\RequirementRevisionRequested;
 use App\Models\Document;
 use App\Models\DocumentRequirement;
 use App\Support\AssignmentScope;
+use App\Support\RequestReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentRequirementController extends Controller
@@ -49,6 +51,10 @@ class DocumentRequirementController extends Controller
 
         $approved = $validated['review_status'] === DocumentRequirement::REVIEW_APPROVED;
 
+        if ($approved) {
+            $this->assertOpened($requirement);
+        }
+
         $requirement->update([
             'review_status' => $validated['review_status'],
             'review_comment' => $validated['review_comment'] ?? null,
@@ -68,7 +74,16 @@ class DocumentRequirementController extends Controller
             activity()->performedOn($document)->log("Emailed the citizen about \"{$requirement->label}\" ({$requirement->reviewStatusLabel()})");
         }
 
-        return back()->with('status', "Marked \"{$requirement->label}\" as {$requirement->reviewStatusLabel()}.");
+        $message = "Marked \"{$requirement->label}\" as {$requirement->reviewStatusLabel()}.";
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'requirement' => RequestReview::requirementPayload($document, $requirement->fresh()),
+            ]);
+        }
+
+        return back()->with('status', $message);
     }
 
     /**
@@ -84,6 +99,7 @@ class DocumentRequirementController extends Controller
             $requirement->update(['verified_at' => null, 'verified_by' => null]);
             $message = "Marked \"{$requirement->label}\" as not yet verified.";
         } else {
+            $this->assertOpened($requirement);
             $requirement->update(['verified_at' => now(), 'verified_by' => auth()->id()]);
             $message = "Verified \"{$requirement->label}\".";
         }
@@ -97,7 +113,7 @@ class DocumentRequirementController extends Controller
      * Stream a citizen-uploaded requirement file from the private disk to an
      * authorized staff member only (never anonymously fetchable).
      */
-    public function file(Document $document, DocumentRequirement $requirement): StreamedResponse
+    public function file(Request $request, Document $document, DocumentRequirement $requirement): StreamedResponse
     {
         abort_unless($requirement->document_id === $document->id, 404);
         abort_unless(AssignmentScope::userCanAccessDocument($document), 403);
@@ -106,6 +122,26 @@ class DocumentRequirementController extends Controller
         $disk = Storage::disk('local');
         abort_unless($disk->exists($requirement->uploaded_file_path), 404);
 
+        // `?open=1` is a reviewer opening the file to read it (thumbnails
+        // load without it). The first such open by someone who can check it
+        // is what unlocks "Looks good".
+        if ($request->boolean('open') && $requirement->opened_at === null
+            && $document->canBeAdvancedBy($request->user())) {
+            $requirement->update(['opened_at' => now(), 'opened_by' => $request->user()->id]);
+            activity()->performedOn($document)->causedBy($request->user())
+                ->log("Opened requirement \"{$requirement->label}\"");
+        }
+
         return $disk->response($requirement->uploaded_file_path);
+    }
+
+    /** An upload must be opened before anyone can say it checks out. */
+    private function assertOpened(DocumentRequirement $requirement): void
+    {
+        if (! $requirement->hasBeenOpened()) {
+            throw ValidationException::withMessages([
+                'review_status' => "Open \"{$requirement->label}\" first, then mark it checked.",
+            ]);
+        }
     }
 }

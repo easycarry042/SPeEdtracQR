@@ -474,6 +474,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/history', [HistoryController::class, 'index'])->name('history');
     Route::get('/history/export', [HistoryController::class, 'export'])->name('history.export');
+    // The dashboards' Completed tab, a page at a time.
+    Route::get('/history/data', [HistoryController::class, 'data'])->name('history.data');
 
     Route::patch('/documents/{document}/accept', [AssignmentController::class, 'accept'])
         ->middleware('permission:accept documents|assign documents')

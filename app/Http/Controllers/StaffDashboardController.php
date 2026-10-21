@@ -74,7 +74,9 @@ class StaffDashboardController extends Controller
             'inProgressCount' => $requests
                 ->whereNotIn('status', [DocumentStatus::Pending->value])
                 ->count(),
+            // Same set the Completed tab pages through (HistoryController::data).
             'completedCount' => Document::where('assigned_to', $user->id)
+                ->citizenFacing()
                 ->where('status', DocumentStatus::Completed->value)
                 ->count(),
         ]);

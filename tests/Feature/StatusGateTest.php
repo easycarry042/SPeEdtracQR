@@ -306,4 +306,62 @@ class StatusGateTest extends TestCase
         $this->assertSame('returned', $doc->status);
         $this->assertSame('The uploaded clearance is expired.', $doc->remarks);
     }
+
+    public function test_advance_reuses_the_claiming_date_already_set(): void
+    {
+        $staff = $this->staff();
+        $claim = now()->addDays(4)->startOfDay();
+        $doc = $this->doc($staff, ['claim_date' => $claim]);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertOk();
+
+        $doc->refresh();
+        $this->assertSame('in_review', $doc->status);
+        $this->assertTrue($doc->claim_date->isSameDay($claim));
+    }
+
+    public function test_advance_without_a_claiming_date_asks_for_one(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['claim_date' => 'Pick the claiming date for the citizen.']);
+
+        $this->assertSame('in_progress', $doc->fresh()->status);
+    }
+
+    public function test_advance_refuses_a_claiming_date_that_has_passed(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['claim_date' => now()->subDay()->startOfDay()]);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('claim_date');
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+                'claim_date' => now()->addDays(2)->toDateString(),
+            ])
+            ->assertOk();
+
+        $this->assertTrue($doc->fresh()->claim_date->isSameDay(now()->addDays(2)));
+    }
 }

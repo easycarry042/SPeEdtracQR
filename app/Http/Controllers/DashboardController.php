@@ -99,17 +99,11 @@ class DashboardController extends Controller
 
         $activePayload = RequestReview::collection($activeRequests);
 
-        // Finished work — the last thing only the Assignments page listed.
-        // The last 90 days keeps the payload bounded; older ones are in Reports.
-        $completedRequests = $this->deptScope($this->scopeDocuments(
-            Document::with('attachments', 'department', 'assignedTo', 'requirements')
-                ->where('origin', '!=', Document::ORIGIN_INTERNAL)
-                ->where('status', DocumentStatus::Completed->value)
-                ->where('status_changed_at', '>=', Date::now()->subDays(90))
-                ->latest('status_changed_at')
-        ), $deptId)->get();
-
-        $completedPayload = RequestReview::collection($completedRequests);
+        // Finished work is the whole history, so the Completed tab fetches it a
+        // page at a time (HistoryController::data); only its count rides here.
+        $completedCitizen = $this->deptScope($this->scopeDocuments(
+            Document::query()->citizenFacing()->where('status', DocumentStatus::Completed->value)
+        ), $deptId)->count();
 
         // Staff who can be assigned a request — a department-head Supervisor sees
         // only their own department's staff; org-wide admins see everyone.
@@ -133,7 +127,7 @@ class DashboardController extends Controller
             ? (new AdminAnalytics(Date::now()->subDays(29)->startOfDay(), Date::now()->endOfDay(), null, $deptId))->kpis()
             : null;
 
-        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'completedPayload' => $completedPayload, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'glance' => $glance]);
+        return view('dashboard', ['totalRequests' => $totalRequests, 'pendingRequest' => $pendingRequest, 'completed' => $completed, 'pendingOnly' => $pendingOnly, 'inProgress' => $inProgress, 'unassigned' => $pendingRequests->count(), 'completionRate' => $completionRate, 'recentActivity' => $recentActivity, 'pendingRequests' => $pendingRequests, 'pendingPayload' => $pendingPayload, 'activeRequests' => $activeRequests, 'activePayload' => $activePayload, 'completedCitizen' => $completedCitizen, 'assignableStaff' => $assignableStaff, 'staffWorkload' => $staffWorkload, 'statusSummary' => $statusSummary, 'dept' => $dept, 'isOrgWide' => $isOrgWide, 'spansDepartments' => $spansDepartments, 'glance' => $glance]);
     }
 
     /** Restrict a document query to one department (no-op when $deptId is null). */

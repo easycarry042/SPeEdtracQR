@@ -31,11 +31,17 @@ class DocumentStatusController extends Controller
             'expected_status' => ['required', 'string'],
             // Advancing sets the day the citizen collects. It replaces the old
             // free-text review note: the same decision, but a date the citizen
-            // can act on rather than prose only staff read.
-            'claim_date' => ['required', 'date', 'after_or_equal:today'],
+            // can act on rather than prose only staff read. A date already set
+            // (Adjust Date in the Review modal) carries over unless it has passed.
+            'claim_date' => [
+                Rule::requiredIf(fn () => ! $document->claim_date || $document->claim_date->lt(today())),
+                'nullable', 'date', 'after_or_equal:today',
+            ],
             'note' => ['nullable', 'string', 'max:1000'],
         ], [
-            'claim_date.required' => 'Pick the claiming date for the citizen.',
+            'claim_date.required' => $document->claim_date
+                ? 'The claiming date ('.$document->claim_date->format('M d, Y').') has passed. Pick a new one for the citizen.'
+                : 'Pick the claiming date for the citizen.',
             'claim_date.after_or_equal' => 'The claiming date cannot be in the past.',
         ]);
 
@@ -50,12 +56,15 @@ class DocumentStatusController extends Controller
             return $this->fail('Use Approve on the Requests page to mark this document completed and move it to History.');
         }
 
-        $claimDate = Carbon::parse($validated['claim_date'])->startOfDay();
+        $picked = filled($validated['claim_date'] ?? null);
+        $claimDate = $picked
+            ? Carbon::parse($validated['claim_date'])->startOfDay()
+            : $document->claim_date->copy()->startOfDay();
 
         // The claiming date is the work evidence the gate used to take as a
         // note, so the stage checks still have something concrete to accept.
         $note = trim((string) ($validated['note'] ?? '')) ?: null;
-        $note ??= 'Claiming date set to '.$claimDate->format('M d, Y').'.';
+        $note ??= ($picked ? 'Claiming date set to ' : 'Claiming date stays ').$claimDate->format('M d, Y').'.';
 
         // Hard stage gates: unmet requirements block the transition with a
         // per-requirement message.

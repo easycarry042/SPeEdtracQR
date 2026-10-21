@@ -116,10 +116,13 @@
 
              Both queues ride in one payload, so the Review modal resolves a row
              from either tab and the table can never disagree with it. Searched,
-             filtered and paged in the browser for the same reason.
+             filtered and paged in the browser for the same reason. Completed is
+             the office's whole history, so that tab is fetched a page at a time
+             (completed-tab-script).
              ───────────────────────────────────────────────────────────────── --}}
+        @include('partials.completed-tab-script')
         <section x-data="reviewPanel(@js([
-            'requests' => $pendingPayload->concat($activePayload)->concat($completedPayload),
+            'requests' => $pendingPayload->concat($activePayload),
             'mode' => 'supervisor',
             'staff' => $assignableStaff,
             'assignBase' => url('/documents'),
@@ -129,14 +132,20 @@
         ]))">
             <div x-data="{
                      ...window.stFilterMixin(),
+                     ...window.stCompletedMixin(@js(route('history.data'))),
                      /* ?tab= / ?q= — where the old Assignments page's links land. */
                      tab: ['pending', 'active', 'done'].includes(new URLSearchParams(location.search).get('tab'))
                          ? new URLSearchParams(location.search).get('tab') : 'pending',
                      q: new URLSearchParams(location.search).get('q') || '',
                      page: 1,
                      perPage: 10,
+                     init() {
+                         this.watchDone();
+                     },
                      typeOptions() {
-                         return this.uniqueTypes(this.requests.map((r) => r.document_type));
+                         return this.tab === 'done'
+                             ? this.done.types
+                             : this.uniqueTypes(this.requests.map((r) => r.document_type));
                      },
                      /* Unassigned, in flight or done, decided by the row itself so
                         the tabs cannot drift apart from the modal's payload. */
@@ -159,19 +168,25 @@
                                  .some((field) => (field || '').toLowerCase().includes(needle))));
                      },
                      get pageCount() {
-                         return Math.max(1, Math.ceil(this.matches.length / this.perPage));
+                         return this.tab === 'done' ? this.done.lastPage : Math.max(1, Math.ceil(this.matches.length / this.perPage));
                      },
                      get total() {
-                         return this.matches.length;
+                         return this.tab === 'done' ? this.done.total : this.matches.length;
                      },
                      get current() {
                          // Searching can shrink the list out from under the open page.
-                         return Math.min(this.page, this.pageCount);
+                         return this.tab === 'done' ? this.done.page : Math.min(this.page, this.pageCount);
                      },
                      get pageItems() {
-                         return this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
+                         return this.tab === 'done'
+                             ? this.done.items
+                             : this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
                      },
                      get pageList() {
+                         if (this.tab === 'done') {
+                             return this.donePageList();
+                         }
+
                          const last = this.pageCount;
 
                          if (last <= 6) {
@@ -186,7 +201,15 @@
                          return [1, 2, 3, 4, 5, 'gap', last];
                      },
                      go(page) {
-                         this.page = Math.min(Math.max(1, page), this.pageCount);
+                         const target = Math.min(Math.max(1, page), this.pageCount);
+
+                         if (this.tab === 'done') {
+                             this.loadDone(target);
+
+                             return;
+                         }
+
+                         this.page = target;
                      },
                  }">
 
@@ -206,7 +229,7 @@
                         </button>
                         <button type="button" role="tab" @click="tab = 'done'; page = 1"
                                 :class="tab === 'done' ? 'on' : ''" :aria-selected="tab === 'done'">
-                            Completed <span class="st-tab-count" x-text="queueCount('done')"></span>
+                            Completed <span class="st-tab-count">{{ $completedCitizen }}</span>
                         </button>
                     </div>
 
@@ -235,7 +258,7 @@
                                     @if($spansDepartments)
                                         <th>Department</th>
                                     @endif
-                                    <th>Date</th>
+                                    <th x-text="tab === 'done' ? 'Completed' : 'Date'">Date</th>
                                     <th>Requested by</th>
                                     {{-- Only meaningful on the In Progress tab: on the
                                          Unassigned one it would be a column of dashes. --}}
@@ -274,7 +297,7 @@
                                                 <span class="ml-1 mono text-xs text-ink-soft" x-show="req.thed_id" x-text="'· ' + req.thed_id"></span>
                                             </td>
                                         @endif
-                                        <td class="mono" x-text="req.submitted_at"></td>
+                                        <td class="mono" x-text="tab === 'done' ? req.completed_at : req.submitted_at"></td>
                                         <td x-text="req.citizen_name || '—'"></td>
                                         <td x-show="tab !== 'pending'" x-text="req.assigned_staff || '—'"></td>
                                         <td>
@@ -286,16 +309,20 @@
                                     </tr>
                                 </template>
 
-                                <tr x-show="matches.length === 0" class="st-empty">
+                                <tr x-show="tab === 'done' && done.loading && ! done.loaded" class="st-empty">
+                                    <td :colspan="{{ $spansDepartments ? 7 : 6 }}"><p class="text-sm text-ink-soft">Loading completed requests…</p></td>
+                                </tr>
+
+                                <tr x-show="tab === 'done' ? (done.loaded || done.failed) && pageItems.length === 0 : matches.length === 0" class="st-empty">
                                     <td :colspan="{{ $spansDepartments ? 6 : 5 }} + (tab === 'pending' ? 0 : 1)">
                                         <div class="mx-auto flex max-w-sm flex-col items-center">
                                             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
                                             </div>
                                             <p class="mt-3 text-sm font-semibold text-ink"
-                                               x-text="q || filterCount() ? 'No requests match' : ({ active: 'Nothing in progress', done: 'Nothing completed lately' }[tab] || 'No unassigned requests')"></p>
+                                               x-text="tab === 'done' && done.failed ? 'Completed requests could not be loaded' : (q || filterCount() ? 'No requests match' : ({ active: 'Nothing in progress', done: 'Nothing completed yet' }[tab] || 'No unassigned requests'))"></p>
                                             <p class="mt-1 text-sm text-ink-soft"
-                                               x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : ({ active: 'Requests your staff are working on appear here.', done: 'Requests finished in the last 90 days appear here.' }[tab] || 'New citizen submissions awaiting approval will appear here.')"></p>
+                                               x-text="tab === 'done' && done.failed ? 'Check your connection and open the tab again.' : (q || filterCount() ? 'Try another search, or loosen the filter.' : ({ active: 'Requests your staff are working on appear here.', done: 'Every request your office finishes appears here, newest first.' }[tab] || 'New citizen submissions awaiting approval will appear here.'))"></p>
                                         </div>
                                     </td>
                                 </tr>

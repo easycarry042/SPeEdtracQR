@@ -602,6 +602,9 @@
             @if(session('status'))
                 <div class="mt-4 rounded-lg border border-hairline bg-green-wash px-4 py-2 text-sm font-semibold text-green-deep">{{ session('status') }}</div>
             @endif
+            @if($errors->has('review_status'))
+                <div class="mt-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-2 text-sm font-semibold text-status-red" role="alert">{{ $errors->first('review_status') }}</div>
+            @endif
 
             @if($document->attachments->isNotEmpty())
                 <div class="mt-5">
@@ -646,8 +649,9 @@
                                 };
                             @endphp
                             @php
+                                // `?open=1`: viewing it here counts as opening it (see DocumentRequirementController::file).
                                 $fileUrl = $req->uploaded_file_path
-                                    ? route('documents.requirements.file', [$document, $req])
+                                    ? route('documents.requirements.file', [$document, $req]).'?open=1'
                                     : null;
                                 $extension = strtolower(pathinfo((string) $req->uploaded_file_path, PATHINFO_EXTENSION));
                                 $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'], true);
@@ -662,6 +666,9 @@
                                             <span class="text-[10.5px] font-semibold {{ $req->is_mandatory ? 'text-status-red' : 'text-ink-soft' }}">{{ $req->is_mandatory ? 'Required' : 'Optional' }}</span>
                                             <span class="rounded-full px-2 py-0.5 text-[10.5px] font-semibold {{ $badge }}">{{ $req->reviewStatusLabel() }}</span>
                                         </div>
+                                        @if($req->opened_at && ! $req->isVerified())
+                                            <p class="mt-1 text-[11px] font-medium text-ink-soft">Opened{{ $req->opener ? ' by '.$req->opener->name : '' }} · {{ $req->opened_at->format('M d, Y g:i A') }}</p>
+                                        @endif
                                         @if($req->isVerified())
                                             <p class="mt-1 text-[11px] font-medium text-green-deep">✓ Original verified{{ $req->verifier ? ' by '.$req->verifier->name : '' }} · {{ $req->verified_at?->format('M d, Y g:i A') }}</p>
                                         @endif

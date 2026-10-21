@@ -108,17 +108,26 @@
         </section>
         @endif
 
-        {{-- The table filters and paginates in the browser: the whole assigned
-             set is already in the Alpine payload that drives the review modal,
-             so a round trip per page would fetch what the page already holds. --}}
+        {{-- Two tabs. Active filters and paginates in the browser: the whole
+             assigned set is already in the Alpine payload that drives the review
+             modal. Completed is every request this staff member has finished,
+             so it is fetched a page at a time instead (completed-tab-script). --}}
+        @include('partials.completed-tab-script')
         <section class="mt-6"
                  x-data="{
                      ...window.stFilterMixin(),
+                     ...window.stCompletedMixin(@js(route('history.data'))),
+                     tab: new URLSearchParams(location.search).get('tab') === 'done' ? 'done' : 'active',
                      q: '',
                      page: 1,
                      perPage: 10,
+                     init() {
+                         this.watchDone();
+                     },
                      typeOptions() {
-                         return this.uniqueTypes(this.requests.map((r) => r.document_type));
+                         return this.tab === 'done'
+                             ? this.done.types
+                             : this.uniqueTypes(this.requests.map((r) => r.document_type));
                      },
                      get matches() {
                          const needle = this.q.trim().toLowerCase();
@@ -128,19 +137,25 @@
                                  .some((field) => (field || '').toLowerCase().includes(needle))));
                      },
                      get pageCount() {
-                         return Math.max(1, Math.ceil(this.matches.length / this.perPage));
+                         return this.tab === 'done' ? this.done.lastPage : Math.max(1, Math.ceil(this.matches.length / this.perPage));
                      },
                      get total() {
-                         return this.matches.length;
+                         return this.tab === 'done' ? this.done.total : this.matches.length;
                      },
                      get current() {
                          // Searching can shrink the list out from under the open page.
-                         return Math.min(this.page, this.pageCount);
+                         return this.tab === 'done' ? this.done.page : Math.min(this.page, this.pageCount);
                      },
                      get pageItems() {
-                         return this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
+                         return this.tab === 'done'
+                             ? this.done.items
+                             : this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
                      },
                      get pageList() {
+                         if (this.tab === 'done') {
+                             return this.donePageList();
+                         }
+
                          const last = this.pageCount;
 
                          if (last <= 6) {
@@ -155,20 +170,41 @@
                          return [1, 2, 3, 4, 5, 'gap', last];
                      },
                      go(page) {
-                         this.page = Math.min(Math.max(1, page), this.pageCount);
+                         const target = Math.min(Math.max(1, page), this.pageCount);
+
+                         if (this.tab === 'done') {
+                             this.loadDone(target);
+
+                             return;
+                         }
+
+                         this.page = target;
                      },
 
                  }">
 
-            {{-- Search --}}
-            <div class="st-toolbar mb-4">
-                <label for="requestSearch" class="sr-only">Search requests</label>
-                <div class="st-search">
-                    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
-                    <input id="requestSearch" type="search" x-model="q" @input="page = 1" placeholder="Search">
+            {{-- Tabs, then search --}}
+            <div class="st-toolbar mb-4 flex-wrap justify-between gap-3">
+                <div class="st-tabs" role="tablist" aria-label="Your requests">
+                    <button type="button" role="tab" @click="tab = 'active'; page = 1"
+                            :class="tab === 'active' ? 'on' : ''" :aria-selected="tab === 'active'">
+                        Active <span class="st-tab-count" x-text="requests.length"></span>
+                    </button>
+                    <button type="button" role="tab" @click="tab = 'done'"
+                            :class="tab === 'done' ? 'on' : ''" :aria-selected="tab === 'done'">
+                        Completed <span class="st-tab-count">{{ $completedCount }}</span>
+                    </button>
                 </div>
 
-                @include('partials.staff-table-filter', ['id' => 'dashFilter'])
+                <div class="flex min-w-0 flex-1 items-center justify-end gap-3">
+                    <label for="requestSearch" class="sr-only">Search requests</label>
+                    <div class="st-search">
+                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                        <input id="requestSearch" type="search" x-model="q" @input="page = 1" placeholder="Search">
+                    </div>
+
+                    @include('partials.staff-table-filter', ['id' => 'dashFilter'])
+                </div>
             </div>
 
             <div class="st-card">
@@ -178,7 +214,7 @@
                             <tr>
                                 <th>Request Type</th>
                                 <th>Tracking ID</th>
-                                <th>Date</th>
+                                <th x-text="tab === 'done' ? 'Completed' : 'Date'">Date</th>
                                 <th>Requested by</th>
                                 <th>Action</th>
                             </tr>
@@ -213,28 +249,32 @@
                                             <span x-text="req.unread_messages"></span> new
                                         </span>
                                     </td>
-                                    <td class="mono" x-text="req.submitted_at"></td>
+                                    <td class="mono" x-text="tab === 'done' ? req.completed_at : req.submitted_at"></td>
                                     <td x-text="req.citizen_name || '—'"></td>
                                     <td>
                                         <button type="button" @click="open(req)" class="st-action"
                                                 :class="req.needs_triage && 'text-green-deep'">
                                             <img src="{{ asset('images/staff/icon-eye.svg') }}" alt="">
-                                            <span x-text="req.needs_triage ? 'Review assignment' : 'Review'"></span>
+                                            <span x-text="tab === 'done' ? 'View details' : (req.needs_triage ? 'Review assignment' : 'Review')"></span>
                                         </button>
                                     </td>
                                 </tr>
                             </template>
 
-                            <tr x-show="matches.length === 0" class="st-empty">
+                            <tr x-show="tab === 'done' && done.loading && ! done.loaded" class="st-empty">
+                                <td colspan="5"><p class="text-sm text-ink-soft">Loading completed requests…</p></td>
+                            </tr>
+
+                            <tr x-show="tab === 'done' ? (done.loaded || done.failed) && pageItems.length === 0 : matches.length === 0" class="st-empty">
                                 <td colspan="5">
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
                                         <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
                                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
                                         </div>
                                         <p class="mt-3 text-sm font-semibold text-ink"
-                                           x-text="q || filterCount() ? 'No requests match' : 'No assigned requests'"></p>
+                                           x-text="tab === 'done' && done.failed ? 'Completed requests could not be loaded' : (q || filterCount() ? 'No requests match' : (tab === 'done' ? 'Nothing completed yet' : 'No assigned requests'))"></p>
                                         <p class="mt-1 text-sm text-ink-soft"
-                                           x-text="q || filterCount() ? 'Try another search, or loosen the filter.' : 'Requests your supervisor assigns to you will appear here.'"></p>
+                                           x-text="tab === 'done' && done.failed ? 'Check your connection and open the tab again.' : (q || filterCount() ? 'Try another search, or loosen the filter.' : (tab === 'done' ? 'Requests you finish appear here, newest first.' : 'Requests your supervisor assigns to you will appear here.'))"></p>
                                     </div>
                                 </td>
                             </tr>

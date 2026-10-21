@@ -119,7 +119,7 @@ class RequestReview
     /** @return array<string, mixed> */
     public static function forModal(Document $document): array
     {
-        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements', 'booking.resource');
+        $document->loadMissing('attachments', 'department', 'assignedTo', 'requirements.opener', 'requirements.verifier', 'booking.resource');
 
         return [
             'id' => $document->id,
@@ -153,6 +153,8 @@ class RequestReview
             'submitted_at' => $document->created_at?->format('M j, Y g:i A'),
             // Machine-readable day, for the staff tables' date-range filter.
             'submitted_on' => $document->created_at?->toDateString(),
+            // The Completed tab's date column.
+            'completed_at' => $document->completed_at?->format('M j, Y g:i A'),
             // Look Up desk: the long-form date the More Info table shows.
             'request_date' => $document->created_at?->format('F j, Y'),
             // Two different dates, deliberately. `needed_by` is what the citizen
@@ -194,20 +196,47 @@ class RequestReview
             })->values()->all(),
             // Requirement uploads live on their own table, not document_attachments,
             // so they need listing separately or the reviewer sees no evidence at all.
-            'requirements' => $document->requirements->map(function (DocumentRequirement $r) use ($document): array {
-                $ext = strtolower(pathinfo((string) $r->uploaded_file_path, PATHINFO_EXTENSION));
-                $hasFile = $r->uploaded_file_path !== null;
+            'requirements' => $document->requirements
+                ->map(fn (DocumentRequirement $r): array => self::requirementPayload($document, $r))
+                ->values()->all(),
+        ];
+    }
 
-                return [
-                    'label' => $r->label,
-                    'is_mandatory' => $r->is_mandatory,
-                    'review_status' => $r->review_status,
-                    'has_file' => $hasFile,
-                    'url' => $hasFile ? route('documents.requirements.file', [$document, $r]) : null,
-                    'ext' => $ext,
-                    'is_image' => $hasFile && self::isImageExtension($ext),
-                ];
-            })->values()->all(),
+    /**
+     * One supporting document for the Review modal: the file, whether the
+     * reviewer has opened it, and where its check stands.
+     *
+     * @return array<string, mixed>
+     */
+    public static function requirementPayload(Document $document, DocumentRequirement $requirement): array
+    {
+        $requirement->loadMissing('opener', 'verifier');
+        $ext = strtolower(pathinfo((string) $requirement->uploaded_file_path, PATHINFO_EXTENSION));
+        $hasFile = $requirement->uploaded_file_path !== null;
+        $url = $hasFile ? route('documents.requirements.file', [$document, $requirement]) : null;
+
+        return [
+            'id' => $requirement->id,
+            'label' => $requirement->label,
+            'is_mandatory' => $requirement->is_mandatory,
+            'review_status' => $requirement->review_status,
+            'review_status_label' => $requirement->reviewStatusLabel(),
+            'review_comment' => $requirement->review_comment,
+            'review_url' => route('documents.requirements.review', [$document, $requirement]),
+            'has_file' => $hasFile,
+            'url' => $url,
+            // Opening through this link is what counts as having looked at it.
+            'open_url' => $url ? $url.'?open=1' : null,
+            'opened' => $requirement->hasBeenOpened(),
+            'opened_label' => $requirement->opened_at
+                ? 'Opened by '.($requirement->opener?->name ?? 'staff').' · '.$requirement->opened_at->format('M j, g:i A')
+                : null,
+            'verified' => $requirement->isVerified(),
+            'verified_label' => $requirement->verified_at
+                ? 'Checked by '.($requirement->verifier?->name ?? 'staff').' · '.$requirement->verified_at->format('M j, g:i A')
+                : null,
+            'ext' => $ext,
+            'is_image' => $hasFile && self::isImageExtension($ext),
         ];
     }
 

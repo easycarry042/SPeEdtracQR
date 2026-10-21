@@ -42,6 +42,11 @@ class CitizenDocumentUploadController extends Controller
             'review_status' => DocumentRequirement::REVIEW_PENDING,
             'reviewed_at' => null,
             'reviewed_by' => null,
+            // A new file has to be opened and checked again.
+            'opened_at' => null,
+            'opened_by' => null,
+            'verified_at' => null,
+            'verified_by' => null,
         ]);
 
         activity()->performedOn($document)->log("Citizen re-uploaded \"{$requirement->label}\" for re-review");

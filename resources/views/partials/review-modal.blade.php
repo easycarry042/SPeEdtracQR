@@ -70,7 +70,10 @@
                     <div class="mt-6 flex flex-wrap items-stretch gap-2">
                         <div class="dm-date">
                             <p class="dm-date-label">Claiming Date</p>
-                            <p class="dm-date-value" x-text="active.claim_date || active.requested_claim_date || 'Not set yet'"></p>
+                            <p class="dm-date-value" x-text="active.claim_date || 'Not set yet'"></p>
+                            <p x-show="! active.claim_date && active.requested_claim_date" class="text-xs text-ink-soft">
+                                Citizen asked for <span x-text="active.requested_claim_date"></span>
+                            </p>
                         </div>
 
                         <button type="button" @click="toggleSide('date')"
@@ -214,11 +217,16 @@
                          requirement, each row linking to the authorized file stream. --}}
                     <section class="mt-7" x-show="active.requirements && active.requirements.length">
                         <h2 class="dm-section">Requirements for this request</h2>
-                        <ul class="dm-files">
-                            <template x-for="(req, i) in active.requirements" :key="i">
-                                <li class="dm-file">
+                        {{-- Each upload is opened, then checked. Opening it here
+                             (View, or its thumbnail) is recorded; Process stays
+                             blocked until every required one is checked. --}}
+                        <p x-show="active.can_advance && active.requirements.some((r) => r.is_mandatory && !r.verified)" x-cloak
+                           class="dm-file-meta mt-1">Open each file, then mark it <strong>Looks good</strong> or ask the citizen to fix it.</p>
+                        <ul class="dm-files" id="review-requirements">
+                            <template x-for="(req, i) in active.requirements" :key="req.id ?? i">
+                                <li class="dm-file !flex-wrap" :class="req.verified && 'bg-green-wash/40'">
                                     <template x-if="req.has_file">
-                                        <a :href="req.url" target="_blank" rel="noopener" class="dm-thumb">
+                                        <a :href="req.open_url" target="_blank" rel="noopener" class="dm-thumb" @click="markOpened(req)">
                                             <template x-if="req.is_image"><img :src="req.url" alt=""></template>
                                             <template x-if="!req.is_image">
                                                 <span class="dm-thumb-doc" :class="req.ext === 'pdf' && 'is-pdf'">
@@ -239,11 +247,50 @@
                                         <p class="dm-file-meta">
                                             <span x-show="req.is_mandatory" class="font-semibold text-status-red">Required</span>
                                             <span x-show="!req.is_mandatory">Optional</span>
-                                            <span x-show="!req.has_file"> · not uploaded</span>
+                                            <span x-show="!req.has_file"> · not uploaded, check the original at the counter</span>
+                                        </p>
+                                        {{-- Where this file stands: checked, sent back, opened, or not yet looked at. --}}
+                                        <p class="dm-file-meta mt-0.5">
+                                            <span x-show="req.verified" class="font-semibold text-green-deep" x-text="'✓ ' + (req.verified_label || 'Checked')"></span>
+                                            <span x-show="!req.verified && isSentBack(req)" class="font-semibold text-status-amber"
+                                                  x-text="req.review_status_label + (req.review_comment ? ': ' + req.review_comment : '')"></span>
+                                            <span x-show="!req.verified && !isSentBack(req) && req.has_file && req.opened" x-text="req.opened_label || 'Opened'"></span>
+                                            <span x-show="!req.verified && !isSentBack(req) && req.has_file && !req.opened" class="font-semibold text-status-amber">Not opened yet</span>
                                         </p>
                                     </div>
 
-                                    <a x-show="req.has_file" :href="req.url" target="_blank" rel="noopener" class="dm-file-open">View</a>
+                                    <a x-show="req.has_file" :href="req.open_url" target="_blank" rel="noopener" class="dm-file-open" @click="markOpened(req)">View</a>
+
+                                    {{-- The check itself, for whoever drives this request. --}}
+                                    <div x-show="active.can_advance && !req.verified" x-cloak class="w-full pl-[56px]">
+                                        <div x-show="reqAction.id !== req.id" class="flex flex-wrap items-center gap-2">
+                                            <button type="button" class="cr-btn cr-btn-sm cr-btn-primary disabled:opacity-40"
+                                                    :disabled="reqBusy || !req.opened"
+                                                    :title="req.opened ? '' : 'Open the file first'"
+                                                    @click="reviewRequirement(req, 'approved')">
+                                                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                                                Looks good
+                                            </button>
+                                            <button type="button" class="cr-btn cr-btn-sm" :disabled="reqBusy"
+                                                    @click="startRequirementReturn(req, 'needs_revision')">Needs fixing</button>
+                                            <button type="button" class="cr-btn cr-btn-sm cr-btn-danger" :disabled="reqBusy"
+                                                    @click="startRequirementReturn(req, 'rejected')">Reject</button>
+                                            <span x-show="req.has_file && !req.opened" class="dm-file-meta">Open the file to check it.</span>
+                                        </div>
+                                        <div x-show="reqAction.id === req.id" x-cloak>
+                                            <label class="dm-file-meta font-semibold" :for="'req-comment-' + req.id"
+                                                   x-text="reqAction.mode === 'rejected' ? 'Why is it rejected? The citizen is emailed this.' : 'What should the citizen fix? They are emailed this and can re-upload it.'"></label>
+                                            <textarea :id="'req-comment-' + req.id" x-model="reqAction.comment" rows="2" maxlength="1000"
+                                                      class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
+                                            <div class="mt-1 flex justify-end gap-2">
+                                                <button type="button" class="cr-btn cr-btn-sm" @click="reqAction = { id: null, mode: null, comment: '' }">Cancel</button>
+                                                <button type="button" class="cr-btn cr-btn-sm cr-btn-primary disabled:opacity-40"
+                                                        :disabled="reqBusy || !reqAction.comment.trim()"
+                                                        @click="reviewRequirement(req, reqAction.mode, reqAction.comment)">Send to citizen</button>
+                                            </div>
+                                        </div>
+                                        <p x-show="reqError && reqErrorId === req.id" x-cloak class="mt-1 text-xs font-semibold text-status-red" x-text="reqError"></p>
+                                    </div>
                                 </li>
                             </template>
                         </ul>
@@ -763,7 +810,7 @@
                                 <span>New claiming date <strong x-text="pickedLabel()"></strong></span>
                             </template>
                             <template x-if="! dateValue">
-                                <span>Pick a day for the citizen to claim.</span>
+                                <span>Pick a day for the citizen to claim. Advance uses it too.</span>
                             </template>
                         </p>
 
@@ -932,6 +979,11 @@
             side: null,       // 'date' | 'messages' | null — the second card
             allLogs: false,
             dateValue: '',
+            // Requirement checks: the row asking for a comment, and its state.
+            reqAction: { id: null, mode: null, comment: '' },
+            reqBusy: false,
+            reqError: '',
+            reqErrorId: null,
             calYear: 0,
             calMonth: 0,      // 0-11, as Date reports it
             draft: '',
@@ -1101,7 +1153,16 @@
                     // Fewer clicks: the confirm panel exists to collect a note, so
                     // when this stage does not require one, advance straight away
                     // instead of asking the same person to confirm their own click.
-                    case 'advance': return this.advanceNoteRequired() ? this.openAdvance() : this.confirmAdvance();
+                    case 'advance':
+                        if (!this.hasClaimDate()) return this.askForClaimDate();
+                        // In Review → Approved needs every required file checked.
+                        if (this.active.status === 'in_review' && this.uncheckedRequirements().length) {
+                            this.gateError = 'Check these required files first: ' + this.uncheckedRequirements().join(', ') + '.';
+                            document.getElementById('review-requirements')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                            return;
+                        }
+                        return this.advanceNoteRequired() ? this.openAdvance() : this.confirmAdvance();
                     case 'approve': return this.approve();
                     case 'resume': return this.setStatus('in_progress');
                     case 'unhold': return this.patchStatus('unhold', { blocked_by: null, hold_reason: null, hold_until: null, status_before_hold: null });
@@ -1131,6 +1192,20 @@
             },
             openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
             /**
+             * Advancing commits the day the citizen collects (the server
+             * refuses without one): a date picked in the calendar, else the one
+             * already set, as long as it has not passed.
+             */
+            hasClaimDate() {
+                return !!this.dateValue || (!!this.active?.claim_on && this.active.claim_on >= this.isoOf(new Date()));
+            },
+            askForClaimDate() {
+                this.side = 'date';
+                this.gateError = this.active?.claim_on
+                    ? 'The claiming date has passed. Pick a new day in the calendar, then press Advance again.'
+                    : 'Pick the claiming date for the citizen in the calendar, then press Advance again.';
+            },
+            /**
              * Applies the advance. Called from the confirm panel, and directly by
              * runPrimary() for stages that need no note — in which case there is
              * no panel state to reset beyond the (empty) note itself.
@@ -1139,10 +1214,22 @@
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
                 const hadNote = !!this.advanceNote.trim();
                 const data = hadNote ? { note: this.advanceNote.trim() } : {};
+                const extra = hadNote ? { has_work_evidence: true } : {};
+                // A day picked in the calendar but not applied goes with the advance.
+                if (this.dateValue) {
+                    data.claim_date = this.dateValue;
+                    Object.assign(extra, {
+                        claim_on: this.dateValue,
+                        claim_date: this.parseDate(this.dateValue + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                    });
+                }
                 this.advanceOpen = false;
                 // A submitted note is stored as a staff work note on the file.
-                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, data)
-                    .then(() => { this.advanceNote = ''; });
+                return this.patchStatus('status/advance', extra, data)
+                    .then(() => {
+                        this.advanceNote = '';
+                        if (!this.gateError) { this.dateValue = ''; }
+                    });
             },
 
             // ─── Move back: always carries a reason for the audit trail ───
@@ -1220,6 +1307,9 @@
                 this.revertOpen = false;
                 this.revertReason = '';
                 this.gateError = '';
+                this.reqAction = { id: null, mode: null, comment: '' };
+                this.reqError = '';
+                this.reqErrorId = null;
             },
 
             openById(id) {
@@ -1241,6 +1331,61 @@
                     this.readMessages();
                     this.$nextTick(() => this.scrollThread());
                 }
+            },
+
+            /* ── Requirement checks ─────────────────────────────────────────
+               Open the file (View or its thumbnail, which the server records),
+               then Looks good / Needs fixing / Reject. Process is refused
+               until every required file is checked. */
+
+            /** The server stamps the open; show it straight away here. */
+            markOpened(req) {
+                if (!this.active?.can_advance || req.opened) return;
+                req.opened = true;
+                req.opened_label = 'Opened by you just now';
+            },
+
+            isSentBack(req) {
+                return req.review_status === 'needs_revision' || req.review_status === 'rejected';
+            },
+
+            startRequirementReturn(req, mode) {
+                this.reqAction = { id: req.id, mode, comment: '' };
+                this.reqError = '';
+            },
+
+            /** Required files still to check, by name. */
+            uncheckedRequirements() {
+                return (this.active?.requirements || []).filter((r) => r.is_mandatory && !r.verified).map((r) => r.label);
+            },
+
+            reviewRequirement(req, mode, comment = '') {
+                if (this.reqBusy) return;
+                this.reqBusy = true;
+                this.reqError = '';
+                this.reqErrorId = req.id;
+
+                fetch(req.review_url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ review_status: mode, review_comment: comment.trim() || null }),
+                }).then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+                    this.reqBusy = false;
+
+                    if (!r.ok) {
+                        this.reqError = data.errors ? Object.values(data.errors).flat().join(' ') : (data.message || 'That could not be saved.');
+
+                        return;
+                    }
+
+                    Object.assign(req, data.requirement);
+                    this.reqAction = { id: null, mode: null, comment: '' };
+                    if (this.gateError.startsWith('Check ')) this.gateError = '';
+                }).catch(() => {
+                    this.reqBusy = false;
+                    this.reqError = 'Network error. Please try again.';
+                });
             },
 
             /** The claiming date the citizen sees on their tracking page. */
