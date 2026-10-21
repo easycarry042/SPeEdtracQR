@@ -11,11 +11,16 @@ import { actorById } from '@/lib/auth/actor';
 import { logActivity, SUBJECT } from '@/lib/activity';
 import { landingFor, routes } from '@/lib/routes';
 
+/**
+ * `FormData.get()` returns `null` for a field that was not rendered, not
+ * `undefined` — so optional fields have to be `.nullish()`, or an absent
+ * `next` fails validation and the form reports "Expected string, received
+ * null" instead of signing the user in.
+ */
 const schema = z.object({
   email: z.string().trim().min(1, 'Please enter your email address.').email('Enter a valid email address.'),
   password: z.string().min(1, 'Please enter your password.'),
-  remember: z.coerce.boolean().optional(),
-  next: z.string().optional(),
+  next: z.string().nullish(),
 });
 
 export type LoginState = { error?: string } | undefined;
@@ -32,7 +37,6 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
   const parsed = schema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
-    remember: formData.get('remember'),
     next: formData.get('next'),
   });
 

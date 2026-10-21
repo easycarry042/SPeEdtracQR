@@ -236,6 +236,10 @@ export const REVIEW_SELECT = {
   assigned_to: true,
   accepted_at: true,
   created_at: true,
+  // Not read by the modal, but the SLA anchor every queue needs for its
+  // at-risk ordering — selecting it here keeps that one query, not two.
+  status_changed_at: true,
+  updated_at: true,
   needed_by: true,
   claim_date: true,
   department: { select: { name: true, code: true } },
@@ -273,6 +277,8 @@ type ReviewSource = {
   assigned_to: bigint | null;
   accepted_at: Date | null;
   created_at: Date | null;
+  status_changed_at: Date | null;
+  updated_at: Date | null;
   needed_by: Date | null;
   claim_date: Date | null;
   department: { name: string; code: string } | null;
