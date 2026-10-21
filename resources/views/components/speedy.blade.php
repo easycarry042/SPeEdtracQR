@@ -550,17 +550,21 @@
             // never what was said — so the thread is fetched through the
             // confirmed-citizen endpoint.
             listen(tracking) {
-                if (!window.Echo || this.subscribed[tracking]) return;
+                if (this.subscribed[tracking]) return;
                 this.subscribed[tracking] = true;
-                try {
-                    window.Echo.channel('documents.' + tracking).listen('.thread', () => {
-                        if (this.open && this.tab === 'office' && this.context?.tracking === tracking) {
-                            this.loadThread();
-                        } else {
-                            this.refreshInbox();
-                        }
-                    });
-                } catch (e) { /* the poll covers it */ }
+                // Alpine can call this before the deferred bundle has created
+                // Echo, so wait for it rather than bailing out for good.
+                window.whenEcho(() => {
+                    try {
+                        window.Echo.channel('documents.' + tracking).listen('.thread', () => {
+                            if (this.open && this.tab === 'office' && this.context?.tracking === tracking) {
+                                this.loadThread();
+                            } else {
+                                this.refreshInbox();
+                            }
+                        });
+                    } catch (e) { /* the poll covers it */ }
+                });
             },
 
             // ── QR scanning ──────────────────────────────────────────────

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CitizenController;
 use App\Http\Controllers\CitizenDocumentUploadController;
@@ -387,6 +388,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/profile/signature', [SignatureController::class, 'store'])->name('profile.signature.store');
     Route::get('/profile/signature', [SignatureController::class, 'show'])->name('profile.signature.show');
     Route::delete('/profile/signature', [SignatureController::class, 'destroy'])->name('profile.signature.destroy');
+
+    // Profile picture. Stored privately; show() is auth-only so a colleague can
+    // see a colleague but the public never can (staff anonymity).
+    Route::post('/profile/avatar', [AvatarController::class, 'store'])->name('profile.avatar.store');
+    Route::delete('/profile/avatar', [AvatarController::class, 'destroy'])->name('profile.avatar.destroy');
+    Route::get('/staff/{user}/avatar', [AvatarController::class, 'show'])->name('staff.avatar');
 
     // Supervisor approve = assign to staff (staff must accept on Requests page).
     Route::post('/documents/{document}/assign-approve', [ReviewController::class, 'assignApprove'])->name('documents.assign-approve');

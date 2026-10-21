@@ -17,6 +17,7 @@
          in with <x-app-layout title="Assignments">; the shell name alone is the
          fallback for any page that has not been given one yet. --}}
     <title>{{ $attributes->get('title') ? $attributes->get('title').' — ' : '' }}{{ config('app.name', 'SPeED TraQR') }}</title>
+    @include('layouts.partials.echo-ready')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
     {{-- Page-specific assets (e.g. the PDF editor's own bundle). --}}

@@ -50,8 +50,8 @@ class ProfileActivityTimelineTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('sp-tl-row', $html, 'the feed should render as timeline rows');
-        $this->assertStringContainsString('sp-tl-headline', $html);
+        $this->assertStringContainsString('gs-tl-row', $html, 'the feed should render as timeline rows');
+        $this->assertStringContainsString('gs-tl-headline', $html);
         $this->assertStringContainsString('Assigned to Paolo Mendoza', $html);
     }
 
@@ -68,9 +68,9 @@ class ProfileActivityTimelineTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('sp-tl-row t-red', $html);
+        $this->assertStringContainsString('gs-tl-row t-red', $html);
         // The reason is split onto its own line rather than run into the headline.
-        $this->assertStringContainsString('sp-tl-detail', $html);
+        $this->assertStringContainsString('gs-tl-detail', $html);
         $this->assertStringContainsString('Please attach the approved equipment list.', $html);
     }
 
@@ -87,8 +87,8 @@ class ProfileActivityTimelineTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('sp-tl-row t-green', $html);
-        $this->assertStringContainsString('sp-tl-row t-blue', $html);
+        $this->assertStringContainsString('gs-tl-row t-green', $html);
+        $this->assertStringContainsString('gs-tl-row t-blue', $html);
     }
 
     public function test_a_long_run_of_updates_folds_after_the_first_few(): void
@@ -107,12 +107,12 @@ class ProfileActivityTimelineTest extends TestCase
 
         // Four shown, three folded away behind the control — all seven are in
         // the page, so nothing is lost, it is just not all shouting at once.
-        $this->assertSame(7, substr_count($html, 'sp-tl-row'), 'every update should still be in the page');
+        $this->assertSame(7, substr_count($html, 'gs-tl-row'), 'every update should still be in the page');
         // Matched on the row itself — the "Show fewer" control carries the same
         // x-show, and counting the bare attribute counted it too.
         $this->assertSame(
             3,
-            preg_match_all('/<li class="sp-tl-row[^"]*" x-show="open" x-cloak>/', $html),
+            preg_match_all('/<li class="gs-tl-row[^"]*" x-show="open" x-cloak>/', $html),
             'the overflow rows should be folded'
         );
         $this->assertStringContainsString('Show 3 earlier updates', $html);

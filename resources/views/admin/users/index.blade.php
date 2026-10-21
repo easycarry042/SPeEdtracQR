@@ -102,7 +102,15 @@
                                                 <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{{ $work['overdue'] }} overdue</span>
                                             @endif
                                         </div>
-                                        <div class="text-xs text-gray-400">{{ $work['last_active'] ? 'Active '.$work['last_active'] : 'No activity yet' }}</div>
+                                        <div class="text-xs text-gray-400">
+                                            @if($work['active_now'])
+                                                Active now
+                                            @elseif($work['last_active'])
+                                                Active {{ $work['last_active'] }}
+                                            @else
+                                                No activity yet
+                                            @endif
+                                        </div>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3">

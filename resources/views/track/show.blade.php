@@ -870,7 +870,10 @@
              * under the message it answers; new top-level messages go to the end,
              * the way a conversation reads.
              */
-            window.Echo.private('documents.' + id + '.staff').listen('.comment', (e) => {
+            // whenEcho, not a bare window.Echo: this inline script runs before
+            // the deferred bundle that creates Echo, so touching it here throws
+            // and the whole block below never runs.
+            window.whenEcho(() => window.Echo.private('documents.' + id + '.staff').listen('.comment', (e) => {
                 if (document.getElementById('comment-' + e.id)) return;
                 document.getElementById('collabEmpty')?.remove();
 
@@ -917,7 +920,7 @@
                 } else {
                     feed.appendChild(el);
                 }
-            });
+            }));
         })();
     </script>
     <script>

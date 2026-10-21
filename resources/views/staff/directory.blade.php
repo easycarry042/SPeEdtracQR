@@ -44,14 +44,22 @@
                     <a href="{{ $person['url'] }}" class="dir-cover" aria-label="View {{ $person['name'] }}'s profile"></a>
 
                     <div class="dir-top">
-                        <span class="avatar dir-avatar">{{ $person['initials'] ?: '?' }}</span>
+                        <x-user-avatar :id="$person['id']" :name="$person['name']" :avatar-path="$person['avatar_path']" class="avatar dir-avatar" />
                         <div class="dir-meta">
                             <div class="dir-name">{{ $person['name'] }}</div>
                             <div class="dir-sub">
                                 @if($person['role'])
                                     <span class="sp-role">{{ \Illuminate\Support\Str::headline($person['role']) }}</span>
                                 @endif
-                                <span class="dir-active">{{ $person['last_active'] ? 'Active '.$person['last_active'] : 'No activity yet' }}</span>
+                                <span class="dir-active">
+                                    @if($person['active_now'])
+                                        Active now
+                                    @elseif($person['last_active'])
+                                        Active {{ $person['last_active'] }}
+                                    @else
+                                        No activity yet
+                                    @endif
+                                </span>
                             </div>
                         </div>
                         @if($person['overdue'] > 0)

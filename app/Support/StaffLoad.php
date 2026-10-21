@@ -18,7 +18,7 @@ final class StaffLoad
 {
     /**
      * @param  Collection<int, int>|array<int, int>  $userIds
-     * @return Collection<int, array{assigned: int, completed: int, month: int, overdue: int, last_active: ?string}>
+     * @return Collection<int, array{assigned: int, completed: int, month: int, overdue: int, last_active: ?string, active_now: bool}>
      */
     public static function for(Collection|array $userIds): Collection
     {
@@ -57,22 +57,41 @@ final class StaffLoad
             ->filter(fn (Document $d): bool => $d->isOverdue())
             ->countBy('assigned_to');
 
-        // Presence: most recent activity-log entry per user.
-        $lastActive = DB::table('activity_log')
-            ->where('causer_type', User::class)
-            ->whereIn('causer_id', $ids)
-            ->select('causer_id', DB::raw('MAX(created_at) as last'))
-            ->groupBy('causer_id')
-            ->pluck('last', 'causer_id');
+        // Presence: the stamp TrackLastActive writes on every page a person
+        // opens. The activity log is only a fallback, for accounts not seen
+        // since that column existed — on its own it reports the last thing
+        // they CHANGED, so anyone merely reading the site read as idle.
+        $lastActive = DB::table('users')
+            ->whereIn('id', $ids)
+            ->whereNotNull('last_active_at')
+            ->pluck('last_active_at', 'id');
+
+        $unseen = $ids->reject(fn (int $id): bool => isset($lastActive[$id]))->values();
+
+        if ($unseen->isNotEmpty()) {
+            $lastActive = $lastActive->union(
+                DB::table('activity_log')
+                    ->where('causer_type', User::class)
+                    ->whereIn('causer_id', $unseen)
+                    ->select('causer_id', DB::raw('MAX(created_at) as last'))
+                    ->groupBy('causer_id')
+                    ->pluck('last', 'causer_id')
+            );
+        }
 
         return $ids->mapWithKeys(fn (int $id): array => [$id => [
             'assigned' => (int) ($assigned[$id] ?? 0),
             'completed' => (int) ($completed[$id] ?? 0),
             'month' => (int) ($completedThisMonth[$id] ?? 0),
             'overdue' => (int) ($overdue[$id] ?? 0),
+            // Same five-minute window the profile header uses, so one person
+            // cannot read "Active now" on their profile and "Active 1h ago"
+            // in the directory at the same moment.
             'last_active' => isset($lastActive[$id])
                 ? Date::parse($lastActive[$id])->diffForHumans(short: true)
                 : null,
+            'active_now' => isset($lastActive[$id])
+                && Date::parse($lastActive[$id])->gt(now()->subMinutes(5)),
         ]]);
     }
 }

@@ -19,6 +19,11 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Pinned so the suite does not inherit whatever the machine's .env
+             currently points at. With an https APP_URL, route() generates https
+             URLs, $request->secure() turns true, and the "no HSTS over plain
+             http" test fails for a reason that has nothing to do with the code. -->
+        <env name="APP_URL" value="http://localhost"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

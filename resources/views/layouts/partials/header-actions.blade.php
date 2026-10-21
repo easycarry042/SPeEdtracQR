@@ -225,7 +225,7 @@
             class="header-chip"
             aria-label="Account menu for {{ $name }}"
             aria-haspopup="true" aria-expanded="false">
-        <span class="header-avatar" aria-hidden="true">{{ $initials }}</span>
+        <x-user-avatar :user="auth()->user()" :name="$name" class="header-avatar" />
 
         {{-- Name, then role and office. Drops below sm: the avatar and caret
              still open the menu. --}}
