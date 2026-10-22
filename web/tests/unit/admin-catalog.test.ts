@@ -19,8 +19,16 @@ const typeAggregate = vi.fn();
 const requirementCreateMany = vi.fn();
 const requirementDeleteMany = vi.fn();
 const departmentFindFirst = vi.fn();
+const departmentFindMany = vi.fn();
 const resourceFindFirst = vi.fn();
 const resourceFindMany = vi.fn();
+const templateFindMany = vi.fn();
+const templateFindFirst = vi.fn();
+const templateCreate = vi.fn();
+const templateUpdate = vi.fn();
+const templateDelete = vi.fn();
+const templateStepCreateMany = vi.fn();
+const templateStepDeleteMany = vi.fn();
 const logActivity = vi.fn();
 
 vi.mock('@/lib/db', () => ({
@@ -37,10 +45,19 @@ vi.mock('@/lib/db', () => ({
       createMany: requirementCreateMany,
       deleteMany: requirementDeleteMany,
     },
-    departments: { findFirst: departmentFindFirst, findMany: vi.fn() },
+    departments: { findFirst: departmentFindFirst, findMany: departmentFindMany },
     resources: { findFirst: resourceFindFirst, findMany: resourceFindMany },
-    route_templates: {},
-    route_template_steps: {},
+    route_templates: {
+      findMany: templateFindMany,
+      findFirst: templateFindFirst,
+      create: templateCreate,
+      update: templateUpdate,
+      delete: templateDelete,
+    },
+    route_template_steps: {
+      createMany: templateStepCreateMany,
+      deleteMany: templateStepDeleteMany,
+    },
     bookings: { count: vi.fn() },
   },
   toId: (value: bigint | number) => Number(value),
@@ -54,11 +71,14 @@ vi.mock('@/lib/activity', () => ({
 
 const {
   createRequestType,
+  createRouteTemplate,
   deleteRequestType,
+  deleteRouteTemplate,
   requestTypeList,
   resourceOptions,
   toggleRequestType,
   updateRequestType,
+  updateRouteTemplate,
 } = await import('@/lib/domain/admin-catalog');
 
 const permit = {
@@ -80,8 +100,12 @@ beforeEach(() => {
   typeCreate.mockResolvedValue({ id: 11n });
   typeAggregate.mockResolvedValue({ _max: { sort_order: 4 } });
   departmentFindFirst.mockResolvedValue({ id: 3n });
+  departmentFindMany.mockResolvedValue([{ id: 3n }]);
   resourceFindFirst.mockResolvedValue({ id: 7n, name: 'Monoblock Chairs', kind: 'equipment' });
   resourceFindMany.mockResolvedValue([]);
+  templateFindFirst.mockResolvedValue(null);
+  templateFindMany.mockResolvedValue([]);
+  templateCreate.mockResolvedValue({ id: 21n });
 });
 
 describe('createRequestType', () => {
@@ -301,6 +325,149 @@ describe('requestTypeList', () => {
     const [row] = await requestTypeList();
 
     expect(row).toMatchObject({ office: null, officeCode: null, requirements: 2 });
+  });
+});
+
+describe('route templates', () => {
+  /**
+   * Port of `RouteTemplateTest::super_admin_can_create_a_template_with_branching_steps`,
+   * `template_requires_at_least_one_valid_step` and
+   * `updating_a_template_replaces_its_steps`.
+   */
+  const procurement = {
+    name: 'Procurement Request',
+    description: 'RA 12009 flow',
+    steps: [
+      { stepOrder: 1, departmentId: 3, action: 'Approve request', condition: null },
+      { stepOrder: 2, departmentId: 4, action: 'Small Value Procurement', condition: 'below_threshold' },
+      { stepOrder: 2, departmentId: 4, action: 'Public Bidding', condition: 'at_least_threshold' },
+    ],
+  };
+
+  it('keeps two steps that share a step number — that is how a route branches', async () => {
+    departmentFindMany.mockResolvedValue([{ id: 3n }, { id: 4n }]);
+
+    await createRouteTemplate(procurement);
+
+    expect(templateStepCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ step_order: 1, condition: null, route_template_id: 21n }),
+        expect.objectContaining({ step_order: 2, condition: 'below_threshold' }),
+        expect.objectContaining({ step_order: 2, condition: 'at_least_threshold' }),
+      ],
+    });
+  });
+
+  it('accepts the condition values the seeded chains already use', async () => {
+    departmentFindMany.mockResolvedValue([{ id: 3n }]);
+
+    await createRouteTemplate({
+      ...procurement,
+      steps: [
+        { stepOrder: 1, departmentId: 3, action: 'Certify fund availability', condition: 'has_amount' },
+      ],
+    });
+
+    expect(templateStepCreateMany).toHaveBeenCalled();
+  });
+
+  it('refuses a condition this system does not know', async () => {
+    await expect(
+      createRouteTemplate({
+        ...procurement,
+        steps: [{ stepOrder: 1, departmentId: 3, action: 'Approve', condition: 'if_approved' }],
+      }),
+    ).rejects.toThrow('That step condition is not one this system knows.');
+
+    expect(templateCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a chain with no office in it', async () => {
+    await expect(createRouteTemplate({ ...procurement, steps: [] })).rejects.toThrow(
+      'A template needs at least one office in its chain.',
+    );
+
+    // A row the form left on screen with no office picked is not a step.
+    await expect(
+      createRouteTemplate({
+        ...procurement,
+        steps: [{ stepOrder: 1, departmentId: 0, action: 'Approve', condition: null }],
+      }),
+    ).rejects.toThrow('at least one office');
+  });
+
+  it('refuses an office that no longer exists', async () => {
+    departmentFindMany.mockResolvedValue([]);
+
+    await expect(
+      createRouteTemplate({
+        ...procurement,
+        steps: [{ stepOrder: 1, departmentId: 999999, action: 'Approve', condition: null }],
+      }),
+    ).rejects.toThrow('One of those offices no longer exists.');
+  });
+
+  it('refuses a step number outside 1–50 and an action with no words', async () => {
+    await expect(
+      createRouteTemplate({
+        ...procurement,
+        steps: [{ stepOrder: 0, departmentId: 3, action: 'Approve', condition: null }],
+      }),
+    ).rejects.toThrow('numbered between 1 and 50');
+
+    await expect(
+      createRouteTemplate({
+        ...procurement,
+        steps: [{ stepOrder: 1, departmentId: 3, action: '  ', condition: null }],
+      }),
+    ).rejects.toThrow('Say what each office does');
+  });
+
+  it('refuses a duplicate template name', async () => {
+    templateFindFirst.mockResolvedValue({ id: 9n });
+
+    await expect(createRouteTemplate(procurement)).rejects.toThrow(
+      'A template called Procurement Request already exists.',
+    );
+  });
+
+  it('replaces the chain wholesale on update', async () => {
+    templateFindFirst
+      .mockResolvedValueOnce({
+        id: 21n,
+        name: 'Procurement Request',
+        description: null,
+        is_active: true,
+        steps: [{ step_order: 1, department_id: 3n, action: 'Old hop', condition: null }],
+      })
+      .mockResolvedValueOnce(null);
+
+    await updateRouteTemplate(21, {
+      ...procurement,
+      steps: [{ stepOrder: 1, departmentId: 3, action: 'Approve request', condition: null }],
+    });
+
+    // Templates only prefill new requests, so chains already materialised onto
+    // request_steps are untouched by this.
+    expect(templateStepDeleteMany).toHaveBeenCalledWith({ where: { route_template_id: 21n } });
+    expect(templateStepCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ action: 'Approve request' })],
+    });
+  });
+
+  it('takes the chain with it on delete', async () => {
+    templateFindFirst.mockResolvedValue({
+      id: 21n,
+      name: 'Procurement Request',
+      description: null,
+      is_active: true,
+      steps: [],
+    });
+
+    await deleteRouteTemplate(21);
+
+    expect(templateStepDeleteMany).toHaveBeenCalledWith({ where: { route_template_id: 21n } });
+    expect(templateDelete).toHaveBeenCalledWith({ where: { id: 21n } });
   });
 });
 

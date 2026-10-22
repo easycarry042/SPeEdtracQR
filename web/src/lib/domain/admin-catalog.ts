@@ -4,6 +4,7 @@ import { logActivity, SUBJECT } from '@/lib/activity';
 import { ActionError } from '@/lib/domain/status-actions';
 import { BOOKING_STATUS, KIND_EQUIPMENT, KIND_FACILITY } from '@/lib/domain/lending';
 import { REQUEST_KINDS, RESOURCE_KINDS } from '@/lib/domain/request-kinds';
+import { STEP_CONDITIONS } from '@/lib/domain/route-template';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -341,7 +342,7 @@ export async function deleteRequestType(requestTypeId: number): Promise<{ messag
 
 // ===== Route templates =====
 
-export const STEP_CONDITIONS = ['always', 'if_approved', 'if_over_threshold'] as const;
+export { STEP_CONDITIONS, type StepCondition } from '@/lib/domain/route-template';
 
 export type TemplateStepInput = {
   stepOrder: number;
