@@ -71,7 +71,7 @@ Roles seeded by `RolesAndPermissionsSeeder`:
 - `department_admin` — manage users (own dept), view reports, view all documents
 - `super_admin` — all permissions; org-wide (not scoped to one department)
 
-Department scoping is centralized in `App\Support\DepartmentScope`; `super_admin` is org-wide, everyone else is limited to their `department_id`.
+Department scoping is centralized in `App\Support\AssignmentScope`; `super_admin` is org-wide, everyone else is limited to their `department_id`.
 
 Default admin: `admin@speedtraqr.com` (password from `ADMIN_PASSWORD`, dev fallback `password123`).
 
@@ -139,9 +139,28 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 ### Local dev notes (this machine)
 
-- XAMPP PHP 8.5 + MariaDB on port **3307** (see `.env`; never print `DB_PASSWORD`). Vite dev server writes `public/hot`; tests run on in-memory SQLite.
+- **MySQL 8 on port 3306** (`DB_HOST=127.0.0.1`, database `speedtraqr`; see `.env`, and never print `DB_PASSWORD`). This file used to say MariaDB on 3307, which cost a session a failed connection. Vite dev server writes `public/hot`; the PHP tests run on in-memory SQLite.
 - The landing page must render without a database query for ordinary visitors (`tests/Feature/ExampleTest.php` has no DB).
 - Working branch is `biddyblas` (the team merges it into `riskofrain`; fetch that with `git fetch origin riskofrain:refs/remotes/origin/riskofrain`). Leave `SKILL.md` and the local `package-lock.json` name change uncommitted.
+- The Next.js port is on branch **`riskofrain2`** (see below).
+
+## The Next.js port (`web/`, branch `riskofrain2`)
+
+A parallel rewrite of this system in Next.js, **sharing the same MySQL database** through Prisma (`web/prisma/schema.prisma` is introspected from Laravel's migrations — Laravel's migrations stay the source of truth). Laravel is still the working system; the port is incomplete and is being filled in screen by screen.
+
+```bash
+cd web
+npm run dev            # dev server on :3000
+npx vitest run         # the TypeScript suite
+npx tsc --noEmit       # typecheck
+npm run build          # production build (run it before committing a slice)
+```
+
+- **URLs are byte-identical to the Laravel ones** and are named in `web/src/lib/routes.ts` — QR stickers, receipt emails and bookmarks already in people's hands encode them.
+- **Layers**: `lib/domain/*` are the ports of `app/Support` + model logic (they reach the database); `app/actions/*` are the `'use server'` write paths, each returning `{ ok, message }` rather than throwing; pages are server components wrapped in `AuthenticatedPage`.
+- **Only types may cross into a `'use client'` component from a domain module.** Importing a runtime value from one drags Prisma into the client bundle and the build fails. Constants the browser needs live in their own client-safe module (`request-kinds.ts`, `resource-kinds.ts`, `route-template.ts`).
+- **Permissions are re-checked inside every server action**, not only on the page: an action is a POST endpoint of its own.
+- Roles in the port read from Spatie's tables, so the Laravel seeder stays the one source of truth for who can do what.
 
 ## Manual Testing Checklist
 
