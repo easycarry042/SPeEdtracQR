@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { forbidden } from 'next/navigation';
 import { db, id, toId } from '@/lib/db';
 import { now } from '@/lib/time';
 import { readSession } from '@/lib/auth/session';
@@ -129,7 +130,10 @@ export async function requirePermission(...permissions: Permission[]): Promise<A
   const actor = await requireActor();
 
   if (!permissions.some((permission) => actor.can(permission))) {
-    throw new AuthError('This action is unauthorized.', 403);
+    // `forbidden()` renders app/forbidden.tsx with a real 403. Throwing a plain
+    // error here answered 500, which told the user the site was broken rather
+    // than that the page was not theirs.
+    forbidden();
   }
 
   return actor;
@@ -139,7 +143,7 @@ export async function requireRole(...roles: string[]): Promise<Actor> {
   const actor = await requireActor();
 
   if (!roles.some((role) => actor.hasRole(role))) {
-    throw new AuthError('This action is unauthorized.', 403);
+    forbidden();
   }
 
   return actor;

@@ -15,6 +15,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Lets the permission gates call `forbidden()`, so a denial renders the 403
+    // page with a real 403 status — Laravel's `permission:` middleware aborted
+    // with 403 and the app rendered an error page for it. Without this a denial
+    // fell through to an unhandled error and answered 500.
+    authInterrupts: true,
+  },
   poweredByHeader: false,
   // The Laravel app at the repo root has its own package-lock.json, so Next
   // guesses the wrong workspace root without this.
