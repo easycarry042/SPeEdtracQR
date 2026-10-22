@@ -4,6 +4,7 @@ import {
   KIND_DOCUMENT,
   KIND_EQUIPMENT,
   KIND_SERVICE,
+  type ResourceStock,
   type SubmissionInput,
   resolveSchedule,
   serviceableUnits,
@@ -147,7 +148,7 @@ describe('resolveSchedule — facility reservations', () => {
 describe('resolveSchedule — equipment borrowing', () => {
   const chairs = { name: 'Chairs', total_quantity: 50, damaged_quantity: 5 };
 
-  const borrow = (overrides: Partial<SubmissionInput> = {}, resource = chairs) =>
+  const borrow = (overrides: Partial<SubmissionInput> = {}, resource: ResourceStock = chairs) =>
     resolveSchedule(
       KIND_EQUIPMENT,
       input({ quantity: '10', needed_date: '2026-10-25', return_date: '2026-10-27', ...overrides }),
