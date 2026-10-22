@@ -31,7 +31,7 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-const MODEL_TYPE = 'App\\Models\\User';
+export const MODEL_TYPE = 'App\\Models\\User';
 
 export type Grants = {
   roles: string[];
@@ -76,6 +76,59 @@ export async function grantsFor(userId: number): Promise<Grants> {
   }
 
   return { roles, permissions: [...permissions] };
+}
+
+export type Recipient = { id: number; name: string; email: string; department_id: number | null };
+
+/**
+ * Everyone who holds a permission, by role or granted directly — Spatie's
+ * `User::permission(…)` scope.
+ *
+ * The internal-request fan-outs are written against permissions, not roles, on
+ * purpose: a named soft-copy recipient may be plain staff, and an office may
+ * grant `act on internal requests` to someone who is not a supervisor.
+ */
+export async function usersWithPermission(
+  permission: string,
+  departmentId: number | null = null,
+): Promise<Recipient[]> {
+  const [viaRole, direct] = await Promise.all([
+    db.model_has_roles.findMany({
+      where: {
+        model_type: MODEL_TYPE,
+        roles: { role_has_permissions: { some: { permissions: { name: permission } } } },
+      },
+      select: { model_id: true },
+    }),
+    db.model_has_permissions.findMany({
+      where: { model_type: MODEL_TYPE, permissions: { name: permission } },
+      select: { model_id: true },
+    }),
+  ]);
+
+  const ids = [...new Set([...viaRole, ...direct].map((link) => link.model_id))];
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const users = await db.users.findMany({
+    where: {
+      id: { in: ids },
+      deleted_at: null,
+      is_active: true,
+      ...(departmentId === null ? {} : { department_id: id(departmentId) }),
+    },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, email: true, department_id: true },
+  });
+
+  return users.map((user) => ({
+    id: toId(user.id),
+    name: user.name,
+    email: user.email,
+    department_id: user.department_id === null ? null : toId(user.department_id),
+  }));
 }
 
 /** Everyone at an office holding a given role — used for notification fan-out. */
