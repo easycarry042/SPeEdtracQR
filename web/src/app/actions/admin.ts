@@ -1,10 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { currentActor, AuthError } from '@/lib/auth/actor';
+import { currentActor, AuthError, type Actor } from '@/lib/auth/actor';
 import { ActionError } from '@/lib/domain/status-actions';
 import type { Permission } from '@/lib/auth/rbac';
 import * as offices from '@/lib/domain/admin-departments';
+import * as accounts from '@/lib/domain/admin-users';
 
 /**
  * The Setup group's write paths: the office directory, the public request
@@ -29,7 +30,7 @@ export type AdminResult = {
  */
 async function run(
   permission: Permission,
-  fn: () => Promise<{ message: string }>,
+  fn: (actor: Actor) => Promise<{ message: string }>,
 ): Promise<AdminResult> {
   const actor = await currentActor();
 
@@ -38,7 +39,7 @@ async function run(
   }
 
   try {
-    const { message } = await fn();
+    const { message } = await fn(actor);
 
     // The sidebar, the request form's catalog and these lists all read from the
     // server, so one save refreshes the lot.
@@ -76,4 +77,48 @@ export async function saveDepartment(
  */
 export async function toggleDepartmentActive(departmentId: number): Promise<AdminResult> {
   return run('manage system', () => offices.toggleDepartment(departmentId));
+}
+
+/* ── Users ───────────────────────────────────────────────────────────────── */
+
+/**
+ * Create or edit an account. On create the password is required; on edit a
+ * blank password field leaves the current one alone, which is what an admin
+ * fixing a typo in someone's name expects.
+ */
+export async function saveUser(
+  userId: number | null,
+  input: accounts.UserInput,
+): Promise<AdminResult> {
+  return run('manage users', () =>
+    userId === null ? accounts.createUser(input) : accounts.updateUser(userId, input),
+  );
+}
+
+export async function toggleUserActive(userId: number): Promise<AdminResult> {
+  return run('manage users', (actor) => accounts.toggleUser(userId, actor));
+}
+
+/** Archiving is a soft delete: the row stays listed, with Restore beside it. */
+export async function archiveUserAccount(userId: number): Promise<AdminResult> {
+  return run('manage users', (actor) => accounts.archiveUser(userId, actor));
+}
+
+export async function restoreUserAccount(userId: number): Promise<AdminResult> {
+  return run('manage users', () => accounts.restoreUser(userId));
+}
+
+/**
+ * Permanent deletion, refused once the account has document activity — an
+ * audit trail that can be erased by deleting its author is not an audit trail.
+ */
+export async function deleteUserAccount(userId: number): Promise<AdminResult> {
+  return run('manage users', (actor) => accounts.deleteUser(userId, actor));
+}
+
+export async function bulkUserAction(
+  action: accounts.BulkAction,
+  userIds: number[],
+): Promise<AdminResult> {
+  return run('manage users', (actor) => accounts.bulkUsers(action, userIds, actor));
 }
