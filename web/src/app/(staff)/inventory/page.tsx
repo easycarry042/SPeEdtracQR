@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { now } from '@/lib/time';
 import { requireActor } from '@/lib/auth/actor';
@@ -31,15 +32,26 @@ export default async function InventoryPage() {
   const itemIds = [...inventory.facilities, ...inventory.equipment].map((row) => row.id);
   const itemHistory = await history(itemIds);
 
+  const canEditCatalog = actor.can('manage system');
+
   return (
-    <AuthenticatedPage title="Resources">
+    <AuthenticatedPage
+      title="Resources"
+      pageActions={
+        canEditCatalog ? (
+          <Link href={routes.adminResourcesCreate()} className="cr-btn cr-btn-primary cr-btn-sm">
+            Add item
+          </Link>
+        ) : null
+      }
+    >
       <ResourcesPage
         desk={queues}
         facilities={inventory.facilities}
         equipment={inventory.equipment}
         tiles={tiles(inventory.facilities, inventory.equipment, queues)}
         history={Object.fromEntries(itemHistory)}
-        canEditCatalog={actor.can('manage system')}
+        canEditCatalog={canEditCatalog}
         asOf={at.toISOString()}
       />
     </AuthenticatedPage>

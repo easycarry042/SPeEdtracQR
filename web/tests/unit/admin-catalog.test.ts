@@ -22,6 +22,11 @@ const departmentFindFirst = vi.fn();
 const departmentFindMany = vi.fn();
 const resourceFindFirst = vi.fn();
 const resourceFindMany = vi.fn();
+const resourceCreate = vi.fn();
+const resourceUpdate = vi.fn();
+const resourceDelete = vi.fn();
+const resourceAggregate = vi.fn();
+const bookingCount = vi.fn();
 const templateFindMany = vi.fn();
 const templateFindFirst = vi.fn();
 const templateCreate = vi.fn();
@@ -46,7 +51,14 @@ vi.mock('@/lib/db', () => ({
       deleteMany: requirementDeleteMany,
     },
     departments: { findFirst: departmentFindFirst, findMany: departmentFindMany },
-    resources: { findFirst: resourceFindFirst, findMany: resourceFindMany },
+    resources: {
+      findFirst: resourceFindFirst,
+      findMany: resourceFindMany,
+      create: resourceCreate,
+      update: resourceUpdate,
+      delete: resourceDelete,
+      aggregate: resourceAggregate,
+    },
     route_templates: {
       findMany: templateFindMany,
       findFirst: templateFindFirst,
@@ -58,7 +70,7 @@ vi.mock('@/lib/db', () => ({
       createMany: templateStepCreateMany,
       deleteMany: templateStepDeleteMany,
     },
-    bookings: { count: vi.fn() },
+    bookings: { count: bookingCount },
   },
   toId: (value: bigint | number) => Number(value),
   id: (value: number) => BigInt(value),
@@ -71,15 +83,22 @@ vi.mock('@/lib/activity', () => ({
 
 const {
   createRequestType,
+  createResource,
   createRouteTemplate,
   deleteRequestType,
+  deleteResource,
   deleteRouteTemplate,
   requestTypeList,
   resourceOptions,
   toggleRequestType,
+  toggleResource,
   updateRequestType,
+  updateResource,
   updateRouteTemplate,
 } = await import('@/lib/domain/admin-catalog');
+
+/** Catalog writes are logged against the item, so they take the actor. */
+const actor = { id: 1, name: 'Ava Admin' } as unknown as import('@/lib/auth/actor').Actor;
 
 const permit = {
   name: 'Business Permit',
@@ -468,6 +487,162 @@ describe('route templates', () => {
 
     expect(templateStepDeleteMany).toHaveBeenCalledWith({ where: { route_template_id: 21n } });
     expect(templateDelete).toHaveBeenCalledWith({ where: { id: 21n } });
+  });
+});
+
+describe('the resource catalog', () => {
+  /**
+   * Port of `ResourceAdminTest` and the catalog half of
+   * `ResourceCatalogParityTest`.
+   */
+  const chairs = {
+    id: 7n,
+    name: 'Monoblock Chairs',
+    kind: 'equipment',
+    description: null,
+    location: 'GSO stockroom',
+    is_active: true,
+    total_quantity: 100,
+    capacity: null,
+    _count: { bookings: 0 },
+  };
+
+  const asEquipment = {
+    name: 'Monoblock Chairs',
+    kind: 'equipment',
+    description: null,
+    location: 'GSO stockroom',
+    totalQuantity: 100,
+    capacity: null,
+  };
+
+  beforeEach(() => {
+    resourceFindFirst.mockResolvedValue(null);
+    resourceCreate.mockResolvedValue({ id: 7n });
+    resourceAggregate.mockResolvedValue({ _max: { sort_order: 2 } });
+    bookingCount.mockResolvedValue(0);
+  });
+
+  it('adds equipment with its count, and leaves capacity off it', async () => {
+    await createResource(asEquipment, actor);
+
+    expect(resourceCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Monoblock Chairs',
+          kind: 'equipment',
+          total_quantity: 100,
+          // A pile is counted; only a venue has a capacity.
+          capacity: null,
+          is_active: true,
+          sort_order: 3,
+        }),
+      }),
+    );
+    expect(logActivity).toHaveBeenCalled();
+  });
+
+  it('adds a facility with its capacity, and leaves the count off it', async () => {
+    await createResource(
+      { ...asEquipment, name: 'Covered Court', kind: 'facility', capacity: 500, totalQuantity: 40 },
+      actor,
+    );
+
+    expect(resourceCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: 'facility', capacity: 500, total_quantity: null }),
+      }),
+    );
+  });
+
+  it('refuses a kind that is neither', async () => {
+    await expect(createResource({ ...asEquipment, kind: 'vehicle' }, actor)).rejects.toThrow(
+      'Choose whether this is a facility or equipment.',
+    );
+
+    expect(resourceCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a duplicate name and a count that is not a whole number', async () => {
+    resourceFindFirst.mockResolvedValue({ id: 9n });
+
+    await expect(createResource(asEquipment, actor)).rejects.toThrow(
+      'An item called Monoblock Chairs already exists.',
+    );
+
+    resourceFindFirst.mockResolvedValue(null);
+
+    await expect(
+      createResource({ ...asEquipment, totalQuantity: -5 }, actor),
+    ).rejects.toThrow('The number owned is a whole number.');
+  });
+
+  it('refuses to flip the kind of an item that already has bookings', async () => {
+    resourceFindFirst
+      .mockResolvedValueOnce({ ...chairs, _count: { bookings: 1 } })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      updateResource(7, { ...asEquipment, kind: 'facility' }, actor),
+    ).rejects.toThrow('can no longer change between facility and equipment');
+
+    expect(resourceUpdate).not.toHaveBeenCalled();
+  });
+
+  it('still lets that item be renamed', async () => {
+    resourceFindFirst
+      .mockResolvedValueOnce({ ...chairs, _count: { bookings: 1 } })
+      .mockResolvedValueOnce(null);
+
+    await updateResource(7, { ...asEquipment, name: 'Plastic Chairs' }, actor);
+
+    expect(resourceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: 'Plastic Chairs' }) }),
+    );
+  });
+
+  it('does not let an edit rewrite the counts', async () => {
+    resourceFindFirst.mockResolvedValueOnce(chairs).mockResolvedValueOnce(null);
+
+    await updateResource(7, { ...asEquipment, totalQuantity: 9999 }, actor);
+
+    const data = resourceUpdate.mock.calls[0][0].data;
+
+    // The counts are kept on the Resources page, where the checks against what
+    // is out on loan live.
+    expect(data.total_quantity).toBeUndefined();
+    expect(data.capacity).toBeUndefined();
+  });
+
+  it('deactivates an item, which is what hides it from the public form', async () => {
+    resourceFindFirst.mockResolvedValue(chairs);
+
+    const result = await toggleResource(7, actor);
+
+    expect(resourceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ is_active: false }) }),
+    );
+    expect(result.message).toBe('Monoblock Chairs has been deactivated.');
+    expect(logActivity).toHaveBeenCalled();
+  });
+
+  it('refuses to delete an item with a live booking', async () => {
+    resourceFindFirst.mockResolvedValue(chairs);
+    bookingCount.mockResolvedValue(2);
+
+    await expect(deleteResource(7)).rejects.toThrow(
+      'Monoblock Chairs has 2 live bookings (waiting, promised or out on loan)',
+    );
+
+    expect(resourceDelete).not.toHaveBeenCalled();
+  });
+
+  it('deletes it once nothing live points at it', async () => {
+    resourceFindFirst.mockResolvedValue(chairs);
+
+    await deleteResource(7);
+
+    expect(resourceDelete).toHaveBeenCalledWith({ where: { id: 7n } });
   });
 });
 

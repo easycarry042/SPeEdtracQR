@@ -281,6 +281,8 @@ export const routes = {
 
   /** Super admins get the shared Resources page; this redirects there. */
   adminResourcesIndex: (q?: Params) => withQuery('/admin/resources', q),
+  adminResourcesCreate: () => '/admin/resources/create',
+  adminResourcesEdit: (resourceId: number | string) => `/admin/resources/${seg(resourceId)}/edit`,
   adminResourcesStore: () => '/admin/resources',
   adminResourcesUpdate: (resourceId: number | string) => `/admin/resources/${seg(resourceId)}`,
   adminResourcesDestroy: (resourceId: number | string) => `/admin/resources/${seg(resourceId)}`,

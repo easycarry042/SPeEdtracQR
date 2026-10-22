@@ -47,14 +47,51 @@ vi.mock('@/lib/domain/admin-users', () => ({
   bulkUsers,
 }));
 
+const createRequestType = vi.fn();
+const updateRequestType = vi.fn();
+const toggleRequestType = vi.fn();
+const deleteRequestType = vi.fn();
+const createRouteTemplate = vi.fn();
+const updateRouteTemplate = vi.fn();
+const toggleRouteTemplate = vi.fn();
+const deleteRouteTemplate = vi.fn();
+const createResource = vi.fn();
+const updateResource = vi.fn();
+const toggleResource = vi.fn();
+const deleteResource = vi.fn();
+
+vi.mock('@/lib/domain/admin-catalog', () => ({
+  createRequestType,
+  updateRequestType,
+  toggleRequestType,
+  deleteRequestType,
+  createRouteTemplate,
+  updateRouteTemplate,
+  toggleRouteTemplate,
+  deleteRouteTemplate,
+  createResource,
+  updateResource,
+  toggleResource,
+  deleteResource,
+}));
+
 const {
   archiveUserAccount,
   bulkUserAction,
   deleteUserAccount,
+  removeRequestType,
+  removeResource,
+  removeRouteTemplate,
   restoreUserAccount,
   saveDepartment,
+  saveRequestType,
+  saveResource,
+  saveRouteTemplate,
   saveUser,
   toggleDepartmentActive,
+  toggleRequestTypeActive,
+  toggleResourceActive,
+  toggleRouteTemplateActive,
   toggleUserActive,
 } = await import('@/app/actions/admin');
 const { ActionError } = await import('@/lib/domain/status-actions');
@@ -89,7 +126,27 @@ beforeEach(() => {
   updateDepartment.mockResolvedValue({ message: 'Department Budget Office updated successfully.' });
   toggleDepartment.mockResolvedValue({ message: 'Department Budget Office has been deactivated.' });
 
-  for (const write of [createUser, updateUser, toggleUser, archiveUser, restoreUser, deleteUser, bulkUsers]) {
+  for (const write of [
+    createUser,
+    updateUser,
+    toggleUser,
+    archiveUser,
+    restoreUser,
+    deleteUser,
+    bulkUsers,
+    createRequestType,
+    updateRequestType,
+    toggleRequestType,
+    deleteRequestType,
+    createRouteTemplate,
+    updateRouteTemplate,
+    toggleRouteTemplate,
+    deleteRouteTemplate,
+    createResource,
+    updateResource,
+    toggleResource,
+    deleteResource,
+  ]) {
     write.mockResolvedValue({ message: 'Done.' });
   }
 });
@@ -219,5 +276,99 @@ describe('the account writes', () => {
 
     expect((await archiveUserAccount(5)).ok).toBe(false);
     expect(archiveUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('the catalog writes', () => {
+  const requestType = {
+    name: 'Chairs Borrowing',
+    kind: 'equipment',
+    departmentId: 3,
+    resourceId: 7,
+    description: null,
+    requirements: [],
+  };
+
+  const template = {
+    name: 'Procurement Request',
+    description: null,
+    steps: [{ stepOrder: 1, departmentId: 3, action: 'Approve request', condition: null }],
+  };
+
+  const item = {
+    name: 'Monoblock Chairs',
+    kind: 'equipment',
+    description: null,
+    location: null,
+    totalQuantity: 100,
+    capacity: null,
+  };
+
+  it('create when given no id and update when given one', async () => {
+    await saveRequestType(null, requestType);
+    await saveRequestType(11, requestType);
+    await saveRouteTemplate(null, template);
+    await saveRouteTemplate(21, template);
+    await saveResource(null, item);
+    await saveResource(7, item);
+
+    expect(createRequestType).toHaveBeenCalledWith(requestType);
+    expect(updateRequestType).toHaveBeenCalledWith(11, requestType);
+    expect(createRouteTemplate).toHaveBeenCalledWith(template);
+    expect(updateRouteTemplate).toHaveBeenCalledWith(21, template);
+    // Resource writes are logged against the item, so they carry the actor.
+    expect(createResource).toHaveBeenCalledWith(item, superAdmin);
+    expect(updateResource).toHaveBeenCalledWith(7, item, superAdmin);
+  });
+
+  /**
+   * `RequestTypeAdminTest::staff_cannot_manage_request_types`,
+   * `RouteTemplateTest::supervisor_cannot_manage_route_templates` and
+   * `ResourceAdminTest::staff_cannot_manage_resources`, at the action.
+   *
+   * A supervisor runs the Resources page every day — they keep the counts —
+   * so the catalog half has to be refused on its own.
+   */
+  it('are all refused without "manage system"', async () => {
+    currentActor.mockResolvedValue(supervisor);
+
+    const results = await Promise.all([
+      saveRequestType(null, requestType),
+      toggleRequestTypeActive(11),
+      removeRequestType(11),
+      saveRouteTemplate(null, template),
+      toggleRouteTemplateActive(21),
+      removeRouteTemplate(21),
+      saveResource(null, item),
+      toggleResourceActive(7),
+      removeResource(7),
+    ]);
+
+    expect(results.every((result) => result.ok === false)).toBe(true);
+
+    for (const write of [
+      createRequestType,
+      toggleRequestType,
+      deleteRequestType,
+      createRouteTemplate,
+      toggleRouteTemplate,
+      deleteRouteTemplate,
+      createResource,
+      toggleResource,
+      deleteResource,
+    ]) {
+      expect(write).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuse a delete the domain will not allow, as a sentence', async () => {
+    deleteResource.mockRejectedValue(
+      new ActionError('Monoblock Chairs has 2 live bookings, so it cannot be deleted.'),
+    );
+
+    expect(await removeResource(7)).toEqual({
+      ok: false,
+      message: 'Monoblock Chairs has 2 live bookings, so it cannot be deleted.',
+    });
   });
 });

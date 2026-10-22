@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Desk, EquipmentRow, FacilityRow, LoanRow, Tiles } from '@/lib/domain/inventory-desk';
 import { routes } from '@/lib/routes';
@@ -15,6 +16,7 @@ import {
   remindBorrower,
   updateStock,
 } from '@/app/actions/lending';
+import { removeResource, toggleResourceActive } from '@/app/actions/admin';
 
 /**
  * The Resources page.
@@ -178,7 +180,13 @@ export function ResourcesPage({
             </thead>
             <tbody>
               {equipment.map((item) => (
-                <EquipmentRowView key={item.id} item={item} history={history[item.id] ?? []} onNotice={setNotice} />
+                <EquipmentRowView
+                  key={item.id}
+                  item={item}
+                  history={history[item.id] ?? []}
+                  canEditCatalog={canEditCatalog}
+                  onNotice={setNotice}
+                />
               ))}
             </tbody>
           </table>
@@ -212,17 +220,109 @@ export function ResourcesPage({
               ) : (
                 <p className="mt-2 text-[length:var(--fs-small)] text-ink-soft">Nothing booked.</p>
               )}
+
+              {canEditCatalog ? (
+                <CatalogActions
+                  item={facility}
+                  onNotice={setNotice}
+                  what="This venue"
+                />
+              ) : null}
             </article>
           ))}
         </div>
       </section>
-
-      {canEditCatalog ? (
-        <p className="mt-4 text-[length:var(--fs-small)] text-ink-soft">
-          Adding, renaming and removing items is on the super admin&apos;s Resources setup.
-        </p>
-      ) : null}
     </>
+  );
+}
+
+/**
+ * The super admin's catalog controls for one item: its details, whether
+ * citizens can still ask for it, and — when nothing live points at it —
+ * removing it outright.
+ *
+ * Deactivating is the ordinary choice and says so: it stops new requests and
+ * keeps the history. Deleting takes the item's bookings with it, so it is
+ * refused while any of them is still waiting, promised or out on loan.
+ */
+function CatalogActions({
+  item,
+  what,
+  onNotice,
+}: {
+  item: { id: number; name: string; isActive: boolean };
+  what: string;
+  onNotice: (notice: { ok: boolean; message: string }) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+
+  const run = (action: () => Promise<{ ok: boolean; message: string }>): void => {
+    setConfirming(false);
+
+    startTransition(async () => {
+      const result = await action();
+      onNotice(result);
+
+      if (result.ok) {
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-hairline pt-3">
+      <span className="inv-field-label !mb-0 mr-1">Catalog</span>
+
+      <Link href={routes.adminResourcesEdit(item.id)} className="cr-btn cr-btn-sm">
+        Edit details
+      </Link>
+
+      <button
+        type="button"
+        className="cr-btn cr-btn-sm"
+        disabled={pending}
+        onClick={() => run(() => toggleResourceActive(item.id))}
+      >
+        {item.isActive ? 'Deactivate' : 'Activate'}
+      </button>
+
+      {confirming ? (
+        <>
+          <button
+            type="button"
+            className="cr-btn cr-btn-sm cr-btn-danger"
+            disabled={pending}
+            onClick={() => run(() => removeResource(item.id))}
+          >
+            Delete {item.name}
+          </button>
+          <button type="button" className="cr-btn cr-btn-sm" onClick={() => setConfirming(false)}>
+            Keep it
+          </button>
+          <span className="text-[length:var(--fs-caption)] text-ink-soft">
+            Its booking history goes too. Deactivating keeps the history.
+          </span>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="cr-btn cr-btn-sm"
+            disabled={pending}
+            onClick={() => setConfirming(true)}
+          >
+            Delete
+          </button>
+          <span className="text-[length:var(--fs-caption)] text-ink-soft">
+            {item.isActive
+              ? `Deactivating stops new requests for it; its history stays.`
+              : `Inactive — citizens cannot ask for it. ${what} keeps its history.`}
+          </span>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -532,10 +632,12 @@ function ExtendForm({
 function EquipmentRowView({
   item,
   history,
+  canEditCatalog,
   onNotice,
 }: {
   item: EquipmentRow;
   history: Array<{ line: string; who: string | null; when: string }>;
+  canEditCatalog: boolean;
   onNotice: (notice: { ok: boolean; message: string }) => void;
 }) {
   const router = useRouter();
@@ -544,6 +646,7 @@ function EquipmentRowView({
   const [owned, setOwned] = useState(String(item.owned));
   const [damaged, setDamaged] = useState(String(item.damaged));
   const [showHistory, setShowHistory] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
 
   return (
     <>
@@ -568,8 +671,21 @@ function EquipmentRowView({
               History
             </button>
           ) : null}
+          {canEditCatalog ? (
+            <button type="button" className="cr-link ml-2" onClick={() => setShowCatalog((open) => !open)}>
+              Catalog
+            </button>
+          ) : null}
         </td>
       </tr>
+
+      {showCatalog && canEditCatalog ? (
+        <tr>
+          <td colSpan={7}>
+            <CatalogActions item={item} what="This item" onNotice={onNotice} />
+          </td>
+        </tr>
+      ) : null}
 
       {editing ? (
         <tr>
