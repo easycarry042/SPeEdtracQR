@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/auth/session';
+import { RECEIPT_COOKIE_NAME } from '@/lib/domain/receipt-cookie';
 
 /**
  * Replaces Laravel's route middleware stack.
@@ -82,6 +83,14 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next();
+
+  // Starting a new request forgets the previous receipt, so the next person at a
+  // shared counter terminal never finds it waiting for them. Laravel did this in
+  // the controller; a server component cannot write cookies, so it happens here
+  // — on the form itself, never on `/request/submitted`, which has to read it.
+  if (pathname === '/request') {
+    response.cookies.delete(RECEIPT_COOKIE_NAME);
+  }
 
   // Signed-in pages must not sit in the back/forward cache: pressing Back after
   // signing out used to show the previous user's dashboard from bfcache.
