@@ -6,6 +6,7 @@ import { ActionError } from '@/lib/domain/status-actions';
 import type { Permission } from '@/lib/auth/rbac';
 import * as offices from '@/lib/domain/admin-departments';
 import * as accounts from '@/lib/domain/admin-users';
+import * as catalog from '@/lib/domain/admin-catalog';
 
 /**
  * The Setup group's write paths: the office directory, the public request
@@ -121,4 +122,71 @@ export async function bulkUserAction(
   userIds: number[],
 ): Promise<AdminResult> {
   return run('manage users', (actor) => accounts.bulkUsers(action, userIds, actor));
+}
+
+/* ── Request types (the public catalog) ──────────────────────────────────── */
+
+export async function saveRequestType(
+  requestTypeId: number | null,
+  input: catalog.RequestTypeInput,
+): Promise<AdminResult> {
+  return run('manage system', () =>
+    requestTypeId === null
+      ? catalog.createRequestType(input)
+      : catalog.updateRequestType(requestTypeId, input),
+  );
+}
+
+export async function toggleRequestTypeActive(requestTypeId: number): Promise<AdminResult> {
+  return run('manage system', () => catalog.toggleRequestType(requestTypeId));
+}
+
+/**
+ * Deleting a type does not rewrite history: requests already submitted keep
+ * their own snapshot of each requirement's label and whether it was required.
+ */
+export async function removeRequestType(requestTypeId: number): Promise<AdminResult> {
+  return run('manage system', () => catalog.deleteRequestType(requestTypeId));
+}
+
+/* ── Route templates (endorsement chains) ────────────────────────────────── */
+
+export async function saveRouteTemplate(
+  templateId: number | null,
+  input: catalog.RouteTemplateInput,
+): Promise<AdminResult> {
+  return run('manage system', () =>
+    templateId === null
+      ? catalog.createRouteTemplate(input)
+      : catalog.updateRouteTemplate(templateId, input),
+  );
+}
+
+export async function toggleRouteTemplateActive(templateId: number): Promise<AdminResult> {
+  return run('manage system', () => catalog.toggleRouteTemplate(templateId));
+}
+
+export async function removeRouteTemplate(templateId: number): Promise<AdminResult> {
+  return run('manage system', () => catalog.deleteRouteTemplate(templateId));
+}
+
+/* ── Resources (the lending catalog) ─────────────────────────────────────── */
+
+export async function saveResource(
+  resourceId: number | null,
+  input: catalog.ResourceInput,
+): Promise<AdminResult> {
+  return run('manage system', (actor) =>
+    resourceId === null
+      ? catalog.createResource(input, actor)
+      : catalog.updateResource(resourceId, input, actor),
+  );
+}
+
+export async function toggleResourceActive(resourceId: number): Promise<AdminResult> {
+  return run('manage system', (actor) => catalog.toggleResource(resourceId, actor));
+}
+
+export async function removeResource(resourceId: number): Promise<AdminResult> {
+  return run('manage system', () => catalog.deleteResource(resourceId));
 }
