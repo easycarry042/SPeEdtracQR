@@ -20,7 +20,8 @@ import { app } from '@/lib/config';
  * (`base64:` prefix included) rather than its decoded bytes: that is the string
  * `config('app.key')` handed to `hash_hmac`.
  */
-const PREFIX = 'SPDQR1:';
+/** The signed-payload marker every QR this system issues carries. */
+export const PREFIX = 'SPDQR1:';
 const SIGNATURE_BYTES = 8;
 const TRACKING_PATTERN = /^(?:SPD|INT)-\d{8}-[0-9A-Z]{6}$/;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -112,8 +113,11 @@ export function payload(trackingNumber: string): string {
 export function content(trackingNumber: string): string {
   const signed = payload(trackingNumber);
 
+  // The path must match the `internal.track` route exactly (it is
+  // /internal-requests/track, not /internal/track): this URL is printed onto
+  // folder stickers, so a wrong path is a dead QR that no phone camera can open.
   return trackingNumber.toUpperCase().startsWith('INT-')
-    ? `${app.url}/internal/track?${URL_PARAMETER}=${encodeURIComponent(signed)}`
+    ? `${app.url}/internal-requests/track?${URL_PARAMETER}=${encodeURIComponent(signed)}`
     : signed;
 }
 

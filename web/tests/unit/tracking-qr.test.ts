@@ -73,7 +73,11 @@ describe('TrackingQr', () => {
 
     // A phone camera must find something to open, and our scanner must still
     // be able to read the signed payload back out of the link.
-    expect(encoded).toContain('/internal/track?qr=');
+    //
+    // The path has to be the real `internal.track` route. This assertion used
+    // to accept /internal/track, which no route serves — the sticker would have
+    // opened a 404 on the one device the link exists for.
+    expect(encoded).toContain('/internal-requests/track?qr=');
     expect(trackingNumber(decodeURIComponent(encoded.split('qr=')[1]))).toBe(code);
   });
 });
