@@ -7,6 +7,7 @@ import { ActionError } from '@/lib/domain/status-actions';
 import { GateError } from '@/lib/domain/status-gate';
 import * as status from '@/lib/domain/status-actions';
 import * as review from '@/lib/domain/review-actions';
+import { nudge } from '@/lib/domain/nudge';
 
 /**
  * Server actions behind the Review modal's controls.
@@ -151,6 +152,19 @@ export async function requestRevision(
   const actor = await currentActor();
 
   return run(() => review.requestRevision(documentId, actor, reason));
+}
+
+/**
+ * Bell whoever owns this request about it. Oversight's one write: the super
+ * admin (or a supervisor, for their own office) pushes without reassigning.
+ */
+export async function nudgeDocument(
+  documentId: number,
+  note: string | null,
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => nudge(documentId, actor, note));
 }
 
 export async function setClaimDate(

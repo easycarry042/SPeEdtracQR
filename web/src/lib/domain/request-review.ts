@@ -3,7 +3,13 @@ import { formatNaive, toDateString } from '@/lib/time';
 import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
 import { DocumentStatus, fromLoose, label as statusLabel, railStage } from '@/lib/domain/document-status';
-import { canBeAdvancedBy, holdOverdueDays, isHoldOverdue, statusOf } from '@/lib/domain/document';
+import {
+  canBeAdvancedBy,
+  holdOverdueDays,
+  isHoldOverdue,
+  overdueBy,
+  statusOf,
+} from '@/lib/domain/document';
 import { AUTHOR, VISIBILITY, deskPayload, hydrateComment, type DeskPayload } from '@/lib/domain/comments';
 import {
   LENDING,
@@ -104,6 +110,8 @@ export type ReviewRow = {
   holdReason: string | null;
   holdUntil: string | null;
   holdOverdueDays: number | null;
+  /** How far past its stage's budget an open request is ("3d 2h"), else null. */
+  overSla: string | null;
   remarks: string | null;
   booking: ReviewBooking | null;
   attachments: ReviewAttachment[];
@@ -572,6 +580,7 @@ export async function forModal(
     // A hold pauses the SLA clock, so this count is the only thing in the
     // cockpit that says a parked request has overrun its own deadline.
     holdOverdueDays: isHoldOverdue(holdState) ? holdOverdueDays(holdState) : null,
+    overSla: overdueBy(document),
     remarks: document.remarks,
     booking: await bookingPayload(booking, actor),
     attachments: document.document_attachments.map((attachment) => {

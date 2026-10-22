@@ -1,5 +1,6 @@
 import { db, id, toId } from '@/lib/db';
-import { addDays, diffInDays, diffInHours, endOfDay, isPast, now } from '@/lib/time';
+import { addDays, diffInDays, diffInHours, diffInHoursExact, endOfDay, isPast, now } from '@/lib/time';
+import { fromHours } from '@/lib/domain/duration';
 import { tracking } from '@/lib/config';
 import type { Actor } from '@/lib/auth/actor';
 import { ROLE_SUPER_ADMIN, ROLE_SUPERVISOR } from '@/lib/auth/rbac';
@@ -117,6 +118,36 @@ export function isOverdue(document: {
   const anchor = document.status_changed_at ?? document.updated_at ?? document.created_at;
 
   return anchor ? diffInHours(anchor) > sla : false;
+}
+
+/**
+ * How far past its current stage's budget an open request is, as a readable
+ * span ("5h 18m", "3d 2h"), or null when it is not overdue at all.
+ *
+ * The same anchor and the same exemptions as `isOverdue()` — this is only the
+ * number behind the "+… late" tag the oversight queues show, so a request can
+ * never read as late on one screen and on time on the next.
+ */
+export function overdueBy(
+  document: {
+    status: string;
+    status_changed_at?: Date | null;
+    updated_at?: Date | null;
+    created_at?: Date | null;
+  },
+  at: Date = now(),
+): string | null {
+  const stage = statusOf(document);
+  const sla = slaHours(stage);
+  const anchor = document.status_changed_at ?? document.updated_at ?? document.created_at;
+
+  if (sla === null || isTerminal(stage) || !anchor) {
+    return null;
+  }
+
+  const over = diffInHoursExact(anchor, at) - sla;
+
+  return over > 0 ? fromHours(over) : null;
 }
 
 /**

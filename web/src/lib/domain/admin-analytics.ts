@@ -635,6 +635,8 @@ export type AtRiskRow = {
   status: string;
   stage: string;
   assignee: string | null;
+  /** The handling office — who the Notify dialog names when nobody is assigned. */
+  office: string | null;
   hours_over: number;
   over: string;
   url: string;
@@ -659,6 +661,7 @@ export async function atRisk(scope: Scope): Promise<AtRiskRow[]> {
       updated_at: true,
       created_at: true,
       assignee: { select: { name: true } },
+      department: { select: { name: true } },
     },
   });
 
@@ -677,6 +680,7 @@ export async function atRisk(scope: Scope): Promise<AtRiskRow[]> {
         status: row.status,
         stage: statusLabel(stage),
         assignee: row.assignee?.name ?? null,
+        office: row.department?.name ?? null,
         hours_over: Math.round(hoursOver * 10) / 10,
         over: fromHours(hoursOver),
         url: `/admin/requests?open=${encodeURIComponent(row.tracking_number)}`,

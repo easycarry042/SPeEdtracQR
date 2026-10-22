@@ -75,6 +75,13 @@ export function RequestTable({
                     Stalled
                   </span>
                 ) : null}
+                {/* How late, without opening the row — the one thing the
+                    oversight queues are scanned for. */}
+                {row.overSla ? (
+                  <span className="cc-tag cc-tag-late" title="Past this stage's time">
+                    +{row.overSla} late
+                  </span>
+                ) : null}
               </td>
               <td className="stamp">{row.dateShort ?? '—'}</td>
             </tr>

@@ -19,6 +19,7 @@ import {
   setDocumentStatus,
   unholdDocument,
 } from '@/app/actions/document';
+import { NotifyButton } from './notify-dialog';
 
 export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 
@@ -30,7 +31,15 @@ export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
  * refuse. Stage-gate failures surface inline under the buttons, not in an
  * alert, so the note someone just typed is never lost.
  */
-type Dialog = 'advance' | 'revert' | 'return' | 'hold' | 'deny' | 'decline' | 'revision' | null;
+type Dialog =
+  | 'advance'
+  | 'revert'
+  | 'return'
+  | 'hold'
+  | 'deny'
+  | 'decline'
+  | 'revision'
+  | null;
 
 export function ReviewActions({
   row,
@@ -201,10 +210,32 @@ export function ReviewActions({
         </div>
       ) : null}
 
+      {/* ── Oversight: watch, and push — never reassign ─────────────────── */}
       {mode === 'oversight' ? (
-        <p className="mt-3 text-[length:var(--fs-small)] text-ink-soft">
-          Oversight view — this page watches every office&apos;s requests without acting on them.
-        </p>
+        <div className="mt-3">
+          <p className="text-[length:var(--fs-small)] text-ink-soft">
+            Oversight view — this page watches every office&apos;s requests without acting on them.
+          </p>
+          {/* Finished work has nobody left to chase, which is why the Blade
+              version sent no nudge URL for a terminal request. */}
+          {!isTerminal ? (
+            <div className="mt-3">
+              <NotifyButton
+                subject={{
+                  documentId: row.id,
+                  tracking: row.trackingNumber,
+                  type: row.documentType,
+                  citizen: row.citizenName,
+                  purpose: row.purpose,
+                  stageLabel: row.statusLabel,
+                  office: row.department,
+                  assignee: row.assignedStaff,
+                  over: row.overSla,
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {/* ── Dialogs ────────────────────────────────────────────────────── */}

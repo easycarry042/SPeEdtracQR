@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { StaffStatTile } from '@/components/staff-stat-tile';
+import { NotifyButton } from '@/components/review/notify-dialog';
 import type { CommandCenterData } from '@/lib/domain/command-center';
 import type { Delta } from '@/lib/domain/admin-analytics';
 import { RANGES } from '@/lib/domain/command-center';
@@ -470,7 +471,7 @@ function CitizenSide({
       {/* ── Region D: what needs doing ──────────────────────────────────────── */}
       <Panel
         title="Needs Attention"
-        sub={`${(data.atRisk ?? []).length} overdue · worst first`}
+        sub={`${(data.atRisk ?? []).length} overdue · worst first · open a row for its details, or notify whoever owns it`}
       >
         {(data.atRisk ?? []).length === 0 ? (
           <p className="cc-panel-sub">Nothing is overdue.</p>
@@ -482,6 +483,7 @@ function CitizenSide({
                 <th>Stage</th>
                 <th>Assigned to</th>
                 <th>Over by</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -495,6 +497,23 @@ function CitizenSide({
                   <td>{row.stage}</td>
                   <td>{row.assignee ?? 'Unassigned'}</td>
                   <td>{row.over}</td>
+                  {/* A push, not a reassignment — the command center never
+                      claims or reroutes another office's work. */}
+                  <td>
+                    <NotifyButton
+                      className="cr-btn cr-btn-sm"
+                      label="Notify →"
+                      subject={{
+                        documentId: row.id,
+                        tracking: row.tracking_number,
+                        type: row.document_type,
+                        stageLabel: row.stage,
+                        office: row.office,
+                        assignee: row.assignee,
+                        over: row.over,
+                      }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
