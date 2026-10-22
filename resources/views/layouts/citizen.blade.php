@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'City of San Pedro' }} — {{ config('app.name', 'SPeED TraQR') }}</title>
+    @include('layouts.partials.echo-ready')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
     @include('layouts.partials.accessibility-widget')

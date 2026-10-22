@@ -1,6 +1,8 @@
 /* Zain carries every title and heading; Nunito carries body copy. Imported
-   here (not per-layout) so every Vite-built page gets both faces. */
-@import url('https://fonts.googleapis.com/css2?family=Zain:wght@300;400;700;800;900&family=Nunito:wght@300;400;500;600;700;800;900&display=swap');
+   here (not per-layout) so every Vite-built page gets both faces.
+   Geist / Geist Mono are the Vercel pilot's faces — used only inside
+   `.gs-root` (the staff profile), never by the Civic Record surfaces. */
+@import url('https://fonts.googleapis.com/css2?family=Zain:wght@300;400;700;800;900&family=Nunito:wght@300;400;500;600;700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -3889,3 +3891,504 @@ a.dm-thumb:hover { border-color: var(--green); }
     .it-facts { grid-template-columns: 1fr; }
     .it-actions { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GEIST PILOT — staff profile only
+   ──────────────────────────────────────────────────────────────────────────
+   Vercel's Geist visual language, trialled on one page before any decision to
+   migrate the rest of the app off Civic Record. Everything is scoped under
+   `.gs-root`, so the green system keeps every other surface untouched and the
+   pilot can be reverted by deleting this block plus the four profile views.
+
+   Colour roles are chosen for contrast, not for fidelity to Geist's swatches:
+   Geist's muted gray (#888) is 3.54:1 on white and fails WCAG AA for body
+   text, so secondary copy uses #666 (5.74:1). Same reason amber text is
+   #ab570a (5.12:1) rather than the #f5a623 fill, and link text is #0761d1
+   (5.53:1 on the subtle gray) rather than #0070f3, which lands at 4.36:1
+   there. The brighter values survive as fills, where they only need 3:1.
+   ══════════════════════════════════════════════════════════════════════════ */
+.gs-root {
+    color-scheme: light;
+
+    --gs-bg: #ffffff;
+    --gs-bg-subtle: #fafafa;
+    --gs-bg-hover: #f5f5f5;
+    --gs-border: rgba(0, 0, 0, .08);      /* semi-transparent: reads cleanly on both fills */
+    --gs-border-solid: #ebebeb;
+    --gs-border-ctl: #949494;             /* 3.03:1 — a control's own boundary must be seen */
+
+    --gs-ink: #171717;                    /* 17.9:1 — headings, primary text */
+    --gs-body: #4d4d4d;                   /*  8.4:1 — body copy */
+    --gs-mute: #666666;                   /*  5.7:1 — secondary copy (NOT Geist's #888) */
+
+    --gs-blue: #0070f3;                   /* fills + focus ring only */
+    --gs-link: #0761d1;                   /* link/accent TEXT */
+    --gs-red: #c50000;
+    --gs-red-fill: #ee0000;
+    --gs-amber: #ab570a;
+    --gs-amber-fill: #f5a623;
+    --gs-green: #0a7e3f;
+
+    /* Child radius ≤ parent radius, so concentric curves stay aligned. */
+    --gs-r-sm: 6px;
+    --gs-r-md: 8px;
+    --gs-r-lg: 12px;
+
+    /* Two layers: ambient spread + a tighter direct shadow. */
+    --gs-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 12px rgba(0, 0, 0, .04);
+
+    font-family: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--gs-body);
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* The app's base layer puts Zain on every h1–h6; inside the pilot the one
+   family carries headings too — product UI doesn't need a display pairing. */
+.gs-root h1, .gs-root h2, .gs-root h3 {
+    font-family: inherit;
+    color: var(--gs-ink);
+    letter-spacing: -.02em;
+    text-wrap: balance;
+}
+
+/* One focus ring for the whole pilot: a white spacer then the blue, so it
+   stays visible on white, on the subtle gray and on a dark button alike.
+   :focus-visible (not :focus) keeps it off pointer users. */
+.gs-root :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--gs-bg), 0 0 0 4px var(--gs-blue);
+    border-radius: var(--gs-r-sm);
+}
+
+/* Numbers that get compared down a column need to line up. */
+.gs-num { font-variant-numeric: tabular-nums; }
+
+.gs-mono {
+    font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Page header ───────────────────────────────────────────────────────── */
+.gs-pagehead {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--gs-border);
+}
+.gs-pagehead-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.gs-pagehead-text { min-width: 0; }
+.gs-pagehead h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.2; }
+.gs-pagehead-meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 4px; font-size: 13px; color: var(--gs-mute);
+}
+.gs-pagehead-actions { margin-left: auto; display: flex; gap: 8px; }
+@media (max-width: 560px) {
+    .gs-pagehead-actions { margin-left: 0; width: 100%; }
+    .gs-pagehead-actions .gs-btn { flex: 1; }
+}
+
+.gs-avatar {
+    flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px;
+    border: 1px solid var(--gs-border); border-radius: 9999px;
+    background: var(--gs-bg-subtle);
+    font-size: 15px; font-weight: 600; letter-spacing: -.01em;
+    color: var(--gs-ink);
+}
+.gs-avatar-sm { width: 28px; height: 28px; font-size: 11px; }
+
+/* Live/idle marker. The dot repeats the word, it never replaces it. */
+.gs-status { display: inline-flex; align-items: center; gap: 6px; }
+.gs-status::before {
+    content: ''; width: 7px; height: 7px; border-radius: 9999px;
+    background: #949494;
+}
+.gs-status.is-live::before { background: var(--gs-green); }
+
+/* ── Layout: work first, identity meta second ──────────────────────────── */
+.gs-layout { display: grid; gap: 20px; margin-top: 20px; align-items: start; }
+@media (min-width: 1024px) {
+    .gs-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+    .gs-aside { position: sticky; top: 16px; }
+}
+.gs-main, .gs-aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── Surface: the one container. Rows live inside it with dividers, never as
+      bordered cards inside a bordered card. ─────────────────────────────── */
+.gs-surface {
+    overflow: hidden;
+    border: 1px solid var(--gs-border); border-radius: var(--gs-r-lg);
+    background: var(--gs-bg);
+    box-shadow: var(--gs-shadow);
+}
+.gs-surface-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--gs-border);
+    background: var(--gs-bg-subtle);
+}
+.gs-surface-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--gs-ink); }
+.gs-surface-sub { margin: 2px 0 0; font-size: 13px; font-weight: 400; color: var(--gs-mute); }
+.gs-surface-body { padding: 16px; }
+.gs-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 6px;
+    border-radius: 9999px; background: var(--gs-bg-hover);
+    font-size: 12px; font-weight: 500; color: var(--gs-mute);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Rows ──────────────────────────────────────────────────────────────── */
+.gs-rows { display: flex; flex-direction: column; }
+.gs-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gs-border);
+    text-decoration: none; color: inherit;
+    touch-action: manipulation;
+    transition: background-color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-row:last-child { border-bottom: 0; }
+a.gs-row:hover { background: var(--gs-bg-subtle); }
+.gs-row-main { min-width: 0; }
+.gs-row-title {
+    font-size: 14px; font-weight: 500; color: var(--gs-ink);
+    overflow-wrap: anywhere;
+}
+.gs-row-meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 4px; font-size: 13px; color: var(--gs-mute);
+}
+.gs-row-side { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
+/* An at-risk row is tinted AND carries the words "At Risk" beside it. */
+.gs-row.is-late { background: #fff8f8; }
+a.gs-row.is-late:hover { background: #fff1f1; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.gs-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 32px; padding: 0 12px;
+    border: 1px solid var(--gs-border-ctl); border-radius: var(--gs-r-sm);
+    background: var(--gs-bg);
+    font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
+    color: var(--gs-ink);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 150ms cubic-bezier(.22, 1, .36, 1),
+                border-color 150ms cubic-bezier(.22, 1, .36, 1),
+                color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-btn:hover { background: var(--gs-bg-hover); }                 /* hover > rest contrast */
+.gs-btn:active { background: #ededed; }
+.gs-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.gs-btn-primary {
+    border-color: var(--gs-ink); background: var(--gs-ink); color: #fff;
+}
+.gs-btn-primary:hover { background: #000; border-color: #000; }
+.gs-btn-primary:active { background: #000; }
+/* Mobile minimum hit target — the visual button stays 32px, the target grows. */
+@media (pointer: coarse) {
+    .gs-btn { min-height: 44px; }
+    .gs-row { min-height: 44px; }
+}
+
+/* ── Badges. Colour never carries meaning alone; the word is always there. ─ */
+.gs-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px;
+    border: 1px solid var(--gs-border); border-radius: 9999px;
+    background: var(--gs-bg-subtle);
+    font-size: 12px; font-weight: 500; white-space: nowrap;
+    color: var(--gs-body);
+}
+.gs-badge-green { border-color: rgba(10, 126, 63, .3); background: #eefbf3; color: var(--gs-green); }
+.gs-badge-amber { border-color: rgba(171, 87, 10, .3); background: #fff7ed; color: var(--gs-amber); }
+.gs-badge-red   { border-color: rgba(197, 0, 0, .3);   background: #fff1f1; color: var(--gs-red); }
+.gs-badge-blue  { border-color: rgba(7, 97, 209, .3);  background: #f0f6ff; color: var(--gs-link); }
+
+/* Tracking number: a copied identifier, so it is mono and never translated. */
+.gs-id {
+    display: inline-block; padding: 1px 6px;
+    border: 1px solid var(--gs-border); border-radius: 4px;
+    background: var(--gs-bg-subtle);
+    font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; color: var(--gs-body);
+}
+
+/* ── Stats ─────────────────────────────────────────────────────────────── */
+.gs-stats { display: flex; flex-direction: column; }
+.gs-stat {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--gs-border);
+}
+.gs-stat:last-child { border-bottom: 0; }
+.gs-stat dt { font-size: 13px; color: var(--gs-mute); }
+.gs-stat dd {
+    margin: 0; font-size: 15px; font-weight: 600; color: var(--gs-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Contribution grid ─────────────────────────────────────────────────────
+   A year of work, read the way a calendar is: months along the top, weekdays
+   down the side, one square a day. It used to live in the 300px rail, where 53
+   weeks of squares were 4px wide and told you nothing — so it reads full width
+   now, and the strip underneath carries the figures the grid cannot state.
+   ───────────────────────────────────────────────────────────────────────── */
+.gs-heat-scroll { overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 4px; }
+.gs-heat-grid { display: inline-block; min-width: 100%; }
+
+/* --gs-cell drives every width in here, so the month labels stay locked to
+   their columns at any size. */
+.gs-heat-grid { --gs-cell: 11px; --gs-gap: 3px; --gs-daycol: 30px; }
+
+.gs-heat-months {
+    display: flex; gap: var(--gs-gap);
+    margin-left: calc(var(--gs-daycol) + var(--gs-gap));
+    margin-bottom: 6px;
+}
+.gs-heat-month {
+    position: relative;
+    flex: 0 0 var(--gs-cell);
+    font-size: 11px; line-height: 1; white-space: nowrap;
+    color: var(--gs-mute);
+}
+
+.gs-heat-body { display: flex; gap: var(--gs-gap); }
+.gs-heat-days {
+    display: flex; flex-direction: column;
+    flex: 0 0 var(--gs-daycol);
+    /* Rows are a Sun→Sat column, so row k sits at k × (cell + gap).
+       Mon is row 1 → offset one step; Wed and Fri are rows 3 and 5 → every
+       label after the first clears TWO rows, not one. Spacing them by a
+       single row (the obvious reading) walks them steadily off their rows. */
+    padding-top: calc(var(--gs-cell) + var(--gs-gap));
+    gap: calc(var(--gs-cell) + 2 * var(--gs-gap));
+    font-size: 11px; color: var(--gs-mute);
+}
+.gs-heat-days span { height: var(--gs-cell); line-height: var(--gs-cell); }
+
+.gs-heat { display: flex; gap: var(--gs-gap); }
+.gs-heat-col { display: flex; flex-direction: column; gap: var(--gs-gap); }
+.gs-heat-cell {
+    width: var(--gs-cell, 11px); height: var(--gs-cell, 11px);
+    border-radius: 2px;
+    background: #f0f0f0;
+}
+/* One hue, five steps. Green because these are completions — amber and red
+   mean in-progress and overdue everywhere else in the system, and a wall of
+   amber squares would read as a wall of problems. */
+.gs-heat-l1 { background: #cce3cf; }
+.gs-heat-l2 { background: #8fc39b; }
+.gs-heat-l3 { background: #3f9d63; }
+.gs-heat-l4 { background: var(--gs-green); }
+.gs-heat-future { visibility: hidden; }
+.gs-heat-legend {
+    display: flex; align-items: center; gap: 4px;
+    margin-top: 12px; font-size: 12px; color: var(--gs-mute);
+}
+.gs-heat-legend .gs-heat-cell { --gs-cell: 11px; }
+
+/* The strip under the grid: six figures on one hairline, wrapping to two rows
+   on a laptop and one column on a phone. */
+/* Six figures, in a column count that always divides six — auto-fit would
+   leave a fifth-and-one row with a dead cell showing the divider colour
+   through the gap. */
+.gs-activity-stats {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    margin: 0;
+    border-top: 1px solid var(--gs-border);
+    background: var(--gs-border);
+}
+@media (max-width: 1100px) { .gs-activity-stats { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px)  { .gs-activity-stats { grid-template-columns: repeat(2, 1fr); } }
+.gs-activity-stat { padding: 14px 16px; background: var(--gs-bg); }
+.gs-activity-stat dt {
+    font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--gs-mute);
+}
+.gs-activity-stat dd {
+    margin: 4px 0 0;
+    font-size: 17px; font-weight: 600; line-height: 1.2; color: var(--gs-ink);
+    overflow-wrap: anywhere;
+}
+.gs-activity-stat p { margin: 2px 0 0; font-size: 12px; color: var(--gs-mute); }
+
+/* ── Tabs. Deep-linked, so each one is an <a> with its own URL. ─────────── */
+.gs-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--gs-border); overflow-x: auto; }
+.gs-tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 12px; margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    font-size: 14px; font-weight: 500; white-space: nowrap;
+    color: var(--gs-mute);
+    text-decoration: none;
+    touch-action: manipulation;
+    transition: color 150ms cubic-bezier(.22, 1, .36, 1),
+                border-color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-tab:hover { color: var(--gs-ink); }
+.gs-tab[aria-current="page"] { color: var(--gs-ink); border-bottom-color: var(--gs-ink); }
+@media (pointer: coarse) { .gs-tab { min-height: 44px; } }
+
+/* ── Empty states: say what goes here and how to put something here. ────── */
+.gs-empty { padding: 40px 24px; text-align: center; }
+.gs-empty-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--gs-ink); }
+.gs-empty-body { margin: 6px auto 0; max-width: 46ch; font-size: 13px; color: var(--gs-mute); text-wrap: pretty; }
+
+/* ── Activity feed ─────────────────────────────────────────────────────── */
+.gs-feed { display: flex; flex-direction: column; gap: 12px; }
+.gs-tl { list-style: none; margin: 0; padding: 0; }
+.gs-tl-row { position: relative; padding: 0 0 16px 22px; border-left: 1px solid var(--gs-border); }
+.gs-tl-row:last-child { padding-bottom: 0; border-left-color: transparent; }
+.gs-tl-row::before {
+    content: ''; position: absolute; left: -4.5px; top: 4px;
+    width: 8px; height: 8px; border-radius: 9999px;
+    background: #949494; box-shadow: 0 0 0 3px var(--gs-bg);
+}
+.gs-tl-row.t-green::before { background: var(--gs-green); }
+.gs-tl-row.t-amber::before { background: var(--gs-amber-fill); }
+.gs-tl-row.t-red::before   { background: var(--gs-red-fill); }
+.gs-tl-row.t-blue::before  { background: var(--gs-blue); }
+.gs-tl-row.t-note::before  { background: #949494; }
+.gs-tl-time { display: block; font-size: 12px; color: var(--gs-mute); font-variant-numeric: tabular-nums; }
+.gs-tl-headline { margin: 2px 0 0; font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--gs-ink); }
+.gs-tl-row.t-red .gs-tl-headline { color: var(--gs-red); }
+.gs-tl-detail { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--gs-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.gs-tl-meta { margin: 4px 0 0; font-size: 12px; color: var(--gs-mute); }
+.gs-tl-more {
+    margin-top: 2px; padding: 4px 0;
+    background: none; border: 0;
+    font: inherit; font-size: 13px; font-weight: 500; color: var(--gs-link);
+    cursor: pointer; touch-action: manipulation;
+}
+.gs-tl-more:hover { color: var(--gs-ink); }
+.gs-docchip {
+    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 12px; padding: 6px 10px;
+    border: 1px solid var(--gs-border); border-radius: var(--gs-r-md);
+    background: var(--gs-bg-subtle);
+    font-size: 13px; color: var(--gs-body); text-decoration: none;
+    transition: background-color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-docchip:hover { background: var(--gs-bg-hover); }
+
+/* ── Composer ──────────────────────────────────────────────────────────── */
+.gs-composer-prompt {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 12px 16px;
+    background: none; border: 0;
+    font: inherit; font-size: 14px; color: var(--gs-mute); text-align: left;
+    cursor: text; touch-action: manipulation;
+}
+.gs-composer-prompt:hover { background: var(--gs-bg-subtle); }
+.gs-field {
+    display: block; width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--gs-border-ctl); border-radius: var(--gs-r-sm);
+    background: var(--gs-bg);
+    font: inherit; font-size: 14px; color: var(--gs-ink);
+    /* ≥16px on small screens or iOS Safari zooms the page on focus. */
+    transition: border-color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-field:hover { border-color: #7a7a7a; }
+.gs-field::placeholder { color: var(--gs-mute); }
+@media (max-width: 640px) { .gs-field { font-size: 16px; } }
+select.gs-field { background-color: var(--gs-bg); color: var(--gs-ink); }  /* Windows dark mode */
+.gs-seg { display: inline-flex; gap: 4px; }
+.gs-seg-btn {
+    height: 28px; padding: 0 10px;
+    border: 1px solid var(--gs-border); border-radius: var(--gs-r-sm);
+    background: var(--gs-bg);
+    font: inherit; font-size: 13px; font-weight: 500; color: var(--gs-mute);
+    cursor: pointer; touch-action: manipulation;
+    transition: background-color 150ms cubic-bezier(.22, 1, .36, 1),
+                color 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.gs-seg-btn[aria-pressed="true"] { background: var(--gs-ink); border-color: var(--gs-ink); color: #fff; }
+@media (pointer: coarse) { .gs-seg-btn { min-height: 44px; } }
+
+/* ── Hold marker ───────────────────────────────────────────────────────── */
+.gs-hold {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    margin-top: 6px; padding: 4px 8px;
+    border: 1px solid rgba(171, 87, 10, .3); border-radius: var(--gs-r-sm);
+    background: #fff7ed;
+    font-size: 12px; color: var(--gs-amber);
+}
+.gs-hold-reason { flex-basis: 100%; color: var(--gs-body); }
+
+.gs-notice {
+    padding: 12px 16px;
+    border: 1px solid rgba(10, 126, 63, .3); border-radius: var(--gs-r-md);
+    background: #eefbf3;
+    font-size: 13px; font-weight: 500; color: var(--gs-green);
+}
+
+/* Linked sections shouldn't land under the app's sticky header. */
+.gs-root [id] { scroll-margin-top: 80px; }
+
+/* Motion is a nicety here; every transition above is a colour change, so the
+   reduced-motion answer is simply to arrive at the end state immediately. */
+@media (prefers-reduced-motion: reduce) {
+    .gs-root *, .gs-root *::before, .gs-root *::after {
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+
+/* ── Shared Civic Record chips, spoken in Geist ─────────────────────────────
+   <x-status-badge> and <x-document-origin> are used on a dozen other pages,
+   so they keep their own look everywhere else; inside the pilot they are
+   re-dressed rather than replaced. The state→colour map and the text label
+   are untouched — only the shell changes, so "Returned" is still red and
+   still says "Returned". Colour never has to carry it alone.
+   ───────────────────────────────────────────────────────────────────────── */
+.gs-root .pill {
+    gap: 5px;
+    padding: 2px 8px;
+    border: 1px solid var(--gs-border);
+    border-radius: 9999px;
+    background: var(--gs-bg-subtle);
+    font-size: 12px; font-weight: 500;
+    color: var(--gs-body);
+}
+.gs-root .pill::before { width: 5px; height: 5px; }
+.gs-root .p-green { border-color: rgba(10, 126, 63, .3);  background: #eefbf3; color: var(--gs-green); }
+.gs-root .p-green::before { background: var(--gs-green); }
+.gs-root .p-amber,
+.gs-root .p-hold  { border-color: rgba(171, 87, 10, .3);  background: #fff7ed; color: var(--gs-amber); }
+.gs-root .p-amber::before,
+.gs-root .p-hold::before { background: var(--gs-amber-fill); }
+.gs-root .p-red   { border-color: rgba(197, 0, 0, .3);    background: #fff1f1; color: var(--gs-red); }
+.gs-root .p-red::before { background: var(--gs-red-fill); }
+.gs-root .p-muted { border-color: var(--gs-border); background: var(--gs-bg-subtle); color: var(--gs-mute); }
+.gs-root .p-muted::before { background: #949494; }
+
+.gs-root .origin-line { gap: 6px; font-size: 13px; color: var(--gs-mute); }
+.gs-root .origin-line .pill { font-size: 11px; padding: 1px 7px; }
+.gs-root .origin-date { color: var(--gs-mute); font-variant-numeric: tabular-nums; }
+
+/* An inline link in running text still has to be hittable: 16px of line box
+   plus 4px either side clears the 24px minimum without moving the baseline. */
+.gs-root .gs-link {
+    display: inline-block;
+    padding: 4px 0;
+    color: var(--gs-link);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.gs-root .gs-link:hover { text-decoration: underline; }
+
+/* A profile picture stands in for the initials in the same slot, so it must
+   fill the circle rather than stretch to it. <x-user-avatar> renders a <span>
+   of initials or an <img>; both wear the same sizing class. */
+img.gs-avatar,
+img.avatar,
+img.dir-avatar,
+img.header-avatar { object-fit: cover; padding: 0; }

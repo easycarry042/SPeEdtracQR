@@ -1,5 +1,6 @@
 {{-- One event on the rail: time, coloured dot, headline, and the detail that
-     explains it. `row` comes from App\Support\ActivityNarrative. --}}
+     explains it. `row` comes from App\Support\ActivityNarrative. The dot only
+     repeats what the headline already says — it never carries meaning alone. --}}
 @php
     $at = $at ?? null;
     $author = $author ?? null;
@@ -10,22 +11,22 @@
     $foldAttrs = ($folded ?? false) ? ' x-show="open" x-cloak' : '';
 @endphp
 
-<li class="sp-tl-row t-{{ $row['tone'] }}"{!! $foldAttrs !!}>
-    <time class="sp-tl-time" @if($at) datetime="{{ $at->toIso8601String() }}" title="{{ $at->format('M d, Y g:i A') }}" @endif>
+<li class="gs-tl-row t-{{ $row['tone'] }}"{!! $foldAttrs !!}>
+    <time class="gs-tl-time" @if($at) datetime="{{ $at->toIso8601String() }}" title="{{ $at->format('M j, Y g:i A') }}" @endif>
         {{ $at ? $at->format('g:i A') : '—' }}
     </time>
 
-    <p class="sp-tl-headline">{{ $row['headline'] }}</p>
+    <p class="gs-tl-headline">{{ $row['headline'] }}</p>
 
     @if($row['detail'])
-        <p class="sp-tl-detail">{{ $row['detail'] }}</p>
+        <p class="gs-tl-detail">{{ $row['detail'] }}</p>
     @endif
 
     @if($author || $at)
-        <p class="sp-tl-meta">
+        <p class="gs-tl-meta">
             @if($author){{ $author }}@endif
-            @if($author && $at) · @endif
-            @if($at){{ $at->format('M d, Y') }}@endif
+            @if($author && $at) <span aria-hidden="true">·</span> @endif
+            @if($at)<span class="gs-num">{{ $at->format('M j, Y') }}</span>@endif
         </p>
     @endif
 </li>

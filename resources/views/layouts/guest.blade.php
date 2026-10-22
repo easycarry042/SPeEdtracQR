@@ -13,6 +13,7 @@
         <!-- Fonts (Zain + Nunito) are imported by app.css -->
 
         <!-- Scripts -->
+        @include('layouts.partials.echo-ready')
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
             * { box-sizing: border-box; }

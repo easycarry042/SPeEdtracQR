@@ -682,7 +682,10 @@
         }
 
         // ── Real-time updates via Laravel Echo / Reverb ────────────────────────
-        if (window.Echo) {
+        // whenEcho, not `if (window.Echo)`: this script runs while the document
+        // is still parsing, and the deferred bundle that creates Echo has not
+        // run yet — the old guard was always false and live updates never came.
+        window.whenEcho(() => {
             try {
                 window.Echo.channel('documents.' + trackingNumber)
                     .listen('.moved', (e) => {
@@ -705,7 +708,7 @@
             } catch (_) {
                 liveConnected = false; // Echo unavailable — poll fallback stays active.
             }
-        }
+        });
 
         // ── Fallback: poll every 30 s only while the live socket is not connected ─
         async function pollStatus() {

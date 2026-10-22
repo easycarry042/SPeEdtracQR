@@ -52,7 +52,14 @@ class TeamUsersSeeder extends Seeder
             ['Ramon Bautista',   'om.head@speedtraqr.com',            'Supervisor',  'OM'],
             ['Elena Marquez',    'budget.head@speedtraqr.com',        'Supervisor',  'BO'],
             ['Teresa Lim',       'accounting.head@speedtraqr.com',    'Supervisor',  'ACC'],
+ 
+ 
             ['Noel Aguilar',     'bac.head@speedtraqr.com',           'Supervisor',  'BAC'],
+
+
+
+
+            
             ['Grace Villanueva', 'treasury.head@speedtraqr.com',      'Supervisor',  'TRSY'],
             ['Arnel Domingo',    'engineering.head@speedtraqr.com',   'Supervisor',  'ENG'],
             ['Divina Ocampo',    'health.head@speedtraqr.com',        'Supervisor',  'MHO'],

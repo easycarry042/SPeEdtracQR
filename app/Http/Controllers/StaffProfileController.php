@@ -40,7 +40,7 @@ class StaffProfileController extends Controller
                 ->orWhere('email', 'like', "%{$q}%")))
             ->when($role !== '', fn ($query) => $query->role($role))
             ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+            ->get(['id', 'name', 'email', 'avatar_path']);
 
         // One grouped query per figure — avoids per-user KPI recomputation (N+1).
         $load = StaffLoad::for($users->pluck('id'));
@@ -49,7 +49,7 @@ class StaffProfileController extends Controller
             'id' => $u->id,
             'name' => $u->name,
             'role' => $u->getRoleNames()->first(),
-            'initials' => collect(explode(' ', $u->name))->filter()->take(2)->map(fn ($p): string => mb_strtoupper(mb_substr((string) $p, 0, 1)))->implode(''),
+            'avatar_path' => $u->avatar_path,
             'url' => route('staff.profile', $u->id),
         ] + $load[$u->id]);
 
@@ -102,7 +102,12 @@ class StaffProfileController extends Controller
             'roleLabel' => $user->getRoleNames()->first(),
             'tab' => $tab,
             'kpis' => $profile->kpis(),
-            'lastActiveAt' => $profile->lastActiveAt(),
+            // Looking at your own profile is itself proof you are here. The
+            // stored stamp is written by TrackLastActive further down the
+            // middleware stack than route binding, so on this very request the
+            // bound model still holds the previous visit — which is how the
+            // page came to tell its own author they were an hour idle.
+            'lastActiveAt' => $isOwn ? now() : $profile->lastActiveAt(),
             'heatmap' => $profile->heatmap(),
             'feed' => $tab === 'activity' ? $profile->feed() : collect(),
             'assigned' => $tab === 'assigned' ? $profile->assigned() : collect(),

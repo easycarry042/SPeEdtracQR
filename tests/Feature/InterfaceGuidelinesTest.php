@@ -135,7 +135,10 @@ class InterfaceGuidelinesTest extends TestCase
             if (! str_contains($body, '<x-app-layout')) {
                 continue;
             }
-            if (! preg_match('/<x-app-layout[^>]*\stitle="/', $body)) {
+            // `:title="$user->name"` names the screen as well as a literal does
+            // — better, where the screen is about one record — so a bound
+            // attribute counts too.
+            if (! preg_match('/<x-app-layout[^>]*\s:?title="/', $body)) {
                 $untitled[] = str_replace(resource_path('views').'/', '', $file);
             }
         }

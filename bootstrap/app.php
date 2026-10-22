@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureHasRole;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\PreventBackHistory;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TrackLastActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -50,6 +51,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->appendToGroup('web', PreventBackHistory::class);
         $middleware->appendToGroup('web', SecurityHeaders::class);
+        // After EnsureUserIsActive, so a deactivated account is logged out
+        // rather than stamped as present.
+        $middleware->appendToGroup('web', TrackLastActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
