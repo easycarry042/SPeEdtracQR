@@ -1,4 +1,5 @@
 import { db, id, toId } from '@/lib/db';
+import { citizenFacing, internalOnly, involvingOffice } from '@/lib/domain/scope';
 import { now } from '@/lib/time';
 
 /**
@@ -215,4 +216,50 @@ export async function hydrateActivity(rows: RawActivity[]): Promise<ActivityRow[
     properties: (row.properties ?? null) as Record<string, unknown> | null,
     createdAt: row.created_at,
   }));
+}
+
+/**
+ * The audit strip at the foot of the command center: who did what, latest
+ * first.
+ *
+ * Read straight off the activity log rather than a second table, so it can never
+ * drift from the full Audit Log page. Rows whose only change was an empty
+ * "updated" are dropped — they were noise with nothing to show.
+ */
+export async function recentOnRequests(options: {
+  internal: boolean;
+  limit?: number;
+  departmentId?: number | null;
+}): Promise<ActivityRow[]> {
+  const { internal, limit = 25, departmentId = null } = options;
+
+  const documents = await db.documents.findMany({
+    where: internal
+      ? departmentId
+        ? involvingOffice(departmentId)
+        : internalOnly
+      : {
+          ...citizenFacing,
+          ...(departmentId ? { department_id: id(departmentId) } : {}),
+        },
+    select: { id: true },
+  });
+
+  if (documents.length === 0) {
+    return [];
+  }
+
+  const rows = await db.activity_log.findMany({
+    where: {
+      subject_type: SUBJECT.Document,
+      subject_id: { in: documents.map((row) => row.id) },
+    },
+    // Several entries can share a second (a create and the first status change,
+    // say), so the id breaks the tie — otherwise "newest first" is whatever
+    // order the driver happens to return.
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    take: limit,
+  });
+
+  return hydrateActivity(rows);
 }

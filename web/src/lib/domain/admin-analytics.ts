@@ -1,9 +1,20 @@
 import type { Prisma } from '@prisma/client';
 import { db, id } from '@/lib/db';
-import { addDays, endOfDay, now, startOfDay, toDateString } from '@/lib/time';
-import { DocumentStatus, activeValues, isTerminal, slaHours } from '@/lib/domain/document-status';
+import { addDays, endOfDay, formatNaive, now, startOfDay, toDateString } from '@/lib/time';
+import {
+  DocumentStatus,
+  activeValues,
+  band,
+  citizenCases,
+  isTerminal,
+  label as statusLabel,
+  slaHours,
+} from '@/lib/domain/document-status';
 import { citizenFacing } from '@/lib/domain/scope';
-import { statusOf } from '@/lib/domain/document';
+import { holdOverdueDays, isHoldOverdue, statusOf } from '@/lib/domain/document';
+import { fromHours } from '@/lib/domain/duration';
+import { SUBJECT } from '@/lib/activity';
+import { ROLE_STAFF, usersWithRole } from '@/lib/auth/rbac';
 
 /**
  * Read model for the CITIZEN side of the command center and the supervisor's
@@ -380,4 +391,433 @@ export async function needsAttention(
       assignee: row.assignee?.name ?? null,
       state,
     }));
+}
+
+/* ── Region C: the command center's comparison panels ───────────────────────── */
+
+/** Carbon's `startOfWeek(Carbon::SUNDAY)`, on the naive encoding. */
+function startOfWeekSunday(date: Date): Date {
+  const start = new Date(date.getTime());
+  start.setUTCHours(0, 0, 0, 0);
+
+  return new Date(start.getTime() - start.getUTCDay() * 86_400_000);
+}
+
+export type ThroughputRow = { label: string; created: number; completed: number };
+
+/** Filed vs completed per week, over the selected window. */
+export async function throughput(scope: Scope): Promise<ThroughputRow[]> {
+  const [created, completed] = await Promise.all([
+    db.documents.findMany({
+      where: { ...scopedWhere(scope), created_at: { gte: scope.from, lte: scope.to } },
+      select: { created_at: true },
+    }),
+    db.documents.findMany({
+      where: { ...scopedWhere(scope), completed_at: { gte: scope.from, lte: scope.to } },
+      select: { completed_at: true },
+    }),
+  ]);
+
+  const bucket = (dates: Array<Date | null>): Map<string, number> => {
+    const buckets = new Map<string, number>();
+
+    for (const date of dates) {
+      if (date) {
+        const key = toDateString(startOfWeekSunday(date));
+        buckets.set(key, (buckets.get(key) ?? 0) + 1);
+      }
+    }
+
+    return buckets;
+  };
+
+  const createdBuckets = bucket(created.map((row) => row.created_at));
+  const completedBuckets = bucket(completed.map((row) => row.completed_at));
+
+  const weeks: ThroughputRow[] = [];
+  let cursor = startOfWeekSunday(scope.from);
+
+  while (cursor <= scope.to) {
+    const key = toDateString(cursor);
+
+    weeks.push({
+      label: formatNaive(cursor, 'M j'),
+      created: createdBuckets.get(key) ?? 0,
+      completed: completedBuckets.get(key) ?? 0,
+    });
+
+    cursor = new Date(cursor.getTime() + 7 * 86_400_000);
+  }
+
+  return weeks;
+}
+
+export type StaffRow = { name: string; completed: number; active: number; overloaded: boolean };
+
+/** Active assignments at which a staff member is flagged as overloaded. */
+export const OVERLOADED_AT = 10;
+
+/**
+ * "Staff Workload" — completed (in window) plus current active load, for every
+ * active staff member who can work requests, **idle ones included**: an empty
+ * row is the answer to "who has room for more?", and leaving it out made the
+ * panel look like the whole office was busy.
+ */
+export async function staffWorkload(scope: Scope, limit = 10): Promise<StaffRow[]> {
+  const [completedRows, activeRows, staff] = await Promise.all([
+    db.documents.groupBy({
+      by: ['assigned_to'],
+      where: {
+        ...scopedWhere(scope),
+        assigned_to: { not: null },
+        completed_at: { gte: scope.from, lte: scope.to },
+      },
+      _count: { assigned_to: true },
+    }),
+    db.documents.groupBy({
+      by: ['assigned_to'],
+      where: {
+        ...scopedWhere(scope),
+        assigned_to: { not: null },
+        status: { in: activeValues() },
+      },
+      _count: { assigned_to: true },
+    }),
+    // Super admins hold every permission but work no requests, so the roster is
+    // read by role rather than by permission.
+    usersWithRole(ROLE_STAFF, scope.departmentId ?? null),
+  ]);
+
+  const completed = new Map(completedRows.map((row) => [Number(row.assigned_to), row._count.assigned_to]));
+  const active = new Map(activeRows.map((row) => [Number(row.assigned_to), row._count.assigned_to]));
+
+  // Anyone holding work who is no longer on the staff list still counts.
+  const ids = [...new Set([...staff.map((person) => person.id), ...completed.keys(), ...active.keys()])];
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const names = new Map(
+    (
+      await db.users.findMany({
+        where: { id: { in: ids.map((value) => id(value)) } },
+        select: { id: true, name: true },
+      })
+    ).map((row) => [Number(row.id), row.name]),
+  );
+
+  return ids
+    .map((personId): StaffRow => {
+      const activeCount = active.get(personId) ?? 0;
+
+      return {
+        name: names.get(personId) ?? 'Unknown',
+        completed: completed.get(personId) ?? 0,
+        active: activeCount,
+        overloaded: activeCount >= OVERLOADED_AT,
+      };
+    })
+    .sort((a, b) => b.active + b.completed - (a.active + a.completed) || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+export type TypeRow = { label: string; value: number };
+
+/** "Volume by Request Type" — created in window, top 6. */
+export async function typeBreakdown(scope: Scope): Promise<TypeRow[]> {
+  const rows = await db.documents.groupBy({
+    by: ['document_type'],
+    where: { ...scopedWhere(scope), created_at: { gte: scope.from, lte: scope.to } },
+    _count: { document_type: true },
+  });
+
+  return rows
+    .map((row) => ({ label: row.document_type, value: row._count.document_type }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+}
+
+export type OfficeVolumeRow = {
+  label: string;
+  code: string | null;
+  value: number;
+  pct: number;
+  busiest: boolean;
+};
+
+/**
+ * "Requests by Office" — how much work each office is carrying.
+ *
+ * The bar is read against the busiest office, not against the total: the frame
+ * draws one row at 100% and the rest below it, which is a comparison between
+ * offices rather than a share of a whole, so the panel prints each office's
+ * COUNT beside its bar.
+ *
+ * Every office that owns a citizen service is listed, at zero when nothing came
+ * in: leaving empty offices out hid that a whole office had received nothing,
+ * which is exactly what a misrouted service looks like.
+ */
+export async function departmentVolume(scope: Scope): Promise<OfficeVolumeRow[]> {
+  const counts = await db.documents.groupBy({
+    by: ['department_id'],
+    where: {
+      ...scopedWhere(scope),
+      department_id: { not: null },
+      created_at: { gte: scope.from, lte: scope.to },
+    },
+    _count: { department_id: true },
+  });
+
+  const serviceOffices = await db.request_types.findMany({
+    where: { is_active: true, department_id: { not: null } },
+    select: { department_id: true },
+    distinct: ['department_id'],
+  });
+
+  const tally = new Map(counts.map((row) => [Number(row.department_id), row._count.department_id]));
+  const ids = [
+    ...new Set([...serviceOffices.map((row) => Number(row.department_id)), ...tally.keys()]),
+  ];
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const departments = await db.departments.findMany({
+    where: { id: { in: ids.map((value) => id(value)) } },
+    select: { id: true, name: true, code: true },
+  });
+
+  const max = Math.max(1, ...tally.values());
+
+  return departments
+    .map((department): OfficeVolumeRow => {
+      const value = tally.get(Number(department.id)) ?? 0;
+
+      return {
+        label: department.name,
+        code: department.code,
+        value,
+        pct: Math.round((value / max) * 100),
+        busiest: value === max,
+      };
+    })
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
+export type UnroutedRow = {
+  id: number;
+  tracking_number: string;
+  document_type: string;
+  created_at: Date | null;
+};
+
+/**
+ * Open citizen requests that reached no office: their request type has no
+ * handling office, so no supervisor was told about them and they wait unseen.
+ * Fixed on the Request Types page, then moved by hand.
+ */
+export async function unrouted(scope: Scope): Promise<UnroutedRow[]> {
+  const rows = await db.documents.findMany({
+    where: { ...scopedWhere(scope), department_id: null, status: { in: activeValues() } },
+    select: { id: true, tracking_number: true, document_type: true, created_at: true },
+    orderBy: { created_at: 'asc' },
+  });
+
+  return rows.map((row) => ({ ...row, id: Number(row.id) }));
+}
+
+export type AtRiskRow = {
+  id: number;
+  tracking_number: string;
+  document_type: string;
+  status: string;
+  stage: string;
+  assignee: string | null;
+  hours_over: number;
+  over: string;
+  url: string;
+};
+
+/**
+ * "Needs Attention" — every overdue open request, worst first.
+ *
+ * Uncapped by design: the panel shows the first rows and states the true total.
+ * It used to stop at 12 and then report "12 overdue" while the tile above said
+ * 15.
+ */
+export async function atRisk(scope: Scope): Promise<AtRiskRow[]> {
+  const rows = await db.documents.findMany({
+    where: { ...scopedWhere(scope), status: { in: activeValues() } },
+    select: {
+      id: true,
+      tracking_number: true,
+      document_type: true,
+      status: true,
+      status_changed_at: true,
+      updated_at: true,
+      created_at: true,
+      assignee: { select: { name: true } },
+    },
+  });
+
+  return rows
+    .filter((row) => slaState(row) === 'overdue')
+    .map((row): AtRiskRow => {
+      const stage = statusOf(row);
+      const start = row.status_changed_at ?? row.updated_at ?? row.created_at;
+      const elapsed = start ? Math.abs(now().getTime() - start.getTime()) / 3_600_000 : 0;
+      const hoursOver = elapsed - (slaHours(stage) ?? 0);
+
+      return {
+        id: Number(row.id),
+        tracking_number: row.tracking_number,
+        document_type: row.document_type,
+        status: row.status,
+        stage: statusLabel(stage),
+        assignee: row.assignee?.name ?? null,
+        hours_over: Math.round(hoursOver * 10) / 10,
+        over: fromHours(hoursOver),
+        url: `/admin/requests?open=${encodeURIComponent(row.tracking_number)}`,
+      };
+    })
+    .sort((a, b) => b.hours_over - a.hours_over);
+}
+
+export type StalledHoldRow = {
+  id: number;
+  tracking_number: string;
+  document_type: string;
+  assignee: string | null;
+  blocked_by: string | null;
+  days_over: number;
+  held_since: Date | null;
+  url: string;
+};
+
+/**
+ * Requests parked On Hold past their own hold deadline.
+ *
+ * These never reach `atRisk()`: a hold sets the stage SLA to null, so the
+ * request is not overdue by design. Without this list a stalled hold would be
+ * invisible on the command center — the exact blind spot the check-holds sweep
+ * emails about.
+ */
+export async function stalledHolds(scope: Scope, limit = 12): Promise<StalledHoldRow[]> {
+  const rows = await db.documents.findMany({
+    where: { ...scopedWhere(scope), status: DocumentStatus.OnHold },
+    select: {
+      id: true,
+      tracking_number: true,
+      document_type: true,
+      status: true,
+      hold_until: true,
+      held_at: true,
+      blocked_by: true,
+      assignee: { select: { name: true } },
+    },
+  });
+
+  return rows
+    .filter((row) => isHoldOverdue(row))
+    .map((row): StalledHoldRow => ({
+      id: Number(row.id),
+      tracking_number: row.tracking_number,
+      document_type: row.document_type,
+      assignee: row.assignee?.name ?? null,
+      blocked_by: row.blocked_by,
+      days_over: holdOverdueDays(row),
+      held_since: row.held_at,
+      url: `/admin/requests?open=${encodeURIComponent(row.tracking_number)}`,
+    }))
+    .sort((a, b) => b.days_over - a.days_over)
+    .slice(0, limit);
+}
+
+export type StageTimeRow = { label: string; hours: number; band: string };
+
+/** Every citizen stage except On Hold, at zero — the shape the panel draws. */
+function emptyStageSeries(): StageTimeRow[] {
+  return citizenCases()
+    // Paused time isn't a "slow stage".
+    .filter((stage) => stage !== DocumentStatus.OnHold)
+    .map((stage) => ({ label: statusLabel(stage), hours: 0, band: band(stage) }));
+}
+
+/**
+ * "Average Time per Stage" — hours spent in each stage on average,
+ * reconstructed from the activity log by diffing consecutive status-change
+ * timestamps.
+ *
+ * Only CLOSED intervals count (a stage the request has already left): the stage
+ * a request is sitting in right now has no end yet, and counting "so far" would
+ * drag every average toward whatever is currently in flight.
+ */
+export async function timeByStage(scope: Scope): Promise<StageTimeRow[]> {
+  const documents = await db.documents.findMany({
+    where: scopedWhere(scope),
+    select: { id: true, created_at: true },
+  });
+
+  if (documents.length === 0) {
+    return emptyStageSeries();
+  }
+
+  const activities = await db.activity_log.findMany({
+    where: {
+      subject_type: SUBJECT.Document,
+      subject_id: { in: documents.map((row) => row.id) },
+    },
+    select: { subject_id: true, properties: true, created_at: true },
+    orderBy: { created_at: 'asc' },
+  });
+
+  const byDocument = new Map<string, typeof activities>();
+
+  for (const entry of activities) {
+    const key = String(entry.subject_id);
+    byDocument.set(key, [...(byDocument.get(key) ?? []), entry]);
+  }
+
+  const total = new Map<string, number>();
+  const closed = new Map<string, number>();
+
+  for (const document of documents) {
+    let previousTime = document.created_at;
+    let previousStatus: string | null = null;
+
+    for (const entry of byDocument.get(String(document.id)) ?? []) {
+      const properties = (entry.properties ?? {}) as {
+        attributes?: Record<string, unknown>;
+        old?: Record<string, unknown>;
+      };
+
+      // Not a status transition.
+      if (!properties.attributes || !('status' in properties.attributes)) {
+        continue;
+      }
+
+      previousStatus ??= (properties.old?.status as string | undefined) ?? DocumentStatus.Pending;
+
+      if (previousTime && entry.created_at) {
+        const hours = Math.abs(entry.created_at.getTime() - previousTime.getTime()) / 3_600_000;
+        total.set(previousStatus, (total.get(previousStatus) ?? 0) + hours);
+        closed.set(previousStatus, (closed.get(previousStatus) ?? 0) + 1);
+      }
+
+      previousTime = entry.created_at;
+      previousStatus = properties.attributes.status as string;
+    }
+  }
+
+  return emptyStageSeries().map((row, index) => {
+    const stage = citizenCases().filter((value) => value !== DocumentStatus.OnHold)[index];
+    const count = closed.get(stage) ?? 0;
+
+    return {
+      ...row,
+      hours: count > 0 ? Math.round(((total.get(stage) ?? 0) / count) * 10) / 10 : 0,
+    };
+  });
 }
