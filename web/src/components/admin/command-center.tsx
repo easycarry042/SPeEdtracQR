@@ -275,6 +275,11 @@ export function CommandCenter({ data }: { data: CommandCenterData }) {
               Reset
             </Link>
           ) : null}
+
+          {/* The same view, window and type as the page, as a spreadsheet. */}
+          <a href={query({}).replace(pagePath, `${pagePath}/export`)} className="cr-btn cr-btn-sm">
+            Export CSV
+          </a>
         </form>
       </div>
 

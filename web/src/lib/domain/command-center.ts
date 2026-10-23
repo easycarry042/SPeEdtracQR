@@ -5,7 +5,9 @@ import { describeRows, isEmptyUpdate, type DescribedRow } from '@/lib/domain/act
 import * as citizen from '@/lib/domain/admin-analytics';
 import * as internal from '@/lib/domain/internal-analytics';
 import * as services from '@/lib/domain/service-report';
-import { endOfDay, now, startOfDay, subDays } from '@/lib/time';
+import { endOfDay, formatNaive, now, startOfDay, subDays, toDateString } from '@/lib/time';
+import type { Cell } from '@/lib/csv';
+import { fromLoose, label as statusLabel } from '@/lib/domain/document-status';
 
 /**
  * One page, two audiences: the super admin's command center (`/admin/dashboard`,
@@ -226,4 +228,87 @@ async function recentWorded(options: { internal: boolean; departmentId: number |
   const rows: ActivityRow[] = await recentOnRequests({ ...options, limit: 40 });
 
   return describeRows(rows.filter((row) => !isEmptyUpdate(row)).slice(0, 25));
+}
+
+/**
+ * Port of `CommandCenter::export` — the page's figures as CSV, for the same
+ * view, window and type the page is showing. One file per audience: the city
+ * from the command center, one office from its Reports.
+ */
+export async function exportCsv(
+  params: URLSearchParams,
+  office: Office,
+): Promise<{ filename: string; rows: Cell[][] }> {
+  const departmentId = office?.id ?? null;
+  const { from, to, view, range, document_type: documentType } = filters(params, await citizenDocumentTypes(departmentId));
+  const stamp = toDateString(now());
+  const filename = `${office ? `${(office.code || 'office').toLowerCase()}-` : ''}${view === 'internal' ? 'internal-requests-' : 'analytics-'}${stamp}.csv`;
+
+  const rows: Cell[][] = [
+    [`SPeED TraQR — ${view === 'internal' ? 'Internal requests export' : 'Citizen requests export'}`],
+    ['Office', office?.name ?? 'All offices'],
+    ['Generated', formatNaive(now(), 'D, M j, Y g:i A')],
+    ['Window', `${range} days`, `${toDateString(from)} to ${toDateString(to)}`],
+  ];
+
+  if (view === 'internal') {
+    const scope: internal.InternalScope = { from, to, departmentId };
+    const [kpis, waiting, turnaround] = await Promise.all([
+      internal.kpis(scope),
+      internal.waitingByOffice(scope),
+      internal.officeTurnaround(scope),
+    ]);
+
+    rows.push(
+      [],
+      ['Key figures', 'Value'],
+      ['Requests filed', kpis.filed],
+      ['Moving through offices', kpis.moving],
+      ['Returned for revision', kpis.returned],
+      ['Completed', kpis.completed],
+      ['Denied', kpis.denied],
+      ['Overdue at a step (open now)', kpis.overdue],
+      ['Avg turnaround (days)', kpis.avg_turnaround ?? ''],
+      [],
+      ['Waiting at', 'Open', 'Overdue', 'Longest wait'],
+      ...waiting.map((row) => [row.label, row.count, row.overdue, row.longest]),
+      [],
+      ['Office', 'Hops closed', 'Average time to act', 'Turnaround'],
+      ...turnaround.map((row) => [row.label, row.hops, row.avg, row.limit]),
+    );
+
+    return { filename, rows };
+  }
+
+  const scope = { from, to, departmentId, documentType };
+  const [kpis, statuses, types, staff] = await Promise.all([
+    citizen.kpis(from, to, departmentId, documentType),
+    citizen.statusDistribution(departmentId),
+    citizen.typeBreakdown(scope),
+    citizen.staffWorkload(scope),
+  ]);
+
+  rows.push(
+    ['Document type', documentType || 'All'],
+    [],
+    ['Key figures', 'Value'],
+    ['Requests received', kpis.total.value],
+    ['Completed', kpis.completed.value],
+    ['Active', kpis.active.value],
+    // The page's own words: past the stage's processing time, and close to it.
+    ['Overdue', kpis.overdue.value],
+    ['At risk (not yet overdue)', kpis.atRisk.value],
+    ['Avg processing (days)', kpis.avgProcessing.value ?? 0],
+    [],
+    ['Status', 'Count'],
+    ...statuses.map((row) => [statusLabel(fromLoose(row.status)), row.count]),
+    [],
+    ['Document type', 'Count'],
+    ...types.map((row) => [row.label, row.value]),
+    [],
+    ['Staff member', 'Completed', 'Active'],
+    ...staff.map((row) => [row.name, row.completed, row.active]),
+  );
+
+  return { filename, rows };
 }
