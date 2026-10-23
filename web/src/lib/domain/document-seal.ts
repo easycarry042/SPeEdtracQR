@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { app } from '@/lib/config';
 import { routes } from '@/lib/routes';
+import { unixTimestamp } from '@/lib/time';
 
 /**
  * Digital seal for issued documents: an HMAC over the document's immutable
@@ -22,9 +23,10 @@ export function signature(document: SealedDocument): string {
   const payload = [
     document.tracking_number,
     document.document_type,
-    // PHP's `->timestamp` on the Manila-naive value: seconds since the epoch of
-    // the stored reading, which is what the original seal was computed over.
-    document.created_at === null ? '' : String(Math.floor(document.created_at.getTime() / 1000)),
+    // PHP's `->timestamp`: Laravel reads the stored wall-clock in Asia/Manila,
+    // so the seal is over the REAL epoch — 8 hours before the naive reading.
+    // Getting this wrong fails every seal already printed on issued paper.
+    document.created_at === null ? '' : String(unixTimestamp(document.created_at)),
   ].join('|');
 
   // 20 hex chars keeps the QR payload compact while leaving ~80 bits of

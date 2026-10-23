@@ -18,6 +18,15 @@
 export const MANILA_OFFSET_MINUTES = 8 * 60;
 
 /** Current Manila wall-clock time, in the naive encoding described above. */
+/**
+ * The real Unix timestamp (seconds) of a stored naive-Manila value — what
+ * PHP's `->timestamp` returns, since Laravel parses these columns in the app
+ * timezone (Asia/Manila). `getTime()` on the naive Date is 8 hours too late.
+ */
+export function unixTimestamp(date: Date): number {
+  return Math.floor(date.getTime() / 1000) - MANILA_OFFSET_MINUTES * 60;
+}
+
 export function now(): Date {
   return new Date(Date.now() + MANILA_OFFSET_MINUTES * 60_000);
 }

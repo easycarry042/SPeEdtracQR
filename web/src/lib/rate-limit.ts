@@ -61,9 +61,12 @@ export function clientIp(headers: Headers): string {
   return forwarded || headers.get('x-real-ip') || 'unknown';
 }
 
-/** `hit()` keyed by route name + caller, the way Laravel's throttle keyed it. */
-export function throttle(name: keyof typeof LIMITS, request: Request): Promise<boolean> {
-  return hit(`${name}:${clientIp(request.headers)}`, LIMITS[name]);
+/**
+ * `hit()` keyed by route name + caller, the way Laravel's throttle keyed it.
+ * Takes a route handler's Request, or a server action's `await headers()`.
+ */
+export function throttle(name: keyof typeof LIMITS, from: Request | Headers): Promise<boolean> {
+  return hit(`${name}:${clientIp(from instanceof Request ? from.headers : from)}`, LIMITS[name]);
 }
 
 export function tooManyRequests(): Response {

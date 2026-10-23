@@ -28,7 +28,7 @@ const DocumentAssistant = await import('@/lib/domain/ai/document-assistant');
 const RequirementsAnswer = await import('@/lib/domain/ai/requirements-answer');
 
 const neverCalled = { chat: vi.fn(async () => 'MODEL') };
-const model = (reply: string | null) => ({ chat: vi.fn(async () => reply) });
+const model = (reply: string | null) => ({ chat: vi.fn(async (_system: string, _question: string) => reply) });
 
 const PERMIT = {
   name: 'Business Permit',

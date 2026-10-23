@@ -8,6 +8,9 @@ import { currentActor } from '@/lib/auth/actor';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
 import { Speedy } from '@/components/citizen/speedy';
+import { MAX_FILES } from '@/lib/domain/citizen-uploads';
+import { MAX_BYTES, accept as uploadAccept, hint as uploadHint } from '@/lib/domain/upload-rules';
+import { RequirementReupload, SupportingUpload } from './citizen-uploads';
 import { PageIntro } from '@/components/citizen/page-intro';
 import { StageBar } from '@/components/stage-bar';
 import { EtaEstimate } from '@/components/eta-estimate';
@@ -448,22 +451,75 @@ export default async function TrackShowPage({
                 </div>
               </div>
               <div className="cz-card-body space-y-4">
-                {requirements.map((requirement) => (
-                  <div
-                    key={toId(requirement.id)}
-                    className="rounded-[12px] border border-hairline-strong bg-white p-4"
-                  >
-                    <p className="font-semibold text-ink">{requirement.label}</p>
-                    <p className="mt-1 text-sm text-ink-soft">
-                      {requirement.review_status === 'rejected' ? 'Rejected' : 'Needs revision'}
-                      {requirement.review_comment ? ` · ${requirement.review_comment}` : null}
-                    </p>
-                  </div>
-                ))}
-                <p className="text-[15px] text-[#4b5a50]">
-                  To re-upload, open the messages with the office below — you will confirm the email
-                  or mobile number you filed with first.
-                </p>
+                {requirements.map((requirement) =>
+                  requirement.review_status === 'needs_revision' ? (
+                    <div
+                      key={toId(requirement.id)}
+                      className="rounded-xl border border-status-amber-wash bg-status-amber-wash p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-status-amber">{requirement.label}</span>
+                        <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-amber">
+                          Needs revision
+                        </span>
+                      </div>
+                      {requirement.review_comment ? (
+                        <p className="mt-1 text-sm text-status-amber">
+                          <span className="font-semibold">What to fix:</span> {requirement.review_comment}
+                        </p>
+                      ) : null}
+                      {document.status !== DocumentStatus.Completed ? (
+                        <RequirementReupload
+                          trackingNumber={document.tracking_number}
+                          requirementId={toId(requirement.id)}
+                          label={requirement.label}
+                          accept={uploadAccept()}
+                        />
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div
+                      key={toId(requirement.id)}
+                      className="rounded-xl border border-status-red-wash bg-status-red-wash p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-status-red">{requirement.label}</span>
+                        <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-red">
+                          Rejected
+                        </span>
+                      </div>
+                      {requirement.review_comment ? (
+                        <p className="mt-1 text-sm text-status-red">
+                          <span className="font-semibold">Reason:</span> {requirement.review_comment}
+                        </p>
+                      ) : null}
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Citizen upload (notifies the handling office only) ─────────── */}
+          {document.status !== DocumentStatus.Completed ? (
+            <div className="cz-card">
+              <div className="cz-card-head">
+                <div>
+                  <h2 className="cz-card-title">Upload supporting documents</h2>
+                  <p className="cz-card-sub">
+                    Files are sent only to{' '}
+                    <span className="font-semibold text-green-deep">the office handling your ticket</span>.
+                  </p>
+                </div>
+              </div>
+              <div className="cz-card-body">
+                <SupportingUpload
+                  trackingNumber={document.tracking_number}
+                  accept={uploadAccept()}
+                  hint={uploadHint()}
+                  maxFiles={MAX_FILES}
+                  maxBytes={MAX_BYTES}
+                />
               </div>
             </div>
           ) : null}

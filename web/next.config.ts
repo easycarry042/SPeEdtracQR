@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
     // with 403 and the app rendered an error page for it. Without this a denial
     // fell through to an unhandled error and answered 500.
     authInterrupts: true,
+    // Uploads ride server actions, whose body is capped at 1 MB by default —
+    // below a single phone photo. Raised to the upload rules' 10 MB
+    // (UploadRules::MAX_KILOBYTES). Note Vercel itself refuses request bodies
+    // over 4.5 MB, whatever this says.
+    serverActions: { bodySizeLimit: '10mb' },
   },
   poweredByHeader: false,
   // The Laravel app at the repo root has its own package-lock.json, so Next
