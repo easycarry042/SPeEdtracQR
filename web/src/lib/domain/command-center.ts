@@ -1,6 +1,7 @@
 import { db, id } from '@/lib/db';
 import { citizenFacing } from '@/lib/domain/scope';
 import { recentOnRequests, type ActivityRow } from '@/lib/activity';
+import { describeRows, isEmptyUpdate, type DescribedRow } from '@/lib/domain/activity-line';
 import * as citizen from '@/lib/domain/admin-analytics';
 import * as internal from '@/lib/domain/internal-analytics';
 import * as services from '@/lib/domain/service-report';
@@ -62,7 +63,7 @@ export type CommandCenterData = {
   waitingByOffice?: internal.OfficeRow[];
   officeTurnaround?: internal.TurnaroundRow[];
   byRequestingOffice?: internal.BarRow[];
-  recentActivity: ActivityRow[];
+  recentActivity: DescribedRow[];
 };
 
 /** Read and clamp the query string, so a hand-edited URL can't widen the window. */
@@ -146,7 +147,7 @@ export async function data(
       internal.officeTurnaround(scope),
       internal.byRequestingOffice(scope),
       internal.throughput(scope),
-      recentOnRequests({ internal: true, departmentId }),
+      recentWorded({ internal: true, departmentId }),
     ]);
 
     return {
@@ -196,7 +197,7 @@ export async function data(
     // Held past their hold date: invisible to atRisk() because a hold nulls the
     // stage SLA, so they get their own panel.
     citizen.stalledHolds(scope),
-    recentOnRequests({ internal: false, departmentId }),
+    recentWorded({ internal: false, departmentId }),
   ]);
 
   return {
@@ -215,4 +216,14 @@ export async function data(
     stalledHolds,
     recentActivity,
   };
+}
+
+/**
+ * The audit strip, worded like the Audit Log page (ActivityLine). Empty
+ * "updated" rows are dropped, so a few extra are read to still fill the strip.
+ */
+async function recentWorded(options: { internal: boolean; departmentId: number | null }): Promise<DescribedRow[]> {
+  const rows: ActivityRow[] = await recentOnRequests({ ...options, limit: 40 });
+
+  return describeRows(rows.filter((row) => !isEmptyUpdate(row)).slice(0, 25));
 }

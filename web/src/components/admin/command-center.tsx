@@ -167,7 +167,11 @@ function ActivityStrip({ rows }: { rows: CommandCenterData['recentActivity'] }) 
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>{row.description}</td>
+                <td>
+                  {row.subject ? <span className="mr-1 font-mono text-xs text-ink-soft">{row.subject}</span> : null}
+                  {row.action}
+                  {row.detail ? <span className="font-medium text-ink"> {row.detail}</span> : null}
+                </td>
                 <td>{row.causerName ?? 'System'}</td>
                 <td>{row.createdAt ? forHumans(row.createdAt) : '—'}</td>
               </tr>

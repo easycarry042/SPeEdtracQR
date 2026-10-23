@@ -127,4 +127,23 @@ export async function notifyMany(userIds: number[], data: NotificationData): Pro
   await Promise.all(unique.map((userId) => notify(userId, data)));
 }
 
+/**
+ * The path and query of a stored bell URL. Laravel wrote absolute URLs
+ * (`route()`), so rows copied from the old database carry the old host; and a
+ * same-origin path can never become an open redirect.
+ */
+export function followablePath(stored: string | null): string | null {
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    const url = new URL(stored, 'http://local.invalid');
+
+    return url.pathname.startsWith('/') && !url.pathname.startsWith('//') ? `${url.pathname}${url.search}` : null;
+  } catch {
+    return null;
+  }
+}
+
 export { toId };
