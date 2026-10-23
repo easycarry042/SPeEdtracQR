@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { PageIntro } from '@/components/citizen/page-intro';
 import { TrackLookup } from './track-lookup';
 
@@ -38,6 +39,7 @@ export default async function CitizenTrackPage({
       </main>
 
       <SiteFooter />
+      <Speedy />
     </div>
   );
 }

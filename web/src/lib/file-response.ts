@@ -43,7 +43,12 @@ export function fileResponse(
   }
 
   if (options.download) {
-    headers['Content-Disposition'] = `attachment; filename="${path.basename(relative).replace(/"/g, '')}"`;
+    // Header values must be Latin-1, so a name like "Peña.pdf" goes in
+    // `filename*` (RFC 5987) with an ASCII fallback beside it.
+    const name = path.basename(relative);
+    const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '');
+
+    headers['Content-Disposition'] = `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
   }
 
   return new Response(new Uint8Array(contents), { headers });

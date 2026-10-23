@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import QRCode from 'qrcode';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { db } from '@/lib/db';
 import * as receipt from '@/lib/domain/citizen-receipt';
 import * as trackingQr from '@/lib/domain/tracking-qr';
@@ -146,6 +147,7 @@ export default async function RequestSubmittedPage() {
       </main>
 
       <SiteFooter />
+      <Speedy trackingNumber={document.tracking_number} />
     </>
   );
 }

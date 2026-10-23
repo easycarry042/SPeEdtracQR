@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { PageIntro } from '@/components/citizen/page-intro';
 
 export const metadata: Metadata = {
@@ -244,6 +245,7 @@ export default function PrivacyPage() {
       </main>
 
       <SiteFooter />
+      <Speedy />
     </>
   );
 }

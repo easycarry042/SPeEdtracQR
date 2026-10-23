@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { all as faqs } from '@/lib/domain/site-faq';
 import { routes } from '@/lib/routes';
 
@@ -431,6 +432,7 @@ export default function LandingPage() {
       </main>
 
       <SiteFooter />
+      <Speedy />
     </div>
   );
 }

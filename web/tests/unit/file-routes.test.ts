@@ -104,7 +104,7 @@ describe('attachment', () => {
     expect(inline.headers.get('content-disposition')).toBeNull();
 
     const saved = await attachmentRoute.GET(attachmentRequest('?download=1'), attachmentParams);
-    expect(saved.headers.get('content-disposition')).toBe('attachment; filename="b.jpg"');
+    expect(saved.headers.get('content-disposition')).toBe("attachment; filename=\"b.jpg\"; filename*=UTF-8''b.jpg");
   });
 
   it('refuses staff who may not see the request', async () => {

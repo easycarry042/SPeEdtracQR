@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { PageIntro } from '@/components/citizen/page-intro';
 import { RequestForm, type TypeOption } from '@/components/citizen/request-form';
 import { db, toId } from '@/lib/db';
@@ -88,6 +89,7 @@ export default async function RequestPage() {
       </main>
 
       <SiteFooter />
+      <Speedy />
     </>
   );
 }

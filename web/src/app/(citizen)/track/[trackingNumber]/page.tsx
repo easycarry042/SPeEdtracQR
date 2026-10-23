@@ -7,6 +7,7 @@ import { routes } from '@/lib/routes';
 import { currentActor } from '@/lib/auth/actor';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
+import { Speedy } from '@/components/citizen/speedy';
 import { PageIntro } from '@/components/citizen/page-intro';
 import { StageBar } from '@/components/stage-bar';
 import { EtaEstimate } from '@/components/eta-estimate';
@@ -509,6 +510,7 @@ export default async function TrackShowPage({
       </main>
 
       <SiteFooter />
+      <Speedy trackingNumber={document.tracking_number} />
     </div>
   );
 }
