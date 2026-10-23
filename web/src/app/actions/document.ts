@@ -8,6 +8,7 @@ import { GateError } from '@/lib/domain/status-gate';
 import * as status from '@/lib/domain/status-actions';
 import * as review from '@/lib/domain/review-actions';
 import { nudge } from '@/lib/domain/nudge';
+import { reviewRequirement as reviewOneRequirement, type ReviewRequirement } from '@/lib/domain/requirement-review';
 
 /**
  * Server actions behind the Review modal's controls.
@@ -23,11 +24,18 @@ export type ActionResult = {
   errors?: string[];
   status?: string;
   statusLabel?: string;
+  /** The requirement row as it now stands, for the Review modal to swap in. */
+  requirement?: ReviewRequirement;
 };
 
 /** Wraps an action so the three error shapes all land as `ActionResult`. */
 async function run(
-  fn: () => Promise<{ message: string; status?: string; statusLabel?: string }>,
+  fn: () => Promise<{
+    message: string;
+    status?: string;
+    statusLabel?: string;
+    requirement?: ReviewRequirement;
+  }>,
 ): Promise<ActionResult> {
   try {
     const result = await fn();
@@ -174,4 +182,15 @@ export async function setClaimDate(
   const actor = await currentActor();
 
   return run(() => review.setClaimDate(documentId, actor, claimDate));
+}
+
+/** Looks good / Needs fixing / Reject on one requirement upload. */
+export async function reviewRequirement(
+  documentId: number,
+  requirementId: number,
+  input: { reviewStatus: string; reviewComment?: string | null },
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => reviewOneRequirement(documentId, requirementId, actor, input));
 }

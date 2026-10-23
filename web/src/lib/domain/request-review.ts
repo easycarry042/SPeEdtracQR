@@ -1,3 +1,8 @@
+import {
+  REQUIREMENT_SELECT,
+  requirementPayload,
+  type ReviewRequirement,
+} from '@/lib/domain/requirement-review';
 import { db, id, toId } from '@/lib/db';
 import { formatNaive, toDateString } from '@/lib/time';
 import { routes } from '@/lib/routes';
@@ -41,16 +46,7 @@ import { citizenFacing } from '@/lib/domain/scope';
  */
 export type ReviewAttachment = { url: string; ext: string; isImage: boolean };
 
-export type ReviewRequirement = {
-  id: number;
-  label: string;
-  isMandatory: boolean;
-  reviewStatus: string;
-  hasFile: boolean;
-  url: string | null;
-  ext: string;
-  isImage: boolean;
-};
+export type { ReviewRequirement };
 
 export type ReviewBooking = {
   id: number;
@@ -253,16 +249,7 @@ export const REVIEW_SELECT = {
   department: { select: { name: true, code: true } },
   assignee: { select: { name: true } },
   document_attachments: { select: { id: true, file_path: true }, orderBy: { sort_order: 'asc' } },
-  document_requirements: {
-    select: {
-      id: true,
-      label: true,
-      is_mandatory: true,
-      review_status: true,
-      uploaded_file_path: true,
-    },
-    orderBy: { id: 'asc' },
-  },
+  document_requirements: { select: REQUIREMENT_SELECT, orderBy: { id: 'asc' } },
 } as const;
 
 type ReviewSource = {
@@ -292,13 +279,7 @@ type ReviewSource = {
   department: { name: string; code: string } | null;
   assignee: { name: string } | null;
   document_attachments: Array<{ id: bigint; file_path: string }>;
-  document_requirements: Array<{
-    id: bigint;
-    label: string;
-    is_mandatory: boolean;
-    review_status: string;
-    uploaded_file_path: string | null;
-  }>;
+  document_requirements: Array<Parameters<typeof requirementPayload>[1]>;
 };
 
 /**
@@ -594,23 +575,9 @@ export async function forModal(
     }),
     // Requirement uploads live on their own table, not document_attachments, so
     // they need listing separately or the reviewer sees no evidence at all.
-    requirements: document.document_requirements.map((requirement) => {
-      const ext = extensionOf(requirement.uploaded_file_path);
-      const hasFile = requirement.uploaded_file_path !== null;
-
-      return {
-        id: toId(requirement.id),
-        label: requirement.label,
-        isMandatory: requirement.is_mandatory,
-        reviewStatus: requirement.review_status,
-        hasFile,
-        url: hasFile
-          ? routes.documentsRequirementsFile(toId(document.id), toId(requirement.id))
-          : null,
-        ext,
-        isImage: hasFile && isImageExtension(ext),
-      };
-    }),
+    requirements: document.document_requirements.map((requirement) =>
+      requirementPayload(toId(document.id), requirement),
+    ),
   };
 }
 

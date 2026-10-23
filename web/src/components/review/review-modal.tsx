@@ -5,6 +5,7 @@ import type { ReviewRow } from '@/lib/domain/request-review';
 import { StageBar } from '@/components/stage-bar';
 import { ReviewActions, type ReviewMode } from './review-actions';
 import { ReviewSidePanel } from './review-side-panel';
+import { RequirementChecks } from './requirement-checks';
 
 /**
  * The shared Review modal.
@@ -184,37 +185,7 @@ export function ReviewModal({
             {/* Requirement uploads: the citizen's evidence for each listed item.
                 They live on their own table, so without this the reviewer sees
                 no evidence at all. */}
-            {row.requirements.length > 0 ? (
-              <>
-                <h3 className="dm-section mt-7">Requirements for this request</h3>
-                <ul className="dm-files">
-                  {row.requirements.map((requirement) => (
-                    <li key={requirement.id} className="dm-file">
-                      <span className="dm-file-name">
-                        {requirement.label}
-                        {requirement.isMandatory ? <span className="req-star"> *</span> : null}
-                      </span>
-                      <span className="dm-file-meta">
-                        {requirement.reviewStatus === 'approved'
-                          ? 'Verified'
-                          : requirement.reviewStatus === 'needs_revision'
-                            ? 'Needs revision'
-                            : requirement.reviewStatus === 'rejected'
-                              ? 'Rejected'
-                              : requirement.hasFile
-                                ? 'Awaiting review'
-                                : 'Not uploaded'}
-                      </span>
-                      {requirement.url ? (
-                        <a href={requirement.url} target="_blank" rel="noopener" className="dm-file-open">
-                          Open
-                        </a>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
+            <RequirementChecks documentId={row.id} requirements={row.requirements} canAdvance={row.canAdvance} />
 
             {row.attachments.length > 0 ? (
               <>

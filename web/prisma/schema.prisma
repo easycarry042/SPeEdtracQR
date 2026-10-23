@@ -17,10 +17,10 @@ model activity_log {
   log_name     String?   @db.VarChar(255)
   description  String    @db.Text
   subject_type String?   @db.VarChar(255)
-  subject_id   BigInt?  
+  subject_id   BigInt?
   event        String?   @db.VarChar(255)
   causer_type  String?   @db.VarChar(255)
-  causer_id    BigInt?  
+  causer_id    BigInt?
   properties   Json?
   batch_uuid   String?   @db.Char(36)
   created_at   DateTime? @db.Timestamp(0)
@@ -33,16 +33,16 @@ model activity_log {
 
 model bookings {
   id                  BigInt    @id @default(autoincrement())
-  document_id         BigInt   
-  resource_id         BigInt   
-  quantity            Int?     
+  document_id         BigInt
+  resource_id         BigInt
+  quantity            Int?
   starts_at           DateTime  @db.Timestamp(0)
   ends_at             DateTime  @db.Timestamp(0)
   status              String    @default("pending") @db.VarChar(255)
   released_at         DateTime? @db.Timestamp(0)
-  released_by         BigInt?  
+  released_by         BigInt?
   returned_at         DateTime? @db.Timestamp(0)
-  returned_by         BigInt?  
+  returned_by         BigInt?
   returned_quantity   Int       @default(0)
   damaged_quantity    Int       @default(0)
   lost_quantity       Int       @default(0)
@@ -80,9 +80,9 @@ model departments {
 
 model document_attachments {
   id          BigInt    @id @default(autoincrement())
-  document_id BigInt   
+  document_id BigInt
   file_path   String    @db.VarChar(255)
-  uploaded_by BigInt?  
+  uploaded_by BigInt?
   sort_order  Int       @default(0) @db.SmallInt
   created_at  DateTime? @db.Timestamp(0)
   updated_at  DateTime? @db.Timestamp(0)
@@ -95,8 +95,8 @@ model document_attachments {
 
 model document_comments {
   id              BigInt              @id @default(autoincrement())
-  document_id     BigInt             
-  author_id       BigInt?            
+  document_id     BigInt
+  author_id       BigInt?
   author_type     String              @default("staff") @db.VarChar(255)
   author_name     String?             @db.VarChar(255)
   body            String              @db.Text
@@ -105,7 +105,7 @@ model document_comments {
   citizen_read_at DateTime?           @db.Timestamp(0)
   attachment_path String?             @db.VarChar(255)
   attachment_name String?             @db.VarChar(255)
-  parent_id       BigInt?            
+  parent_id       BigInt?
   created_at      DateTime?           @db.Timestamp(0)
   updated_at      DateTime?           @db.Timestamp(0)
   author          users?              @relation(fields: [author_id], references: [id], onUpdate: NoAction, map: "document_comments_author_id_foreign")
@@ -121,8 +121,8 @@ model document_comments {
 
 model document_custody_events {
   id              BigInt    @id @default(autoincrement())
-  document_id     BigInt   
-  user_id         BigInt   
+  document_id     BigInt
+  user_id         BigInt
   capture_method  String    @default("scan") @db.VarChar(255)
   override_reason String?   @db.VarChar(500)
   note            String?   @db.VarChar(500)
@@ -137,17 +137,19 @@ model document_custody_events {
 
 model document_requirements {
   id                          BigInt                     @id @default(autoincrement())
-  document_id                 BigInt                    
-  request_type_requirement_id BigInt?                   
+  document_id                 BigInt
+  request_type_requirement_id BigInt?
   label                       String                     @db.VarChar(255)
   is_mandatory                Boolean                    @default(true)
   review_status               String                     @default("pending") @db.VarChar(255)
   review_comment              String?                    @db.Text
   reviewed_at                 DateTime?                  @db.Timestamp(0)
-  reviewed_by                 BigInt?                   
+  reviewed_by                 BigInt?
   uploaded_file_path          String?                    @db.VarChar(255)
+  opened_at                   DateTime?                  @db.Timestamp(0)
+  opened_by                   BigInt?
   verified_at                 DateTime?                  @db.Timestamp(0)
-  verified_by                 BigInt?                   
+  verified_by                 BigInt?
   notes                       String?                    @db.VarChar(255)
   created_at                  DateTime?                  @db.Timestamp(0)
   updated_at                  DateTime?                  @db.Timestamp(0)
@@ -155,11 +157,13 @@ model document_requirements {
   template                    request_type_requirements? @relation(fields: [request_type_requirement_id], references: [id], onUpdate: NoAction, map: "document_requirements_request_type_requirement_id_foreign")
   reviewer                    users?                     @relation("document_requirements_reviewed_byTousers", fields: [reviewed_by], references: [id], onUpdate: NoAction, map: "document_requirements_reviewed_by_foreign")
   verifier                    users?                     @relation("document_requirements_verified_byTousers", fields: [verified_by], references: [id], onUpdate: NoAction, map: "document_requirements_verified_by_foreign")
+  opener                      users?                     @relation("document_requirements_opened_byTousers", fields: [opened_by], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "document_requirements_opened_by_foreign")
 
   @@index([document_id], map: "document_requirements_document_id_index")
   @@index([request_type_requirement_id], map: "document_requirements_request_type_requirement_id_index")
   @@index([reviewed_by], map: "document_requirements_reviewed_by_index")
   @@index([verified_by], map: "document_requirements_verified_by_index")
+  @@index([opened_by], map: "document_requirements_opened_by_index")
 }
 
 model documents {
@@ -169,11 +173,11 @@ model documents {
   citizen_name             String?                   @db.VarChar(255)
   citizen_contact          String?                   @db.VarChar(255)
   purpose                  String?                   @db.VarChar(255)
-  quantity                 Int?                     
+  quantity                 Int?
   needed_by                DateTime?                 @db.Date
   description              String?                   @db.Text
   status                   String                    @default("pending") @db.VarChar(255)
-  created_by               BigInt?                  
+  created_by               BigInt?
   remarks                  String?                   @db.Text
   completed_at             DateTime?                 @db.Timestamp(0)
   created_at               DateTime?                 @db.Timestamp(0)
@@ -183,19 +187,19 @@ model documents {
   qr_code_path             String?                   @db.VarChar(255)
   sla_warning_notified_at  DateTime?                 @db.Timestamp(0)
   sla_breach_notified_at   DateTime?                 @db.Timestamp(0)
-  assigned_to              BigInt?                  
-  assigned_by              BigInt?                  
-  department_id            BigInt?                  
+  assigned_to              BigInt?
+  assigned_by              BigInt?
+  department_id            BigInt?
   assigned_at              DateTime?                 @db.Timestamp(0)
   accepted_at              DateTime?                 @db.Timestamp(0)
   claimed_at               DateTime?                 @db.Timestamp(0)
   claim_date               DateTime?                 @db.Date
-  released_by              BigInt?                  
+  released_by              BigInt?
   status_changed_at        DateTime?                 @db.Timestamp(0)
   source                   String                    @default("walk_in") @db.VarChar(255)
   origin                   String                    @default("external") @db.VarChar(20)
   has_hard_copy            Boolean                   @default(true)
-  requesting_department_id BigInt?                  
+  requesting_department_id BigInt?
   amount                   Decimal?                  @db.Decimal(14, 2)
   citizen_email            String?                   @db.VarChar(255)
   notify_citizen           Boolean                   @default(true)
@@ -205,8 +209,8 @@ model documents {
   hold_until               DateTime?                 @db.Date
   blocked_by               String?                   @db.VarChar(255)
   held_at                  DateTime?                 @db.Timestamp(0)
-  held_by                  BigInt?                  
-  decided_by               BigInt?                  
+  held_by                  BigInt?
+  decided_by               BigInt?
   decided_at               DateTime?                 @db.Timestamp(0)
   hold_reminder_sent_at    DateTime?                 @db.Timestamp(0)
   bookings                 bookings[]
@@ -239,9 +243,9 @@ model documents {
 }
 
 model model_has_permissions {
-  permission_id BigInt     
+  permission_id BigInt
   model_type    String      @db.VarChar(255)
-  model_id      BigInt     
+  model_id      BigInt
   permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "model_has_permissions_permission_id_foreign")
 
   @@id([permission_id, model_id, model_type])
@@ -262,7 +266,7 @@ model notifications {
   id              String    @id @db.Char(36)
   type            String    @db.VarChar(255)
   notifiable_type String    @db.VarChar(255)
-  notifiable_id   BigInt   
+  notifiable_id   BigInt
   data            String    @db.Text
   read_at         DateTime? @db.Timestamp(0)
   created_at      DateTime? @db.Timestamp(0)
@@ -291,13 +295,13 @@ model permissions {
 
 model request_steps {
   id             BigInt      @id @default(autoincrement())
-  document_id    BigInt     
+  document_id    BigInt
   step_order     Int         @db.SmallInt
-  department_id  BigInt     
-  recipient_id   BigInt?    
+  department_id  BigInt
+  recipient_id   BigInt?
   action         String      @db.VarChar(100)
   status         String      @default("pending") @db.VarChar(20)
-  acted_by       BigInt?    
+  acted_by       BigInt?
   acted_at       DateTime?   @db.Timestamp(0)
   started_at     DateTime?   @db.Timestamp(0)
   remarks        String?     @db.VarChar(500)
@@ -317,7 +321,7 @@ model request_steps {
 
 model request_type_requirements {
   id                    BigInt                  @id @default(autoincrement())
-  request_type_id       BigInt                 
+  request_type_id       BigInt
   label                 String                  @db.VarChar(255)
   is_mandatory          Boolean                 @default(true)
   sort_order            Int                     @default(0)
@@ -333,8 +337,8 @@ model request_types {
   id                        BigInt                      @id @default(autoincrement())
   name                      String                      @unique(map: "request_types_name_unique") @db.VarChar(255)
   kind                      String                      @default("document") @db.VarChar(255)
-  department_id             BigInt?                    
-  resource_id               BigInt?                    
+  department_id             BigInt?
+  resource_id               BigInt?
   description               String?                     @db.Text
   is_active                 Boolean                     @default(true)
   sort_order                Int                         @default(0)
@@ -352,9 +356,9 @@ model resources {
   id               BigInt          @id @default(autoincrement())
   name             String          @unique(map: "resources_name_unique") @db.VarChar(255)
   kind             String          @default("facility") @db.VarChar(255)
-  total_quantity   Int?           
+  total_quantity   Int?
   damaged_quantity Int             @default(0)
-  capacity         Int?           
+  capacity         Int?
   location         String?         @db.VarChar(255)
   description      String?         @db.Text
   is_active        Boolean         @default(true)
@@ -366,8 +370,8 @@ model resources {
 }
 
 model role_has_permissions {
-  permission_id BigInt     
-  role_id       BigInt     
+  permission_id BigInt
+  role_id       BigInt
   permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_permission_id_foreign")
   roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_role_id_foreign")
 
@@ -389,9 +393,9 @@ model roles {
 
 model route_template_steps {
   id                BigInt          @id @default(autoincrement())
-  route_template_id BigInt         
+  route_template_id BigInt
   step_order        Int             @db.SmallInt
-  department_id     BigInt         
+  department_id     BigInt
   action            String          @db.VarChar(100)
   condition         String?         @db.VarChar(30)
   created_at        DateTime?       @db.Timestamp(0)
@@ -415,8 +419,8 @@ model route_templates {
 
 model staff_highlights {
   id             BigInt     @id @default(autoincrement())
-  user_id        BigInt    
-  document_id    BigInt?   
+  user_id        BigInt
+  document_id    BigInt?
   highlight_type String     @default("note") @db.VarChar(255)
   body           String     @db.Text
   created_at     DateTime?  @db.Timestamp(0)
@@ -436,7 +440,7 @@ model users {
   is_active               Boolean                   @default(true)
   last_active_at          DateTime?                 @db.Timestamp(0)
   avatar_path             String?                   @db.VarChar(255)
-  department_id           BigInt?                  
+  department_id           BigInt?
   signature_path          String?                   @db.VarChar(255)
   password                String                    @db.VarChar(255)
   remember_token          String?                   @db.VarChar(100)
@@ -451,6 +455,7 @@ model users {
   document_custody_events document_custody_events[]
   reviewedRequirements    document_requirements[]   @relation("document_requirements_reviewed_byTousers")
   verifiedRequirements    document_requirements[]   @relation("document_requirements_verified_byTousers")
+  openedRequirements      document_requirements[]   @relation("document_requirements_opened_byTousers")
   assignedByDocuments     documents[]               @relation("documents_assigned_byTousers")
   assignedDocuments       documents[]               @relation("documents_assigned_toTousers")
   createdDocuments        documents[]               @relation("documents_created_byTousers")

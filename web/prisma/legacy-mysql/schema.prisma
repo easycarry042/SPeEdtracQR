@@ -144,6 +144,8 @@ model document_requirements {
   reviewed_at                 DateTime?                  @db.Timestamp(0)
   reviewed_by                 BigInt?                    @db.UnsignedBigInt
   uploaded_file_path          String?                    @db.VarChar(255)
+  opened_at                   DateTime?                  @db.Timestamp(0)
+  opened_by                   BigInt?                    @db.UnsignedBigInt
   verified_at                 DateTime?                  @db.Timestamp(0)
   verified_by                 BigInt?                    @db.UnsignedBigInt
   notes                       String?                    @db.VarChar(255)
@@ -153,11 +155,13 @@ model document_requirements {
   template                    request_type_requirements? @relation(fields: [request_type_requirement_id], references: [id], onUpdate: NoAction, map: "document_requirements_request_type_requirement_id_foreign")
   reviewer                    users?                     @relation("document_requirements_reviewed_byTousers", fields: [reviewed_by], references: [id], onUpdate: NoAction, map: "document_requirements_reviewed_by_foreign")
   verifier                    users?                     @relation("document_requirements_verified_byTousers", fields: [verified_by], references: [id], onUpdate: NoAction, map: "document_requirements_verified_by_foreign")
+  opener                      users?                     @relation("document_requirements_opened_byTousers", fields: [opened_by], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "document_requirements_opened_by_foreign")
 
   @@index([document_id], map: "document_requirements_document_id_foreign")
   @@index([request_type_requirement_id], map: "document_requirements_request_type_requirement_id_foreign")
   @@index([reviewed_by], map: "document_requirements_reviewed_by_foreign")
   @@index([verified_by], map: "document_requirements_verified_by_foreign")
+  @@index([opened_by], map: "document_requirements_opened_by_foreign")
 }
 
 model documents {
@@ -449,6 +453,7 @@ model users {
   document_custody_events document_custody_events[]
   reviewedRequirements    document_requirements[]   @relation("document_requirements_reviewed_byTousers")
   verifiedRequirements    document_requirements[]   @relation("document_requirements_verified_byTousers")
+  openedRequirements      document_requirements[]   @relation("document_requirements_opened_byTousers")
   assignedByDocuments     documents[]               @relation("documents_assigned_byTousers")
   assignedDocuments       documents[]               @relation("documents_assigned_toTousers")
   createdDocuments        documents[]               @relation("documents_created_byTousers")

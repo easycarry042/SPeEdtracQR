@@ -372,13 +372,16 @@ describe('userList', () => {
     expect(listing.total).toBe(1);
   });
 
-  it('searches name and email together', async () => {
+  it('searches name and email together, ignoring case as MySQL did', async () => {
     await userList({ search: ' sal ' });
 
     expect(userFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          OR: [{ name: { contains: 'sal' } }, { email: { contains: 'sal' } }],
+          OR: [
+            { name: { contains: 'sal', mode: 'insensitive' } },
+            { email: { contains: 'sal', mode: 'insensitive' } },
+          ],
         }),
       }),
     );

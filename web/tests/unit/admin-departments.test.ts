@@ -89,6 +89,25 @@ describe('createDepartment', () => {
     expect(departmentCreate).not.toHaveBeenCalled();
   });
 
+  it('matches an existing name whatever its case, as MySQL did', async () => {
+    departmentFindFirst.mockResolvedValue({ name: 'Tourism Office', code: 'OTHER' });
+
+    await expect(
+      createDepartment({ name: 'tourism office', code: 'TRSM2', internalStepHours: null }),
+    ).rejects.toThrow('An office called tourism office already exists.');
+
+    expect(departmentFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { name: { equals: 'tourism office', mode: 'insensitive' } },
+            { code: { equals: 'TRSM2', mode: 'insensitive' } },
+          ],
+        }),
+      }),
+    );
+  });
+
   it('refuses a code that is already taken', async () => {
     departmentFindFirst.mockResolvedValue({ name: 'Another Office', code: 'TRSM' });
 

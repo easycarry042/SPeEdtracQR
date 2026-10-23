@@ -118,7 +118,11 @@ async function validate(
 
   const clash = await db.departments.findFirst({
     where: {
-      OR: [{ name }, { code }],
+      // Postgres compares case-sensitively; MySQL's collation did not.
+      OR: [
+        { name: { equals: name, mode: 'insensitive' } },
+        { code: { equals: code, mode: 'insensitive' } },
+      ],
       ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }),
     },
     select: { name: true, code: true },
@@ -126,7 +130,7 @@ async function validate(
 
   if (clash) {
     throw new ActionError(
-      clash.name === name
+      clash.name.toLowerCase() === name.toLowerCase()
         ? `An office called ${name} already exists.`
         : `The code ${code} is already taken.`,
     );

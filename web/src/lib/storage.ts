@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
@@ -109,6 +109,21 @@ export async function readPrivate(relative: string): Promise<Buffer | null> {
  */
 export async function privateExists(relative: string | null | undefined): Promise<boolean> {
   return relative ? exists('private', relative) : false;
+}
+
+/** Delete a private file; one that is already gone is not an error. */
+export async function deletePrivate(relative: string): Promise<void> {
+  if (!supabaseConfigured()) {
+    await rm(localPath('private', relative), { force: true });
+
+    return;
+  }
+
+  const { error } = await supabase().storage.from('private').remove([relative]);
+
+  if (error) {
+    throw new Error(`Storage delete of private/${relative} failed: ${error.message}`);
+  }
 }
 
 /** Write a world-readable file (QR images) to the public disk. */

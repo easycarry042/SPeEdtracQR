@@ -108,7 +108,11 @@ export async function checks(
       return [
         {
           key: 'requirements_verified',
-          label: 'All required documents verified',
+          // Names the files left, so the reviewer knows which rows to open.
+          label:
+            unverified.length === 0
+              ? 'All required documents checked'
+              : `All required documents checked (still to check: ${unverified.map((r) => r.label).join(', ')})`,
           passed: unverified.length === 0,
         },
         // A borrowing or reservation is approved as a whole: the request cannot
