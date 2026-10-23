@@ -11,6 +11,7 @@ import {
 } from '@/lib/domain/request-oversight';
 import { ReviewModal } from '@/components/review/review-modal';
 import { RequestTable } from '@/components/review/request-table';
+import { Pager } from '@/components/review/pager';
 
 /**
  * The super admin's five queues over every citizen request: Open, Unassigned,
@@ -137,52 +138,13 @@ export function OversightQueues({
           }
         />
 
-        {matches.length > PER_PAGE ? (
-          <nav className="st-pager" aria-label="Request pages">
-            <span className="st-pager-info">
-              {(current - 1) * PER_PAGE + 1}–{Math.min(current * PER_PAGE, matches.length)} of{' '}
-              {matches.length}
-            </span>
-
-            <button
-              type="button"
-              className="st-page-step"
-              disabled={current === 1}
-              onClick={() => setPage(current - 1)}
-              aria-label="Previous page"
-            >
-              ‹
-            </button>
-
-            {pageList(current, pageCount).map((entry, index) =>
-              entry === 'gap' ? (
-                <span key={`gap-${index}`} className="st-page" aria-hidden="true">
-                  …
-                </span>
-              ) : (
-                <button
-                  key={entry}
-                  type="button"
-                  className={`st-page${entry === current ? ' on' : ''}`}
-                  aria-current={entry === current ? 'page' : undefined}
-                  onClick={() => setPage(entry)}
-                >
-                  {entry}
-                </button>
-              ),
-            )}
-
-            <button
-              type="button"
-              className="st-page-step"
-              disabled={current === pageCount}
-              onClick={() => setPage(current + 1)}
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </nav>
-        ) : null}
+        <Pager
+          page={current}
+          lastPage={pageCount}
+          perPage={PER_PAGE}
+          total={matches.length}
+          onPage={setPage}
+        />
       </div>
 
       {open ? (
@@ -195,18 +157,4 @@ export function OversightQueues({
       ) : null}
     </>
   );
-}
-
-/** 1…n up to six pages, then first / around-current / last with gaps. */
-function pageList(current: number, last: number): Array<number | 'gap'> {
-  if (last <= 6) {
-    return Array.from({ length: last }, (_, index) => index + 1);
-  }
-
-  if (current > 5) {
-    return ([1, 'gap', current - 1, current, current + 1, 'gap', last] as Array<number | 'gap'>)
-      .filter((entry) => entry === 'gap' || (entry >= 1 && entry <= last));
-  }
-
-  return [1, 2, 3, 4, 5, 'gap', last];
 }

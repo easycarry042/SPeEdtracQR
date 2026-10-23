@@ -380,7 +380,14 @@ function AdvanceDialog({
   onCancel: () => void;
   onSubmit: (claimDate: string, note: string | null) => void;
 }) {
-  const [claimDate, setClaimDate] = useState(row.claimOn ?? row.requestedClaimOn ?? '');
+  // Prefill with the date already set (Adjust Date), else the citizen's ask —
+  // but never a day that has passed, which the server would refuse anyway.
+  const todayIso = localIsoDate(new Date());
+  const usable = (day: string | null): day is string => day !== null && day >= todayIso;
+  const setPassed = row.claimOn !== null && !usable(row.claimOn);
+  const [claimDate, setClaimDate] = useState(
+    usable(row.claimOn) ? row.claimOn : usable(row.requestedClaimOn) ? row.requestedClaimOn : '',
+  );
   const [note, setNote] = useState('');
 
   return (
@@ -393,11 +400,14 @@ function AdvanceDialog({
         type="date"
         className="field"
         value={claimDate}
+        min={todayIso}
         onChange={(event) => setClaimDate(event.target.value)}
         required
       />
       <p className="gate-claim-hint">
-        The day the citizen can collect. Their reservation, if any, moves with it.
+        {setPassed
+          ? `The claiming date (${row.claimDate}) has passed. Pick a new one for the citizen.`
+          : 'The day the citizen can collect. Their reservation, if any, moves with it.'}
         {row.requestedClaimDate ? ` They asked for ${row.requestedClaimDate}.` : ''}
       </p>
 
@@ -428,6 +438,13 @@ function AdvanceDialog({
       </div>
     </DialogShell>
   );
+}
+
+/** `YYYY-MM-DD` in the browser's own day, matching `<input type="date">`. */
+function localIsoDate(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function ReasonDialog({

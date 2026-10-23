@@ -64,7 +64,7 @@ async function run(
 
 export async function advanceDocument(
   documentId: number,
-  input: { expectedStatus: string; claimDate: string; note?: string | null },
+  input: { expectedStatus: string; claimDate?: string | null; note?: string | null },
 ): Promise<ActionResult> {
   const actor = await currentActor();
 

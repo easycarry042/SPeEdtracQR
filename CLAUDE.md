@@ -140,22 +140,29 @@ Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server
 
 ### Local dev notes (this machine)
 
-- **MySQL 8 on port 3306** (`DB_HOST=127.0.0.1`, database `speedtraqr`; see `.env`, and never print `DB_PASSWORD`). This file used to say MariaDB on 3307, which cost a session a failed connection. Vite dev server writes `public/hot`; the PHP tests run on in-memory SQLite.
+- **The database port differs per teammate's PC — read `DB_PORT` in `.env`, don't trust this file.** One machine runs MySQL 8 on 3306; another runs XAMPP MySQL on 3307 (start it with `C:/xampp/mysql/bin/mysqld.exe --defaults-file=C:/xampp/mysql/bin/my.ini --standalone` if it is down after a reboot). Never print `DB_PASSWORD`. Vite dev server writes `public/hot`; the PHP tests run on in-memory SQLite.
 - The landing page must render without a database query for ordinary visitors (`tests/Feature/ExampleTest.php` has no DB).
 - Working branch is `biddyblas` (the team merges it into `riskofrain`; fetch that with `git fetch origin riskofrain:refs/remotes/origin/riskofrain`). Leave `SKILL.md` and the local `package-lock.json` name change uncommitted.
 - The Next.js port is on branch **`riskofrain2`** (see below).
 
-## The Next.js port (`web/`, branch `riskofrain2`)
+## The Next.js port (`web/`, branch `riskofrain2`; merged into `biddyblas`)
 
-A parallel rewrite of this system in Next.js, **sharing the same MySQL database** through Prisma (`web/prisma/schema.prisma` is introspected from Laravel's migrations — Laravel's migrations stay the source of truth). Laravel is still the working system; the port is incomplete and is being filled in screen by screen.
+A rewrite of this system in Next.js, to be hosted on **Vercel with Supabase** (Postgres, Storage, Realtime). Laravel is still the working system; the port is incomplete and is being filled in screen by screen.
 
 ```bash
 cd web
-npm run dev            # dev server on :3000
-npx vitest run         # the TypeScript suite
-npx tsc --noEmit       # typecheck
-npm run build          # production build (run it before committing a slice)
+npm run dev                  # dev server on :3000
+npx vitest run               # the TypeScript suite
+npx tsc --noEmit             # typecheck
+npm run build                # production build (run it before committing a slice)
+npm run db:deploy            # apply prisma/migrations to the Supabase DB (DIRECT_URL)
+npm run migrate:from-mysql   # one-off cutover: copy Laravel's MySQL rows + storage/app files into Supabase
 ```
+
+- **Database is Postgres** (`web/prisma/schema.prisma`, `provider = "postgresql"`). Schema changes are now Prisma migrations in `web/prisma/migrations`, not Laravel migrations; every new table needs `ENABLE ROW LEVEL SECURITY` in its migration (no policies — the app uses Prisma as `postgres`, and RLS keeps Supabase's Data API shut to the browser's anon key). `prisma/legacy-mysql/schema.prisma` is the frozen MySQL schema the cutover script reads; mirror a column into both while Laravel still runs. Postgres compares strings case-sensitively, so lookups that relied on MySQL's collation (emails, names, searches) use `mode: 'insensitive'`. Timestamps stay naive Manila wall-clock (`lib/time.ts`).
+- **Files** go through `lib/storage.ts`: Supabase buckets `private` (uploads, served only by office-checked routes such as `/attachments/{id}` and `/documents/{d}/requirements/{r}/file`) and `public` (QR images, reached via `/storage/*`). With no `SUPABASE_URL` set it falls back to `../storage/app`. Never write to the filesystem directly — Vercel's is read-only.
+- **Live updates**: `lib/realtime.ts` relays only PUBLIC `documents.{tracking}` events to Supabase Realtime broadcast (anyone with the anon key can read *and write* a public topic, so the client treats an event as "re-read the page", never as data). Staff/user channels never leave the process. Without Supabase, the SSE route serves local dev.
+- **Background work** must use `after()` (see `queueMail`); a dangling promise is frozen with the Vercel function. Cron is `web/vercel.json` → `/api/cron/{job}` with `CRON_SECRET` (times are UTC: 23:00 = 07:00 Manila). Hourly crons need a Vercel Pro plan; Hobby allows one run a day.
 
 - **URLs are byte-identical to the Laravel ones** and are named in `web/src/lib/routes.ts` — QR stickers, receipt emails and bookmarks already in people's hands encode them.
 - **Layers**: `lib/domain/*` are the ports of `app/Support` + model logic (they reach the database); `app/actions/*` are the `'use server'` write paths, each returning `{ ok, message }` rather than throwing; pages are server components wrapped in `AuthenticatedPage`.

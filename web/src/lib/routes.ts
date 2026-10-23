@@ -173,6 +173,7 @@ export const routes = {
 
   /* ── History & reports ───────────────────────────────────────────────── */
   history: (q?: Params) => withQuery('/history', q),
+  historyData: (q?: Params) => withQuery('/history/data', q),
   historyExport: (q?: Params) => withQuery('/history/export', q),
   /** Supervisor Reports — absorbed the old Analytics page and Services report. */
   reportsIndex: (q?: Params) => withQuery('/reports', q),

@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { ReviewModal } from '@/components/review/review-modal';
 import { RequestTable } from '@/components/review/request-table';
+import { Pager } from '@/components/review/pager';
+import { useCompletedHistory } from '@/components/review/use-completed-history';
 
 /**
  * The supervisor desk's three queues.
@@ -12,13 +14,15 @@ import { RequestTable } from '@/components/review/request-table';
  * Unassigned / In Progress / Completed replaced the Assignments page, which
  * listed the same work but could not act on it. Opening a row opens the shared
  * Review modal, which assigns, reassigns, denies and drives the stage.
+ * Completed is the office's whole history, fetched a page at a time; only its
+ * count rides in the page.
  */
 type Tab = 'pending' | 'inprogress' | 'completed';
 
 export function DashboardQueues({
   pending,
   active,
-  completed,
+  completedCount,
   assignableStaff,
   activeTab,
   search,
@@ -27,7 +31,7 @@ export function DashboardQueues({
 }: {
   pending: ReviewRow[];
   active: ReviewRow[];
-  completed: ReviewRow[];
+  completedCount: number;
   assignableStaff: Array<{ id: number; name: string }>;
   activeTab: Tab;
   search: string;
@@ -42,6 +46,8 @@ export function DashboardQueues({
   const [query, setQuery] = useState(search);
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
+  const history = useCompletedHistory(tab === 'completed', search);
+  const completed = history.data?.rows ?? [];
   const rows = tab === 'pending' ? pending : tab === 'inprogress' ? active : completed;
 
   // A request link can deep-link a row open (?open=SPD-…), which is how the
@@ -95,7 +101,7 @@ export function DashboardQueues({
             [
               ['pending', 'Unassigned', pending.length],
               ['inprogress', 'In Progress', active.length],
-              ['completed', 'Completed', completed.length],
+              ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button
@@ -138,6 +144,10 @@ export function DashboardQueues({
         </form>
       </div>
 
+      {tab === 'completed' && history.loading && !history.data ? (
+        <p className="text-sm text-ink-soft">Loading completed requests…</p>
+      ) : null}
+
       <RequestTable
         rows={rows}
         onOpen={setOpen}
@@ -146,24 +156,48 @@ export function DashboardQueues({
             ? 'Nothing waiting to be assigned'
             : tab === 'inprogress'
               ? 'No work in flight'
-              : 'Nothing completed in the last 90 days'
+              : history.failed
+                ? 'Completed requests could not be loaded'
+                : search
+                  ? 'No requests match'
+                  : 'Nothing completed yet'
         }
         emptyBody={
           tab === 'pending'
             ? `New citizen requests for ${officeName ?? 'your office'} land here, along with any that reached no office yet.`
             : tab === 'inprogress'
               ? 'Requests appear here once you assign them to a staff member.'
-              : 'Older completed work is in Reports.'
+              : history.failed
+                ? 'Check your connection, then open the tab again.'
+                : 'Finished requests from your office land here.'
         }
         showAssignee={tab !== 'pending'}
       />
+
+      {tab === 'completed' && history.data ? (
+        <Pager
+          page={history.data.page}
+          lastPage={history.data.lastPage}
+          perPage={history.data.perPage}
+          total={history.data.total}
+          onPage={(page) => void history.load(page)}
+          disabled={history.loading}
+        />
+      ) : null}
 
       {open ? (
         <ReviewModal
           row={open}
           mode="supervisor"
           assignableStaff={assignableStaff}
-          onClose={() => setOpen(null)}
+          onClose={() => {
+            setOpen(null);
+
+            // An action in the modal may have changed a row on this page.
+            if (tab === 'completed') {
+              void history.reload();
+            }
+          }}
         />
       ) : null}
     </>

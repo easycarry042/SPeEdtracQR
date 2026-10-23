@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { ReviewModal } from '@/components/review/review-modal';
 import { RequestTable } from '@/components/review/request-table';
+import { Pager } from '@/components/review/pager';
+import { useCompletedHistory } from '@/components/review/use-completed-history';
 
 type Tab = 'triage' | 'active' | 'completed';
 
@@ -13,18 +15,19 @@ type Tab = 'triage' | 'active' | 'completed';
  *
  * "To accept" leads, because an unaccepted assignment blocks everything after
  * it — the stage gate for →In Progress will not pass until the assignee has
- * accepted, so nothing can move while it sits there.
+ * accepted, so nothing can move while it sits there. Completed is everything
+ * this person has finished, fetched a page at a time.
  */
 export function StaffQueues({
   triage,
   active,
-  completed,
+  completedCount,
   activeTab,
   openTracking,
 }: {
   triage: ReviewRow[];
   active: ReviewRow[];
-  completed: ReviewRow[];
+  completedCount: number;
   activeTab: Tab;
   openTracking: string | null;
 }) {
@@ -35,6 +38,8 @@ export function StaffQueues({
   const [tab, setTab] = useState<Tab>(activeTab);
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
+  const history = useCompletedHistory(tab === 'completed', '');
+  const completed = history.data?.rows ?? [];
   const rows = tab === 'triage' ? triage : tab === 'active' ? active : completed;
 
   useEffect(() => {
@@ -72,7 +77,7 @@ export function StaffQueues({
             [
               ['triage', 'To accept', triage.length],
               ['active', 'In progress', active.length],
-              ['completed', 'Completed', completed.length],
+              ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button
@@ -95,6 +100,10 @@ export function StaffQueues({
         </div>
       </div>
 
+      {tab === 'completed' && history.loading && !history.data ? (
+        <p className="text-sm text-ink-soft">Loading completed requests…</p>
+      ) : null}
+
       <RequestTable
         rows={rows}
         onOpen={setOpen}
@@ -104,19 +113,45 @@ export function StaffQueues({
             ? 'Nothing waiting on you'
             : tab === 'active'
               ? 'No requests in progress'
-              : 'Nothing completed in the last 90 days'
+              : history.failed
+                ? 'Completed requests could not be loaded'
+                : 'Nothing completed yet'
         }
         emptyBody={
           tab === 'triage'
             ? 'New assignments appear here. Accepting one is what lets it move past Pending.'
             : tab === 'active'
               ? 'Accept an assignment to start work on it.'
-              : 'Older completed work is in History.'
+              : history.failed
+                ? 'Check your connection, then open the tab again.'
+                : 'Requests you finish land here.'
         }
       />
 
+      {tab === 'completed' && history.data ? (
+        <Pager
+          page={history.data.page}
+          lastPage={history.data.lastPage}
+          perPage={history.data.perPage}
+          total={history.data.total}
+          onPage={(page) => void history.load(page)}
+          disabled={history.loading}
+        />
+      ) : null}
+
       {open ? (
-        <ReviewModal row={open} mode="staff" assignableStaff={[]} onClose={() => setOpen(null)} />
+        <ReviewModal
+          row={open}
+          mode="staff"
+          assignableStaff={[]}
+          onClose={() => {
+            setOpen(null);
+
+            if (tab === 'completed') {
+              void history.reload();
+            }
+          }}
+        />
       ) : null}
     </>
   );

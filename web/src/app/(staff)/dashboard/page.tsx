@@ -12,6 +12,7 @@ import { REVIEW_SELECT, assignableStaff, collection } from '@/lib/domain/request
 import { DashboardQueues } from './queues';
 import { GlanceStrip } from './glance-strip';
 import { kpis } from '@/lib/domain/admin-analytics';
+import { completedCount } from '@/lib/domain/completed-history';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = { title: 'Dashboard' };
  * The supervisor desk.
  *
  * Three tabs over the office's citizen requests — Unassigned, In Progress and
- * Completed (last 90 days) — and the Review modal, which assigns, reassigns and
+ * Completed (the office's whole history, paged) — and the Review modal, which assigns, reassigns and
  * denies. The Assignments page these replaced listed the same work with half
  * the tools.
  *
@@ -76,7 +77,7 @@ export default async function DashboardPage({
 
   const scope = documentScope(actor);
 
-  const [pendingRows, activeRows, completedRows, staff, glance] = await Promise.all([
+  const [pendingRows, activeRows, completedTotal, staff, glance] = await Promise.all([
     // Awaiting approval: still Pending and not yet assigned. Assigning removes
     // it from this queue.
     db.documents.findMany({
@@ -104,18 +105,9 @@ export default async function DashboardPage({
       take: 200,
     }),
 
-    // Finished work. The last 90 days keeps the payload bounded; older ones
-    // live in Reports.
-    db.documents.findMany({
-      where: {
-        AND: [scope, citizenOnly, deptScope],
-        status: DocumentStatus.Completed,
-        status_changed_at: { gte: subDays(now(), 90) },
-      },
-      orderBy: { status_changed_at: 'desc' },
-      select: REVIEW_SELECT,
-      take: 200,
-    }),
+    // Finished work is the whole history, paged by the Completed tab itself
+    // (history.data); only its count is needed here.
+    completedCount(actor),
 
     assignableStaff(actor.can('manage system') ? null : actor.departmentId),
 
@@ -124,10 +116,9 @@ export default async function DashboardPage({
     departmentId === null ? Promise.resolve(null) : kpis(subDays(now(), 29), now(), departmentId),
   ]);
 
-  const [pending, active, completed] = await Promise.all([
+  const [pending, active] = await Promise.all([
     collection(pendingRows, actor),
     collection(activeRows, actor),
-    collection(completedRows, actor),
   ]);
 
   const activeTab =
@@ -140,7 +131,7 @@ export default async function DashboardPage({
       <DashboardQueues
         pending={pending}
         active={active}
-        completed={completed}
+        completedCount={completedTotal}
         assignableStaff={staff.map((member) => ({ id: member.id, name: member.name }))}
         activeTab={activeTab}
         search={search}

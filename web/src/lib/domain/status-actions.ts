@@ -55,6 +55,7 @@ const DOCUMENT_SELECT = {
   notify_citizen: true,
   qr_code_path: true,
   remarks: true,
+  claim_date: true,
   created_at: true,
 } as const;
 
@@ -98,7 +99,7 @@ function authorizeChange(
 export async function advance(
   documentId: number,
   actor: Actor | null,
-  input: { expectedStatus: string; claimDate: string; note?: string | null },
+  input: { expectedStatus: string; claimDate?: string | null; note?: string | null },
 ): Promise<TransitionResult> {
   const document = await loadOrFail(documentId);
   authorizeChange(document, actor);
@@ -116,22 +117,33 @@ export async function advance(
     );
   }
 
-  const parsed = parseNaive(input.claimDate);
+  // A date already set (Adjust Date in the Review modal) carries over unless it
+  // has passed; only then, or with none set, must one be picked here.
+  const existing = document.claim_date ? startOfDay(document.claim_date) : null;
+  const existingUsable = existing !== null && existing.getTime() >= today().getTime();
+  const parsed = (input.claimDate ?? '').trim() === '' ? null : parseNaive(input.claimDate as string);
 
-  if (!parsed) {
-    throw new ActionError('Pick the claiming date for the citizen.');
+  if (!parsed && !existingUsable) {
+    throw new ActionError(
+      existing
+        ? `The claiming date (${formatNaive(existing, 'M d, Y')}) has passed. Pick a new one for the citizen.`
+        : 'Pick the claiming date for the citizen.',
+    );
   }
 
-  const claimDate = startOfDay(parsed);
+  const claimDate = parsed ? startOfDay(parsed) : (existing as Date);
 
   if (claimDate.getTime() < today().getTime()) {
     throw new ActionError('The claiming date cannot be in the past.');
   }
 
+  const kept = existing !== null && claimDate.getTime() === existing.getTime();
+
   // The claiming date is the work evidence the gate used to take as a note, so
   // the stage checks still have something concrete to accept.
   const note =
-    (input.note ?? '').trim() || `Claiming date set to ${formatNaive(claimDate, 'M d, Y')}.`;
+    (input.note ?? '').trim() ||
+    `Claiming date ${kept ? 'stays' : 'set to'} ${formatNaive(claimDate, 'M d, Y')}.`;
 
   // Hard stage gates: unmet requirements block the transition with a
   // per-requirement message.

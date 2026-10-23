@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { db, id } from '@/lib/db';
-import { now, subDays } from '@/lib/time';
 import { requireActor } from '@/lib/auth/actor';
 import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { DocumentStatus, activeValues } from '@/lib/domain/document-status';
 import { ORIGIN_INTERNAL } from '@/lib/domain/scope';
 import { REVIEW_SELECT, collection } from '@/lib/domain/request-review';
+import { completedCount } from '@/lib/domain/completed-history';
 import { atRisk } from '@/lib/domain/sla-watch';
 import { StaffQueues } from './queues';
 import { AtRiskStrip } from './at-risk-strip';
@@ -32,7 +32,7 @@ export default async function StaffDashboardPage({
     assigned_to: id(actor.id),
   } as const;
 
-  const [triageRows, activeRows, completedRows] = await Promise.all([
+  const [triageRows, activeRows, completedTotal] = await Promise.all([
     // Assigned but not yet accepted — the decision only this person can make.
     db.documents.findMany({
       where: {
@@ -51,22 +51,13 @@ export default async function StaffDashboardPage({
       take: 200,
     }),
 
-    db.documents.findMany({
-      where: {
-        ...mine,
-        status: DocumentStatus.Completed,
-        status_changed_at: { gte: subDays(now(), 90) },
-      },
-      orderBy: { status_changed_at: 'desc' },
-      select: REVIEW_SELECT,
-      take: 100,
-    }),
+    // The whole history, paged by the Completed tab itself; only the count here.
+    completedCount(actor),
   ]);
 
-  const [triage, active, completed] = await Promise.all([
+  const [triage, active] = await Promise.all([
     collection(triageRows, actor),
     collection(activeRows, actor),
-    collection(completedRows, actor),
   ]);
 
   // Worst first — the order a queue should be worked in.
@@ -96,7 +87,7 @@ export default async function StaffDashboardPage({
       <StaffQueues
         triage={triage}
         active={active}
-        completed={completed}
+        completedCount={completedTotal}
         activeTab={activeTab}
         openTracking={open ?? null}
       />
