@@ -325,6 +325,7 @@ describe('approving', () => {
     expect(putPrivate).toHaveBeenCalledWith(
       `request-signatures/${TRACKING}-step-11.png`,
       expect.anything(),
+      'image/png',
     );
     expect(stepUpdate).toHaveBeenCalledWith(
       expect.objectContaining({

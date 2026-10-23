@@ -113,8 +113,8 @@ export async function inboxFor(actor: Actor, search = ''): Promise<Inbox> {
       ? {}
       : {
           OR: [
-            { tracking_number: { contains: trimmed } },
-            { purpose: { contains: trimmed } },
+            { tracking_number: { contains: trimmed, mode: 'insensitive' } },
+            { purpose: { contains: trimmed, mode: 'insensitive' } },
           ],
         }),
   };

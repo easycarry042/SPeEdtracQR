@@ -47,7 +47,9 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
   const { email, password } = parsed.data;
 
   const user = await db.users.findFirst({
-    where: { email, deleted_at: null },
+    // Postgres compares case-sensitively; MySQL's collation did not, and people
+    // type their address however they like.
+    where: { email: { equals: email, mode: 'insensitive' }, deleted_at: null },
     select: { id: true, password: true, is_active: true },
   });
 

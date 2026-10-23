@@ -131,7 +131,7 @@ async function validateRequestType(
   }
 
   const clash = await db.request_types.findFirst({
-    where: { name, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
+    where: { name: { equals: name, mode: 'insensitive' }, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
     select: { id: true },
   });
 
@@ -405,7 +405,7 @@ async function validateTemplate(
   }
 
   const clash = await db.route_templates.findFirst({
-    where: { name, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
+    where: { name: { equals: name, mode: 'insensitive' }, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
     select: { id: true },
   });
 
@@ -602,7 +602,7 @@ async function validateResource(
   }
 
   const clash = await db.resources.findFirst({
-    where: { name, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
+    where: { name: { equals: name, mode: 'insensitive' }, ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }) },
     select: { id: true },
   });
 

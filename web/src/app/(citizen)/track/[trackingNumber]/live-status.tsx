@@ -1,50 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { routes } from '@/lib/routes';
+import { subscribeDocument } from '@/lib/client/realtime';
 
 /**
  * Live status on the citizen tracking page.
  *
  * Replaces the Echo listener on the public `documents.{tracking}` channel with
- * an SSE connection carrying the same `moved` event. The payload is still
- * content-free of staff identity — it names the handling OFFICE only — because
- * anyone who knows a tracking number can open this page and this stream.
+ * the same `moved` event over Supabase Realtime (SSE locally). The payload is
+ * still content-free of staff identity — it names the handling OFFICE only —
+ * because anyone who knows a tracking number can open this page and this
+ * channel. And because anyone can also post to a public topic, the banner does
+ * not repeat the payload's stage: it only announces the refresh, and the stage
+ * shown comes from the server render.
  *
  * On a move it refreshes the server component rather than patching the DOM by
  * id, so the stage rail, the hold banner and the pickup notice all re-render
  * from one source instead of three hand-patched elements drifting apart.
  */
-type MovedPayload = {
-  status: string;
-  status_label: string;
-  current_department: string | null;
-  event: string;
-  timestamp: string | null;
-};
-
 export function LiveStatus({ trackingNumber }: { trackingNumber: string }) {
   const router = useRouter();
   const [connected, setConnected] = useState(false);
-  const [moved, setMoved] = useState<MovedPayload | null>(null);
+  const [moved, setMoved] = useState(false);
+  // One refresh at a time, so a burst of events (or someone spamming the
+  // public topic) costs one re-render, not one per event.
+  const refreshing = useRef(false);
 
-  useEffect(() => {
-    const source = new EventSource(routes.streamDocument(trackingNumber));
+  useEffect(
+    () =>
+      subscribeDocument(trackingNumber, {
+        onReady: () => setConnected(true),
+        onLost: () => setConnected(false),
+        on: {
+          moved: () => {
+            if (refreshing.current) {
+              return;
+            }
 
-    source.addEventListener('ready', () => setConnected(true));
-    source.addEventListener('error', () => setConnected(false));
-
-    source.addEventListener('moved', (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as MovedPayload;
-
-      setMoved(payload);
-      // Let the banner show for a beat before the page re-renders under it.
-      setTimeout(() => router.refresh(), 1_200);
-    });
-
-    return () => source.close();
-  }, [router, trackingNumber]);
+            refreshing.current = true;
+            setMoved(true);
+            // Let the banner show for a beat before the page re-renders under it.
+            setTimeout(() => {
+              router.refresh();
+              setMoved(false);
+              refreshing.current = false;
+            }, 1_200);
+          },
+        },
+      }),
+    [router, trackingNumber],
+  );
 
   return (
     <>
@@ -62,7 +68,7 @@ export function LiveStatus({ trackingNumber }: { trackingNumber: string }) {
           className="mt-4 rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm font-medium text-green-deep"
           role="status"
         >
-          Status updated to {moved.status_label} — refreshing…
+          Status updated — refreshing…
         </div>
       ) : null}
     </>

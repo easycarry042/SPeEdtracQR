@@ -67,9 +67,9 @@ export default async function DashboardPage({
       ? {}
       : {
           OR: [
-            { tracking_number: { contains: search } },
-            { document_type: { contains: search } },
-            { citizen_name: { contains: search } },
+            { tracking_number: { contains: search, mode: 'insensitive' } },
+            { document_type: { contains: search, mode: 'insensitive' } },
+            { citizen_name: { contains: search, mode: 'insensitive' } },
           ],
         }),
   };

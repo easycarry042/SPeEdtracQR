@@ -59,7 +59,10 @@ export async function userList(options: {
     ...(search === ''
       ? {}
       : {
-          OR: [{ name: { contains: search } }, { email: { contains: search } }],
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { email: { contains: search, mode: 'insensitive' as const } },
+          ],
         }),
     ...(roleIds === null ? {} : { id: { in: roleIds } }),
   };
@@ -200,7 +203,7 @@ async function validate(
   // and the database's unique index, so it is revived rather than collided with.
   const clash = await db.users.findFirst({
     where: {
-      email,
+      email: { equals: email, mode: 'insensitive' },
       deleted_at: null,
       ...(ignoreId === null ? {} : { NOT: { id: id(ignoreId) } }),
     },
@@ -234,7 +237,7 @@ export async function createUser(input: UserInput): Promise<{ message: string }>
 
   // Re-adding an archived account's address restores and updates it.
   const archived = await db.users.findFirst({
-    where: { email, NOT: { deleted_at: null } },
+    where: { email: { equals: email, mode: 'insensitive' }, NOT: { deleted_at: null } },
     select: { id: true },
   });
 

@@ -11,18 +11,22 @@ import { SWEEPS } from '@/lib/sweeps';
  * every held or overdue request, so an open one is both a spam cannon and a way
  * to force-stamp `sla_breached_at` across the office.
  *
- * Set CRON_SECRET and call with `Authorization: Bearer <secret>`:
+ * On Vercel the schedule is `web/vercel.json`: once CRON_SECRET is set in the
+ * project's environment, Vercel Cron calls these with
+ * `Authorization: Bearer $CRON_SECRET` itself. Its times are UTC, so
+ * check-holds at 23:00 is 07:00 Manila, as Laravel ran it. Any other cron can
+ * call the same way:
  *
- *   0 * * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
- *                https://host/api/cron/check-sla
- *   0 7 * * *  …/api/cron/check-holds
- *   0 * * * *  …/api/cron/check-overdue-loans
+ *   curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://host/api/cron/check-sla
  *
  * With no CRON_SECRET set the route refuses every request rather than running
  * unauthenticated — a misconfigured deploy should skip its sweeps loudly, not
  * expose them.
  */
 export const dynamic = 'force-dynamic';
+
+/** A sweep mails as it goes; give it room past Vercel's default timeout. */
+export const maxDuration = 300;
 
 /** Constant-time compare, so the secret can't be recovered a byte at a time. */
 function presented(request: NextRequest): boolean {

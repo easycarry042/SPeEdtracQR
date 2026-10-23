@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 /**
  * Single Prisma client. Next.js reloads modules in dev, so the client is cached
- * on `globalThis` to avoid exhausting MySQL's connection pool.
+ * on `globalThis` to avoid exhausting the database's connection pool.
  */
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -17,7 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 /**
- * Every primary key in the schema is an UnsignedBigInt, so Prisma hands back
+ * Every primary key in the schema is a BigInt, so Prisma hands back
  * `bigint`. These two helpers are the boundary: ids become `number` the moment
  * they leave the data layer (no table here comes close to 2^53), and go back to
  * `bigint` on the way into a query.

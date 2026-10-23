@@ -258,7 +258,7 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
       trackingNumber,
       citizenName,
       documentType,
-      qrCodePath: qrResult.relativePath,
+      qrPng: qrResult.png,
     }),
   );
 

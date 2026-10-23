@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { app } from '@/lib/config';
 
@@ -71,9 +72,20 @@ export async function sendMail(message: Mailable): Promise<void> {
  * that triggered it.
  */
 export function queueMail(message: Mailable): void {
-  void sendMail(message).catch((error: unknown) => {
-    console.error(`[mail] failed to send "${message.subject}" to ${message.to}:`, error);
-  });
+  const send = (): Promise<void> =>
+    sendMail(message).catch((error: unknown) => {
+      console.error(`[mail] failed to send "${message.subject}" to ${message.to}:`, error);
+    });
+
+  // On Vercel a promise left dangling after the response is frozen with the
+  // function, so the send is registered with `after()`, which keeps the
+  // invocation alive until it settles. Outside a request (scripts, tests)
+  // `after()` throws, and the send simply runs unawaited.
+  try {
+    after(send);
+  } catch {
+    void send();
+  }
 }
 
 /* ── Shared layout ──────────────────────────────────────────────────────────── */

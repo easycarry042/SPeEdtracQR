@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["sin1"],
+  "crons": [
+    { "path": "/api/cron/check-sla", "schedule": "0 * * * *" },
+    { "path": "/api/cron/check-overdue-loans", "schedule": "15 * * * *" },
+    { "path": "/api/cron/check-holds", "schedule": "0 23 * * *" }
+  ]
+}

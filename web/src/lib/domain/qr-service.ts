@@ -1,8 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { randomInt } from 'node:crypto';
 import QRCode from 'qrcode';
 import { db } from '@/lib/db';
+import { putPublic } from '@/lib/storage';
 import * as trackingQr from '@/lib/domain/tracking-qr';
 import { now, formatNaive } from '@/lib/time';
 
@@ -26,9 +25,6 @@ import { now, formatNaive } from '@/lib/time';
 const TRACKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 const TRACKING_SUFFIX_LENGTH = 6;
-
-/** Where the Laravel `public` disk lives, so both stacks read the same files. */
-const PUBLIC_DISK = path.join(process.cwd(), '..', 'storage', 'app', 'public');
 
 /**
  * Generate a unique tracking number. External citizen tickets use the default
@@ -62,6 +58,8 @@ export type QrResult = {
   success: boolean;
   relativePath: string | null;
   publicUrl: string | null;
+  /** The rendered sticker, so the receipt email can attach it without a re-read. */
+  png: Buffer | null;
   error: string | null;
 };
 
@@ -85,14 +83,13 @@ export async function generateAndStore(trackingNumber: string): Promise<QrResult
       width: 500,
     });
 
-    const absolute = path.join(PUBLIC_DISK, relativePath);
-    await mkdir(path.dirname(absolute), { recursive: true });
-    await writeFile(absolute, png);
+    await putPublic(relativePath, png, 'image/png');
 
     return {
       success: true,
       relativePath,
       publicUrl: `/storage/${relativePath}`,
+      png,
       error: null,
     };
   } catch (error) {
@@ -101,6 +98,6 @@ export async function generateAndStore(trackingNumber: string): Promise<QrResult
     const message = error instanceof Error ? error.message : String(error);
     console.error('[qr] generation failed', { trackingNumber, message });
 
-    return { success: false, relativePath: null, publicUrl: null, error: message };
+    return { success: false, relativePath: null, publicUrl: null, png: null, error: message };
   }
 }

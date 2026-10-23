@@ -1,5 +1,3 @@
-import path from 'node:path';
-import { existsSync } from 'node:fs';
 import { absoluteUrl, e, layout, type Mailable } from '@/lib/mail/send';
 import { citizenTrackingUrl } from '@/lib/domain/document';
 
@@ -16,20 +14,15 @@ export function ticketSubmittedMail(args: {
   trackingNumber: string;
   citizenName: string | null;
   documentType: string | null;
-  qrCodePath: string | null;
+  /** The QR PNG just rendered for the request, or null if that failed. */
+  qrPng: Buffer | null;
 }): Mailable {
   const trackingUrl = absoluteUrl(citizenTrackingUrl(args.trackingNumber));
 
   const attachments: Mailable['attachments'] = [];
 
-  if (args.qrCodePath) {
-    // Same `public` disk Laravel writes to, so a request filed on either stack
-    // mails the same sticker.
-    const absolute = path.join(process.cwd(), '..', 'storage', 'app', 'public', args.qrCodePath);
-
-    if (existsSync(absolute)) {
-      attachments.push({ filename: 'tracking-qr.png', path: absolute });
-    }
+  if (args.qrPng) {
+    attachments.push({ filename: 'tracking-qr.png', content: args.qrPng });
   }
 
   return {

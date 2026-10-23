@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { after } from 'next/server';
 import { db, id, toId } from '@/lib/db';
+import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { formatNaive, now } from '@/lib/time';
 import { DocumentStatus, fromLoose, label as statusLabel } from '@/lib/domain/document-status';
 
@@ -20,6 +22,11 @@ import { DocumentStatus, fromLoose, label as statusLabel } from '@/lib/domain/do
  *
  * The poll is the floor, not the optimisation: correctness never depends on the
  * emitter, so no broker has to be deployed or kept alive.
+ *
+ * That SSE path is what runs locally. A Vercel deployment has Supabase
+ * configured, and there the public `documents.{tracking}` events are relayed
+ * through Supabase Realtime instead (see `relayToSupabase`), so a citizen's tab
+ * does not hold a serverless function open.
  */
 const POLL_INTERVAL_MS = 3_000;
 
@@ -42,6 +49,44 @@ if (process.env.NODE_ENV !== 'production') {
 
 export function publish(message: HubEvent): void {
   hub.emit(message.channel, message);
+
+  if (isPublicChannel(message.channel)) {
+    relayToSupabase(message);
+  }
+}
+
+/**
+ * On Vercel there is no long-lived process for the hub to live in, so public
+ * events also go out through Supabase Realtime Broadcast, which the citizen
+ * page subscribes to (`lib/client/realtime`). Only PUBLIC channels are relayed:
+ * a Supabase public topic can be read by anyone holding the anon key, so the
+ * staff and per-user channels never leave this process.
+ *
+ * Sent over HTTP (no socket to hold open), and after the response — a failed
+ * relay costs a citizen a live refresh, never the action that triggered it.
+ */
+function relayToSupabase(message: HubEvent): void {
+  if (!supabaseConfigured()) {
+    return;
+  }
+
+  const send = async (): Promise<void> => {
+    const channel = supabase().channel(message.channel);
+
+    try {
+      await channel.httpSend(message.event, message.data);
+    } catch (error) {
+      console.error(`[realtime] relay of ${message.event} on ${message.channel} failed:`, error);
+    } finally {
+      await supabase().removeChannel(channel);
+    }
+  };
+
+  try {
+    after(send);
+  } catch {
+    void send();
+  }
 }
 
 export function subscribe(channel: string, listener: (message: HubEvent) => void): () => void {
@@ -58,6 +103,11 @@ export function subscribe(channel: string, listener: (message: HubEvent) => void
  */
 export function publicChannel(trackingNumber: string): string {
   return `documents.${trackingNumber}`;
+}
+
+/** `documents.SPD-…` — not `documents.{id}.staff`, not a user channel. */
+export function isPublicChannel(channel: string): boolean {
+  return /^documents\.[A-Z]{3}-[0-9]{8}-[A-Z0-9]+$/.test(channel);
 }
 
 /** PRIVATE staff channel — the collaboration feed, internal notes included. */

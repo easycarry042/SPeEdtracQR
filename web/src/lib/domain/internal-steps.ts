@@ -384,7 +384,7 @@ async function freezeSignature(
 
   const copy = `request-signatures/${document.tracking_number}-step-${step.id}.png`;
 
-  await putPrivate(copy, bytes);
+  await putPrivate(copy, bytes, 'image/png');
 
   return copy;
 }
