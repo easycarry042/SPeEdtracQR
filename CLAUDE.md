@@ -169,6 +169,10 @@ npm run migrate:from-mysql   # one-off cutover: copy Laravel's MySQL rows + stor
 - **Only types may cross into a `'use client'` component from a domain module.** Importing a runtime value from one drags Prisma into the client bundle and the build fails. Constants the browser needs live in their own client-safe module (`request-kinds.ts`, `resource-kinds.ts`, `route-template.ts`).
 - **Permissions are re-checked inside every server action**, not only on the page: an action is a POST endpoint of its own.
 - Roles in the port read from Spatie's tables, so the Laravel seeder stays the one source of truth for who can do what.
+- **Public endpoints are throttled in Postgres** (`lib/rate-limit.ts`, table `rate_limits`; Laravel's `throttle:` limits by name in `LIMITS`) and refuse cross-site `Origin`s (`crossSite`) in place of the CSRF token. Route handlers may only export Next's handler names — helpers go in `lib/`. A function a server page calls must not live in a `'use client'` file (see `components/review/page-list.ts`).
+- **Stored times vs real time**: anything PHP computed from `->timestamp` (the document seal) must use `time.unixTimestamp()` — `getTime()` on a naive Manila Date is 8 hours late.
+- **Uploads on Vercel**: server actions accept 10 MB (`next.config.ts`), but Vercel refuses request bodies over 4.5 MB. Larger files need direct-to-Storage signed uploads (not built yet).
+- **Not ported on purpose**: Laravel's staff `track/show` page (staff open requests in the Review modal; `/track/{tn}` redirects them there), the PDF editor (`attachments.edit`, linked only from that page), walk-in `documents.create` and keyboard shortcuts (only reachable by shortcut), and the Breeze password-reset screens (never linked from the login page).
 
 ## Manual Testing Checklist
 
