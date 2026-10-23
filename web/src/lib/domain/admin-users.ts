@@ -120,6 +120,16 @@ export async function userList(options: {
   };
 }
 
+/**
+ * The roles an account can be given, straight from Spatie's table so the
+ * Laravel seeder stays the one source of truth for what roles exist.
+ */
+export async function assignableRoles(): Promise<string[]> {
+  const roles = await db.roles.findMany({ orderBy: { name: 'asc' }, select: { name: true } });
+
+  return roles.map((role) => role.name);
+}
+
 export async function userById(userId: number) {
   const user = await db.users.findFirst({
     where: { id: id(userId) },
@@ -404,11 +414,23 @@ export type BulkAction = 'activate' | 'deactivate' | 'archive';
  * dropped from the selection rather than refused, so a sweep over a page of
  * users does what was meant instead of failing wholesale.
  */
+const BULK_ACTIONS: BulkAction[] = ['activate', 'deactivate', 'archive'];
+
 export async function bulkUsers(
   action: BulkAction,
   userIds: number[],
   actor: Actor,
 ): Promise<{ message: string }> {
+  /**
+   * The union type is a compile-time promise only — this is called from a
+   * server action, so the string arrives over the wire. Laravel validated it
+   * with an `in:` rule; without the same check here an unknown action would
+   * fall through to the deactivate branch and quietly lock people out.
+   */
+  if (!BULK_ACTIONS.includes(action)) {
+    throw new ActionError('That is not an action that can be applied to several accounts.');
+  }
+
   const ids = [...new Set(userIds.filter((value) => Number.isInteger(value) && value !== actor.id))];
 
   if (ids.length === 0) {

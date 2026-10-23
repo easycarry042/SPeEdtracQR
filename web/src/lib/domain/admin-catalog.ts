@@ -3,6 +3,8 @@ import { now } from '@/lib/time';
 import { logActivity, SUBJECT } from '@/lib/activity';
 import { ActionError } from '@/lib/domain/status-actions';
 import { BOOKING_STATUS, KIND_EQUIPMENT, KIND_FACILITY } from '@/lib/domain/lending';
+import { REQUEST_KINDS, RESOURCE_KINDS } from '@/lib/domain/request-kinds';
+import { STEP_CONDITIONS } from '@/lib/domain/route-template';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -16,12 +18,7 @@ import type { Actor } from '@/lib/auth/actor';
 
 // ===== Request types =====
 
-export const REQUEST_KINDS = ['document', 'booking', 'equipment', 'service'] as const;
-
-export type RequestKind = (typeof REQUEST_KINDS)[number];
-
-/** Kinds that reserve or lend a resource, and so must point at one. */
-export const RESOURCE_KINDS: string[] = ['booking', 'equipment'];
+export { REQUEST_KINDS, RESOURCE_KINDS, type RequestKind } from '@/lib/domain/request-kinds';
 
 export type RequirementInput = { label: string; isMandatory: boolean };
 
@@ -107,6 +104,24 @@ export async function requestTypeById(requestTypeId: number) {
           isMandatory: requirement.is_mandatory,
         })),
       };
+}
+
+/**
+ * The facilities and items a booking or equipment request type can point at.
+ *
+ * Inactive items are left out: a request type aimed at one is hidden from the
+ * public form anyway, so offering it on the form would only build a dead end.
+ */
+export async function resourceOptions(): Promise<
+  Array<{ id: number; name: string; kind: string }>
+> {
+  const rows = await db.resources.findMany({
+    where: { is_active: true },
+    orderBy: [{ sort_order: 'asc' }, { name: 'asc' }],
+    select: { id: true, name: true, kind: true },
+  });
+
+  return rows.map((row) => ({ id: toId(row.id), name: row.name, kind: row.kind }));
 }
 
 async function validateRequestType(
@@ -327,7 +342,7 @@ export async function deleteRequestType(requestTypeId: number): Promise<{ messag
 
 // ===== Route templates =====
 
-export const STEP_CONDITIONS = ['always', 'if_approved', 'if_over_threshold'] as const;
+export { STEP_CONDITIONS, type StepCondition } from '@/lib/domain/route-template';
 
 export type TemplateStepInput = {
   stepOrder: number;

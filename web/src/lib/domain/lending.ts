@@ -1,5 +1,6 @@
 import { db, id, toId } from '@/lib/db';
 import { now } from '@/lib/time';
+import { KIND_EQUIPMENT } from '@/lib/domain/resource-kinds';
 
 /**
  * A reservation of a resource for a window, tied to a request (document).
@@ -29,11 +30,8 @@ export const LENDING = {
 
 export type LendingState = (typeof LENDING)[keyof typeof LENDING];
 
-/** One of a thing — the gymnasium. Two approved reservations may not overlap. */
-export const KIND_FACILITY = 'facility';
-
-/** A countable pile — chairs, tents. Overlapping borrowings share the stock. */
-export const KIND_EQUIPMENT = 'equipment';
+/** Re-exported so every lending rule keeps reading them from one place. */
+export { KIND_EQUIPMENT, KIND_FACILITY, type ResourceKind } from '@/lib/domain/resource-kinds';
 
 export type BookingCore = {
   id: number;
