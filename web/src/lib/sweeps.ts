@@ -347,4 +347,15 @@ export const SWEEPS: Record<string, () => Promise<SweepResult>> = {
   'check-sla': checkDocumentSla,
   'check-holds': checkDocumentHolds,
   'check-overdue-loans': checkOverdueLoans,
+  'daily': async () => {
+    const sla = await checkDocumentSla();
+    const holds = await checkDocumentHolds();
+    const loans = await checkOverdueLoans();
+
+    return {
+      job: 'daily',
+      summary: `Daily sweep: ${sla.summary} | ${holds.summary} | ${loans.summary}`,
+      counts: { ...sla.counts, ...holds.counts, ...loans.counts },
+    };
+  },
 };
