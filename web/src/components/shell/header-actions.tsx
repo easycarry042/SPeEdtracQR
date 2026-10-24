@@ -73,20 +73,17 @@ export function HeaderActions({
 
   return (
     <div ref={container} className="flex items-center gap-3">
-      {user.canFileInternal ? (
-        <Link href={routes.requestsCreate()} className="header-action" title="File an internal request">
-          <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4" />
-          </svg>
-          <span className="hidden lg:inline">File a request</span>
-        </Link>
-      ) : null}
-
       {user.canScan ? (
         <button type="button" className="header-action" onClick={() => setScanning(true)} aria-haspopup="dialog">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/staff/icon-scan.svg" alt="" aria-hidden="true" />
-          <span className="hidden lg:inline">Scan QR Code</span>
+          <svg fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
+            />
+            <path strokeLinecap="round" d="M7 12h10" />
+          </svg>
+          <span>Scan QR Code</span>
         </button>
       ) : null}
 
@@ -97,12 +94,15 @@ export function HeaderActions({
         <button
           type="button"
           className="header-disc"
+          title="Notifications"
           aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ''}`}
           aria-expanded={open === 'bell'}
           onClick={() => setOpen(open === 'bell' ? null : 'bell')}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/staff/icon-bell.svg" alt="" aria-hidden="true" />
+          <svg fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" />
+            <path strokeLinecap="round" d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+          </svg>
           {unread > 0 ? (
             <span className="header-badge" aria-hidden="true">
               {unread > 99 ? '99+' : unread}
@@ -111,7 +111,7 @@ export function HeaderActions({
         </button>
 
         {open === 'bell' ? (
-          <div className="absolute right-0 z-50 mt-2 w-[320px] overflow-hidden rounded-xl border border-hairline bg-paper shadow-lg">
+          <div className="absolute right-0 z-50 mt-2 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-hairline bg-paper shadow-lg">
             <div className="flex items-center justify-between border-b border-hairline px-4 py-2.5">
               <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Notifications</p>
               {unread > 0 ? (
@@ -130,7 +130,9 @@ export function HeaderActions({
 
             <div className="max-h-[360px] overflow-y-auto">
               {notifications.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-ink-soft">Nothing new.</p>
+                <p className="px-4 py-6 text-center text-sm text-ink-soft">
+                  You&apos;re all caught up — no new notifications.
+                </p>
               ) : (
                 notifications.map((notification) => (
                   <a
@@ -140,9 +142,11 @@ export function HeaderActions({
                       notification.read ? 'opacity-70' : ''
                     }`}
                   >
-                    <p className="font-semibold text-ink">{notification.title}</p>
-                    {notification.body ? <p className="mt-0.5 text-ink-soft">{notification.body}</p> : null}
-                    <p className="mt-1 text-[11px] text-ink-soft">{notification.time}</p>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="font-semibold text-ink">{notification.title}</p>
+                      <span className="shrink-0 text-[11px] text-ink-soft">{notification.time}</span>
+                    </div>
+                    {notification.body ? <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{notification.body}</p> : null}
                   </a>
                 ))
               )}
@@ -164,7 +168,7 @@ export function HeaderActions({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={user.avatarUrl} alt="" className="header-avatar" />
           ) : (
-            <span className="header-avatar avatar" aria-hidden="true">
+            <span className="header-avatar" aria-hidden="true">
               {user.initials}
             </span>
           )}
@@ -180,23 +184,47 @@ export function HeaderActions({
         </button>
 
         {open === 'account' ? (
-          <div className="absolute right-0 z-50 mt-2 w-[220px] overflow-hidden rounded-xl border border-hairline bg-paper py-1 shadow-lg">
-            <Link href={routes.staffProfile(user.id)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
+          <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-hairline bg-paper py-1 shadow-xl">
+            <div className="border-b border-hairline px-4 py-3">
+              <p className="truncate text-sm font-semibold text-ink">{user.name}</p>
+              {user.roleLabel ? <p className="text-xs text-ink-soft">{user.roleLabel}</p> : null}
+            </div>
+            <Link
+              href={routes.staffProfile(user.id)}
+              onClick={() => setOpen(null)}
+              className="block px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-green-wash"
+            >
               My Profile
             </Link>
-            <Link href={routes.history()} className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
+            <Link
+              href={routes.history()}
+              onClick={() => setOpen(null)}
+              className="block px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-green-wash"
+            >
               History
             </Link>
-            {user.isSuperAdmin ? (
-              <Link href={routes.staffIndex()} className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
+            {!user.isSuperAdmin ? (
+              <Link
+                href={routes.staffIndex()}
+                onClick={() => setOpen(null)}
+                className="block px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-green-wash"
+              >
                 Staff directory
               </Link>
             ) : null}
-            <Link href={routes.profileEdit()} className="block px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200/80">
+            <div className="my-1 border-t border-hairline" />
+            <Link
+              href={routes.profileEdit()}
+              onClick={() => setOpen(null)}
+              className="block px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-green-wash"
+            >
               Settings
             </Link>
             <form action={logout}>
-              <button type="submit" className="w-full px-4 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50">
+              <button
+                type="submit"
+                className="w-full px-4 py-2.5 text-left text-sm font-semibold text-status-red transition hover:bg-status-red-wash"
+              >
                 Logout
               </button>
             </form>

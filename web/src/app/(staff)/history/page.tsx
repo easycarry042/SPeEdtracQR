@@ -57,29 +57,48 @@ export default async function HistoryPage({
               <tbody>
                 {data.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center">
-                      <p className="font-semibold text-ink">No records match</p>
-                      <p className="mt-1 text-sm text-ink-soft">
-                        History lists completed requests only. Nothing here matches the current search or filters —
-                        try broadening your terms.
-                      </p>
+                    <td colSpan={6}>
+                      <div className="cr-empty">
+                        <div className="cr-empty-icon">
+                          <svg
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+                            />
+                          </svg>
+                        </div>
+                        <p className="cr-empty-title">No records match</p>
+                        <p className="cr-empty-msg">
+                          History lists completed requests only. Nothing here matches the current
+                          search or filters — try broadening your terms.
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 ) : null}
                 {data.rows.map((row, index) => (
                   <tr key={row.id}>
-                    <td>{firstIndex + index + 1}</td>
+                    <td className="idx mono">{firstIndex + index + 1}</td>
+                    <td className="nm">{row.fileName}</td>
                     <td>
                       <Link
                         href={`/track/${encodeURIComponent(row.trackingNumber)}`}
-                        className="font-semibold text-green hover:underline"
+                        className="code"
                       >
-                        {row.fileName}
+                        {row.trackingNumber}
                       </Link>
                     </td>
-                    <td className="mono">{row.trackingNumber}</td>
-                    <td>{row.createdAt ? formatNaive(row.createdAt, 'M j, Y') : '—'}</td>
-                    <td>{row.documentType}</td>
+                    <td className="mono muted">
+                      {row.createdAt ? formatNaive(row.createdAt, 'M j, Y') : '—'}
+                    </td>
+                    <td className="muted">{row.documentType}</td>
                     <td>
                       <span className="pill p-green">{statusLabel(fromLoose(row.status))}</span>
                     </td>

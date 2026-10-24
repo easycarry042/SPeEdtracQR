@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { ReviewModal } from '@/components/review/review-modal';
 import { RequestTable } from '@/components/review/request-table';
 import { Pager } from '@/components/review/pager';
+import {
+  EMPTY_STAFF_FILTER,
+  StaffTableFilter,
+  passesStaffFilter,
+  staffFilterCount,
+  type StaffFilterState,
+} from '@/components/review/staff-table-filter';
 import { useCompletedHistory } from '@/components/review/use-completed-history';
 
 /**
- * The supervisor desk's three queues.
+ * The supervisor desk's three queues (`dashboard.blade.php` lines 124–338).
  *
  * Unassigned / In Progress / Completed replaced the Assignments page, which
  * listed the same work but could not act on it. Opening a row opens the shared
@@ -18,6 +25,8 @@ import { useCompletedHistory } from '@/components/review/use-completed-history';
  * count rides in the page.
  */
 type Tab = 'pending' | 'inprogress' | 'completed';
+
+const PER_PAGE = 10;
 
 export function DashboardQueues({
   pending,
@@ -28,6 +37,7 @@ export function DashboardQueues({
   search,
   openTracking,
   officeName,
+  spansDepartments = false,
 }: {
   pending: ReviewRow[];
   active: ReviewRow[];
@@ -37,6 +47,7 @@ export function DashboardQueues({
   search: string;
   openTracking: string | null;
   officeName: string | null;
+  spansDepartments?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,11 +55,50 @@ export function DashboardQueues({
 
   const [tab, setTab] = useState<Tab>(activeTab);
   const [query, setQuery] = useState(search);
+  const [filter, setFilter] = useState<StaffFilterState>(EMPTY_STAFF_FILTER);
+  const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
-  const history = useCompletedHistory(tab === 'completed', search);
+  const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
-  const rows = tab === 'pending' ? pending : tab === 'inprogress' ? active : completed;
+
+  const allLocal = useMemo(() => [...pending, ...active], [pending, active]);
+  const typeOptions = useMemo(() => {
+    const source = tab === 'completed' ? completed : allLocal;
+    return source.map((r) => r.documentType);
+  }, [tab, completed, allLocal]);
+
+  const matches = useMemo(() => {
+    const base = tab === 'pending' ? pending : tab === 'inprogress' ? active : completed;
+    const needle = query.trim().toLowerCase();
+
+    return base.filter((r) => {
+      if (!passesStaffFilter(filter, r.documentType, r.submittedOn)) {
+        return false;
+      }
+      if (tab === 'completed') {
+        return true;
+      }
+      if (!needle) {
+        return true;
+      }
+      return [r.citizenName, r.trackingNumber, r.documentType, r.department].some((field) =>
+        (field ?? '').toLowerCase().includes(needle),
+      );
+    });
+  }, [tab, pending, active, completed, filter, query]);
+
+  const pageCount =
+    tab === 'completed'
+      ? (history.data?.lastPage ?? 1)
+      : Math.max(1, Math.ceil(matches.length / PER_PAGE));
+  const total = tab === 'completed' ? (history.data?.total ?? matches.length) : matches.length;
+  const current =
+    tab === 'completed' ? (history.data?.page ?? 1) : Math.min(page, pageCount);
+  const pageItems =
+    tab === 'completed'
+      ? matches
+      : matches.slice((current - 1) * PER_PAGE, current * PER_PAGE);
 
   // A request link can deep-link a row open (?open=SPD-…), which is how the
   // bell and the emailed assignment notice land someone on the right request.
@@ -80,28 +130,17 @@ export function DashboardQueues({
     }
   }, [pending, active, completed, open]);
 
-  const applySearch = (value: string): void => {
-    const next = new URLSearchParams(params.toString());
-
-    if (value.trim() === '') {
-      next.delete('q');
-    } else {
-      next.set('q', value.trim());
-    }
-
-    next.set('tab', tab);
-    router.replace(`${pathname}?${next.toString()}`);
-  };
+  const hasFilter = Boolean(query.trim() || staffFilterCount(filter) > 0);
 
   return (
-    <>
-      <div className="st-toolbar">
+    <section>
+      <div className="st-toolbar mb-4 flex-wrap justify-between gap-3">
         <div className="st-tabs" role="tablist" aria-label="Request queues">
           {(
             [
               ['pending', 'Unassigned', pending.length],
-              ['inprogress', 'Ongoing', active.length],
-              ['completed', 'Done', completedCount],
+              ['inprogress', 'In Progress', active.length],
+              ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button
@@ -109,81 +148,109 @@ export function DashboardQueues({
               type="button"
               role="tab"
               aria-selected={tab === key}
-              className={`st-tab${tab === key ? ' on' : ''}`}
+              className={tab === key ? 'on' : ''}
               onClick={() => {
                 setTab(key);
+                setPage(1);
                 const next = new URLSearchParams(params.toString());
                 next.set('tab', key);
-                router.replace(`${pathname}?${next.toString()}`);
+                router.replace(`${pathname}?${next.toString()}`, { scroll: false });
               }}
             >
-              {label}
-              <span className="st-tab-count">{count}</span>
+              {label} <span className="st-tab-count">{count}</span>
             </button>
           ))}
         </div>
 
-        <form
-          className="st-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            applySearch(query);
-          }}
-        >
-          <input
-            type="search"
-            className="field"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tracking number, type or name"
-            aria-label="Search requests"
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+          <label htmlFor="requestSearch" className="sr-only">
+            Search requests
+          </label>
+          <div className="st-search">
+            <svg
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="requestSearch"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+              data-kbd-search
+              placeholder="Search"
+            />
+          </div>
+
+          <StaffTableFilter
+            id="supervisorFilter"
+            value={filter}
+            onChange={(next) => {
+              setFilter(next);
+              setPage(1);
+            }}
+            typeOptions={typeOptions}
           />
-          <button type="submit" className="cr-btn cr-btn-ghost cr-btn-sm">
-            Search
-          </button>
-        </form>
+        </div>
       </div>
 
-      {tab === 'completed' && history.loading && !history.data ? (
-        <p className="text-sm text-ink-soft">Loading completed requests…</p>
-      ) : null}
-
-      <RequestTable
-        rows={rows}
-        onOpen={setOpen}
-        emptyTitle={
-          tab === 'pending'
-            ? 'Nothing waiting to be assigned'
-            : tab === 'inprogress'
-              ? 'No work in flight'
-              : history.failed
-                ? 'Completed requests could not be loaded'
-                : search
-                  ? 'No requests match'
-                  : 'Nothing completed yet'
-        }
-        emptyBody={
-          tab === 'pending'
-            ? `New citizen requests for ${officeName ?? 'your office'} land here, along with any that reached no office yet.`
-            : tab === 'inprogress'
-              ? 'Requests appear here once you assign them to a staff member.'
-              : history.failed
-                ? 'Check your connection, then open the tab again.'
-                : 'Finished requests from your office land here.'
-        }
-        showAssignee={tab !== 'pending'}
-      />
-
-      {tab === 'completed' && history.data ? (
-        <Pager
-          page={history.data.page}
-          lastPage={history.data.lastPage}
-          perPage={history.data.perPage}
-          total={history.data.total}
-          onPage={(page) => void history.load(page)}
-          disabled={history.loading}
+      <div className="st-card">
+        <RequestTable
+          rows={pageItems}
+          onOpen={setOpen}
+          spansDepartments={spansDepartments}
+          showStatusPill={tab === 'inprogress'}
+          dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
+          actionLabel={tab === 'pending' ? 'Review' : 'View details'}
+          showAssignee={tab !== 'pending'}
+          loading={tab === 'completed' && history.loading && !history.data}
+          emptyTitle={
+            tab === 'completed' && history.failed
+              ? 'Completed requests could not be loaded'
+              : hasFilter
+                ? 'No requests match'
+                : tab === 'inprogress'
+                  ? 'Nothing in progress'
+                  : tab === 'completed'
+                    ? 'Nothing completed yet'
+                    : 'No unassigned requests'
+          }
+          emptyBody={
+            tab === 'completed' && history.failed
+              ? 'Check your connection and open the tab again.'
+              : hasFilter
+                ? 'Try another search, or loosen the filter.'
+                : tab === 'inprogress'
+                  ? 'Requests your staff are working on appear here.'
+                  : tab === 'completed'
+                    ? `Every request ${officeName ?? 'your office'} finishes appears here, newest first.`
+                    : 'New citizen submissions awaiting approval will appear here.'
+          }
         />
-      ) : null}
+
+        <Pager
+          page={current}
+          lastPage={pageCount}
+          perPage={tab === 'completed' ? (history.data?.perPage ?? PER_PAGE) : PER_PAGE}
+          total={total}
+          onPage={(target) => {
+            if (tab === 'completed') {
+              void history.load(target);
+            } else {
+              setPage(target);
+            }
+          }}
+          disabled={tab === 'completed' && history.loading}
+        />
+      </div>
 
       {open ? (
         <ReviewModal
@@ -193,13 +260,12 @@ export function DashboardQueues({
           onClose={() => {
             setOpen(null);
 
-            // An action in the modal may have changed a row on this page.
             if (tab === 'completed') {
               void history.reload();
             }
           }}
         />
       ) : null}
-    </>
+    </section>
   );
 }

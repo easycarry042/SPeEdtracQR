@@ -3,41 +3,32 @@ import type { Kpis } from '@/lib/domain/admin-analytics';
 import { fromDays } from '@/lib/domain/duration';
 import { routes } from '@/lib/routes';
 
+const number = (value: number): string => value.toLocaleString('en-US');
+
 /**
- * A one-line glance at the office's last 30 days, from the same numbers as
- * Reports.
- *
- * The queue stays the dashboard's job and the charts live on Reports — this is
- * the link between them, not a second analytics page.
+ * Port of the glance strip in `dashboard.blade.php` (lines 44–57).
+ * One line from Reports instead of its charts: the queue below is this page's
+ * job, so the numbers stay a glance and a link.
  */
 export function GlanceStrip({ glance }: { glance: Kpis }) {
+  const overdue = glance.overdue.value;
+
   return (
-    <div className="glance-strip">
+    <Link href={routes.reportsIndex()} className="glance-strip">
       <span className="glance-label">Last 30 days</span>
-
       <span>
-        <strong>{glance.total.value}</strong> filed
+        <b>{number(glance.total.value)}</b> filed
       </span>
       <span>
-        <strong>{glance.completed.value}</strong> completed
+        <b>{number(glance.completed.value)}</b> completed
       </span>
       <span>
-        <strong>{fromDays(glance.avgProcessing.value)}</strong> average
-        {glance.avgProcessing.sample > 0 ? (
-          <span className="text-ink-soft"> ({glance.avgProcessing.sample})</span>
-        ) : null}
+        avg. <b>{fromDays(glance.avgProcessing.value)}</b> to complete
       </span>
-
-      {glance.overdue.value > 0 ? (
-        <span className="cc-tag cc-tag-late">{glance.overdue.value} overdue</span>
-      ) : null}
-      {glance.atRisk.value > 0 ? (
-        <span className="cc-tag">{glance.atRisk.value} at risk</span>
-      ) : null}
-
-      <Link href={routes.reportsIndex()} className="glance-link">
-        Open Reports
-      </Link>
-    </div>
+      <span className={overdue > 0 ? 'is-late' : undefined}>
+        <b>{number(overdue)}</b> overdue now
+      </span>
+      <span className="glance-link">Open reports →</span>
+    </Link>
   );
 }

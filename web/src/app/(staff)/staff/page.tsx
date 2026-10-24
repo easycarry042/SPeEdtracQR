@@ -58,14 +58,14 @@ export default async function StaffDirectoryPage({
               </svg>
               <input type="text" name="q" defaultValue={data.q} placeholder="Name or email" aria-label="Search staff" />
             </div>
-            <label className="sr-only" htmlFor="dir-sort">
-              Sort
-            </label>
-            <select id="dir-sort" name="sort" defaultValue={data.sort} className="cr-input w-48">
-              <option value="name">Name</option>
-              <option value="load">Open load</option>
-              <option value="completed">Completions</option>
-            </select>
+            <div className="field">
+              <label htmlFor="dir-sort">Sort</label>
+              <select id="dir-sort" name="sort" defaultValue={data.sort} className="w-48">
+                <option value="name">Name</option>
+                <option value="load">Open load</option>
+                <option value="completed">Completions</option>
+              </select>
+            </div>
             <button type="submit" className="cr-btn cr-btn-primary cr-btn-sm">
               Search
             </button>

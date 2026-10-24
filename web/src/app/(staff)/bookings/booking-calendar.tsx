@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { approveBooking, cancelBooking, rescheduleBooking } from '@/app/actions/bookings';
 import type { CalendarBooking, CalendarData } from '@/lib/domain/booking-calendar';
@@ -25,6 +25,31 @@ export function BookingCalendar({ data }: { data: CalendarData }) {
   const [picker, setPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(view.getFullYear());
   const [notice, setNotice] = useState<Notice>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!picker) {
+      return;
+    }
+
+    const onDown = (event: MouseEvent): void => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setPicker(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [picker]);
 
   const monthNames = useMemo(
     () => Array.from({ length: 12 }, (_, m) => new Date(2000, m, 1).toLocaleDateString(undefined, { month: 'short' })),
@@ -88,7 +113,7 @@ export function BookingCalendar({ data }: { data: CalendarData }) {
       <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="bk-card min-h-[520px] lg:min-h-0" aria-label="Reservation calendar">
           <div className="bk-card-head">
-            <div className="relative">
+            <div className="relative" ref={pickerRef}>
               <h2>
                 <button
                   type="button"

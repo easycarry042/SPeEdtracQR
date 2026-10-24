@@ -78,6 +78,20 @@ export function HistoryFilterBar({
           aria-expanded={open}
           className={`inline-flex h-ctl items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition hover:bg-gray-50 ${open ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-gray-200 bg-white text-gray-600'}`}
         >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
+          </svg>
           Filters
         </button>
         <a
@@ -97,7 +111,7 @@ export function HistoryFilterBar({
             id="historyType"
             value={values.document_type ?? ''}
             onChange={(event) => change('document_type', event.target.value)}
-            className="field h-ctl"
+            className="h-ctl rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-emerald-400 focus:outline-none"
           >
             <option value="">All Categories</option>
             {documentTypes.map((type) => (
@@ -120,17 +134,25 @@ export function HistoryFilterBar({
             onChange={(event) => change('to', event.target.value)}
             className="h-ctl rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-emerald-400 focus:outline-none"
           />
-          <button
-            type="button"
-            onClick={() => {
-              const cleared = { search: '', document_type: '', from: '', to: '' };
-              setValues(cleared);
-              apply(cleared);
-            }}
-            className="inline-flex h-ctl items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-          >
-            Clear
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              className="h-ctl flex-1 rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const cleared = { search: '', document_type: '', from: '', to: '' };
+                setValues(cleared);
+                apply(cleared);
+              }}
+              className="inline-flex h-ctl items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       ) : null}
     </form>

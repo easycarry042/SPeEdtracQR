@@ -36,7 +36,9 @@ export type InternalKpis = {
 export type WaitingRow = {
   id: number;
   tracking_number: string;
+  document_type?: string;
   purpose: string | null;
+  filed_by?: string | null;
   at: string;
   at_code: string | null;
   returned: boolean;
@@ -176,6 +178,7 @@ export async function waiting(scope: InternalScope): Promise<WaitingRow[]> {
     select: {
       id: true,
       tracking_number: true,
+      document_type: true,
       purpose: true,
       status: true,
       status_changed_at: true,
@@ -214,10 +217,12 @@ export async function waiting(scope: InternalScope): Promise<WaitingRow[]> {
     return {
       id: toId(document.id),
       tracking_number: document.tracking_number,
+      document_type: document.document_type,
       purpose: document.purpose,
+      filed_by: document.requestingDepartment?.code ?? null,
       at: office?.name ?? 'No office',
       at_code: office?.code ?? null,
-      returned,
+      returned: returned,
       waited_hours: Math.round(hours * 10) / 10,
       waited: fromHours(hours),
       limit_hours: limit,

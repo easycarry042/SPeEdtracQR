@@ -3,7 +3,9 @@
 import { pageList } from './page-list';
 
 /**
- * The request lists' pager: "11–20 of 34", ‹ 1 2 3 … 9 ›.
+ * Port of `partials/staff-table-pager.blade.php`.
+ * Always shown, pinned under the rows inside `.st-card`, so the card keeps one
+ * fixed shape whatever the row count.
  */
 export function Pager({
   page,
@@ -12,6 +14,8 @@ export function Pager({
   total,
   onPage,
   disabled = false,
+  label = 'Request pages',
+  noun = 'requests',
 }: {
   page: number;
   lastPage: number;
@@ -19,38 +23,50 @@ export function Pager({
   total: number;
   onPage: (page: number) => void;
   disabled?: boolean;
+  label?: string;
+  noun?: string;
 }) {
-  if (total <= perPage) {
-    return null;
-  }
+  const safeLast = Math.max(1, lastPage);
+  const safePage = Math.min(Math.max(1, page), safeLast);
 
   return (
-    <nav className="st-pager" aria-label="Request pages">
-      <span className="st-pager-info">
-        {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
-      </span>
+    <nav className="st-pager" aria-label={label}>
+      <p className="st-pager-info" aria-live="polite">
+        {total === 0
+          ? `No ${noun}`
+          : `Showing ${(safePage - 1) * perPage + 1}–${Math.min(safePage * perPage, total)} of ${total}`}
+      </p>
 
       <button
         type="button"
         className="st-page-step"
-        disabled={disabled || page === 1}
-        onClick={() => onPage(page - 1)}
+        disabled={disabled || safePage <= 1}
+        onClick={() => onPage(safePage - 1)}
         aria-label="Previous page"
       >
-        ‹
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
       </button>
 
-      {pageList(page, lastPage).map((entry, index) =>
+      {pageList(safePage, safeLast).map((entry, index) =>
         entry === 'gap' ? (
-          <span key={`gap-${index}`} className="st-page" aria-hidden="true">
+          <span key={`gap-${index}`} className="px-1 text-ink-soft" aria-hidden="true">
             …
           </span>
         ) : (
           <button
             key={entry}
             type="button"
-            className={`st-page${entry === page ? ' on' : ''}`}
-            aria-current={entry === page ? 'page' : undefined}
+            className={`st-page${entry === safePage ? ' on' : ''}`}
+            aria-current={entry === safePage ? 'page' : undefined}
             disabled={disabled}
             onClick={() => onPage(entry)}
           >
@@ -62,11 +78,20 @@ export function Pager({
       <button
         type="button"
         className="st-page-step"
-        disabled={disabled || page === lastPage}
-        onClick={() => onPage(page + 1)}
+        disabled={disabled || safePage >= safeLast}
+        onClick={() => onPage(safePage + 1)}
         aria-label="Next page"
       >
-        ›
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
       </button>
     </nav>
   );

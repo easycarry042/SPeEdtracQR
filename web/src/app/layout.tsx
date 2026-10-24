@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-canvas font-sans text-ink antialiased">
+      <body className="bg-[var(--page-wash-base)] font-sans text-ink antialiased">
         {/* Keyboard users land here first — the Blade shell carried the same. */}
         <a href="#main" className="skip-link">
           Skip to content

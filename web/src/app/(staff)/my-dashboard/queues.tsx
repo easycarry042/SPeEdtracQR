@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { ReviewModal } from '@/components/review/review-modal';
 import { RequestTable } from '@/components/review/request-table';
 import { Pager } from '@/components/review/pager';
+import {
+  EMPTY_STAFF_FILTER,
+  StaffTableFilter,
+  passesStaffFilter,
+  staffFilterCount,
+  type StaffFilterState,
+} from '@/components/review/staff-table-filter';
 import { useCompletedHistory } from '@/components/review/use-completed-history';
 
 type Tab = 'triage' | 'active' | 'completed';
+
+const PER_PAGE = 10;
 
 /**
  * The staff cockpit's queues.
@@ -36,11 +45,51 @@ export function StaffQueues({
   const params = useSearchParams();
 
   const [tab, setTab] = useState<Tab>(activeTab);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<StaffFilterState>(EMPTY_STAFF_FILTER);
+  const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
-  const history = useCompletedHistory(tab === 'completed', '');
+  const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
-  const rows = tab === 'triage' ? triage : tab === 'active' ? active : completed;
+
+  const allLocal = useMemo(() => [...triage, ...active], [triage, active]);
+  const typeOptions = useMemo(() => {
+    const source = tab === 'completed' ? completed : allLocal;
+    return source.map((r) => r.documentType);
+  }, [tab, completed, allLocal]);
+
+  const matches = useMemo(() => {
+    const base = tab === 'triage' ? triage : tab === 'active' ? active : completed;
+    const needle = query.trim().toLowerCase();
+
+    return base.filter((r) => {
+      if (!passesStaffFilter(filter, r.documentType, r.submittedOn)) {
+        return false;
+      }
+      if (tab === 'completed') {
+        return true;
+      }
+      if (!needle) {
+        return true;
+      }
+      return [r.citizenName, r.trackingNumber, r.documentType].some((field) =>
+        (field ?? '').toLowerCase().includes(needle),
+      );
+    });
+  }, [tab, triage, active, completed, filter, query]);
+
+  const pageCount =
+    tab === 'completed'
+      ? (history.data?.lastPage ?? 1)
+      : Math.max(1, Math.ceil(matches.length / PER_PAGE));
+  const total = tab === 'completed' ? (history.data?.total ?? matches.length) : matches.length;
+  const current =
+    tab === 'completed' ? (history.data?.page ?? 1) : Math.min(page, pageCount);
+  const pageItems =
+    tab === 'completed'
+      ? matches
+      : matches.slice((current - 1) * PER_PAGE, current * PER_PAGE);
 
   useEffect(() => {
     if (!openTracking) {
@@ -69,9 +118,11 @@ export function StaffQueues({
     }
   }, [triage, active, completed, open]);
 
+  const hasFilter = Boolean(query.trim() || staffFilterCount(filter) > 0);
+
   return (
-    <>
-      <div className="st-toolbar">
+    <section>
+      <div className="st-toolbar mb-4 flex-wrap justify-between gap-3">
         <div className="st-tabs" role="tablist" aria-label="My requests">
           {(
             [
@@ -85,59 +136,108 @@ export function StaffQueues({
               type="button"
               role="tab"
               aria-selected={tab === key}
-              className={`st-tab${tab === key ? ' on' : ''}`}
+              className={tab === key ? 'on' : ''}
               onClick={() => {
                 setTab(key);
+                setPage(1);
                 const next = new URLSearchParams(params.toString());
                 next.set('tab', key);
-                router.replace(`${pathname}?${next.toString()}`);
+                router.replace(`${pathname}?${next.toString()}`, { scroll: false });
               }}
             >
-              {label}
-              <span className="st-tab-count">{count}</span>
+              {label} <span className="st-tab-count">{count}</span>
             </button>
           ))}
         </div>
+
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+          <label htmlFor="staffSearch" className="sr-only">
+            Search requests
+          </label>
+          <div className="st-search">
+            <svg
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="staffSearch"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+              data-kbd-search
+              placeholder="Search"
+            />
+          </div>
+
+          <StaffTableFilter
+            id="staffFilter"
+            value={filter}
+            onChange={(next) => {
+              setFilter(next);
+              setPage(1);
+            }}
+            typeOptions={typeOptions}
+          />
+        </div>
       </div>
 
-      {tab === 'completed' && history.loading && !history.data ? (
-        <p className="text-sm text-ink-soft">Loading completed requests…</p>
-      ) : null}
-
-      <RequestTable
-        rows={rows}
-        onOpen={setOpen}
-        showAssignee={false}
-        emptyTitle={
-          tab === 'triage'
-            ? 'Nothing waiting on you'
-            : tab === 'active'
-              ? 'No requests in progress'
-              : history.failed
-                ? 'Completed requests could not be loaded'
-                : 'Nothing completed yet'
-        }
-        emptyBody={
-          tab === 'triage'
-            ? 'New assignments appear here. Accepting one is what lets it move past Pending.'
-            : tab === 'active'
-              ? 'Accept an assignment to start work on it.'
-              : history.failed
-                ? 'Check your connection, then open the tab again.'
-                : 'Requests you finish land here.'
-        }
-      />
-
-      {tab === 'completed' && history.data ? (
-        <Pager
-          page={history.data.page}
-          lastPage={history.data.lastPage}
-          perPage={history.data.perPage}
-          total={history.data.total}
-          onPage={(page) => void history.load(page)}
-          disabled={history.loading}
+      <div className="st-card">
+        <RequestTable
+          rows={pageItems}
+          onOpen={setOpen}
+          showAssignee={false}
+          showStatusPill={tab === 'active'}
+          dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
+          actionLabel={tab === 'triage' ? 'Review' : 'View details'}
+          loading={tab === 'completed' && history.loading && !history.data}
+          emptyTitle={
+            tab === 'completed' && history.failed
+              ? 'Completed requests could not be loaded'
+              : hasFilter
+                ? 'No requests match'
+                : tab === 'triage'
+                  ? 'Nothing waiting on you'
+                  : tab === 'active'
+                    ? 'No requests in progress'
+                    : 'Nothing completed yet'
+          }
+          emptyBody={
+            tab === 'completed' && history.failed
+              ? 'Check your connection, then open the tab again.'
+              : hasFilter
+                ? 'Try another search, or loosen the filter.'
+                : tab === 'triage'
+                  ? 'New assignments appear here. Accepting one is what lets it move past Pending.'
+                  : tab === 'active'
+                    ? 'Accept an assignment to start work on it.'
+                    : 'Requests you finish land here.'
+          }
         />
-      ) : null}
+
+        <Pager
+          page={current}
+          lastPage={pageCount}
+          perPage={tab === 'completed' ? (history.data?.perPage ?? PER_PAGE) : PER_PAGE}
+          total={total}
+          onPage={(target) => {
+            if (tab === 'completed') {
+              void history.load(target);
+            } else {
+              setPage(target);
+            }
+          }}
+          disabled={tab === 'completed' && history.loading}
+        />
+      </div>
 
       {open ? (
         <ReviewModal
@@ -153,6 +253,6 @@ export function StaffQueues({
           }}
         />
       ) : null}
-    </>
+    </section>
   );
 }

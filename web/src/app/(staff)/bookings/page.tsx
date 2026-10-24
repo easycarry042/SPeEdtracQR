@@ -17,7 +17,7 @@ export default async function BookingsPage() {
   await requirePermission('manage bookings');
 
   return (
-    <AuthenticatedPage title="Booking">
+    <AuthenticatedPage title="Booking" fixedHeight>
       <BookingCalendar data={await calendar()} />
     </AuthenticatedPage>
   );

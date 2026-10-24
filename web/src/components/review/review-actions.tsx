@@ -23,14 +23,6 @@ import { NotifyButton } from './notify-dialog';
 
 export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 
-/**
- * The cockpit: everything that can be done to this request from here.
- *
- * What is offered follows `row.canAdvance`, which is computed by the same rule
- * the server enforces — the UI never shows an action the backend will then
- * refuse. Stage-gate failures surface inline under the buttons, not in an
- * alert, so the note someone just typed is never lost.
- */
 type Dialog =
   | 'advance'
   | 'finish'
@@ -57,10 +49,16 @@ export function ReviewActions({
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [reassignOpen, setReassignOpen] = useState(false);
+
   // Unassigned: start on the type's first usual handler (CTCAO's assignment
-  // table) if they can be picked here; the supervisor confirms with Assign.
-  const suggested = row.usualHandlers.find((handler) => assignableStaff.some((staff) => staff.id === handler.id));
-  const [assignee, setAssignee] = useState<string>(String(row.assignedTo ?? suggested?.id ?? ''));
+  // table) if they can be picked here; the supervisor confirms with Approve/Assign.
+  const suggested = row.usualHandlers.find((handler) =>
+    assignableStaff.some((staff) => staff.id === handler.id),
+  );
+  const [assignee, setAssignee] = useState<string>(
+    row.assignedTo ? '' : String(suggested?.id ?? ''),
+  );
 
   const run = (action: () => Promise<ActionResult>, closeOnSuccess = true): void => {
     setErrors([]);
@@ -70,6 +68,7 @@ export function ReviewActions({
 
       if (result.ok) {
         setDialog(null);
+        setReassignOpen(false);
         router.refresh();
 
         if (closeOnSuccess) {
@@ -83,9 +82,9 @@ export function ReviewActions({
     });
   };
 
-  const isTerminal = ([DocumentStatus.Completed, DocumentStatus.Denied, DocumentStatus.Withdrawn] as string[]).includes(
-    row.status,
-  );
+  const isTerminal = (
+    [DocumentStatus.Completed, DocumentStatus.Denied, DocumentStatus.Withdrawn] as string[]
+  ).includes(row.status);
 
   return (
     <div className="dm-foot">
@@ -100,71 +99,170 @@ export function ReviewActions({
 
       {/* ── Supervisor: assign / reassign / deny ────────────────────────── */}
       {mode === 'supervisor' && !isTerminal ? (
-        <section className="dm-panel-strong">
-          <label className="req-label" htmlFor={`assign-${row.id}`}>
-            {row.assignedTo ? 'Reassign to' : 'Assign to'}
-          </label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <select
-              id={`assign-${row.id}`}
-              className="field req-select"
-              value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
+        !row.assignedTo ? (
+          <section className="dm-panel-strong">
+            <label
+              className="block text-[length:var(--fs-small)] font-bold text-green-deep"
+              htmlFor={`assign-${row.id}`}
             >
-              <option value="">Choose a staff member…</option>
-              {assignableStaff.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="cr-btn cr-btn-primary"
-              disabled={pending || assignee === ''}
-              onClick={() => run(() => assignDocument(row.id, Number(assignee)))}
-            >
-              {row.assignedTo ? 'Reassign' : 'Assign'}
-            </button>
-            <button
-              type="button"
-              className="cr-btn cr-btn-danger"
-              disabled={pending}
-              onClick={() => setDialog('deny')}
-            >
-              Deny
-            </button>
-          </div>
-          {row.usualHandlers.length > 0 ? (
-            <p className="mt-2 text-[length:var(--fs-small)] text-ink-soft">
-              Usually handled by {row.usualHandlers.map((handler) => handler.name).join(' or ')}.
+              Assign to Staff <span className="text-status-red">*</span>
+            </label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <select
+                id={`assign-${row.id}`}
+                className="st-filter-field min-w-0 flex-1"
+                value={assignee}
+                onChange={(event) => setAssignee(event.target.value)}
+              >
+                <option value="">Select a staff member…</option>
+                {assignableStaff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="cr-btn cr-btn-danger"
+                disabled={pending}
+                onClick={() => setDialog('deny')}
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                className="cr-btn cr-btn-primary"
+                disabled={pending || assignee === ''}
+                onClick={() => run(() => assignDocument(row.id, Number(assignee)))}
+              >
+                {pending ? 'Approving…' : 'Approve & Assign'}
+              </button>
+            </div>
+            {row.usualHandlers.length > 0 ? (
+              <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">
+                Usually handled by {row.usualHandlers.map((handler) => handler.name).join(' or ')}.
+              </p>
+            ) : null}
+            <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+              Approving assigns the request to the selected staff member. They must{' '}
+              <strong className="text-ink">accept it on their Requests page</strong> before work
+              begins.
             </p>
-          ) : null}
-          {assignableStaff.length === 0 ? (
-            <p className="mt-2 text-[length:var(--fs-small)] text-ink-soft">
-              No staff in this office can be assigned work yet.
+          </section>
+        ) : (
+          <section className="dm-panel-strong text-[length:var(--fs-small)] text-ink">
+            <p>
+              Being handled by{' '}
+              <strong className="text-green-deep">{row.assignedStaff || 'a staff member'}</strong>.
+              You can adjust the claiming date and answer the citizen from here; the stage itself is
+              theirs to advance.
             </p>
-          ) : null}
-        </section>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {!reassignOpen ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setReassignOpen(true)}
+                    className="cr-btn cr-btn-sm"
+                  >
+                    Reassign…
+                  </button>
+                  <button
+                    type="button"
+                    className="cr-btn cr-btn-danger cr-btn-sm"
+                    disabled={pending}
+                    onClick={() => setDialog('deny')}
+                  >
+                    Deny
+                  </button>
+                </>
+              ) : (
+                <div className="w-full">
+                  <label
+                    htmlFor={`reassign-${row.id}`}
+                    className="block font-bold text-green-deep"
+                  >
+                    Reassign to
+                  </label>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select
+                      id={`reassign-${row.id}`}
+                      value={assignee}
+                      onChange={(event) => setAssignee(event.target.value)}
+                      className="st-filter-field min-w-0 flex-1"
+                    >
+                      <option value="">Select a staff member…</option>
+                      {assignableStaff
+                        .filter((m) => m.id !== row.assignedTo)
+                        .map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReassignOpen(false);
+                        setAssignee('');
+                      }}
+                      className="cr-btn"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!assignee || pending}
+                      onClick={() => run(() => assignDocument(row.id, Number(assignee)), false)}
+                      className="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Reassign
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">
+                    The stage stays where it is; the new staff member accepts it on their Requests
+                    page before carrying on.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )
       ) : null}
 
       {/* ── Staff triage: this assignment is awaiting a decision ────────── */}
       {mode === 'staff' && row.needsTriage ? (
         <section className="dm-panel-strong space-y-2 text-[length:var(--fs-small)] text-ink">
-          <p className="font-bold">This request is waiting for you to accept it.</p>
-          <div className="gate-actions">
+          <p className="font-bold text-green-deep">Review this assignment before deciding.</p>
+          <p>
+            Check the citizen details and requirements above, then choose <strong>Accept</strong> to
+            start work, <strong>Decline</strong> to send it back to the supervisor, or{' '}
+            <strong>Request revision</strong> if the citizen must fix something first.
+          </p>
+          <div className="gate-actions pt-1">
             <button
               type="button"
               className="cr-btn cr-btn-primary"
               disabled={pending}
               onClick={() => run(() => acceptAssignment(row.id), false)}
             >
-              Accept
+              {pending ? 'Accepting…' : 'Accept'}
             </button>
-            <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={() => setDialog('decline')}>
+            <button
+              type="button"
+              className="cr-btn cr-btn-danger"
+              disabled={pending}
+              onClick={() => setDialog('decline')}
+            >
               Decline
             </button>
-            <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={() => setDialog('revision')}>
+            <button
+              type="button"
+              className="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber"
+              disabled={pending}
+              onClick={() => setDialog('revision')}
+            >
               Request revision
             </button>
           </div>
@@ -173,7 +271,7 @@ export function ReviewActions({
 
       {/* ── Status cockpit ─────────────────────────────────────────────── */}
       {row.canAdvance && !isTerminal && !(mode === 'staff' && row.needsTriage) ? (
-        <div className="gate-actions mt-4">
+        <div className="gate-actions mt-3">
           {row.status === DocumentStatus.OnHold ? (
             <button
               type="button"
@@ -185,7 +283,6 @@ export function ReviewActions({
             </button>
           ) : (
             <>
-              {/* Pending → Ongoing → Done: accepting starts it, Finish ends it. */}
               {(FINISHABLE as string[]).includes(row.status) ? (
                 <button
                   type="button"
@@ -213,9 +310,8 @@ export function ReviewActions({
                 >
                   Resume (back to Ongoing)
                 </button>
-              ) : row.status === DocumentStatus.Pending && (row.assignedTo === null || row.needsTriage) ? null : (
-                // Pending moves on when the assignee accepts; Advance is only for
-                // a Pending request someone already accepted (older records).
+              ) : row.status === DocumentStatus.Pending &&
+                (row.assignedTo === null || row.needsTriage) ? null : (
                 <button
                   type="button"
                   className="btn-step btn-step-fwd"
@@ -229,16 +325,31 @@ export function ReviewActions({
               {row.status !== DocumentStatus.Returned ? (
                 <>
                   {row.status !== DocumentStatus.Pending ? (
-                    <button type="button" className="btn-step btn-step-back" disabled={pending} onClick={() => setDialog('revert')}>
+                    <button
+                      type="button"
+                      className="btn-step btn-step-back"
+                      disabled={pending}
+                      onClick={() => setDialog('revert')}
+                    >
                       Move back
                     </button>
                   ) : null}
-                  <button type="button" className="btn-step btn-step-return" disabled={pending} onClick={() => setDialog('return')}>
+                  <button
+                    type="button"
+                    className="btn-step btn-step-return"
+                    disabled={pending}
+                    onClick={() => setDialog('return')}
+                  >
                     Return for revision
                   </button>
                 </>
               ) : null}
-              <button type="button" className="btn-step btn-step-hold" disabled={pending} onClick={() => setDialog('hold')}>
+              <button
+                type="button"
+                className="btn-step btn-step-hold"
+                disabled={pending}
+                onClick={() => setDialog('hold')}
+              >
                 Put on hold
               </button>
             </>
@@ -248,12 +359,21 @@ export function ReviewActions({
 
       {/* ── Oversight: watch, and push — never reassign ─────────────────── */}
       {mode === 'oversight' ? (
-        <div className="mt-3">
-          <p className="text-[length:var(--fs-small)] text-ink-soft">
-            Oversight view — this page watches every office&apos;s requests without acting on them.
-          </p>
-          {/* Finished work has nobody left to chase, which is why the Blade
-              version sent no nudge URL for a terminal request. */}
+        <section className="dm-panel-strong text-[length:var(--fs-small)] text-ink">
+          {row.assignedTo ? (
+            <p>
+              Being handled by{' '}
+              <strong className="text-green-deep">{row.assignedStaff || 'a staff member'}</strong>
+              {row.department ? ` at the ${row.department}` : ''}. The stage is theirs to advance;
+              use <strong>Notify</strong> if it needs a push.
+            </p>
+          ) : (
+            <p>
+              {row.department
+                ? `Not assigned yet. The ${row.department} supervisors assign it.`
+                : 'This request reached no office: its request type has none. Give the type an office on the Request Types page.'}
+            </p>
+          )}
           {!isTerminal ? (
             <div className="mt-3">
               <NotifyButton
@@ -271,7 +391,7 @@ export function ReviewActions({
               />
             </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
 
       {/* ── Dialogs ────────────────────────────────────────────────────── */}
@@ -295,7 +415,9 @@ export function ReviewActions({
           pending={pending}
           errors={errors}
           onCancel={() => setDialog(null)}
-          onSubmit={(note) => run(() => finishDocument(row.id, { expectedStatus: row.status, note }))}
+          onSubmit={(note) =>
+            run(() => finishDocument(row.id, { expectedStatus: row.status, note }))
+          }
         />
       ) : null}
 
@@ -308,7 +430,9 @@ export function ReviewActions({
           pending={pending}
           errors={errors}
           onCancel={() => setDialog(null)}
-          onSubmit={(reason) => run(() => revertDocument(row.id, { expectedStatus: row.status, reason }))}
+          onSubmit={(reason) =>
+            run(() => revertDocument(row.id, { expectedStatus: row.status, reason }))
+          }
         />
       ) : null}
 
@@ -409,10 +533,6 @@ function DialogShell({
   );
 }
 
-/**
- * Advancing sets the day the citizen collects. It replaced a free-text note:
- * the same decision, but a date the citizen can act on.
- */
 function AdvanceDialog({
   row,
   pending,
@@ -426,8 +546,6 @@ function AdvanceDialog({
   onCancel: () => void;
   onSubmit: (claimDate: string, note: string | null) => void;
 }) {
-  // Prefill with the date already set (Adjust Date), else the citizen's ask —
-  // but never a day that has passed, which the server would refuse anyway.
   const todayIso = localIsoDate(new Date());
   const usable = (day: string | null): day is string => day !== null && day >= todayIso;
   const setPassed = row.claimOn !== null && !usable(row.claimOn);
@@ -444,7 +562,7 @@ function AdvanceDialog({
       <input
         id={`claim-${row.id}`}
         type="date"
-        className="field"
+        className="st-filter-field mt-1"
         value={claimDate}
         min={todayIso}
         onChange={(event) => setClaimDate(event.target.value)}
@@ -462,7 +580,7 @@ function AdvanceDialog({
       </label>
       <textarea
         id={`note-${row.id}`}
-        className="field"
+        className="st-filter-field mt-1 h-auto py-2"
         rows={3}
         value={note}
         onChange={(event) => setNote(event.target.value)}
@@ -478,7 +596,12 @@ function AdvanceDialog({
         >
           {pending ? 'Saving…' : 'Advance'}
         </button>
-        <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
           Cancel
         </button>
       </div>
@@ -486,11 +609,6 @@ function AdvanceDialog({
   );
 }
 
-/**
- * Finish request (Ongoing → Done). Says up front what the server will check —
- * required files still unchecked, a reservation not yet approved — so the
- * click is not wasted; the server enforces the same rules either way.
- */
 function FinishDialog({
   row,
   pending,
@@ -505,24 +623,30 @@ function FinishDialog({
   onSubmit: (note: string | null) => void;
 }) {
   const [note, setNote] = useState('');
-  const unchecked = row.requirements.filter((requirement) => requirement.isMandatory && !requirement.verified);
-  // pending / cancelled are the two lending states of a booking not (or no longer) approved.
-  const bookingWaiting = row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+  const unchecked = row.requirements.filter(
+    (requirement) => requirement.isMandatory && !requirement.verified,
+  );
+  const bookingWaiting =
+    row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
 
   return (
     <DialogShell title="Finish this request" errors={errors}>
       <p className="gate-claim-hint">
-        Marks it <strong>Done</strong>. Your supervisor is notified and the requester sees it as done on
-        their tracking page.
+        Marks it <strong>Done</strong>. Your supervisor is notified and the requester sees it as
+        done on their tracking page.
       </p>
 
       {unchecked.length > 0 || bookingWaiting ? (
         <ul className="gate-checks mt-3">
           {unchecked.length > 0 ? (
-            <li className="no">Check these required files first: {unchecked.map((r) => r.label).join(', ')}</li>
+            <li className="no">
+              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
+            </li>
           ) : null}
           {bookingWaiting ? (
-            <li className="no">Approve the reservation first (in this window, or on the Resources page)</li>
+            <li className="no">
+              Approve the reservation first (in this window, or on the Resources page)
+            </li>
           ) : null}
         </ul>
       ) : null}
@@ -532,7 +656,7 @@ function FinishDialog({
       </label>
       <textarea
         id={`finish-note-${row.id}`}
-        className="field w-full"
+        className="st-filter-field mt-1 h-auto w-full py-2"
         rows={3}
         value={note}
         onChange={(event) => setNote(event.target.value)}
@@ -549,7 +673,12 @@ function FinishDialog({
         >
           {pending ? 'Saving…' : 'Mark as done'}
         </button>
-        <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
           Cancel
         </button>
       </div>
@@ -557,7 +686,6 @@ function FinishDialog({
   );
 }
 
-/** `YYYY-MM-DD` in the browser's own day, matching `<input type="date">`. */
 function localIsoDate(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');
 
@@ -591,7 +719,7 @@ function ReasonDialog({
     <DialogShell title={title} errors={errors}>
       <p className="gate-claim-hint">{hint}</p>
       <textarea
-        className="field mt-2"
+        className="st-filter-field mt-2 h-auto py-2"
         rows={4}
         value={reason}
         onChange={(event) => setReason(event.target.value)}
@@ -607,7 +735,12 @@ function ReasonDialog({
         >
           {pending ? 'Saving…' : submitLabel}
         </button>
-        <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
           Cancel
         </button>
       </div>
@@ -615,7 +748,6 @@ function ReasonDialog({
   );
 }
 
-/** Parking a blocked request. The SLA clock pauses while it is held. */
 function HoldDialog({
   pending,
   errors,
@@ -643,7 +775,7 @@ function HoldDialog({
       </label>
       <select
         id="blocked-by"
-        className="field"
+        className="st-filter-field mt-1"
         value={blockedBy}
         onChange={(event) => setBlockedBy(event.target.value)}
       >
@@ -659,7 +791,7 @@ function HoldDialog({
       </label>
       <textarea
         id="hold-reason"
-        className="field"
+        className="st-filter-field mt-1 h-auto py-2"
         rows={3}
         value={holdReason}
         onChange={(event) => setHoldReason(event.target.value)}
@@ -672,7 +804,7 @@ function HoldDialog({
       <input
         id="hold-until"
         type="date"
-        className="field"
+        className="st-filter-field mt-1"
         value={holdUntil}
         onChange={(event) => setHoldUntil(event.target.value)}
       />
@@ -688,7 +820,12 @@ function HoldDialog({
         >
           {pending ? 'Saving…' : 'Put on hold'}
         </button>
-        <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
           Cancel
         </button>
       </div>

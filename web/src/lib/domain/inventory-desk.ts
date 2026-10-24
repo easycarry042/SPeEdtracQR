@@ -66,6 +66,8 @@ export type LoanRow = {
   /** Approval waits for the request's own order: assigned, then accepted. */
   notReady: string | null;
   clash: boolean;
+  defaultReturnDate?: string;
+  minReturnDate?: string;
 };
 
 export type Desk = {
@@ -208,6 +210,11 @@ async function loanRow(source: BookingSource, at: Date): Promise<LoanRow> {
     serviceable: equipment && resource ? serviceableUnits(resource) : null,
     notReady,
     clash,
+    defaultReturnDate:
+      booking.ends_at.getTime() < at.getTime()
+        ? formatNaive(new Date(at.getTime() + 86_400_000), 'Y-m-d')
+        : formatNaive(booking.ends_at, 'Y-m-d'),
+    minReturnDate: formatNaive(at, 'Y-m-d'),
   };
 }
 
@@ -269,6 +276,7 @@ export async function desk(at: Date = now()): Promise<Desk> {
 export type FacilityRow = {
   id: number;
   name: string;
+  description?: string | null;
   location: string | null;
   capacity: number | null;
   isActive: boolean;
@@ -277,11 +285,13 @@ export type FacilityRow = {
   busyWith: string | null;
   busyUntil: string | null;
   nextAt: string | null;
+  bookingId?: number | null;
 };
 
 export type EquipmentRow = {
   id: number;
   name: string;
+  description?: string | null;
   location: string | null;
   isActive: boolean;
   owned: number;
@@ -289,6 +299,7 @@ export type EquipmentRow = {
   onLoan: number;
   reserved: number;
   available: number;
+  pct?: number;
 };
 
 export async function stock(at: Date = now()): Promise<{
@@ -300,6 +311,7 @@ export async function stock(at: Date = now()): Promise<{
     select: {
       id: true,
       name: true,
+      description: true,
       kind: true,
       total_quantity: true,
       damaged_quantity: true,
@@ -322,10 +334,12 @@ export async function stock(at: Date = now()): Promise<{
       ]);
 
       const serviceable = serviceableUnits(resource);
+      const available = Math.max(0, serviceable - out - promised);
 
       equipment.push({
         id: resource.id,
         name: resource.name,
+        description: resource.description ?? null,
         location: resource.location,
         isActive: resource.is_active,
         owned: resource.total_quantity ?? 0,
@@ -333,7 +347,8 @@ export async function stock(at: Date = now()): Promise<{
         onLoan: out,
         reserved: promised,
         // owned − out of service − on loan − promised.
-        available: Math.max(0, serviceable - out - promised),
+        available,
+        pct: serviceable > 0 ? Math.min(100, Math.round((available / serviceable) * 100)) : 0,
       });
 
       continue;
@@ -358,6 +373,7 @@ export async function stock(at: Date = now()): Promise<{
     facilities.push({
       id: resource.id,
       name: resource.name,
+      description: resource.description ?? null,
       location: resource.location,
       capacity: resource.capacity,
       isActive: resource.is_active,
@@ -365,6 +381,7 @@ export async function stock(at: Date = now()): Promise<{
       busyWith,
       busyUntil: current ? formatNaive(current.ends_at, 'g:i A') : null,
       nextAt: next ? formatNaive(next.starts_at, 'D, M j · g:i A') : null,
+      bookingId: current ? current.id : null,
     });
   }
 

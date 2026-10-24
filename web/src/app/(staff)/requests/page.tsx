@@ -7,19 +7,15 @@ import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { inboxFor } from '@/lib/domain/internal-inbox';
 import { InternalQueues } from './queues';
 
-export const metadata: Metadata = { title: 'Internal' };
+export const metadata: Metadata = { title: 'Internal Requests' };
 
 /**
- * The Internal tab: office-to-office requests.
- *
- * These are NOT on the dashboard — they travel their own endorsement chain
- * rather than the citizen assign/advance flow, so they get their own page and
- * their own sidebar badge.
+ * The Internal tab: office-to-office requests (`requests/index.blade.php`).
  */
 export default async function InternalRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; open?: string }>;
 }) {
   const actor = await requireActor();
 
@@ -27,16 +23,30 @@ export default async function InternalRequestsPage({
     redirect(routes.welcome());
   }
 
-  const { tab, q } = await searchParams;
+  const { tab, q, open } = await searchParams;
+  if (open && /^\d+$/.test(open)) {
+    redirect(routes.requestsShow(open));
+  }
+
   const inbox = await inboxFor(actor, q ?? '');
 
   return (
     <AuthenticatedPage
-      title="Internal"
+      title="Internal Requests"
+      fixedHeight
       pageActions={
-        actor.can('create internal requests') ? (
-          <Link href={routes.requestsCreate()} className="cr-btn cr-btn-primary cr-btn-sm">
-            File a request
+        actor.can('create internal requests') && actor.departmentId !== null ? (
+          <Link href={routes.requestsCreate()} className="header-action" title="File an internal request">
+            <svg
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+            </svg>
+            <span>File Request</span>
           </Link>
         ) : null
       }

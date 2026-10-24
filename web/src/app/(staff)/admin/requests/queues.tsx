@@ -89,7 +89,7 @@ export function OversightQueues({
 
   return (
     <>
-      <div className="st-toolbar">
+      <div className="st-toolbar mb-4 flex-wrap justify-between gap-3">
         <div className="st-tabs" role="tablist" aria-label="Request queues">
           {OVERSIGHT_QUEUES.map((queue) => (
             <button
@@ -97,10 +97,10 @@ export function OversightQueues({
               type="button"
               role="tab"
               aria-selected={tab === queue.key}
-              className={`st-tab${tab === queue.key ? ' on' : ''}`}
+              className={tab === queue.key ? 'on' : ''}
               onClick={() => switchTab(queue.key)}
             >
-              {queue.label}
+              {queue.label}{' '}
               <span className="st-tab-count">
                 {requests.filter((row) => inQueue(row, queue.key)).length}
               </span>
@@ -108,21 +108,32 @@ export function OversightQueues({
           ))}
         </div>
 
-        <div className="st-search">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
           <label className="sr-only" htmlFor="oversightSearch">
             Search requests
           </label>
-          <input
-            id="oversightSearch"
-            type="search"
-            className="field"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Search name, tracking #, office or staff"
-          />
+          <div className="st-search">
+            <svg
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="oversightSearch"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search name, tracking #, office or staff"
+            />
+          </div>
         </div>
       </div>
 
@@ -130,6 +141,7 @@ export function OversightQueues({
         <RequestTable
           rows={pageItems}
           onOpen={setOpen}
+          spansDepartments
           emptyTitle={query ? 'No requests match' : 'Nothing here'}
           emptyBody={
             query

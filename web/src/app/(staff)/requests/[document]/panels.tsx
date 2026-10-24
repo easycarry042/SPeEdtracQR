@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
 import { QrCamera } from '@/components/qr-camera';
@@ -15,6 +15,152 @@ import {
   withdrawRequest,
   type InternalResult,
 } from '@/app/actions/internal';
+
+/**
+ * Port of `partials/qr-tile.blade.php`.
+ * Listens for `show-request-qr` / `hide-request-qr` events dispatched by the
+ * Receive card's "Select the QR on screen" button.
+ */
+export function QrTile({
+  trackingNumber,
+  qrUrl,
+  stickerUrl,
+}: {
+  trackingNumber: string;
+  qrUrl: string | null;
+  stickerUrl: string;
+}) {
+  const [qrOpen, setQrOpen] = useState(false);
+  const expected = trackingNumber.toUpperCase();
+
+  useEffect(() => {
+    const onShow = (event: Event): void => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (detail?.toUpperCase() === expected) {
+        setQrOpen(true);
+      }
+    };
+    const onHide = (event: Event): void => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (detail?.toUpperCase() === expected) {
+        setQrOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setQrOpen(false);
+      }
+    };
+
+    window.addEventListener('show-request-qr', onShow);
+    window.addEventListener('hide-request-qr', onHide);
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      window.removeEventListener('show-request-qr', onShow);
+      window.removeEventListener('hide-request-qr', onHide);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [expected]);
+
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="dm-qr-btn"
+          aria-label={`Show QR code for ${trackingNumber}`}
+          title="Show QR code"
+          onClick={() => setQrOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              fillRule="evenodd"
+              d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Z"
+            />
+            <path d="M14 14h2.5v2.5H14zM18.5 14H21v2.5h-2.5zM16.5 16.5H19V19h-2.5zM14 18.5h2.5V21H14zM18.5 18.5H21V21h-2.5z" />
+          </svg>
+          <span className="dm-qr-zoom" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" strokeWidth="2.6" viewBox="0 0 24 24">
+              <circle cx="10.5" cy="10.5" r="6" />
+              <path strokeLinecap="round" d="m15 15 5 5" />
+            </svg>
+          </span>
+        </button>
+        <div>
+          <p className="dm-title !text-[length:var(--fs-label)]">Tracking Number</p>
+          <p className="mono text-[length:var(--fs-small)] font-bold text-ink">{trackingNumber}</p>
+        </div>
+      </div>
+
+      {qrOpen ? (
+        <div
+          className="dm-qr-layer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="QR code"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setQrOpen(false);
+            }
+          }}
+        >
+          <div className="dm-qr-panel">
+            <div className="flex items-center justify-between gap-3">
+              <p className="dm-section">QR code</p>
+              <button
+                type="button"
+                aria-label="Close QR code"
+                className="dm-close"
+                onClick={() => setQrOpen(false)}
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+
+            {qrUrl ? (
+              <div className="dm-qr-frame">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrUrl} alt={`QR code for ${trackingNumber}`} />
+              </div>
+            ) : (
+              <p className="dm-qr-missing">No QR code has been generated for this request.</p>
+            )}
+
+            <p className="mono mt-3 text-center text-[length:var(--fs-body)] font-bold tracking-wide text-ink">
+              {trackingNumber}
+            </p>
+            <p className="mt-1 text-center text-[length:var(--fs-caption)] text-ink-soft">
+              {trackingNumber.startsWith('INT-')
+                ? 'Any phone camera can scan it to see which office has it — no account needed.'
+                : "Scanning it opens this request's public tracking page."}
+            </p>
+
+            <div className="dm-actions mt-4 justify-center">
+              {qrUrl ? (
+                <a href={qrUrl} download={`${trackingNumber}.png`} className="cr-btn">
+                  <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" />
+                  </svg>
+                  Download PNG
+                </a>
+              ) : null}
+              <a href={stickerUrl} target="_blank" rel="noopener" className="cr-btn cr-btn-primary">
+                <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinejoin="round" d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" />
+                  <path strokeLinejoin="round" d="M7 14h10v6H7z" />
+                </svg>
+                Print slip
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * The three panels beside an internal request: receive it, decide on it, or —
@@ -75,6 +221,9 @@ function Feedback({ error, notice }: { error: string | null; notice: string | nu
     <>
       {notice ? (
         <div className="dm-callout dm-callout-green" role="status">
+          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
           <p>{notice}</p>
         </div>
       ) : null}
@@ -95,8 +244,11 @@ function Feedback({ error, notice }: { error: string | null; notice: string | nu
 function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
   const { pending, error, notice, run, setError } = useAction();
   const [scanning, setScanning] = useState(false);
+  const [reading, setReading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [reason, setReason] = useState('');
+
+  const expected = detail.trackingNumber.toUpperCase();
 
   const receive = (
     captureMethod: 'scan' | 'image' | 'screen' | 'manual',
@@ -110,36 +262,68 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
       }),
     );
 
-  const startCamera = (): void => {
+  const accept = (decoded: string, method: 'scan' | 'image' | 'screen'): boolean => {
+    const scanned = SpeedQr.extractTracking(decoded);
+
+    if (scanned === expected) {
+      receive(method, decoded);
+
+      return true;
+    }
+
+    setError(
+      scanned
+        ? `That QR is for a different request (${scanned}). Use this request's own QR.`
+        : SpeedQr.FOREIGN_CODE_MESSAGE,
+    );
+
+    return false;
+  };
+
+  const toggleScan = (): void => {
     setError(null);
+    setManualOpen(false);
+
+    if (scanning) {
+      void SpeedQr.stop();
+      setScanning(false);
+
+      return;
+    }
+
     setScanning(true);
 
     SpeedQr.start(
       'custodyReader',
       (decoded) => {
-        const scanned = SpeedQr.extractTracking(decoded);
-
-        if (!scanned) {
-          setError(SpeedQr.FOREIGN_CODE_MESSAGE);
-
-          return;
-        }
-
-        if (scanned !== detail.trackingNumber.toUpperCase()) {
-          setError(`That QR is for ${scanned}. Scan the sticker on this request.`);
-
-          return;
-        }
-
         void SpeedQr.stop();
         setScanning(false);
-        receive('scan', decoded);
+        accept(decoded, 'scan');
       },
       (cameraError) => {
         setScanning(false);
+        setManualOpen(true);
         setError(SpeedQr.describe(cameraError));
       },
     );
+  };
+
+  const readFile = async (file: File | null | undefined): Promise<void> => {
+    if (!file || pending) {
+      return;
+    }
+
+    setError(null);
+    setReading(true);
+
+    try {
+      const decoded = await SpeedQr.decodeImage(file);
+      accept(decoded, 'image');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No QR code was found in that picture.');
+    } finally {
+      setReading(false);
+    }
   };
 
   /**
@@ -149,26 +333,47 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
    * file, not that the folder arrived.
    */
   const snip = async (mode: SpeedQr.SnipMode): Promise<void> => {
+    if (pending) {
+      return;
+    }
+
+    if (scanning) {
+      void SpeedQr.stop();
+      setScanning(false);
+    }
+
     setError(null);
-    const decoded = await SpeedQr.scanFromScreen(mode);
 
-    if (!decoded) {
-      return;
+    if (mode === 'page') {
+      window.dispatchEvent(new CustomEvent('show-request-qr', { detail: expected }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
-    const scanned = SpeedQr.extractTracking(decoded);
+    let accepted = false;
 
-    if (scanned !== detail.trackingNumber.toUpperCase()) {
+    try {
+      const decoded = await SpeedQr.scanFromScreen(mode);
+
+      if (decoded === null) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+
+        return;
+      }
+
+      setReading(true);
+      accepted = accept(decoded, 'screen');
+    } catch (err) {
       setError(
-        scanned
-          ? `That QR is for ${scanned}. Select this request's QR.`
-          : SpeedQr.FOREIGN_CODE_MESSAGE,
+        err instanceof Error
+          ? err.message
+          : 'No QR code was found in that box. Drag it around the whole QR.',
       );
-
-      return;
+    } finally {
+      if (!accepted) {
+        setReading(false);
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+      }
     }
-
-    receive('screen', decoded);
   };
 
   return (
@@ -187,104 +392,157 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
       <div className="dm-body space-y-4">
         <Feedback error={error} notice={notice} />
 
-        <p className="text-[length:var(--fs-small)] text-ink-soft">
-          {detail.isSoftCopy
-            ? 'Scan its QR to receive it: open the QR and select it on screen, or use the camera. Then you can approve, return or deny it.'
-            : detail.canAct
-              ? "Your office holds this hop, but you must scan the document's QR code to confirm the paper is physically here before you can approve, return, or deny it."
-              : 'This folder was sent to your office. If you have it, scan its QR code to record that it arrived. Your supervisor then approves, returns or denies it.'}
-        </p>
+        {detail.isSoftCopy ? (
+          <p className="text-[length:var(--fs-small)] text-ink-soft">
+            {detail.currentStep?.recipient
+              ? 'This request was sent to you.'
+              : 'This request was sent to your office.'}{' '}
+            Scan its QR to receive it: click <b className="text-ink">Select the QR on screen</b> —
+            the QR opens and the page dims — and drag a box around the QR. Or use the camera. Then
+            you can approve, return or deny it.
+          </p>
+        ) : detail.canAct ? (
+          <p className="text-[length:var(--fs-small)] text-ink-soft">
+            Your office holds this hop, but you must{' '}
+            <b className="text-ink">scan the document&apos;s QR Code</b> to confirm the paper is
+            physically here before you can approve, return, or deny it.
+          </p>
+        ) : (
+          <p className="text-[length:var(--fs-small)] text-ink-soft">
+            This folder was sent to your office. If you have it,{' '}
+            <b className="text-ink">scan its QR Code</b> to record that it arrived. Your supervisor
+            then approves, returns or denies it.
+          </p>
+        )}
 
-        <div className="gate-actions">
-          <button
-            type="button"
-            className="cr-btn cr-btn-primary cr-btn-sm"
-            disabled={pending}
-            onClick={() => (scanning ? (void SpeedQr.stop(), setScanning(false)) : startCamera())}
-          >
-            {scanning ? 'Cancel scan' : 'Scan with camera'}
-          </button>
+        <div className="custody-box">
+          <div className="custody-strip">
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 3h11v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
+            </svg>
+            {detail.isSoftCopy ? (
+              <span>Soft copy — no paper folder. Receive it by scanning its QR.</span>
+            ) : detail.heldBy ? (
+              <span>
+                Folder with <b>{detail.heldBy.name ?? 'staff'}</b> ({detail.heldBy.how})
+              </span>
+            ) : (
+              <span>No physical custody recorded yet.</span>
+            )}
+            <button
+              type="button"
+              className="cr-btn cr-btn-sm"
+              style={{ marginLeft: 'auto' }}
+              disabled={pending}
+              onClick={toggleScan}
+            >
+              {scanning
+                ? 'Cancel scan'
+                : detail.isSoftCopy
+                  ? 'Scan with camera'
+                  : 'I have this folder'}
+            </button>
+          </div>
 
-          {/* Soft copies only: there is no paper to point a camera at. */}
           {detail.isSoftCopy ? (
-            <>
+            <div className="qr-drop">
+              <svg fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" />
+              </svg>
               <button
                 type="button"
-                className="cr-btn cr-btn-ghost cr-btn-sm"
-                disabled={pending}
+                className="cr-btn cr-btn-primary"
+                disabled={pending || reading}
                 onClick={() => void snip('page')}
               >
-                Select the QR on screen
+                {reading ? 'Reading the QR…' : 'Select the QR on screen'}
               </button>
-              <button
-                type="button"
-                className="cr-btn cr-btn-ghost cr-btn-sm"
-                disabled={pending}
-                onClick={() => void snip('any')}
-              >
-                QR open in another window?
-              </button>
-            </>
+              <span className="qr-drop-hint">
+                This request&apos;s QR opens and the page dims — drag a box around the QR.
+              </span>
+              <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                <button
+                  type="button"
+                  className="qr-drop-alt"
+                  disabled={pending || reading}
+                  onClick={() => void snip('any')}
+                >
+                  QR open in another window?
+                </button>
+                <span className="text-ink-soft" aria-hidden="true">
+                  ·
+                </span>
+                <label className="qr-drop-alt">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void readFile(event.target.files?.[0]);
+                      event.target.value = '';
+                    }}
+                  />
+                  Choose a saved picture
+                </label>
+              </span>
+            </div>
           ) : null}
-        </div>
 
-        {scanning ? (
-          <div>
-            <QrCamera id="custodyReader" />
-            <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-              Point the camera at the QR sticker on this folder.
-            </p>
-          </div>
-        ) : null}
-
-        {/* Audited fallback. Without it a machine with no working camera cannot
-            receive anything, which halts the office — worse than a logged
-            manual confirmation. */}
-        <div>
-          <button
-            type="button"
-            className="text-[length:var(--fs-caption)] font-semibold text-ink-soft underline"
-            onClick={() => setManualOpen(!manualOpen)}
-          >
-            QR torn, or no camera on this machine? Record it manually
-          </button>
-
-          {manualOpen ? (
-            <div className="mt-2">
-              <label className="gate-claim-label" htmlFor="custody-reason">
-                Why can&apos;t you scan?
-              </label>
-              <textarea
-                id="custody-reason"
-                className="field"
-                rows={2}
-                maxLength={500}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="e.g. Sticker torn on the folder cover; verified the tracking number by hand."
-              />
-              <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-                This is recorded against the request and shown in its history.
+          {scanning ? (
+            <div className="custody-scan">
+              <p className="cs-hint">
+                Point the camera at{' '}
+                <b>{detail.isSoftCopy ? "this request's QR" : "this folder's QR"}</b> to confirm you{' '}
+                {detail.isSoftCopy ? 'received it' : 'physically hold it'}.
               </p>
+              <QrCamera id="custodyReader" />
+            </div>
+          ) : null}
+
+          {/* Audited fallback for paper folders when QR is torn or machine has no camera. */}
+          {!detail.isSoftCopy ? (
+            <div className="custody-manual">
               <button
                 type="button"
-                className="cr-btn cr-btn-sm mt-2"
-                disabled={pending || reason.trim() === ''}
-                onClick={() => receive('manual')}
+                className="cs-manual-link"
+                onClick={() => {
+                  if (scanning) {
+                    void SpeedQr.stop();
+                    setScanning(false);
+                  }
+                  setError(null);
+                  setManualOpen(!manualOpen);
+                }}
               >
-                Record custody manually
+                QR torn or unreadable? Record manually
               </button>
+              {manualOpen ? (
+                <div className="cs-manual-form">
+                  <label htmlFor="custody-reason">
+                    Why can&apos;t the QR be scanned? (required)
+                    <textarea
+                      id="custody-reason"
+                      rows={2}
+                      maxLength={500}
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      placeholder="e.g. QR sticker torn off the folder"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="cr-btn cr-btn-sm"
+                    disabled={pending || reason.trim() === ''}
+                    onClick={() => receive('manual')}
+                  >
+                    Record custody manually
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
-
-        <p className="text-[length:var(--fs-caption)] text-ink-soft">
-          Sticker missing?{' '}
-          <a href={detail.stickerUrl} target="_blank" rel="noopener" className="cr-link">
-            Print the QR
-          </a>
-          .
-        </p>
       </div>
     </section>
   );
@@ -383,6 +641,9 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
 
         {detail.heldBy ? (
           <div className="dm-callout dm-callout-green" role="status">
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5 9-10" />
+            </svg>
             <p>
               {detail.isSoftCopy ? 'Received by' : 'Document in hand — held by'}{' '}
               <b>{detail.heldBy.name ?? 'your office'}</b> ({detail.heldBy.how}).
@@ -449,11 +710,11 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
           ) : (
             <div>
               <label className="gate-claim-label" htmlFor="next-department">
-                Send to which office next?
+                Send to which office next? <span className="text-status-red">*</span>
               </label>
               <select
                 id="next-department"
-                className="field"
+                className="st-filter-field mt-1"
                 value={nextDepartment}
                 onChange={(event) => {
                   setNextDepartment(event.target.value);
@@ -476,11 +737,11 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
               {detail.isSoftCopy ? (
                 <div className="mt-3">
                   <label className="gate-claim-label" htmlFor="next-recipient">
-                    Who in that office receives it?
+                    Who in that office receives it? <span className="text-status-red">*</span>
                   </label>
                   <select
                     id="next-recipient"
-                    className="field"
+                    className="st-filter-field mt-1"
                     value={nextRecipient}
                     disabled={nextDepartment === ''}
                     onChange={(event) => setNextRecipient(event.target.value)}
@@ -494,6 +755,9 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+                    This request has no paper copy, so it goes straight to the person you choose.
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -502,11 +766,11 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
 
         <div>
           <label className="gate-claim-label" htmlFor="req-remarks">
-            Remarks {needsReason ? null : <span className="text-ink-soft">(optional)</span>}
+            Remarks {needsReason ? <span className="text-status-red">*</span> : <span className="text-ink-soft">(optional)</span>}
           </label>
           <textarea
             id="req-remarks"
-            className="field"
+            className="st-filter-field mt-1 h-auto py-2"
             rows={3}
             maxLength={500}
             value={remarks}
@@ -525,6 +789,7 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
               type="checkbox"
               checked={denyAck}
               onChange={(event) => setDenyAck(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red"
             />
             <span>
               I understand denying <strong>permanently ends</strong> this request and cannot be
@@ -542,10 +807,15 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
           </p>
         ) : (
           <div>
-            <p className="gate-claim-label">Scan this request&apos;s QR</p>
+            <p className="gate-claim-label">
+              Scan this request&apos;s QR <span className="text-status-red">*</span>
+            </p>
 
             {payload ? (
               <p className="mt-2 flex items-center gap-2 text-[length:var(--fs-small)] font-semibold text-green-deep">
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5 9-10" />
+                </svg>
                 Request QR scanned — ready to sign
                 <button
                   type="button"
@@ -588,11 +858,11 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
                   {manualOpen ? (
                     <div className="mt-2">
                       <label className="gate-claim-label" htmlFor="scan-override">
-                        Why can&apos;t you scan?
+                        Why can&apos;t you scan? <span className="text-status-red">*</span>
                       </label>
                       <textarea
                         id="scan-override"
-                        className="field"
+                        className="st-filter-field mt-1 h-auto py-2"
                         rows={2}
                         minLength={10}
                         maxLength={500}
@@ -686,7 +956,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
         <Feedback error={error} notice={notice} />
 
         {detail.returnedStep ? (
-          <div className="dm-note">
+          <div className="dm-note !mt-0">
             <p className="dm-note-label">
               Returned by {detail.returnedStep.actedBy ?? 'the office'} ·{' '}
               {detail.returnedStep.office}
@@ -723,7 +993,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
         {mode === 'resend' ? (
           <>
             <p className="text-[length:var(--fs-small)] text-ink-soft">
-              Goes back to <b>{office}</b>.{' '}
+              Goes back to <span className="font-semibold text-ink">{office}</span>.{' '}
               {detail.isSoftCopy
                 ? 'They receive it again, then decide.'
                 : 'Take the revised paper there — they scan it in again, then decide.'}
@@ -731,11 +1001,11 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
 
             <div>
               <label className="gate-claim-label" htmlFor="resend-note">
-                What did you change?
+                What did you change? <span className="text-status-red">*</span>
               </label>
               <textarea
                 id="resend-note"
-                className="field"
+                className="st-filter-field mt-1 h-auto py-2"
                 rows={3}
                 maxLength={500}
                 value={note}
@@ -752,7 +1022,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
                 id="resend-scan"
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.webp"
-                className="field"
+                className="mt-1 block w-full text-[13px] text-ink file:mr-3 file:rounded-full file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-green-deep"
                 onChange={(event) => setScan(event.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
@@ -782,7 +1052,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
               </label>
               <textarea
                 id="withdraw-reason"
-                className="field"
+                className="st-filter-field mt-1 h-auto py-2"
                 rows={2}
                 maxLength={500}
                 value={reason}
@@ -796,6 +1066,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
                 type="checkbox"
                 checked={ack}
                 onChange={(event) => setAck(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red"
               />
               <span>
                 I understand withdrawing <strong>closes</strong> this request and cannot be undone.

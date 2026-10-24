@@ -2,13 +2,29 @@
 
 import type { ReviewRow } from '@/lib/domain/request-review';
 
+export function requestTypeIcon(type: string | null | undefined): string {
+  const needle = (type ?? '').toLowerCase();
+  const rules: Array<[string[], string]> = [
+    [['lei', 'flower', 'wreath'], 'color-triangle.svg'],
+    [['plaza', 'hall', 'venue', 'court', 'gym', 'facility', 'building'], 'office-building.svg'],
+    [['flag'], 'flag.png'],
+    [['banner', 'tarpaulin', 'spider', 'streamer'], 'web.png'],
+  ];
+
+  for (const [keywords, file] of rules) {
+    if (keywords.some((kw) => needle.includes(kw))) {
+      return `/images/request-types/${file}`;
+    }
+  }
+
+  return '/images/request-types/task-list-pen.svg';
+}
+
 /**
- * The shared request table. Every staff queue draws rows this way — supervisor
- * dashboard, staff cockpit, the super admin's Requests page — so a request
- * looks the same wherever it is found.
+ * The shared request table (`dashboard.blade.php`, `my-dashboard.blade.php`,
+ * `admin/requests/index.blade.php`).
  *
- * A row is a button, not a link: opening it opens the Review modal in place
- * rather than navigating away from the queue that was being worked.
+ * Renders `.st-scroll > table.st-table` inside the caller's `.st-card`.
  */
 export function RequestTable({
   rows,
@@ -16,76 +32,142 @@ export function RequestTable({
   emptyTitle,
   emptyBody,
   showAssignee = true,
+  spansDepartments = false,
+  showStatusPill = true,
+  dateHeading = 'Date',
+  actionLabel = 'View details',
+  loading = false,
 }: {
   rows: ReviewRow[];
   onOpen: (row: ReviewRow) => void;
   emptyTitle: string;
   emptyBody: string;
   showAssignee?: boolean;
+  spansDepartments?: boolean;
+  showStatusPill?: boolean;
+  dateHeading?: string;
+  actionLabel?: string;
+  loading?: boolean;
 }) {
-  if (rows.length === 0) {
-    return (
-      <div className="cr-empty">
-        <p className="cr-empty-title">{emptyTitle}</p>
-        <p className="cr-empty-msg">{emptyBody}</p>
-      </div>
-    );
-  }
+  const colSpan = 4 + (spansDepartments ? 1 : 0) + (showAssignee ? 1 : 0);
 
   return (
-    <div className="table-wrap">
+    <div className="st-scroll">
       <table className="st-table">
         <thead>
           <tr>
-            <th scope="col">Tracking number</th>
-            <th scope="col">Request</th>
+            <th scope="col">Request Type</th>
+            <th scope="col">Tracking ID</th>
+            {spansDepartments ? <th scope="col">Department</th> : null}
+            <th scope="col">{dateHeading}</th>
             <th scope="col">Requested by</th>
-            {showAssignee ? <th scope="col">Assigned to</th> : null}
-            <th scope="col">Status</th>
-            <th scope="col">Filed</th>
+            {showAssignee ? <th scope="col">Handled by</th> : null}
+            <th scope="col">Action</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <button type="button" className="st-action" onClick={() => onOpen(row)}>
-                  <span className="id-chip">{row.trackingNumber}</span>
-                  {/* Two things a supervisor must not have to open a row to see:
-                      a citizen waiting on a reply, and an assignment nobody has
-                      accepted yet. */}
-                  {row.unreadMessages > 0 ? (
-                    <span className="st-filter-badge" title="Unread citizen message">
-                      {row.unreadMessages}
-                    </span>
-                  ) : null}
-                  {row.needsTriage ? <span className="chip">Not accepted</span> : null}
-                </button>
+          {loading && rows.length === 0 ? (
+            <tr className="st-empty">
+              <td colSpan={colSpan}>
+                <p className="text-sm text-ink-soft">Loading completed requests…</p>
               </td>
-              <td>
-                <span className="st-type">{row.documentType}</span>
-                {row.booking ? <span className="chip">{row.booking.item}</span> : null}
-              </td>
-              <td>{row.citizenName ?? '—'}</td>
-              {showAssignee ? <td>{row.assignedStaff ?? 'Unassigned'}</td> : null}
-              <td>
-                <span className={`pill ${toneFor(row.status)}`}>{row.statusLabel}</span>
-                {row.holdOverdueDays !== null ? (
-                  <span className="cc-tag cc-tag-late" title="Past its own hold deadline">
-                    Stalled
-                  </span>
-                ) : null}
-                {/* How late, without opening the row — the one thing the
-                    oversight queues are scanned for. */}
-                {row.overSla ? (
-                  <span className="cc-tag cc-tag-late" title="Past this stage's time">
-                    +{row.overSla} late
-                  </span>
-                ) : null}
-              </td>
-              <td className="stamp">{row.dateShort ?? '—'}</td>
             </tr>
-          ))}
+          ) : rows.length === 0 ? (
+            <tr className="st-empty">
+              <td colSpan={colSpan}>
+                <div className="mx-auto flex max-w-sm flex-col items-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
+                    <svg
+                      className="h-6 w-6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-ink">{emptyTitle}</p>
+                  <p className="mt-1 text-sm text-ink-soft">{emptyBody}</p>
+                </div>
+              </td>
+            </tr>
+          ) : (
+            rows.map((row) => (
+              <tr key={row.id}>
+                <td>
+                  <div className="st-type">
+                    <span className="st-disc" aria-hidden="true">
+                      <img src="/images/staff/row-disc.svg" alt="" />
+                      <img src={requestTypeIcon(row.documentType)} alt="" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="st-name truncate">{row.documentType}</p>
+                      {showStatusPill ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className={`pill inline-block ${toneFor(row.status)}`}>
+                            {row.statusLabel}
+                          </span>
+                          {row.booking ? <span className="chip">{row.booking.item}</span> : null}
+                          {row.holdOverdueDays !== null ? (
+                            <span className="cc-tag cc-tag-late" title="Past its own hold deadline">
+                              Stalled
+                            </span>
+                          ) : null}
+                          {row.overSla ? (
+                            <span className="cc-tag cc-tag-late" title="Past this stage's time">
+                              +{row.overSla} late
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : row.booking ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="chip">{row.booking.item}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="mono">{row.trackingNumber}</span>
+                    {row.unreadMessages > 0 ? (
+                      <span className="st-filter-badge" title="Unread citizen message">
+                        {row.unreadMessages}
+                      </span>
+                    ) : null}
+                    {row.needsTriage ? <span className="chip">Not accepted</span> : null}
+                  </div>
+                </td>
+                {spansDepartments ? (
+                  <td>
+                    <span>{row.department || 'Not yet routed'}</span>
+                    {row.thedId ? (
+                      <span className="ml-1 mono text-xs text-ink-soft">· {row.thedId}</span>
+                    ) : null}
+                  </td>
+                ) : null}
+                <td className="mono">{row.submittedAt ?? row.dateShort ?? '—'}</td>
+                <td>{row.citizenName || '—'}</td>
+                {showAssignee ? <td>{row.assignedStaff || '—'}</td> : null}
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(row)}
+                    className="st-action"
+                  >
+                    <img src="/images/staff/icon-eye.svg" alt="" />
+                    <span>{actionLabel}</span>
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

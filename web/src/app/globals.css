@@ -2569,6 +2569,8 @@ a.dm-thumb:hover { border-color: var(--green); }
         overflow: hidden;
     }
 
+    .app-fixed-height.topnav-shell,
+    .app-fixed-height.admin-shell,
     .app-fixed-height .topnav-shell,
     .app-fixed-height .admin-shell {
         height: calc(100dvh / var(--ui-zoom));

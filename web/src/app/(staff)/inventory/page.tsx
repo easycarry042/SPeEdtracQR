@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { now } from '@/lib/time';
+import { formatNaive, now } from '@/lib/time';
 import { requireActor } from '@/lib/auth/actor';
 import { routes } from '@/lib/routes';
 import { AuthenticatedPage } from '@/components/shell/authenticated-page';
@@ -33,18 +32,10 @@ export default async function InventoryPage() {
   const itemHistory = await history(itemIds);
 
   const canEditCatalog = actor.can('manage system');
+  const canManageBookings = actor.can('manage bookings');
 
   return (
-    <AuthenticatedPage
-      title="Resources"
-      pageActions={
-        canEditCatalog ? (
-          <Link href={routes.adminResourcesCreate()} className="cr-btn cr-btn-primary cr-btn-sm">
-            Add item
-          </Link>
-        ) : null
-      }
-    >
+    <AuthenticatedPage title="Resources">
       <ResourcesPage
         desk={queues}
         facilities={inventory.facilities}
@@ -52,7 +43,8 @@ export default async function InventoryPage() {
         tiles={tiles(inventory.facilities, inventory.equipment, queues)}
         history={Object.fromEntries(itemHistory)}
         canEditCatalog={canEditCatalog}
-        asOf={at.toISOString()}
+        canManageBookings={canManageBookings}
+        asOf={formatNaive(at, 'D j M Y, g:i A')}
       />
     </AuthenticatedPage>
   );

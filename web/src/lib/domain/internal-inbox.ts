@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { db, id, toId } from '@/lib/db';
-import { formatNaive } from '@/lib/time';
+import { forHumans, formatNaive, now, toDateString } from '@/lib/time';
 import type { Actor } from '@/lib/auth/actor';
 import { DocumentStatus, activeValues } from '@/lib/domain/document-status';
 import { ORIGIN_INTERNAL } from '@/lib/domain/scope';
@@ -26,14 +26,19 @@ export type InboxRow = {
   tracking: string;
   purpose: string | null;
   filedBy: string | null;
+  filedByCode?: string | null;
   filedByPerson: string | null;
   filedOn: string;
+  filedDay?: string | null;
   status: string;
   statusLabel: string;
   band: string;
   isSoftCopy: boolean;
   /** Where it is sitting now, and whether anyone there has taken it in. */
   atOffice: string | null;
+  stepAction?: string | null;
+  stepAging?: string | null;
+  stepStale?: boolean;
   recipient: string | null;
   received: boolean;
 };
@@ -55,7 +60,7 @@ const SELECT = {
   has_hard_copy: true,
   created_at: true,
   requesting_department_id: true,
-  requestingDepartment: { select: { name: true } },
+  requestingDepartment: { select: { name: true, code: true } },
   creator: { select: { name: true } },
 } satisfies Prisma.documentsSelect;
 
@@ -68,7 +73,7 @@ type Source = {
   has_hard_copy: boolean;
   created_at: Date | null;
   requesting_department_id: bigint | null;
-  requestingDepartment: { name: string } | null;
+  requestingDepartment: { name: string; code: string | null } | null;
   creator: { name: string } | null;
 };
 
@@ -76,14 +81,19 @@ async function toRow(source: Source): Promise<InboxRow> {
   const documentId = toId(source.id);
   const step = await currentRequestStep(documentId);
   const received = await currentStepHasCustody(documentId, step);
+  const startedAt = step?.started_at ?? null;
+  const stale =
+    startedAt !== null && Math.abs(now().getTime() - startedAt.getTime()) / 3_600_000 >= 48;
 
   return {
     id: documentId,
     tracking: source.tracking_number,
     purpose: source.purpose,
     filedBy: source.requestingDepartment?.name ?? null,
+    filedByCode: source.requestingDepartment?.code ?? null,
     filedByPerson: source.creator?.name ?? null,
     filedOn: source.created_at ? formatNaive(source.created_at, 'M j, Y') : '',
+    filedDay: source.created_at ? toDateString(source.created_at) : null,
     status: source.status,
     statusLabel: internalStatusLabel(
       {
@@ -97,6 +107,9 @@ async function toRow(source: Source): Promise<InboxRow> {
     band: internalStatusBand(source),
     isSoftCopy: isSoftCopy(source),
     atOffice: step?.departmentName ?? null,
+    stepAction: step?.action ?? null,
+    stepAging: startedAt ? forHumans(startedAt) : null,
+    stepStale: stale,
     recipient: step?.recipientName ?? null,
     received,
   };

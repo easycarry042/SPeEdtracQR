@@ -162,6 +162,7 @@ export type ActivityRow = {
   subjectId: number | null;
   causerId: number | null;
   causerName: string | null;
+  causerRole?: string | null;
   properties: Record<string, unknown> | null;
   createdAt: Date | null;
 };
@@ -192,18 +193,39 @@ type RawActivity = {
   created_at: Date | null;
 };
 
+function formatRoleLabel(roleName: string | undefined): string {
+  if (!roleName) return 'System';
+  if (roleName === 'super_admin') return 'Super Admin';
+  if (roleName === 'Supervisor') return 'Supervisor';
+  if (roleName === 'staff') return 'Staff';
+  return roleName.charAt(0).toUpperCase() + roleName.slice(1);
+}
+
 export async function hydrateActivity(rows: RawActivity[]): Promise<ActivityRow[]> {
   const causerIds = [...new Set(rows.map((row) => row.causer_id).filter((v): v is bigint => v !== null))];
 
-  const causers =
+  const [causers, roleLinks] =
     causerIds.length === 0
-      ? []
-      : await db.users.findMany({
-          where: { id: { in: causerIds } },
-          select: { id: true, name: true },
-        });
+      ? [[], []]
+      : await Promise.all([
+          db.users.findMany({
+            where: { id: { in: causerIds } },
+            select: { id: true, name: true },
+          }),
+          db.model_has_roles.findMany({
+            where: { model_id: { in: causerIds }, model_type: SUBJECT.User },
+            select: { model_id: true, roles: { select: { name: true } } },
+          }),
+        ]);
 
   const names = new Map(causers.map((user) => [toId(user.id), user.name]));
+  const roles = new Map<number, string>();
+  for (const link of roleLinks) {
+    const uid = toId(link.model_id);
+    if (!roles.has(uid) || link.roles.name === 'super_admin' || link.roles.name === 'Supervisor') {
+      roles.set(uid, formatRoleLabel(link.roles.name));
+    }
+  }
 
   return rows.map((row) => ({
     id: toId(row.id),
@@ -213,6 +235,7 @@ export async function hydrateActivity(rows: RawActivity[]): Promise<ActivityRow[
     subjectId: row.subject_id === null ? null : toId(row.subject_id),
     causerId: row.causer_id === null ? null : toId(row.causer_id),
     causerName: row.causer_id === null ? null : (names.get(toId(row.causer_id)) ?? null),
+    causerRole: row.causer_id === null ? 'System' : (roles.get(toId(row.causer_id)) ?? 'Staff'),
     properties: (row.properties ?? null) as Record<string, unknown> | null,
     createdAt: row.created_at,
   }));
