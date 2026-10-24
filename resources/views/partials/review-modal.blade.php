@@ -5,210 +5,497 @@
 @php $mode = $mode ?? 'supervisor'; @endphp
 
 <div x-show="active" x-cloak
-     class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8"
-     @keydown.escape.window="close()" @click.self="close()">
-    <div class="w-full max-w-2xl rounded-2xl border border-hairline bg-paper shadow-xl"
-         x-show="active" x-transition>
+     class="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-[27px]"
+     @keydown.escape.window="close()" @click.self="close()"
+     role="dialog" aria-modal="true" aria-label="Review request">
+
+    {{-- Two cards, as the Look Up desk laid them out: the request on the left,
+         and a second card that slides in beside it holding the claiming-date
+         calendar or the citizen conversation. `side` is which of those is open
+         — the card only exists while one of them is.
+
+         The desk was a separate screen that could do these two things but not
+         accept an assignment, while this modal could accept but not adjust a
+         date or answer the citizen. They are one modal now. --}}
+    <div class="mx-auto flex w-full max-w-[1335px] flex-col items-start justify-center gap-[15px] lg:flex-row lg:items-stretch"
+         @click.self="close()">
+
+    {{-- Same card as the Look Up detail modal (.dm-*): a fixed size with a
+         pinned header and footer, and a body that scrolls between them. --}}
+    <div class="dm-card dm-card-review dm-fixed w-full max-w-[660px] lg:min-w-0 lg:flex-1" x-show="active" x-transition.opacity>
         <template x-if="active">
-            <div>
-                <div class="flex items-start justify-between gap-4 border-b border-hairline px-6 py-4">
-                    <div class="min-w-0">
-                        <p class="mono text-lg font-extrabold text-green-deep" x-text="active.tracking_number"></p>
-                        <p class="mt-0.5 text-sm text-ink-soft" x-text="active.document_type"></p>
+            <div class="flex h-full min-h-0 flex-col">
+                {{-- Header bar: where the request stands, and close. --}}
+                <div class="dm-head">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="pill" :class="active.needs_triage ? 'p-amber' : pillClass(active)"
+                              x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                        <span x-show="active.unread_messages > 0" x-cloak class="dm-chip-info">
+                            <span x-text="active.unread_messages"></span> new message<span x-show="active.unread_messages > 1">s</span>
+                        </span>
                     </div>
-                    <span class="pill shrink-0"
-                          :class="active.needs_triage ? 'p-amber' : 'p-muted'"
-                          x-text="active.needs_triage ? 'New assignment' : active.status_label"></span>
+                    <button type="button" @click="close()" aria-label="Close" class="dm-close">
+                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
                 </div>
 
-                <div class="max-h-[55vh] space-y-5 overflow-y-auto px-6 py-5">
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Citizen</p>
-                            <p class="mt-1 text-sm font-semibold text-ink" x-text="active.citizen_name || '—'"></p>
+                <div class="dm-body">
+                    {{-- Title + tracking number --}}
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="dm-title" x-text="active.document_type"></p>
+                            <p class="dm-subtitle" x-text="active.citizen_name || '—'"></p>
                         </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Submitted</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.submitted_at || '—'"></p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Email</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.citizen_email || '—'"></p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Contact</p>
-                            <p class="mt-1 text-sm text-ink" x-text="active.citizen_contact || '—'"></p>
-                        </div>
+                        @include('partials.qr-tile', ['record' => 'active'])
                     </div>
 
-                    <div x-show="active.purpose">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Purpose</p>
-                        <p class="mt-1 text-sm text-ink" x-text="active.purpose"></p>
-                    </div>
-                    <div x-show="active.description">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Description</p>
-                        <p class="mt-1 whitespace-pre-line text-sm text-ink" x-text="active.description"></p>
+                    {{-- Progress: the four stages, moving as the actions below run. --}}
+                    <ol class="dm-steps" aria-label="Progress">
+                        <template x-for="(stage, i) in railStages" :key="stage.label">
+                            <li class="dm-step" :class="'is-' + railState(i + 1)"
+                                :aria-current="railState(i + 1) === 'current' ? 'step' : null">
+                                <span class="dm-step-line" x-show="i > 0" aria-hidden="true"></span>
+                                <span class="dm-step-dot" aria-hidden="true">
+                                    <svg x-show="railState(i + 1) === 'done'" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 12.5 4 4 8-9"/></svg>
+                                </span>
+                                <span class="dm-step-label" x-text="stage.label"></span>
+                            </li>
+                        </template>
+                    </ol>
+
+                    {{-- Claiming date, and the two side panels. The date is what
+                         the citizen opened their tracking page to find out, so it
+                         is readable here and editable one click away — it used to
+                         be reachable only from the Look Up desk. --}}
+                    <div class="mt-6 flex flex-wrap items-stretch gap-2">
+                        <div class="dm-date">
+                            <p class="dm-date-label">Claiming Date</p>
+                            <p class="dm-date-value" x-text="active.claim_date || 'Not set yet'"></p>
+                            <p x-show="! active.claim_date && active.requested_claim_date" class="text-xs text-ink-soft">
+                                Citizen asked for <span x-text="active.requested_claim_date"></span>
+                            </p>
+                        </div>
+
+                        <button type="button" @click="toggleSide('date')"
+                                class="dm-tile" :class="side === 'date' ? 'on' : ''" :aria-expanded="side === 'date'">
+                            <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>
+                            <span>Adjust Date</span>
+                        </button>
+
+                        <button type="button" @click="toggleSide('messages')"
+                                class="dm-tile relative" :class="side === 'messages' ? 'on' : ''" :aria-expanded="side === 'messages'">
+                            <svg fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M5 18.5V7a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 19 7v6.5a2.5 2.5 0 0 1-2.5 2.5H9l-4 2.5Z"/><path stroke-linecap="round" d="M9 10.5h.01M12 10.5h.01M15 10.5h.01"/></svg>
+                            <span>Messages</span>
+                            <span x-show="active.unread_messages > 0" x-cloak class="dm-tile-badge" x-text="active.unread_messages"></span>
+                        </button>
                     </div>
 
-                    <div x-show="active.attachments && active.attachments.length">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Attachments</p>
-                        <div class="mt-2 flex flex-wrap gap-2">
-                            <template x-for="(att, i) in active.attachments" :key="i">
-                                <a :href="att.url" target="_blank" rel="noopener"
-                                   class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-green-wash ring-1 ring-hairline transition hover:ring-green-bright">
-                                    <template x-if="att.is_image">
-                                        <img :src="att.url" alt="Attachment" class="h-full w-full object-cover">
+                    @if($mode === 'staff')
+                        {{-- Off-the-line states, with what the citizen or office is waiting on. --}}
+                        <template x-if="active && !active.needs_triage && prog().isReturned">
+                            <div class="dm-callout dm-callout-amber mt-5">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
+                                <div>
+                                    <p class="font-bold">Returned for revision</p>
+                                    <template x-if="active.remarks"><p x-text="active.remarks"></p></template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="active && !active.needs_triage && prog().isHeld">
+                            <div class="dm-callout dm-callout-amber mt-5">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6M14 9v6M5 5h14v14H5z"/></svg>
+                                <div>
+                                    <p>
+                                        <span class="font-bold">On hold</span>
+                                        <template x-if="active.blocked_by"><span> · waiting on <span x-text="active.blocked_by"></span></span></template>
+                                        <template x-if="active.hold_until"><span> · until <span x-text="active.hold_until"></span></span></template>
+                                        <template x-if="active.hold_overdue_days"><span class="hold-stalled"> · <span x-text="active.hold_overdue_days"></span>d past due</span></template>
+                                    </p>
+                                    <template x-if="active.hold_reason"><p x-text="active.hold_reason"></p></template>
+                                </div>
+                            </div>
+                        </template>
+                    @endif
+
+                    {{-- Reservation: the chairs or venue this request books. Its
+                         approval gates the request's own Approved stage, so it
+                         sits here beside the stages. Approving (with the number
+                         being lent) works from here; hand-over and returns are on
+                         the Resources page's lending desk. --}}
+                    <template x-if="active && active.booking">
+                        <section class="dm-booking mt-5" aria-label="Reservation">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="dm-date-label" x-text="active.booking.is_equipment ? 'Borrowing' : 'Reservation'"></p>
+                                    <p class="text-[15px] font-bold text-ink">
+                                        <span x-text="active.booking.item"></span>
+                                        <template x-if="active.booking.is_equipment">
+                                            <span class="font-semibold text-ink-soft"
+                                                  x-text="' · ' + (active.booking.state === 'pending' ? 'asked for ' + active.booking.requested : active.booking.units + ' lent')"></span>
+                                        </template>
+                                    </p>
+                                    <p class="mt-1 text-[13px] text-ink-soft">
+                                        <span x-text="active.booking.is_equipment ? 'Pickup ' : 'From '"></span><span x-text="active.booking.pickup"></span>
+                                        <span x-text="active.booking.is_equipment ? ' · Return by ' : ' · Until '"></span><span x-text="active.booking.return_by"></span>
+                                    </p>
+                                </div>
+                                <span class="pill" :class="{ 'p-green': active.booking.tone === 'green', 'p-amber': active.booking.tone === 'amber', 'p-red': active.booking.tone === 'red', 'p-muted': active.booking.tone === 'muted' }"
+                                      x-text="active.booking.state_label + (active.booking.days_overdue ? ' · ' + active.booking.days_overdue + 'd' : '')"></span>
+                            </div>
+
+                            <template x-if="active.booking.state === 'pending'">
+                                <div class="mt-3 border-t border-hairline pt-3">
+                                    <template x-if="active.booking.not_ready">
+                                        <p class="text-[13px] text-ink-soft" x-text="active.booking.not_ready"></p>
                                     </template>
+                                    <template x-if="! active.booking.not_ready && active.booking.clash">
+                                        <p class="text-[13px] font-semibold text-status-red">Another approved reservation already holds these hours. Adjust the date, or settle it on the Booking calendar.</p>
+                                    </template>
+                                    <template x-if="! active.booking.not_ready && active.booking.is_equipment && active.booking.serviceable === 0">
+                                        <p class="text-[13px] font-semibold text-status-red">No count is set for this item yet. Set how many the office owns on the Resources page.</p>
+                                    </template>
+                                    @if($mode !== 'oversight')
+                                        <template x-if="! active.booking.not_ready && active.booking.can_manage && ! active.booking.clash && ! (active.booking.is_equipment && active.booking.serviceable === 0)">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <template x-if="active.booking.is_equipment">
+                                                    <label class="flex items-center gap-2 text-[13px] text-ink">
+                                                        Lend
+                                                        <input type="number" min="1" step="1" inputmode="numeric" x-model.number="bookingQty"
+                                                               @keydown="['.', ',', 'e', 'E', '-', '+'].includes($event.key) && $event.preventDefault()"
+                                                               class="st-filter-field inv-num" aria-label="How many to lend">
+                                                    </label>
+                                                </template>
+                                                <button type="button" @click="approveBooking()" class="cr-btn cr-btn-sm cr-btn-primary"
+                                                        :disabled="bookingBusy || (active.booking.is_equipment && ! (Number.isInteger(bookingQty) && bookingQty >= 1 && bookingQty <= active.booking.free))"
+                                                        x-text="active.booking.is_equipment ? 'Approve borrowing' : 'Approve reservation'"></button>
+                                                <template x-if="active.booking.is_equipment">
+                                                    <span class="text-[12px]" :class="bookingQty > active.booking.free ? 'font-semibold text-status-red' : 'text-ink-soft'"
+                                                          x-text="bookingQty > active.booking.free ? 'Not enough: only ' + active.booking.free + ' free for these dates.' : active.booking.free + ' free for these dates'"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    @endif
+                                    <p x-show="bookingError" x-cloak class="mt-2 text-[13px] font-semibold text-status-red" role="alert" x-text="bookingError"></p>
+                                </div>
+                            </template>
+
+                            <p class="mt-3 text-[12px] text-ink-soft">
+                                <span x-show="active.booking.state === 'pending'">The request can't move to Approved until this is approved.</span>
+                                <span x-show="['reserved', 'missed'].includes(active.booking.state)">Handing the items over completes the request.</span>
+                                <template x-if="active.booking.can_manage">
+                                    <a :href="active.booking.desk_url" class="text-green underline">Open the lending desk</a>
+                                </template>
+                            </p>
+                        </section>
+                    </template>
+
+                    {{-- More Info --}}
+                    <section class="mt-7">
+                        <h2 class="dm-section">More Info</h2>
+                        <dl class="dm-info">
+                            <template x-for="row in [
+                                ['Request by', active.citizen_name],
+                                ['Email', active.citizen_email],
+                                ['Contact No.', active.citizen_contact],
+                                ['Request Type', active.document_type],
+                                ['Submitted', active.submitted_at],
+                                ['Purpose', active.purpose],
+                            ]" :key="row[0]">
+                                <div class="dm-info-row" x-show="row[0] !== 'Purpose' || row[1]">
+                                    <dt x-text="row[0]"></dt>
+                                    <dd x-text="row[1] || '—'"></dd>
+                                </div>
+                            </template>
+                        </dl>
+                        <div x-show="active.description" class="dm-note">
+                            <p class="dm-note-label">Description</p>
+                            <p class="whitespace-pre-line" x-text="active.description"></p>
+                        </div>
+                    </section>
+
+                    {{-- Requirement uploads: the citizen's evidence for each listed
+                         requirement, each row linking to the authorized file stream. --}}
+                    <section class="mt-7" x-show="active.requirements && active.requirements.length">
+                        <h2 class="dm-section">Requirements for this request</h2>
+                        {{-- Each upload is opened, then checked. Opening it here
+                             (View, or its thumbnail) is recorded; Process stays
+                             blocked until every required one is checked. --}}
+                        <p x-show="active.can_advance && active.requirements.some((r) => r.is_mandatory && !r.verified)" x-cloak
+                           class="dm-file-meta mt-1">Open each file, then mark it <strong>Looks good</strong> or ask the citizen to fix it.</p>
+                        <ul class="dm-files" id="review-requirements">
+                            <template x-for="(req, i) in active.requirements" :key="req.id ?? i">
+                                <li class="dm-file !flex-wrap" :class="req.verified && 'bg-green-wash/40'">
+                                    <template x-if="req.has_file">
+                                        <a :href="req.open_url" target="_blank" rel="noopener" class="dm-thumb" @click="markOpened(req)">
+                                            <template x-if="req.is_image"><img :src="req.url" alt=""></template>
+                                            <template x-if="!req.is_image">
+                                                <span class="dm-thumb-doc" :class="req.ext === 'pdf' && 'is-pdf'">
+                                                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8L14 3.5Z"/><path stroke-linejoin="round" d="M14 3.5V8h4.5"/></svg>
+                                                    <span x-text="req.ext"></span>
+                                                </span>
+                                            </template>
+                                        </a>
+                                    </template>
+                                    <template x-if="!req.has_file">
+                                        <span class="dm-thumb is-missing" aria-hidden="true">
+                                            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                                        </span>
+                                    </template>
+
+                                    <div class="min-w-0 flex-1">
+                                        <p class="dm-file-name" x-text="req.label"></p>
+                                        <p class="dm-file-meta">
+                                            <span x-show="req.is_mandatory" class="font-semibold text-status-red">Required</span>
+                                            <span x-show="!req.is_mandatory">Optional</span>
+                                            <span x-show="!req.has_file"> · not uploaded, check the original at the counter</span>
+                                        </p>
+                                        {{-- Where this file stands: checked, sent back, opened, or not yet looked at. --}}
+                                        <p class="dm-file-meta mt-0.5">
+                                            <span x-show="req.verified" class="font-semibold text-green-deep" x-text="'✓ ' + (req.verified_label || 'Checked')"></span>
+                                            <span x-show="!req.verified && isSentBack(req)" class="font-semibold text-status-amber"
+                                                  x-text="req.review_status_label + (req.review_comment ? ': ' + req.review_comment : '')"></span>
+                                            <span x-show="!req.verified && !isSentBack(req) && req.has_file && req.opened" x-text="req.opened_label || 'Opened'"></span>
+                                            <span x-show="!req.verified && !isSentBack(req) && req.has_file && !req.opened" class="font-semibold text-status-amber">Not opened yet</span>
+                                        </p>
+                                    </div>
+
+                                    <a x-show="req.has_file" :href="req.open_url" target="_blank" rel="noopener" class="dm-file-open" @click="markOpened(req)">View</a>
+
+                                    {{-- The check itself, for whoever drives this request. --}}
+                                    <div x-show="active.can_advance && !req.verified" x-cloak class="w-full pl-[56px]">
+                                        <div x-show="reqAction.id !== req.id" class="flex flex-wrap items-center gap-2">
+                                            <button type="button" class="cr-btn cr-btn-sm cr-btn-primary disabled:opacity-40"
+                                                    :disabled="reqBusy || !req.opened"
+                                                    :title="req.opened ? '' : 'Open the file first'"
+                                                    @click="reviewRequirement(req, 'approved')">
+                                                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                                                Looks good
+                                            </button>
+                                            <button type="button" class="cr-btn cr-btn-sm" :disabled="reqBusy"
+                                                    @click="startRequirementReturn(req, 'needs_revision')">Needs fixing</button>
+                                            <button type="button" class="cr-btn cr-btn-sm cr-btn-danger" :disabled="reqBusy"
+                                                    @click="startRequirementReturn(req, 'rejected')">Reject</button>
+                                            <span x-show="req.has_file && !req.opened" class="dm-file-meta">Open the file to check it.</span>
+                                        </div>
+                                        <div x-show="reqAction.id === req.id" x-cloak>
+                                            <label class="dm-file-meta font-semibold" :for="'req-comment-' + req.id"
+                                                   x-text="reqAction.mode === 'rejected' ? 'Why is it rejected? The citizen is emailed this.' : 'What should the citizen fix? They are emailed this and can re-upload it.'"></label>
+                                            <textarea :id="'req-comment-' + req.id" x-model="reqAction.comment" rows="2" maxlength="1000"
+                                                      class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2 text-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
+                                            <div class="mt-1 flex justify-end gap-2">
+                                                <button type="button" class="cr-btn cr-btn-sm" @click="reqAction = { id: null, mode: null, comment: '' }">Cancel</button>
+                                                <button type="button" class="cr-btn cr-btn-sm cr-btn-primary disabled:opacity-40"
+                                                        :disabled="reqBusy || !reqAction.comment.trim()"
+                                                        @click="reviewRequirement(req, reqAction.mode, reqAction.comment)">Send to citizen</button>
+                                            </div>
+                                        </div>
+                                        <p x-show="reqError && reqErrorId === req.id" x-cloak class="mt-1 text-xs font-semibold text-status-red" x-text="reqError"></p>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </section>
+
+                    <section class="mt-7" x-show="active.attachments && active.attachments.length">
+                        <h2 class="dm-section">Attachments</h2>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <template x-for="(att, i) in active.attachments" :key="i">
+                                <a :href="att.url" target="_blank" rel="noopener" class="dm-thumb dm-thumb-lg">
+                                    <template x-if="att.is_image"><img :src="att.url" alt="Attachment"></template>
                                     <template x-if="!att.is_image">
-                                        <span class="flex flex-col items-center gap-1 text-ink-soft">
-                                            <svg class="h-5 w-5" :class="att.ext === 'pdf' ? 'text-status-red' : 'text-green'" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5"/></svg>
-                                            <span class="text-[9px] font-bold uppercase" x-text="att.ext"></span>
+                                        <span class="dm-thumb-doc" :class="att.ext === 'pdf' && 'is-pdf'">
+                                            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linejoin="round" d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8L14 3.5Z"/><path stroke-linejoin="round" d="M14 3.5V8h4.5"/></svg>
+                                            <span x-text="att.ext"></span>
                                         </span>
                                     </template>
                                 </a>
                             </template>
                         </div>
-                    </div>
+                    </section>
+
+                    {{-- Logs: the stage history, two entries deep until asked.
+                         Ported from the Look Up desk — the one place this used
+                         to be readable. --}}
+                    <section class="mt-7">
+                        <h2 class="dm-section">Logs</h2>
+
+                        <template x-if="(active.logs || []).length === 0">
+                            <p class="mt-2 text-[length:var(--fs-small)] text-ink-soft">Nothing recorded yet.</p>
+                        </template>
+
+                        <ul class="dm-logs">
+                            <template x-for="(log, i) in (active.logs || [])" :key="i">
+                                <li class="dm-log" x-show="i < 2 || allLogs">
+                                    <span class="dm-log-dot" aria-hidden="true"></span>
+                                    <span class="dm-log-event" x-text="log.event"></span>
+                                    <span class="lookup-leader" aria-hidden="true"></span>
+                                    <span class="dm-log-time" x-text="log.time"></span>
+                                </li>
+                            </template>
+                        </ul>
+
+                        <button type="button" x-show="(active.logs || []).length > 2" @click="allLogs = ! allLogs" class="dm-more">
+                            <span x-text="allLogs ? 'View less' : 'View more'">View more</span>
+                            <svg class="h-4 w-4 transition" :class="allLogs ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                    </section>
 
                     @if($mode === 'supervisor')
-                        <div class="rounded-[10px] border border-hairline-strong bg-green-wash/40 p-4">
-                            <label class="block text-sm font-semibold text-green-deep">Assign to Staff <span class="text-status-red">*</span></label>
-                            <select x-model="selectedStaff"
-                                    class="mt-2 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20">
-                                <option value="">Select a staff member…</option>
-                                <template x-for="member in staff" :key="member.id">
-                                    <option :value="member.id" x-text="member.name"></option>
+                        {{-- Only an unassigned request can be assigned. The
+                             In Progress queue opens this same modal, and
+                             offering "Assign to Staff" on work somebody is
+                             already doing invites reassignment by accident. --}}
+                        <template x-if="! active.assigned_to">
+                            <section class="dm-panel-strong mt-7">
+                                <label class="block text-[length:var(--fs-small)] font-bold text-green-deep" for="reviewAssignee">Assign to Staff <span class="text-status-red">*</span></label>
+                                <select id="reviewAssignee" x-model="selectedStaff" class="st-filter-field mt-2">
+                                    <option value="">Select a staff member…</option>
+                                    <template x-for="member in staff" :key="member.id">
+                                        <option :value="member.id" x-text="member.name"></option>
+                                    </template>
+                                </select>
+                                <p class="mt-2 text-[length:var(--fs-caption)] text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
+                            </section>
+                        </template>
+
+                        <template x-if="active.assigned_to">
+                            <section class="dm-panel-strong mt-7 text-[length:var(--fs-small)] text-ink">
+                                <p>Being handled by <strong class="text-green-deep" x-text="active.assigned_staff || 'a staff member'"></strong>.
+                                   You can adjust the claiming date and answer the citizen from here; the stage itself is theirs to advance.</p>
+
+                                {{-- Reassigning used to need the Assignments page. It is a
+                                     deliberate second click here, so opening a request
+                                     never invites handing it off by accident. --}}
+                                <template x-if="active.status !== 'completed'">
+                                    <div class="mt-3">
+                                        <button type="button" x-show="! reassignOpen" @click="reassignOpen = true" class="cr-btn cr-btn-sm">Reassign…</button>
+                                        <div x-show="reassignOpen" x-cloak>
+                                            <label for="reviewReassignee" class="block font-bold text-green-deep">Reassign to</label>
+                                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                <select id="reviewReassignee" x-model="selectedStaff" class="st-filter-field min-w-0 flex-1">
+                                                    <option value="">Select a staff member…</option>
+                                                    <template x-for="member in staff.filter((m) => m.id !== active.assigned_to)" :key="member.id">
+                                                        <option :value="member.id" x-text="member.name"></option>
+                                                    </template>
+                                                </select>
+                                                <button type="button" @click="reassignOpen = false; selectedStaff = ''" class="cr-btn">Cancel</button>
+                                                <button type="button" @click="reassign()" :disabled="!selectedStaff || submitting"
+                                                        class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">Reassign</button>
+                                            </div>
+                                            <p class="mt-2 text-ink-soft">The stage stays where it is; the new staff member accepts it on their Requests page before carrying on.</p>
+                                        </div>
+                                    </div>
                                 </template>
-                            </select>
-                            <p class="mt-2 text-xs text-ink-soft">Approving assigns the request to the selected staff member. They must <strong class="text-ink">accept it on their Requests page</strong> before work begins.</p>
-                        </div>
+                            </section>
+                        </template>
+                    @elseif($mode === 'oversight')
+                        {{-- The super admin's Requests page: they watch every
+                             request and can nudge whoever owns it, but the
+                             assignment is the office's and the stage is the
+                             staff member's. --}}
+                        <section class="dm-panel-strong mt-7 text-[length:var(--fs-small)] text-ink">
+                            <template x-if="active.assigned_to">
+                                <p>Being handled by <strong class="text-green-deep" x-text="active.assigned_staff || 'a staff member'"></strong>
+                                   <span x-show="active.department" x-text="'at the ' + active.department"></span>.
+                                   The stage is theirs to advance; use <strong>Notify</strong> if it needs a push.</p>
+                            </template>
+                            <template x-if="! active.assigned_to">
+                                <p x-text="active.department
+                                    ? `Not assigned yet. The ${active.department} supervisors assign it.`
+                                    : 'This request reached no office: its request type has none. Give the type an office on the Request Types page.'"></p>
+                            </template>
+                        </section>
                     @else
                         {{-- Triage: this assignment is still awaiting Accept / Decline / Revision. --}}
                         <template x-if="active && active.needs_triage">
-                            <div class="rounded-[10px] border border-hairline-strong bg-green-wash/40 p-4 text-sm text-ink space-y-2">
-                                <p class="font-semibold text-green-deep">Review this assignment before deciding.</p>
-                                <p>Check the citizen details and attachments above, then choose <strong>Accept</strong> to start work, <strong>Decline</strong> to send it back to the supervisor, or <strong>Request revision</strong> if the citizen must fix something first.</p>
-                                <p class="text-xs text-ink-soft">You can also <a :href="'/track/' + active.tracking_number" target="_blank" rel="noopener" class="font-semibold underline">open the full track page</a> for the complete timeline.</p>
-                            </div>
+                            <section class="dm-panel-strong mt-7 space-y-2 text-[length:var(--fs-small)] text-ink">
+                                <p class="font-bold text-green-deep">Review this assignment before deciding.</p>
+                                <p>Check the citizen details and requirements above, then choose <strong>Accept</strong> to start work, <strong>Decline</strong> to send it back to the supervisor, or <strong>Request revision</strong> if the citizen must fix something first.</p>
+                            </section>
                         </template>
 
-                        {{-- Cockpit: once accepted, the whole status lifecycle is driven here. --}}
-                        <template x-if="active && !active.needs_triage">
-                            <div class="space-y-4">
-                                {{-- Returned side-state banner --}}
-                                <template x-if="prog().isReturned">
-                                    <div class="step-returned" style="width:100%;align-items:flex-start;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="margin-top:1px;flex:none;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
-                                        <div>
-                                            <span>Returned for revision</span>
-                                            <template x-if="active.remarks"><div style="font-weight:400;margin-top:2px;" x-text="active.remarks"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- On-hold side-state banner --}}
-                                <template x-if="prog().isHeld">
-                                    <div class="step-hold" style="width:100%;">
-                                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6M14 9v6M5 5h14v14H5z"/></svg>
-                                        <div>
-                                            <span style="font-weight:700;">On hold</span>
-                                            <template x-if="active.blocked_by"><span style="opacity:.85;"> · waiting on <span x-text="active.blocked_by"></span></span></template>
-                                            <template x-if="active.hold_until"><span style="opacity:.85;"> · until <span x-text="active.hold_until"></span></span></template>
-                                            <template x-if="active.hold_reason"><div style="font-weight:400;margin-top:2px;" x-text="active.hold_reason"></div></template>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- Stepper — identical vocabulary to the public/track view --}}
-                                <div>
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Status progress</p>
-                                    <div class="steps" style="margin:10px 2px 4px;">
-                                        <template x-for="(s, i) in flow" :key="s.value">
-                                            <div style="display:contents">
-                                                <div class="stp">
-                                                    <div class="node" :class="nodeClass(i)">
-                                                        <template x-if="isDone(i)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg></template>
-                                                        <template x-if="!isDone(i)"><span x-text="i + 1"></span></template>
-                                                    </div>
-                                                    <div class="cap" :class="isCurrent(i) ? 'cur' : ''" x-text="s.label"></div>
-                                                </div>
-                                                <div class="seg" :class="isDone(i) ? 'done' : ''" x-show="i < flow.length - 1"></div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                <p class="text-sm text-ink-soft" x-text="cockpitHint()"></p>
-                            </div>
+                        <template x-if="active && !active.needs_triage && cockpitHint()">
+                            <p class="mt-6 text-[length:var(--fs-small)] text-ink-soft" x-text="cockpitHint()"></p>
                         </template>
                     @endif
+
                 </div>
 
-                <div class="flex flex-wrap items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+                <div class="dm-foot dm-actions">
                     {{-- Stage-gate / concurrency failures surface here, inline — no alert(). --}}
                     <p x-show="gateError" x-cloak x-text="gateError" role="alert"
-                       class="w-full rounded-lg border border-status-red-wash bg-status-red-wash px-3 py-2 text-sm font-semibold text-status-red"></p>
+                       class="w-full rounded-[10px] bg-status-red-wash px-3 py-2 text-[length:var(--fs-small)] font-semibold text-status-red"></p>
 
-                    <button type="button" @click="close()" class="cr-btn !px-5 !py-2.5 !text-sm">
-                        <span x-text="active && active.needs_triage ? 'Close' : 'Cancel'"></span>
-                    </button>
-
-                    @if($mode === 'supervisor')
-                        <button type="button" @click="denyOpen = true" :disabled="submitting"
-                                class="cr-btn cr-btn-danger !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                            Deny
+                    <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        <button type="button" @click="close()" class="cr-btn">
+                            <span x-text="(active && active.needs_triage) || mode === 'oversight' ? 'Close' : 'Cancel'"></span>
                         </button>
-                        <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
-                                class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-show="!submitting">Approve</span>
-                            <span x-show="submitting">Approving…</span>
-                        </button>
-                    @else
-                        {{-- Triage decision --}}
-                        <template x-if="active && active.needs_triage">
-                            <div class="flex flex-wrap items-center justify-end gap-3">
-                                <button type="button" @click="revisionOpen = true" :disabled="submitting"
-                                        class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    Request revision
-                                </button>
-                                <button type="button" @click="declineOpen = true" :disabled="submitting"
-                                        class="cr-btn cr-btn-danger !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    Decline
-                                </button>
-                                <button type="button" @click="acceptAssignment()" :disabled="submitting"
-                                        class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-show="!submitting">Accept</span>
-                                    <span x-show="submitting">Accepting…</span>
-                                </button>
-                            </div>
-                        </template>
 
-                        {{-- Working states: one primary Next action + secondary actions under More --}}
-                        <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
-                            <div class="flex flex-wrap items-center justify-end gap-3">
-                                <div class="relative" x-show="prog().canRevert || prog().canReturn || prog().canHold">
-                                    <button type="button" @click="moreOpen = !moreOpen" :disabled="submitting || active.can_advance === false"
-                                            class="cr-btn !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">More ▾</button>
-                                    <div x-show="moreOpen" x-cloak x-transition.opacity
-                                         @click.outside="moreOpen = false" @keydown.escape.window="moreOpen = false"
-                                         class="absolute bottom-full right-0 z-[70] mb-2 w-60 rounded-xl border border-hairline bg-paper p-1.5 shadow-xl">
-                                        <button type="button" x-show="prog().canRevert" @click="moreOpen = false; revertStatus()"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">← Move back a stage</button>
-                                        <button type="button" x-show="prog().canReturn" @click="moreOpen = false; returnOpen = true"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-status-amber hover:bg-status-amber-wash">Return for revision</button>
-                                        <button type="button" x-show="prog().canHold" @click="moreOpen = false; holdOpen = true"
-                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-green-wash">Put on hold</button>
-                                    </div>
+                        @if($mode === 'oversight')
+                            {{-- Opens the shared Notify dialog (admin/partials/notify-dialog). --}}
+                            <template x-if="active && active.nudge_url">
+                                <button type="button" class="cr-btn cr-btn-primary"
+                                        @click="$dispatch('admin-notify', {
+                                            tracking: active.tracking_number, type: active.document_type,
+                                            citizen: active.citizen_name, purpose: active.purpose,
+                                            stageLabel: active.status_label, assignee: active.assigned_staff,
+                                            office: active.department, over: active.over_sla, nudgeUrl: active.nudge_url,
+                                        })">
+                                    Notify
+                                </button>
+                            </template>
+                        @elseif($mode === 'supervisor')
+                            <template x-if="! active.assigned_to">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" @click="denyOpen = true" :disabled="submitting"
+                                            class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
+                                        Deny
+                                    </button>
+                                    <button type="button" @click="approve()" :disabled="!selectedStaff || submitting"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting">Approve</span>
+                                        <span x-show="submitting">Approving…</span>
+                                    </button>
                                 </div>
-                                <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
-                                        :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
-                                        class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-show="!submitting" x-text="prog().primary.label"></span>
-                                    <span x-show="submitting">Working…</span>
-                                </button>
-                            </div>
-                        </template>
-                    @endif
+                            </template>
+                        @else
+                            {{-- Triage decision --}}
+                            <template x-if="active && active.needs_triage">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" @click="revisionOpen = true" :disabled="submitting"
+                                            class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber disabled:cursor-not-allowed disabled:opacity-50">
+                                        Request revision
+                                    </button>
+                                    <button type="button" @click="declineOpen = true" :disabled="submitting"
+                                            class="cr-btn cr-btn-danger disabled:cursor-not-allowed disabled:opacity-50">
+                                        Decline
+                                    </button>
+                                    <button type="button" @click="acceptAssignment()" :disabled="submitting"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting">Accept</span>
+                                        <span x-show="submitting">Accepting…</span>
+                                    </button>
+                                </div>
+                            </template>
+
+                            {{-- Working states: the next step, and sending it back to the citizen. --}}
+                            <template x-if="active && !active.needs_triage && prog().primary.type !== 'none'">
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <button type="button" x-show="prog().canReturn" @click="returnOpen = true"
+                                            :disabled="submitting || active.can_advance === false"
+                                            class="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber disabled:cursor-not-allowed disabled:opacity-50">
+                                        Return for revision
+                                    </button>
+                                    <button type="button" @click="runPrimary()" :disabled="submitting || active.can_advance === false"
+                                            :title="active.can_advance === false ? 'You don\'t have permission to advance this document' : ''"
+                                            class="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <span x-show="!submitting" x-text="prog().primary.label"></span>
+                                        <span x-show="submitting">Working…</span>
+                                    </button>
+                                </div>
+                            </template>
+                        @endif
+                    </div>
                 </div>
 
                 @if($mode === 'supervisor')
@@ -301,7 +588,7 @@
                      @keydown.escape.window="advanceOpen = false" @click.self="advanceOpen = false">
                     <div class="w-full max-w-md rounded-2xl border border-hairline bg-paper shadow-xl" x-show="advanceOpen" x-transition>
                         <div class="border-b border-hairline px-6 py-4">
-                            <h3 class="text-base font-bold text-ink">Advance to <span x-text="advanceTargetLabel()"></span></h3>
+                            <h3 class="text-base font-bold text-ink" x-text="advanceTargetLabel() === 'Approved' ? 'Process this request' : 'Advance to ' + advanceTargetLabel()"></h3>
                             <p class="mt-0.5 text-sm text-ink-soft" x-text="advanceHint()"></p>
                         </div>
                         <div class="px-6 py-5">
@@ -311,6 +598,7 @@
                                 <span x-show="!advanceNoteRequired()" class="font-normal text-ink-soft">(optional)</span>
                             </label>
                             <textarea x-model="advanceNote" rows="3" maxlength="1000"
+                                      @keydown.meta.enter="confirmAdvance()" @keydown.ctrl.enter="confirmAdvance()"
                                       :placeholder="active && active.status === 'in_review' ? 'e.g. Requirements verified against the checklist; clearances valid' : (advanceNoteRequired() ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step…')"
                                       class="mt-1 w-full rounded-lg border border-hairline-strong bg-paper px-3 py-2.5 text-sm shadow-sm focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20"></textarea>
                         </div>
@@ -319,7 +607,7 @@
                                     class="cr-btn !px-5 !py-2.5 !text-sm disabled:opacity-50">Cancel</button>
                             <button type="button" @click="confirmAdvance()" :disabled="submitting || (advanceNoteRequired() && !advanceNote.trim())"
                                     class="cr-btn cr-btn-primary !px-5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-show="!submitting">Confirm — advance</span>
+                                <span x-show="!submitting">Confirm — advance <span class="opacity-60">⌘↵</span></span>
                                 <span x-show="submitting">Advancing…</span>
                             </button>
                         </div>
@@ -425,22 +713,247 @@
             </div>
         </template>
     </div>
+
+    {{-- ── Side card: the claiming-date calendar, or the conversation ──────
+         Both ported from the Look Up desk (Figma: STAFF LOOK UP 1321:1370 and
+         1321:1750) so the staff member who accepted a request can also set its
+         claiming date and answer the citizen without changing screens. --}}
+    <div x-show="active && side" x-cloak x-transition.opacity
+         class="dm-fixed flex w-full max-w-[660px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_19px_48px_-16px_rgba(0,64,4,0.45)] lg:min-w-0 lg:flex-1"
+         :aria-label="side === 'date' ? 'Adjust claiming date' : 'Messages'" role="region">
+        <template x-if="active">
+            <div class="flex h-full min-h-0 flex-col">
+
+                {{-- Shared header --}}
+                <div class="dm-head">
+                    <h2 class="dm-section min-w-0 truncate">
+                        <span x-show="side === 'date'">Adjust Claiming Date</span>
+                        <span x-show="side === 'messages'">
+                            Messages · <span class="font-semibold text-ink" x-text="active.citizen_name || 'Citizen'"></span>
+                        </span>
+                    </h2>
+
+                    <button type="button" @click="side = null" aria-label="Close panel" class="dm-close shrink-0">
+                        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+
+                {{-- ── Calendar ── --}}
+                <div x-show="side === 'date'" class="flex min-h-0 flex-1 flex-col">
+                    {{-- Where things stand before anything is picked. --}}
+                    <div class="dp-context">
+                        <div class="dp-context-item">
+                            <span class="dp-key dp-key-requested" aria-hidden="true"></span>
+                            <span>Citizen asked for</span>
+                            <strong x-text="active.requested_claim_date || 'no date'"></strong>
+                        </div>
+                        <div class="dp-context-item" x-show="active.claim_date">
+                            <span class="dp-key dp-key-set" aria-hidden="true"></span>
+                            <span>Currently set</span>
+                            <strong x-text="active.claim_date"></strong>
+                        </div>
+                    </div>
+
+                    {{-- Month, with Previous / Today / Next as one control. --}}
+                    <div class="dp-head">
+                        <p class="dp-month" x-text="monthLabel()" aria-live="polite"></p>
+                        <div class="bk-nav" role="group" aria-label="Change month">
+                            <button type="button" @click="shiftMonth(-1)" aria-label="Previous month">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+                            </button>
+                            <button type="button" @click="calendarToToday()">Today</button>
+                            <button type="button" @click="shiftMonth(1)" aria-label="Next month">
+                                <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dp-dows" aria-hidden="true">
+                        <template x-for="(name, i) in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="name">
+                            <span :class="i === 0 && 'is-sunday'" x-text="name"></span>
+                        </template>
+                    </div>
+
+                    <div class="dp-grid" role="grid" aria-label="Claiming date">
+                        <template x-for="(week, w) in calendarWeeks()" :key="'w' + w">
+                            <div class="dp-week" role="row">
+                                <template x-for="cell in week" :key="cell.iso">
+                                    <div class="dp-cell" role="gridcell">
+                                        <button type="button" @click="dateValue = cell.iso"
+                                                :disabled="cell.past"
+                                                class="dp-day"
+                                                :class="{
+                                                    'is-picked': dateValue === cell.iso,
+                                                    'is-today': cell.today,
+                                                    'is-outside': ! cell.inMonth,
+                                                    'is-sunday': cell.sunday,
+                                                    'is-requested': cell.iso === active.requested_claim_on,
+                                                    'is-set': cell.iso === active.claim_on,
+                                                }"
+                                                :aria-pressed="dateValue === cell.iso"
+                                                :aria-current="cell.today ? 'date' : null"
+                                                :aria-label="cell.label
+                                                    + (cell.iso === active.requested_claim_on ? ', requested by the citizen' : '')
+                                                    + (cell.iso === active.claim_on ? ', currently set' : '')
+                                                    + (cell.past ? ', unavailable' : '')">
+                                            <span x-text="cell.day"></span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="dp-foot">
+                        <p class="dp-picked">
+                            <template x-if="dateValue">
+                                <span>New claiming date <strong x-text="pickedLabel()"></strong></span>
+                            </template>
+                            <template x-if="! dateValue">
+                                <span>Pick a day for the citizen to claim. Advance uses it too.</span>
+                            </template>
+                        </p>
+
+                        <div class="flex shrink-0 items-center gap-2">
+                            <button type="button" x-show="dateValue" @click="dateValue = ''" class="cr-btn">Clear</button>
+                            <button type="button" @click="saveDate()" :disabled="submitting || ! dateValue" class="cr-btn cr-btn-primary disabled:opacity-40">
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Conversation ── --}}
+                <div x-show="side === 'messages'" class="flex min-h-0 flex-1 flex-col">
+                    <div class="min-h-[256px] flex-1 space-y-[8px] overflow-y-auto px-[26.5px] py-[19px]" x-ref="thread">
+
+                        {{-- Empty state, as the frame draws it. --}}
+                        <div x-show="(active.messages || []).length === 0" class="flex h-full flex-col items-center justify-center text-center">
+                            <img src="{{ asset('images/staff/chat-empty.svg') }}" alt=""
+                                 style="width:80px; height:78.5px; max-width:none;">
+                            <p class="mt-[14.5px] text-[20px] font-extrabold text-[#017209]">You are now chatting with the client</p>
+                            <p class="text-[18px] font-medium text-black">Your conversation is secured</p>
+                        </div>
+
+                        <template x-for="(msg, i) in (active.messages || [])" :key="i">
+                            <div>
+                                {{-- Timestamp above the first message and whenever the
+                                     clock moves on, the way a chat groups a burst. --}}
+                                <p x-show="i === 0 || msg.time !== active.messages[i - 1].time"
+                                   class="py-[8px] text-center text-[14px] font-medium text-black"
+                                   x-text="msg.time"></p>
+
+                                <div class="flex" :class="msg.from === 'citizen' ? 'justify-start' : 'justify-end'">
+                                    <div class="max-w-[80%]">
+                                        <p class="desk-bubble" :class="msg.from === 'citizen' ? 'from-citizen' : 'from-staff'"
+                                           x-text="msg.body"></p>
+
+                                        <template x-if="msg.attachment">
+                                            <a :href="msg.attachment.url" target="_blank" rel="noopener"
+                                               class="mt-[6px] flex items-center gap-[8px] rounded-[8px] border border-hairline bg-white px-[11px] py-[8px] text-[14px] font-medium text-ink transition hover:bg-green-wash"
+                                               :class="msg.from === 'citizen' ? '' : 'justify-end'">
+                                                <img src="{{ asset('images/staff/icon-file.svg') }}" alt=""
+                                                     style="width:16px; height:16px; max-width:none;">
+                                                <span class="min-w-0 truncate" x-text="msg.attachment.name"></span>
+                                            </a>
+                                        </template>
+
+                                        {{-- Read receipt: the frame's double tick, dimmed
+                                             until the citizen has actually opened it. --}}
+                                        <p x-show="msg.from !== 'citizen'"
+                                           class="mt-[4px] flex items-center justify-end gap-[4px] text-[14px] font-medium text-black">
+                                            <span x-text="msg.read ? 'Read' : 'Sent'"></span>
+                                            <span class="flex items-center" :class="msg.read ? '' : 'opacity-40'" aria-hidden="true">
+                                                <img src="{{ asset('images/staff/icon-check.svg') }}" alt=""
+                                                     style="width:14.5px; height:14.5px; max-width:none;">
+                                                <img src="{{ asset('images/staff/icon-check.svg') }}" alt=""
+                                                     class="-ml-[7px]" style="width:14.5px; height:14.5px; max-width:none;">
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="h-[2px] w-full bg-[#d9d9d9]"></div>
+
+                    <template x-if="active.can_message">
+                        <form @submit.prevent="sendMessage()" class="px-[23px] py-[14.5px]">
+                            {{-- The file rides along with the message it belongs to,
+                                 so it is staged here and posted on send. --}}
+                            <div x-show="file" x-cloak
+                                 class="mb-[8px] flex items-center gap-[8px] rounded-[8px] bg-green-wash px-[11px] py-[8px]">
+                                <img src="{{ asset('images/staff/icon-file.svg') }}" alt=""
+                                     style="width:16px; height:16px; max-width:none;">
+                                <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-ink" x-text="file?.name"></span>
+                                <button type="button" @click="clearFile()"
+                                        class="shrink-0 text-[14px] font-bold text-status-red hover:underline">Remove</button>
+                            </div>
+
+                            <div class="flex items-center gap-[16px]">
+                                <input type="file" x-ref="attachment" class="sr-only"
+                                       accept="{{ \App\Support\UploadRules::accept() }}"
+                                       @change="pickFile($event)">
+
+                                <button type="button" @click="$refs.attachment.click()"
+                                        title="{{ \App\Support\UploadRules::hint() }}" aria-label="Attach a file"
+                                        class="shrink-0 rounded-lg p-1 transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                                    <img src="{{ asset('images/staff/icon-plus.svg') }}" alt=""
+                                         style="width:24px; height:24px; max-width:none;">
+                                </button>
+
+                                <label for="reviewMessage" class="sr-only">Write your message</label>
+                                <input id="reviewMessage" type="text" x-model="draft" maxlength="5000"
+                                       placeholder="Write your message..." class="desk-composer">
+
+                                <button type="submit" :disabled="sending || ! draft.trim()"
+                                        class="shrink-0 rounded-lg p-1 transition hover:bg-green-wash disabled:opacity-40"
+                                        aria-label="Send message">
+                                    <img src="{{ asset('images/staff/icon-send.svg') }}" alt=""
+                                         style="width:24px; height:24px; max-width:none;">
+                                </button>
+                            </div>
+                        </form>
+                    </template>
+
+                    <template x-if="! active.can_message">
+                        <p class="px-[26.5px] py-[17.5px] text-[14px] text-ink-soft">
+                            Only the assigned staff member or an admin can reply on this request.
+                        </p>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+    </div>
 </div>
 
 @once
 <script>
+    /** The four-stage bar's stages, from DocumentStatus::railStages(). */
+    window.REVIEW_RAIL = @js(\App\Enums\DocumentStatus::railStages());
+
     window.reviewPanel = function (cfg) {
         return {
+            railStages: window.REVIEW_RAIL,
             requests: cfg.requests || [],
             mode: cfg.mode || 'supervisor',
             staff: cfg.staff || [],
             flow: cfg.flow || [],
             assignBase: cfg.assignBase || '',
+            reassignBase: cfg.reassignBase || '',
+            reassignOpen: false,
+            /* The request's reservation card (approve with a count). */
+            bookingQty: null,
+            bookingBusy: false,
+            bookingError: '',
             denyBase: cfg.denyBase || cfg.assignBase || '',
             openBase: cfg.openBase || '',
             completeBase: cfg.completeBase || '',
             reloadUrl: cfg.reloadUrl || null,
             active: null,
+            qrOpen: false,
             selectedStaff: '',
             submitting: false,
             denyOpen: false,
@@ -449,7 +962,6 @@
             declineReason: '',
             revisionOpen: false,
             revisionReason: '',
-            moreOpen: false,
             holdOpen: false,
             holdReason: '',
             holdBlockedBy: 'citizen',
@@ -461,9 +973,38 @@
             revertOpen: false,
             revertReason: '',
             gateError: '',
+            tableQuery: '',
+
+            // ─── Side panels, ported from the Look Up desk ───
+            side: null,       // 'date' | 'messages' | null — the second card
+            allLogs: false,
+            dateValue: '',
+            // Requirement checks: the row asking for a comment, and its state.
+            reqAction: { id: null, mode: null, comment: '' },
+            reqBusy: false,
+            reqError: '',
+            reqErrorId: null,
+            calYear: 0,
+            calMonth: 0,      // 0-11, as Date reports it
+            draft: '',
+            file: null,       // staged attachment, posted with the message
+            sending: false,
 
             csrf() {
                 return document.querySelector('meta[name=csrf-token]')?.content;
+            },
+
+            /**
+             * Rows matching the in-table search (citizen name, tracking number,
+             * or request type). Filtering client-side keeps the queue instant —
+             * this list is a triage queue, not a full archive.
+             */
+            visibleRequests() {
+                const q = this.tableQuery.trim().toLowerCase();
+                if (!q) return this.requests;
+
+                return this.requests.filter((req) => [req.citizen_name, req.tracking_number, req.document_type, req.department]
+                    .some((field) => (field || '').toLowerCase().includes(q)));
             },
 
             // ─── Cockpit: client-side status logic (mirrors DocumentStatus enum) ───
@@ -504,7 +1045,7 @@
                 if (isReturned) primary = { type: 'resume', label: 'Resume — back to In Progress' };
                 else if (isHeld) primary = { type: 'unhold', label: 'Resume — lift hold' };
                 else if (st === 'approved') primary = { type: 'approve', label: 'Approve & complete' };
-                else if (idx >= 0 && idx < this.flow.length - 2) primary = { type: 'advance', label: 'Advance to ' + this.flow[idx + 1].label };
+                else if (idx >= 0 && idx < this.flow.length - 2) primary = { type: 'advance', label: this.advanceLabel(this.flow[idx + 1]) };
                 else primary = { type: 'none', label: null };
 
                 return {
@@ -515,6 +1056,38 @@
                     canHold: !isHeld && !isTerminal && idx >= 0,
                     primary,
                 };
+            },
+
+            /**
+             * Stage of the active request on the four-stage bar — mirrors
+             * DocumentStatus::railStage(), but runs here so the bar moves the
+             * moment an action changes the status, without a reload.
+             */
+            railStage() {
+                const at = (status) => this.railStages.findIndex((stage) => stage.statuses.includes(status)) + 1;
+                const st = this.active ? this.active.status : null;
+
+                if (st === 'returned') return at('in_review');
+                if (st === 'on_hold' || st === 'denied') return at(this.active.status_before_hold) || at('in_review');
+
+                return at(st) || 1;
+            },
+
+            /** 'done' | 'current' | 'todo' for the stage at `position`. */
+            railState(position) {
+                const current = this.railStage();
+                if (position < current || (position === current && this.active?.status === 'completed')) return 'done';
+
+                return position === current ? 'current' : 'todo';
+            },
+
+            /**
+             * Button label for moving to `next`. Approving the review moves the
+             * request onto the bar's "Processing" stage, so that step is simply
+             * "Process"; earlier steps keep their stage name.
+             */
+            advanceLabel(next) {
+                return next.value === 'approved' ? 'Process' : 'Advance to ' + next.label;
             },
 
             isDone(i) { const p = this.prog(); return !p.isReturned && (i + 1) < p.displayPosition; },
@@ -528,7 +1101,7 @@
                 const p = this.prog();
                 switch (p.primary.type) {
                     case 'approve': return 'This request is at Approved. Approve it to mark it Completed and move it to your History.';
-                    case 'advance': return 'Click the button to move this request to the next stage. Secondary actions are under More.';
+                    case 'advance': return 'Move this request to the next stage, or return it to the citizen if something needs fixing.';
                     case 'resume': return 'This request was returned for revision. Resume it to continue working.';
                     case 'unhold': return 'This request is on hold and its SLA is paused. Resume to lift the hold and continue.';
                     default: return '';
@@ -577,7 +1150,19 @@
 
             runPrimary() {
                 switch (this.prog().primary.type) {
-                    case 'advance': return this.openAdvance();
+                    // Fewer clicks: the confirm panel exists to collect a note, so
+                    // when this stage does not require one, advance straight away
+                    // instead of asking the same person to confirm their own click.
+                    case 'advance':
+                        if (!this.hasClaimDate()) return this.askForClaimDate();
+                        // In Review → Approved needs every required file checked.
+                        if (this.active.status === 'in_review' && this.uncheckedRequirements().length) {
+                            this.gateError = 'Check these required files first: ' + this.uncheckedRequirements().join(', ') + '.';
+                            document.getElementById('review-requirements')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                            return;
+                        }
+                        return this.advanceNoteRequired() ? this.openAdvance() : this.confirmAdvance();
                     case 'approve': return this.approve();
                     case 'resume': return this.setStatus('in_progress');
                     case 'unhold': return this.patchStatus('unhold', { blocked_by: null, hold_reason: null, hold_until: null, status_before_hold: null });
@@ -606,14 +1191,45 @@
                 return idx >= 0 && this.flow[idx + 1] ? this.flow[idx + 1].label : '';
             },
             openAdvance() { this.advanceNote = ''; this.gateError = ''; this.advanceOpen = true; },
+            /**
+             * Advancing commits the day the citizen collects (the server
+             * refuses without one): a date picked in the calendar, else the one
+             * already set, as long as it has not passed.
+             */
+            hasClaimDate() {
+                return !!this.dateValue || (!!this.active?.claim_on && this.active.claim_on >= this.isoOf(new Date()));
+            },
+            askForClaimDate() {
+                this.side = 'date';
+                this.gateError = this.active?.claim_on
+                    ? 'The claiming date has passed. Pick a new day in the calendar, then press Advance again.'
+                    : 'Pick the claiming date for the citizen in the calendar, then press Advance again.';
+            },
+            /**
+             * Applies the advance. Called from the confirm panel, and directly by
+             * runPrimary() for stages that need no note — in which case there is
+             * no panel state to reset beyond the (empty) note itself.
+             */
             confirmAdvance() {
                 if (this.advanceNoteRequired() && !this.advanceNote.trim()) return;
                 const hadNote = !!this.advanceNote.trim();
                 const data = hadNote ? { note: this.advanceNote.trim() } : {};
+                const extra = hadNote ? { has_work_evidence: true } : {};
+                // A day picked in the calendar but not applied goes with the advance.
+                if (this.dateValue) {
+                    data.claim_date = this.dateValue;
+                    Object.assign(extra, {
+                        claim_on: this.dateValue,
+                        claim_date: this.parseDate(this.dateValue + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                    });
+                }
                 this.advanceOpen = false;
                 // A submitted note is stored as a staff work note on the file.
-                return this.patchStatus('status/advance', hadNote ? { has_work_evidence: true } : {}, data)
-                    .then(() => { this.advanceNote = ''; });
+                return this.patchStatus('status/advance', extra, data)
+                    .then(() => {
+                        this.advanceNote = '';
+                        if (!this.gateError) { this.dateValue = ''; }
+                    });
             },
 
             // ─── Move back: always carries a reason for the audit trail ───
@@ -658,14 +1274,32 @@
 
             open(req) {
                 this.active = req;
+                this.qrOpen = false;
+                this.side = null;
+                this.allLogs = false;
+                this.dateValue = '';
+                this.draft = '';
+                this.clearFile();
+
+                // Land the calendar on the date already committed to, else on
+                // the one the citizen asked for, else on this month.
+                const anchor = this.parseDate(req?.claim_on)
+                    || this.parseDate(req?.requested_claim_on)
+                    || new Date();
+
+                this.calYear = anchor.getFullYear();
+                this.calMonth = anchor.getMonth();
+
                 this.selectedStaff = '';
+                this.reassignOpen = false;
+                this.bookingQty = req?.booking ? Math.max(1, req.booking.requested || 1) : null;
+                this.bookingError = '';
                 this.denyOpen = false;
                 this.denyReason = '';
                 this.declineOpen = false;
                 this.declineReason = '';
                 this.revisionOpen = false;
                 this.revisionReason = '';
-                this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
                 this.advanceOpen = false;
@@ -673,11 +1307,355 @@
                 this.revertOpen = false;
                 this.revertReason = '';
                 this.gateError = '';
+                this.reqAction = { id: null, mode: null, comment: '' };
+                this.reqError = '';
+                this.reqErrorId = null;
             },
 
             openById(id) {
                 const req = this.requests.find((r) => r.id === id);
                 if (req) this.open(req);
+            },
+
+            /* ── Side panels ─────────────────────────────────────────────────
+               Everything below came from the Look Up desk's own Alpine scope
+               when the desk was folded into this modal and deleted; see
+               ReviewModalMergeTest for what had to survive the move.
+               ───────────────────────────────────────────────────────────── */
+
+            /** Open one of the two side cards, or close it if already up. */
+            toggleSide(which) {
+                this.side = this.side === which ? null : which;
+
+                if (this.side === 'messages') {
+                    this.readMessages();
+                    this.$nextTick(() => this.scrollThread());
+                }
+            },
+
+            /* ── Requirement checks ─────────────────────────────────────────
+               Open the file (View or its thumbnail, which the server records),
+               then Looks good / Needs fixing / Reject. Process is refused
+               until every required file is checked. */
+
+            /** The server stamps the open; show it straight away here. */
+            markOpened(req) {
+                if (!this.active?.can_advance || req.opened) return;
+                req.opened = true;
+                req.opened_label = 'Opened by you just now';
+            },
+
+            isSentBack(req) {
+                return req.review_status === 'needs_revision' || req.review_status === 'rejected';
+            },
+
+            startRequirementReturn(req, mode) {
+                this.reqAction = { id: req.id, mode, comment: '' };
+                this.reqError = '';
+            },
+
+            /** Required files still to check, by name. */
+            uncheckedRequirements() {
+                return (this.active?.requirements || []).filter((r) => r.is_mandatory && !r.verified).map((r) => r.label);
+            },
+
+            reviewRequirement(req, mode, comment = '') {
+                if (this.reqBusy) return;
+                this.reqBusy = true;
+                this.reqError = '';
+                this.reqErrorId = req.id;
+
+                fetch(req.review_url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ review_status: mode, review_comment: comment.trim() || null }),
+                }).then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+                    this.reqBusy = false;
+
+                    if (!r.ok) {
+                        this.reqError = data.errors ? Object.values(data.errors).flat().join(' ') : (data.message || 'That could not be saved.');
+
+                        return;
+                    }
+
+                    Object.assign(req, data.requirement);
+                    this.reqAction = { id: null, mode: null, comment: '' };
+                    if (this.gateError.startsWith('Check ')) this.gateError = '';
+                }).catch(() => {
+                    this.reqBusy = false;
+                    this.reqError = 'Network error. Please try again.';
+                });
+            },
+
+            /** The claiming date the citizen sees on their tracking page. */
+            saveDate() {
+                if (!this.active || !this.dateValue) {
+                    this.gateError = 'Pick the claiming date for the citizen.';
+
+                    return;
+                }
+
+                this.submitting = true;
+                this.gateError = '';
+
+                fetch(`${this.openBase}/${this.active.id}/claim-date`, {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ claim_date: this.dateValue }),
+                }).then(async (r) => {
+                    if (r.ok) {
+                        this.afterSuccess();
+
+                        return;
+                    }
+
+                    const data = await r.json().catch(() => ({}));
+                    this.gateError = data.message || 'That date could not be saved.';
+                    this.submitting = false;
+                }).catch(() => {
+                    this.gateError = 'That date could not be saved.';
+                    this.submitting = false;
+                });
+            },
+
+            /* ── Calendar ───────────────────────────────────────────────── */
+
+            /** Local YYYY-MM-DD. toISOString() would shift the day by the UTC offset. */
+            isoOf(date) {
+                const pad = (n) => String(n).padStart(2, '0');
+
+                return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+            },
+
+            parseDate(text) {
+                if (!text) return null;
+
+                const parsed = new Date(text);
+
+                return isNaN(parsed.getTime()) ? null : parsed;
+            },
+
+            monthLabel() {
+                return new Date(this.calYear, this.calMonth, 1)
+                    .toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            },
+
+            /** Jump the calendar back to this month. */
+            calendarToToday() {
+                const now = new Date();
+                this.calYear = now.getFullYear();
+                this.calMonth = now.getMonth();
+            },
+
+            /** "Friday, August 7, 2026" for the picked day. */
+            pickedLabel() {
+                const picked = this.parseDate(this.dateValue + 'T00:00:00');
+
+                return picked ? picked.toLocaleDateString(undefined, { dateStyle: 'full' }) : '';
+            },
+
+            shiftMonth(delta) {
+                const moved = new Date(this.calYear, this.calMonth + delta, 1);
+
+                this.calYear = moved.getFullYear();
+                this.calMonth = moved.getMonth();
+            },
+
+            /**
+             * The month as weeks of seven days, padded out to whole weeks with
+             * the neighbouring months' days — only as many rows as the month
+             * actually spans, so a 5-week month does not draw an empty sixth.
+             */
+            calendarWeeks() {
+                const first = new Date(this.calYear, this.calMonth, 1);
+                const daysInMonth = new Date(this.calYear, this.calMonth + 1, 0).getDate();
+                const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+                const today = this.isoOf(new Date());
+                const out = [];
+
+                for (let w = 0; w < weeks; w++) {
+                    const row = [];
+
+                    for (let d = 0; d < 7; d++) {
+                        const day = new Date(this.calYear, this.calMonth, 1 - first.getDay() + (w * 7) + d);
+
+                        row.push({
+                            day: day.getDate(),
+                            iso: this.isoOf(day),
+                            label: day.toLocaleDateString(undefined, { dateStyle: 'long' }),
+                            inMonth: day.getMonth() === this.calMonth,
+                            sunday: day.getDay() === 0,
+                            today: this.isoOf(day) === today,
+                            // A claiming date in the past is not a commitment
+                            // anyone can keep, so those days are not offerable.
+                            past: this.isoOf(day) < today,
+                        });
+                    }
+
+                    out.push(row);
+                }
+
+                return out;
+            },
+
+            /* ── Conversation ───────────────────────────────────────────── */
+
+            scrollThread() {
+                const thread = this.$refs.thread;
+
+                if (thread) {
+                    thread.scrollTop = thread.scrollHeight;
+                }
+            },
+
+            /** Opening the thread is what clears the request's unread badge. */
+            readMessages() {
+                if (!this.active || !this.active.unread_messages) return;
+
+                this.active.unread_messages = 0;
+
+                fetch(`${this.openBase}/${this.active.id}/comments/read`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json' },
+                }).catch(() => {});
+            },
+
+            pickFile(event) {
+                this.file = event.target.files[0] || null;
+                this.gateError = '';
+            },
+
+            clearFile() {
+                this.file = null;
+
+                // The input only exists while the composer is rendered.
+                if (this.$refs.attachment) {
+                    this.$refs.attachment.value = '';
+                }
+            },
+
+            sendMessage() {
+                const body = this.draft.trim();
+
+                if (!this.active || !body || this.sending) return;
+
+                this.sending = true;
+                this.gateError = '';
+
+                // Multipart throughout, with or without a file: one path to
+                // maintain, and the browser sets the boundary for us (so the
+                // Content-Type header must NOT be set by hand here).
+                const payload = new FormData();
+                payload.append('body', body);
+                payload.append('visibility', 'public');
+
+                if (this.file) {
+                    payload.append('attachment', this.file);
+                }
+
+                fetch(`${this.openBase}/${this.active.id}/comments`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), Accept: 'application/json' },
+                    body: payload,
+                }).then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+
+                    if (!r.ok) {
+                        // 422 reports per-field messages; the file rules are
+                        // the ones staff actually trip over.
+                        this.gateError = (data.errors && Object.values(data.errors)[0][0])
+                            || data.message
+                            || 'That message could not be sent.';
+                        this.sending = false;
+
+                        return;
+                    }
+
+                    // Append rather than reload: the queue behind the modal has
+                    // not changed, and a reload would close what staff are in.
+                    this.active.messages = (this.active.messages || []).concat([data.comment]);
+                    this.draft = '';
+                    this.clearFile();
+                    this.sending = false;
+                    this.$nextTick(() => this.scrollThread());
+                }).catch(() => {
+                    this.gateError = 'That message could not be sent.';
+                    this.sending = false;
+                });
+            },
+
+            /**
+             * Supervisor: hand in-progress work to another staff member. The
+             * row stays on the In Progress tab with its new name — in place,
+             * like assign and deny.
+             */
+            /**
+             * Approve the request's reservation from the modal, on the same
+             * rules as the lending desk (App\Support\Lending). The card
+             * redraws in place from the reply.
+             */
+            approveBooking() {
+                const booking = this.active?.booking;
+                if (!booking || this.bookingBusy) return;
+
+                const fd = new FormData();
+                fd.append('_method', 'PATCH');
+                if (booking.is_equipment) fd.append('quantity', this.bookingQty);
+
+                this.bookingBusy = true;
+                this.bookingError = '';
+                fetch(booking.approve_url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))).then(({ ok, d }) => {
+                    this.bookingBusy = false;
+                    if (!ok) {
+                        this.bookingError = d.errors ? Object.values(d.errors).flat().join(' ') : (d.message || 'Could not approve. Please try again.');
+                        return;
+                    }
+                    const row = this.requests.find((r) => r.id === this.active.id);
+                    if (row && row !== this.active) row.booking = d.booking;
+                    this.active.booking = d.booking;
+                }).catch(() => {
+                    this.bookingBusy = false;
+                    this.bookingError = 'Network error. Please try again.';
+                });
+            },
+
+            reassign() {
+                if (!this.active || !this.selectedStaff || this.submitting) return;
+
+                const fd = new FormData();
+                fd.append('_method', 'PATCH');
+                fd.append('assigned_to', this.selectedStaff);
+
+                this.submitting = true;
+                this.gateError = '';
+                fetch(`${this.reassignBase}/${this.active.id}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
+                }).then((r) => r.json().then((d) => ({ ok: r.ok, d }))).then(({ ok, d }) => {
+                    this.submitting = false;
+                    if (!ok) {
+                        this.gateError = d.errors ? Object.values(d.errors).flat().join(' ') : (d.message || 'Could not reassign. Please try again.');
+                        return;
+                    }
+                    const row = this.requests.find((r) => r.id === this.active.id);
+                    if (row && row !== this.active) Object.assign(row, d.request);
+                    Object.assign(this.active, d.request);
+                    this.reassignOpen = false;
+                    this.selectedStaff = '';
+                }).catch(() => {
+                    this.submitting = false;
+                    this.gateError = 'Network error. Please try again.';
+                });
             },
 
             afterSuccess() {
@@ -739,6 +1717,20 @@
             },
 
             close() {
+                // Esc steps back one layer: the QR viewer, then the side card,
+                // then the modal itself.
+                if (this.qrOpen) {
+                    this.qrOpen = false;
+
+                    return;
+                }
+
+                if (this.side) {
+                    this.side = null;
+
+                    return;
+                }
+
                 this.active = null;
                 this.submitting = false;
                 this.denyOpen = false;
@@ -747,7 +1739,6 @@
                 this.declineReason = '';
                 this.revisionOpen = false;
                 this.revisionReason = '';
-                this.moreOpen = false;
                 this.holdOpen = false;
                 this.returnOpen = false;
                 this.advanceOpen = false;
@@ -755,6 +1746,11 @@
                 this.revertOpen = false;
                 this.revertReason = '';
                 this.gateError = '';
+                this.allLogs = false;
+                this.dateValue = '';
+                this.draft = '';
+                this.sending = false;
+                this.clearFile();
             },
 
             postAction(url, opts) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
 use App\Models\Document;
+use App\Support\Lending;
 use Illuminate\Http\Request;
 
 /**
@@ -29,6 +30,14 @@ class DocumentReleaseController extends Controller
 
         if ($document->claimed_at !== null) {
             return $this->fail($request, 'This document was already released on '.$document->claimed_at->format('M d, Y h:i A').'.');
+        }
+
+        // A borrowing claimed at the counter is its hand-over: the items leave
+        // the stockroom (stock-checked) in the same step.
+        $booking = $document->booking;
+
+        if ($booking && $booking->isAwaitingPickup() && $refusal = Lending::release($booking, $user)) {
+            return $this->fail($request, $refusal);
         }
 
         $document->forceFill([

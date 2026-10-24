@@ -1,45 +1,77 @@
 {{-- Highlight composer — own profile only. Links to one of the author's own
-     documents (a reference, not an upload). --}}
-<div x-data="{ open: false, body: '', type: 'note' }" class="panel sp-composer">
+     documents (a reference, not an upload).
+
+     Submit stays enabled while the box is empty: a disabled button gives no
+     reason, so the server's validation message is the better teacher. The
+     button only goes dead once a request is actually in flight, to stop a
+     double post. --}}
+<section class="gs-surface"
+         x-data="{
+            open: false,
+            body: '',
+            type: 'note',
+            sending: false,
+            get dirty() { return this.body.trim().length > 0 },
+         }"
+         x-on:beforeunload.window="if (dirty && ! sending) $event.preventDefault()">
+
     {{-- Collapsed prompt --}}
-    <button type="button" x-show="!open" @click="open = true"
-            class="sp-composer-prompt">
-        <span class="sp-avatar sp-avatar-sm">{{ collect(explode(' ', auth()->user()->name))->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('') }}</span>
-        <span style="color:var(--ink-soft);">Share an accomplishment…</span>
+    <button type="button" x-show="! open" @click="open = true; $nextTick(() => $refs.body.focus())"
+            class="gs-composer-prompt">
+        <x-user-avatar :user="auth()->user()" class="gs-avatar gs-avatar-sm" />
+        <span>Share an accomplishment…</span>
     </button>
 
     {{-- Expanded form --}}
-    <form x-show="open" x-cloak method="POST" action="{{ route('staff.highlights.store') }}" style="display:flex;flex-direction:column;gap:12px;">
+    <form x-show="open" x-cloak method="POST" action="{{ route('staff.highlights.store') }}"
+          @submit="sending = true"
+          class="gs-surface-body" style="display:flex;flex-direction:column;gap:12px;">
         @csrf
         <input type="hidden" name="highlight_type" :value="type">
 
-        <textarea name="body" x-model="body" rows="3" maxlength="2000" required
-                  placeholder="Share an accomplishment, milestone, or note…"
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"></textarea>
-
-        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-                @foreach(['note' => 'Note', 'completed' => 'Completed', 'milestone' => 'Milestone'] as $val => $label)
-                    <button type="button" @click="type = '{{ $val }}'"
-                            class="sp-typepill" :class="type === '{{ $val }}' ? 'on' : ''">{{ $label }}</button>
-                @endforeach
-            </div>
-            <span class="text-xs text-gray-400" x-text="body.length + ' / 2000'"></span>
+        <div>
+            <label for="gs-highlight-body" class="sr-only">Highlight</label>
+            {{-- ⌘/⌃+Enter submits; plain Enter keeps inserting newlines. --}}
+            <textarea id="gs-highlight-body" name="body" x-ref="body" x-model="body" rows="3" maxlength="2000" required
+                      @keydown.enter.meta="$el.form.requestSubmit()"
+                      @keydown.enter.ctrl="$el.form.requestSubmit()"
+                      placeholder="Share an accomplishment, milestone, or note…"
+                      autocomplete="off"
+                      class="gs-field" style="resize:vertical;"></textarea>
         </div>
 
         <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
-            <select name="document_id" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" style="max-width:320px;">
-                <option value="">Attach a document (optional)…</option>
-                @foreach($ownDocuments as $doc)
-                    <option value="{{ $doc->id }}">{{ $doc->tracking_number }} · {{ $doc->document_type }}</option>
+            <div class="gs-seg" role="group" aria-label="Highlight type">
+                @foreach(['note' => 'Note', 'completed' => 'Completed', 'milestone' => 'Milestone'] as $val => $label)
+                    <button type="button" @click="type = '{{ $val }}'"
+                            class="gs-seg-btn"
+                            :aria-pressed="type === '{{ $val }}' ? 'true' : 'false'">{{ $label }}</button>
                 @endforeach
-            </select>
+            </div>
+            <span class="gs-num" style="font-size:12px;color:var(--gs-mute);" aria-live="polite">
+                <span x-text="body.length"></span> / 2000
+            </span>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+            <div>
+                <label for="gs-highlight-doc" class="sr-only">Attach a request</label>
+                <select id="gs-highlight-doc" name="document_id" class="gs-field" style="max-width:320px;">
+                    <option value="">Attach a request (optional)…</option>
+                    @foreach($ownDocuments as $doc)
+                        <option value="{{ $doc->id }}">{{ $doc->tracking_number }} · {{ $doc->document_type }}</option>
+                    @endforeach
+                </select>
+            </div>
 
             <div style="display:flex;align-items:center;gap:8px;">
-                <span class="text-[11px] text-gray-400">Visible to staff</span>
-                <button type="button" @click="open = false" class="cr-btn cr-btn-sm">Cancel</button>
-                <button type="submit" class="cr-btn cr-btn-primary cr-btn-sm" :disabled="body.trim().length === 0">Post</button>
+                <span style="font-size:12px;color:var(--gs-mute);">Visible to staff</span>
+                <button type="button" @click="open = false" class="gs-btn">Cancel</button>
+                {{-- The label is preserved while sending, per the loading-button rule. --}}
+                <button type="submit" class="gs-btn gs-btn-primary" :disabled="sending">
+                    <span x-text="sending ? 'Posting…' : 'Post'">Post</span>
+                </button>
             </div>
         </div>
     </form>
-</div>
+</section>

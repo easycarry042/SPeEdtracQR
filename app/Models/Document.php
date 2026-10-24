@@ -3,10 +3,16 @@
 namespace App\Models;
 
 use App\Enums\DocumentStatus;
+use App\Support\CitizenView;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -22,17 +28,23 @@ class Document extends Model
         'citizen_email',
         'source',
         'origin',
+        'has_hard_copy',
         'requesting_department_id',
+        'department_id',
         'amount',
         'notify_citizen',
         'description',
         'purpose',
+        'quantity',
+        'needed_by',
         'status',
         'created_by',
         'assigned_to',
         'assigned_by',
         'assigned_at',
         'accepted_at',
+        'decided_by',
+        'decided_at',
         'status_changed_at',
         'remarks',
         'qr_code_path',
@@ -48,7 +60,9 @@ class Document extends Model
         'blocked_by',
         'held_at',
         'held_by',
+        'hold_reminder_sent_at',
         'claimed_at',
+        'claim_date',
         'released_by',
     ];
 
@@ -61,20 +75,66 @@ class Document extends Model
     /** Dept-to-dept request (supervisor created) travelling an endorsement chain. */
     public const ORIGIN_INTERNAL = 'internal';
 
+    /**
+     * Citizen requests only. Origin is the one line between the two kinds;
+     * a row with no origin predates it and was a citizen ticket.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function citizenFacing(Builder $query): void
+    {
+        $query->where(fn (Builder $q) => $q->whereNull('origin')->orWhere('origin', '!=', self::ORIGIN_INTERNAL));
+    }
+
+    /**
+     * Office-to-office requests only.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function internal(Builder $query): void
+    {
+        $query->where('origin', self::ORIGIN_INTERNAL);
+    }
+
+    /**
+     * Internal requests one office has a hand in: filed by it, or routed
+     * through it at any hop. An internal request has no department_id of its
+     * own, so this — not department_id — is what "this office's" means.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function involvingOffice(Builder $query, int $departmentId): void
+    {
+        $query->internal()->where(fn (Builder $q) => $q
+            ->where('requesting_department_id', $departmentId)
+            ->orWhereHas('requestSteps', fn (Builder $steps) => $steps->where('department_id', $departmentId)));
+    }
+
     protected $casts = [
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
         'assigned_at' => 'datetime',
         'accepted_at' => 'datetime',
+        'decided_at' => 'datetime',
         'status_changed_at' => 'datetime',
         'sla_warning_notified_at' => 'datetime',
         'sla_breach_notified_at' => 'datetime',
         'sla_breached_at' => 'datetime',
         'notify_citizen' => 'boolean',
+        'has_hard_copy' => 'boolean',
         'amount' => 'decimal:2',
+        'quantity' => 'integer',
+        'needed_by' => 'date',
         'hold_until' => 'date',
         'held_at' => 'datetime',
+        'hold_reminder_sent_at' => 'datetime',
         'claimed_at' => 'datetime',
+        // The promised collection day (set when advancing), not the moment of
+        // collection — that is `claimed_at`.
+        'claim_date' => 'date',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -85,7 +145,10 @@ class Document extends Model
                 'citizen_name', 'citizen_contact', 'document_type', 'purpose', 'description', 'remarks',
                 'hold_reason', 'hold_until', 'blocked_by', 'status_before_hold',
             ])
-            ->logOnlyDirty();
+            ->logOnlyDirty()
+            // A save that touched none of the fields above used to write an
+            // empty "updated" row to the audit log.
+            ->dontSubmitEmptyLogs();
     }
 
     /**
@@ -151,6 +214,17 @@ class Document extends Model
         return $this->belongsTo(Department::class, 'requesting_department_id');
     }
 
+    /**
+     * Department currently handling this ticket (from the request type). Its
+     * Supervisor assigns the responsible staff member.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
     /** Endorsement chain of an internal request, in hop order. */
     public function requestSteps(): HasMany
     {
@@ -161,6 +235,90 @@ class Document extends Model
     public function currentRequestStep(): ?RequestStep
     {
         return $this->requestSteps()->where('status', RequestStep::STATUS_CURRENT)->first();
+    }
+
+    /**
+     * Log a department onto the endorsement chain — used when an office scans
+     * the folder into its custody. The chain is a growing record of who handled
+     * the paper, not a route fixed at filing: it ends only when a department
+     * marks the request done.
+     *
+     * The office that was holding it is closed as `forwarded` (it passed the
+     * paper on) unless it had already been formally acted on.
+     */
+    public function appendEndorsementStep(int $departmentId, string $action = 'Received and handling'): RequestStep
+    {
+        $open = $this->requestSteps()
+            ->whereIn('status', [RequestStep::STATUS_CURRENT, RequestStep::STATUS_PENDING])
+            ->get();
+
+        foreach ($open as $step) {
+            $step->update([
+                'status' => $step->status === RequestStep::STATUS_CURRENT
+                    ? RequestStep::STATUS_FORWARDED
+                    : RequestStep::STATUS_SKIPPED,
+            ]);
+        }
+
+        $step = $this->requestSteps()->create([
+            'step_order' => (int) $this->requestSteps()->max('step_order') + 1,
+            'department_id' => $departmentId,
+            'action' => $action,
+            'status' => RequestStep::STATUS_CURRENT,
+            'started_at' => now(),
+        ]);
+
+        $this->unsetRelation('requestSteps');
+
+        return $step;
+    }
+
+    /**
+     * A human, chain-aware headline for an internal request — "Awaiting
+     * endorsement", "Under review", "Returned for revision", "Denied",
+     * "Completed" — derived from the endorsement chain rather than the
+     * citizen-oriented DocumentStatus enum. The office currently holding the
+     * request is shown alongside (see {@see currentRequestStep()}).
+     */
+    public function internalStatusLabel(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'Completed',
+            DocumentStatus::Denied => 'Denied',
+            DocumentStatus::Returned => 'Returned for revision',
+            DocumentStatus::Withdrawn => 'Withdrawn',
+            default => (function (): string {
+                $step = $this->currentRequestStep();
+
+                if (! $step instanceof RequestStep) {
+                    return $this->statusEnum()->label();
+                }
+
+                // step_order 0 is the requesting department's own endorsement hop.
+                if ($step->step_order === 0 && (int) $step->department_id === (int) $this->requesting_department_id) {
+                    return 'Awaiting endorsement';
+                }
+
+                // Sent but not yet picked up: nobody at the office has scanned
+                // (or, for a soft copy, dropped) its QR to receive it.
+                return $this->currentStepHasCustody() ? 'Under review' : 'Awaiting receipt';
+            })(),
+        };
+    }
+
+    /**
+     * Colour band for {@see internalStatusLabel()} — maps to a pill/dot tone.
+     * One of: green | amber | red | returned | muted.
+     */
+    public function internalStatusBand(): string
+    {
+        return match ($this->statusEnum()) {
+            DocumentStatus::Completed => 'green',
+            DocumentStatus::Denied => 'red',
+            DocumentStatus::Returned => 'returned',
+            DocumentStatus::Withdrawn => 'muted',
+            default => 'amber',
+        };
     }
 
     /**
@@ -176,10 +334,64 @@ class Document extends Model
 
         $step = $this->currentRequestStep();
 
-        return $step instanceof RequestStep
-            && $user->can('act on internal requests')
-            && $user->department_id !== null
-            && (int) $user->department_id === (int) $step->department_id;
+        if (! $step instanceof RequestStep
+            || $user->department_id === null
+            || (int) $user->department_id !== (int) $step->department_id) {
+            return false;
+        }
+
+        // The office's supervisor, or the person the filing office named to
+        // receive a soft copy there (a soft copy has no folder to hand to
+        // whoever is at the desk, so it goes to someone by name).
+        return $user->can('act on internal requests')
+            || ($step->recipient_id !== null && (int) $step->recipient_id === (int) $user->id);
+    }
+
+    /**
+     * Whether this person may RECEIVE the request at the office holding it:
+     * scan the paper folder in, or pick up a soft copy. Wider than deciding
+     * (canActOnCurrentStep): whoever at the office is handed the folder scans
+     * it in, but only the office's supervisor — or a soft copy's named
+     * recipient — approves, returns, denies or completes it. A soft copy is
+     * still received only by the person it was sent to or their supervisor.
+     */
+    public function canReceiveCurrentStep(?User $user): bool
+    {
+        if ($this->canActOnCurrentStep($user)) {
+            return true;
+        }
+
+        if (! $user || ! $this->isInternal() || $this->isSoftCopy() || $user->department_id === null) {
+            return false;
+        }
+
+        return (int) $this->currentRequestStep()?->department_id === (int) $user->department_id;
+    }
+
+    /**
+     * Whether this person may resend or withdraw a request returned to the
+     * office that filed it: whoever filed it, or anyone at that office who can
+     * file internal requests (the same people who could have filed it).
+     */
+    public function canBeRevisedBy(?User $user): bool
+    {
+        if (! $user || ! $this->isInternal() || $this->statusEnum() !== DocumentStatus::Returned) {
+            return false;
+        }
+
+        return (int) $this->created_by === (int) $user->id
+            || ($this->requesting_department_id !== null
+                && (int) $this->requesting_department_id === (int) $user->department_id
+                && $user->can('create internal requests'));
+    }
+
+    /**
+     * A paper-backed request travels as a folder that each office scans in;
+     * a soft copy exists only in the system.
+     */
+    public function isSoftCopy(): bool
+    {
+        return $this->isInternal() && $this->has_hard_copy === false;
     }
 
     /**
@@ -188,6 +400,11 @@ class Document extends Model
      * on the endorsement chain: it binds every digital endorsement to a QR scan
      * (an audited manual override still counts). Custody recorded while the
      * request sat at an earlier office does not carry over to the new hop.
+     *
+     * A soft copy has no folder, but it still has to be RECEIVED: the person it
+     * was sent to (or their supervisor) scans its QR — or drops the QR image —
+     * and that receipt is recorded the same way, so nothing moves until someone
+     * at the office has actually picked it up.
      */
     public function currentStepHasCustody(): bool
     {
@@ -209,6 +426,56 @@ class Document extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    /** Whoever denied or otherwise closed the request. */
+    public function decidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by');
+    }
+
+    /**
+     * Name + role of the person who closed this request, for the citizen page.
+     *
+     * Falls back to the activity log so requests denied before `decided_by`
+     * existed still name their decider instead of showing nothing.
+     *
+     * @return array{name: string, role: string}|null
+     */
+    public function decisionActor(): ?array
+    {
+        if ($this->decidedBy) {
+            return [
+                'name' => $this->decidedBy->name,
+                'role' => self::roleLabelFor($this->decidedBy),
+            ];
+        }
+
+        $causer = $this->activities()
+            ->whereNotNull('causer_id')
+            ->where('description', 'like', 'Denied%')
+            ->latest('id')
+            ->first()?->causer;
+
+        if (! $causer instanceof User) {
+            return null;
+        }
+
+        return [
+            'name' => $causer->name,
+            'role' => self::roleLabelFor($causer),
+        ];
+    }
+
+    /** Citizen-facing role wording — never the raw Spatie role name. */
+    private static function roleLabelFor(User $user): string
+    {
+        return match (true) {
+            $user->hasRole('super_admin') => 'Administrator',
+            $user->hasRole('Supervisor') => 'Supervisor',
+            $user->hasRole('department_admin') => 'Department Head',
+            default => 'Staff',
+        };
+    }
+
     /** Admin who made the current assignment. */
     public function assignedBy(): BelongsTo
     {
@@ -226,10 +493,40 @@ class Document extends Model
         return $this->hasMany(DocumentAttachment::class)->orderBy('sort_order');
     }
 
+    /** Supporting-requirement checklist for this request (Cedula, clearances, …). */
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(DocumentRequirement::class)->orderBy('id');
+    }
+
+    /** Resource reservation for a booking-kind request (null otherwise). */
+    public function booking(): HasOne
+    {
+        return $this->hasOne(Booking::class);
+    }
+
+    /** Mandatory requirements a staffer has not yet verified — blocks completion. */
+    public function unverifiedMandatoryRequirements(): Collection
+    {
+        return $this->requirements()->where('is_mandatory', true)->whereNull('verified_at')->get();
+    }
+
     /** Top-level collaboration posts (replies are loaded via the `replies` relation). */
     public function comments(): HasMany
     {
         return $this->hasMany(DocumentComment::class)->whereNull('parent_id')->latest();
+    }
+
+    /**
+     * Every message on the request, replies included.
+     *
+     * Read state and unread counts must use this, not `comments()`: a citizen's
+     * answer under a staff message is a reply, so counting only top-level posts
+     * would leave it permanently unread and its badge permanently lit.
+     */
+    public function allComments(): HasMany
+    {
+        return $this->hasMany(DocumentComment::class);
     }
 
     /** Citizen-facing posts only — never exposes internal staff notes. */
@@ -250,6 +547,17 @@ class Document extends Model
             'body' => $body,
             'visibility' => DocumentComment::VISIBILITY_INTERNAL,
         ]);
+    }
+
+    /**
+     * The tracking page as the citizen sees it. Every citizen-facing link
+     * (receipt, public lookup, citizen emails) uses this, so a staff member
+     * signed in on the same browser still lands on the citizen page rather
+     * than the staff desk.
+     */
+    public function citizenTrackingUrl(): string
+    {
+        return route('track.show', ['trackingNumber' => $this->tracking_number] + CitizenView::QUERY);
     }
 
     // Backward-compatible helper. Primary generation lives in QrCodeService.
@@ -280,6 +588,54 @@ class Document extends Model
 
         // anchor is in the past; order operands so the diff is positive.
         return $anchor->diffInHours(now()) > $sla;
+    }
+
+    /**
+     * When a hold stops being legitimate and becomes a stall.
+     *
+     * A hold deliberately pauses the SLA clock (see DocumentStatus::slaHours()),
+     * so isOverdue() and documents:check-sla both ignore held documents. Without
+     * a second deadline a parked document would be accountable to nothing, so
+     * every hold gets one:
+     *   - with a hold_until: the end of that day (staff named the date);
+     *   - open-ended: held_at + tracking.holds.stale_after_days.
+     *
+     * Returns null when the document is not on hold, or on hold with no anchor
+     * date at all (nothing to measure from).
+     */
+    public function holdDueAt(): ?Carbon
+    {
+        if ($this->statusEnum() !== DocumentStatus::OnHold) {
+            return null;
+        }
+
+        if ($this->hold_until) {
+            return $this->hold_until->copy()->endOfDay();
+        }
+
+        $staleAfter = (int) config('tracking.holds.stale_after_days', 14);
+
+        return $this->held_at?->copy()->addDays($staleAfter);
+    }
+
+    /** True once a hold has run past holdDueAt() — the stall the sweep chases. */
+    public function isHoldOverdue(): bool
+    {
+        $due = $this->holdDueAt();
+
+        return $due instanceof Carbon && $due->isPast();
+    }
+
+    /** Whole days a hold has overrun its deadline (0 when not overdue). */
+    public function holdOverdueDays(): int
+    {
+        $due = $this->holdDueAt();
+
+        if (! $due instanceof Carbon || ! $due->isPast()) {
+            return 0;
+        }
+
+        return (int) $due->diffInDays(now());
     }
 
     /**

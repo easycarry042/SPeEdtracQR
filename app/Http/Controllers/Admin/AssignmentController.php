@@ -11,62 +11,42 @@ use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
-use Illuminate\Contracts\View\Factory;
-use Illuminate\Contracts\View\View;
+use App\Support\RequestReview;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Admin assignment desk: lists documents and lets an admin assign the staff
- * member responsible for advancing each file through its status stages.
+ * Assigns the staff member responsible for advancing a request through its
+ * stages — from the dashboard's Review modal. (The old Assignments page that
+ * listed requests here is gone; index() sends its links to the dashboard.)
  */
 class AssignmentController extends Controller
 {
-    public function index(Request $request): Factory|View
+    /**
+     * The Assignments page is gone: the dashboard's Unassigned / In Progress /
+     * Completed tabs list the same requests, and its Review modal assigns and
+     * reassigns. Old links (and the staff directory's "their requests") land
+     * on the matching tab, searched for the person when one is named.
+     */
+    public function index(Request $request): RedirectResponse
     {
-        $query = Document::with(['assignedTo', 'creator'])->latest();
-        $query = AssignmentScope::applyDocumentScope($query);
+        $tab = match (true) {
+            $request->string('filter')->toString() === 'unclaimed' => 'pending',
+            $request->string('status')->toString() === DocumentStatus::Completed->value => 'done',
+            default => 'active',
+        };
 
-        // Unclaimed tab: same desk, filtered to documents nobody owns yet.
-        $filter = $request->string('filter')->toString();
-        if ($filter === 'unclaimed') {
-            abort_unless(AssignmentScope::canViewUnclaimedQueue(auth()->user()), 403);
-            $query->whereNull('assigned_to');
-        }
+        $assignee = $request->filled('assignee') ? User::find((int) $request->get('assignee'))?->name : null;
 
-        // Deep link from the staff directory: documents owned by one person.
-        if ($request->filled('assignee')) {
-            $query->where('assigned_to', (int) $request->get('assignee'));
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
-        }
-
-        if ($request->filled('q')) {
-            $term = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($term): void {
-                $q->where('tracking_number', 'like', $term)
-                    ->orWhere('citizen_name', 'like', $term)
-                    ->orWhere('document_type', 'like', $term);
-            });
-        }
-
-        $documents = $query->paginate(20)->withQueryString();
-        $staff = $this->assignableStaff();
-        $statuses = DocumentStatus::cases();
-
-        return view('admin.assignments.index', ['documents' => $documents, 'staff' => $staff, 'statuses' => $statuses, 'filter' => $filter]);
+        return to_route('dashboard', array_filter(['tab' => $tab, 'q' => $assignee ?? $request->get('q')]));
     }
 
-    /**
-     * Legacy standalone Unclaimed queue — folded into the Assignments desk as
-     * a tab; the old URL redirects into it.
-     */
-    public function unclaimed()
+    /** Legacy standalone Unclaimed queue — now the dashboard's Unassigned tab. */
+    public function unclaimed(): RedirectResponse
     {
-        return to_route('admin.assignments.index', ['filter' => 'unclaimed']);
+        return to_route('dashboard', ['tab' => 'pending']);
     }
 
     public function assign(Request $request, Document $document)
@@ -77,6 +57,10 @@ class AssignmentController extends Controller
 
         $assignedTo = $validated['assigned_to'] ?? null;
 
+        // Only work this user can see on their own desk: a department head
+        // reassigns within their office's requests, not another office's.
+        abort_unless(AssignmentScope::applyDocumentScope(Document::whereKey($document->id))->exists(), 403);
+
         // The dashboard's rendered advance control trusts this assignment to mean
         // the assignee can actually act on the document — so the assignee must
         // hold `advance documents`, not just exist. Otherwise the request would
@@ -84,6 +68,14 @@ class AssignmentController extends Controller
         if ($assignedTo && ! User::find($assignedTo)?->can('advance documents')) {
             throw ValidationException::withMessages([
                 'assigned_to' => 'That user does not have permission to advance documents.',
+            ]);
+        }
+
+        // Department heads assign only within their own department (org-wide admins
+        // may assign across departments).
+        if ($assignedTo && ! AssignmentScope::canAssignWithinDepartment(auth()->user(), User::find($assignedTo))) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'You can only assign staff in your own department.',
             ]);
         }
 
@@ -122,9 +114,22 @@ class AssignmentController extends Controller
         // Assignment is purely manual (admin picks the staff member); it does NOT
         // change the document's status. Status only moves when the assigned staff
         // advance it via the status controls (DocumentStatusController).
-        return back()->with('status', $assignedTo
+        $message = $assignedTo
             ? "Assigned {$document->tracking_number} to {$name}."
-            : "Cleared assignment for {$document->tracking_number}.");
+            : "Cleared assignment for {$document->tracking_number}.";
+
+        // The dashboard's Review modal reassigns in place and redraws the row.
+        if ($request->expectsJson()) {
+            $fresh = $document->fresh();
+
+            return response()->json(['message' => $message, 'request' => [
+                'assigned_to' => $fresh->assigned_to,
+                'assigned_staff' => $assignee?->name,
+                'needs_triage' => RequestReview::needsTriage($fresh),
+            ]]);
+        }
+
+        return back()->with('status', $message);
     }
 
     public function accept(Document $document)
@@ -156,17 +161,5 @@ class AssignmentController extends Controller
         event(new DocumentCommentPosted($systemComment));
 
         return back()->with('status', "Accepted {$document->tracking_number}.");
-    }
-
-    /**
-     * Staff eligible to be responsible for a document — those who can advance it.
-     * Scoped to the admin's department unless they are org-wide.
-     */
-    private function assignableStaff()
-    {
-        return User::query()
-            ->permission('advance documents')
-            ->orderBy('name')
-            ->get(['id', 'name']);
     }
 }

@@ -1,12 +1,28 @@
+@php
+    /* <x-app-layout fixed-height> — the page fills the viewport and never
+       scrolls; its own panels scroll internally. Needed this early because the
+       lock is applied to <html> and <body>, not just the shell. */
+    $fixedHeight = $attributes->has('fixed-height') ? 'main-fixed' : '';
+    $fixedHeightRoot = $fixedHeight ? 'app-fixed-height' : '';
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="{{ $fixedHeightRoot }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'SPeED TraQR') }}</title>
+    {{-- "Accurate page titles" — the distinguishing part leads, so a row of
+         pinned tabs is still readable once the names are truncated. Pages opt
+         in with <x-app-layout title="Assignments">; the shell name alone is the
+         fallback for any page that has not been given one yet. --}}
+    <title>{{ $attributes->get('title') ? $attributes->get('title').' — ' : '' }}{{ config('app.name', 'SPeED TraQR') }}</title>
+    @include('layouts.partials.echo-ready')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
+    {{-- Page-specific assets (e.g. the PDF editor's own bundle). --}}
+    @stack('head')
+    @include('layouts.partials.accessibility-widget', ['hideLauncher' => auth()->check()])
 </head>
 @php
     $user = auth()->user();
@@ -22,7 +38,6 @@
     $roleLabel = $roleLabel ? str_replace('_', ' ', ucwords($roleLabel, '_')) : null;
     $isSystemAdmin = $user?->can('manage system') ?? false;
     $isSupervisor = $user?->hasRole('Supervisor') ?? false;
-    $useTopNav = auth()->check() && ! $isSystemAdmin;
     // Guests can reach app-layout pages (e.g. the public /track page), so fall
     // back to the site root when there is no authenticated user to link to.
     $homeRoute = match (true) {
@@ -33,235 +48,199 @@
     $homeActive = $isSupervisor ? request()->routeIs('dashboard') : request()->routeIs('staff.dashboard');
     $pageTitle = match (true) {
         request()->routeIs('staff.profile') => 'My Profile',
+        request()->routeIs('staff.index') => 'Staff directory',
         request()->routeIs('staff.dashboard') => 'Requests',
         request()->routeIs('dashboard'), request()->routeIs('admin.dashboard') => 'Dashboard',
-        request()->routeIs('analytics*') => 'Analytics',
+        request()->routeIs('analytics*'), request()->routeIs('reports.index') => 'Reports',
         request()->routeIs('track.*'), request()->routeIs('scan.*') => 'Look up',
         request()->routeIs('history*') => 'History',
         request()->routeIs('admin.users*') => 'Users',
-        request()->routeIs('admin.assignments*') => 'Assignments',
+        request()->routeIs('admin.requests*') => 'Requests',
+        request()->routeIs('bookings*') => 'Booking',
         request()->routeIs('admin.audit-log*') => 'Audit Log',
         request()->routeIs('admin.departments*') => 'Departments',
         request()->routeIs('admin.route-templates*') => 'Route Templates',
+        request()->routeIs('admin.request-types*') => 'Request Types',
+        request()->routeIs('admin.resources*') => 'Resources',
         request()->routeIs('profile.*') => 'Settings',
         request()->routeIs('documents.*') => 'Documents',
-        request()->routeIs('requests.*') => 'Internal Requests',
+        request()->routeIs('requests.*') => 'Internal',
         default => config('app.name', 'SPeED TraQR'),
     };
 @endphp
-<body class="min-h-screen bg-paper antialiased text-ink">
+{{-- The guest branch is a column so a short public page still drops the footer
+     to the bottom of the viewport; the staff shell does its own flex layout. --}}
+<body class="{{ $fixedHeightRoot }} min-h-screen antialiased @auth bg-[var(--page-wash-base)] text-ink @else flex flex-col bg-white text-gray-900 @endauth">
+    {{-- First tab stop on the page: a keyboard user would otherwise have to
+         walk the whole sidebar and header before reaching the content. Hidden
+         off-screen until it takes focus (see .skip-link). --}}
+    <a href="#main" class="skip-link">Skip to content</a>
     @auth
-        @if($useTopNav)
-            {{-- Staff / supervisor: horizontal top navbar, full-width content --}}
-            <div class="topnav-shell" x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
-                <header class="topnav-bar">
-                    <div class="topnav-inner app-frame">
-                        <a href="{{ $homeRoute }}" class="topnav-brand">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-brass/60">
-                                <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR">
-                            </span>
-                            <div class="min-w-0">
-                                <p class="wordmark">SPeED <b>TraQR</b></p>
-                                <p class="sub">San Pedro · records office</p>
-                            </div>
-                        </a>
-
-                        <nav class="topnav-links" aria-label="Main">
-                            @include('layouts.partials.topnav-links')
-                        </nav>
-
-                        <button type="button" class="topnav-burger" @click="navOpen = !navOpen" :aria-expanded="navOpen ? 'true' : 'false'" aria-label="Open menu">
-                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
-                        </button>
-
-                        <div class="topnav-actions">
-                            @include('layouts.partials.header-actions')
-                        </div>
-                    </div>
-
-                    <div x-show="navOpen" x-cloak class="topnav-drawer md:hidden">
-                        <nav class="topnav-drawer-inner app-frame" aria-label="Main mobile" @click="navOpen = false">
-                            @include('layouts.partials.topnav-links')
-                        </nav>
-                    </div>
-                </header>
-
-                @unless(request()->routeIs('staff.profile'))
-                <header class="topnav-pagebar">
-                    <div class="app-frame">
-                        <div class="flex min-w-0 items-center gap-3">
-                            <h1 class="truncate">{{ $pageTitle }}</h1>
-                            @if($roleLabel)
-                                <span class="hidden sm:inline-flex shrink-0 items-center rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep">{{ str_replace('_', ' ', ucwords($roleLabel, '_')) }}</span>
-                            @endif
-                        </div>
-                    </div>
-                </header>
-                @endunless
-
-                @isset($header)
-                    <div class="border-b border-transparent">
-                        <div class="app-frame pb-2 pt-2">
-                            {{ $header }}
-                        </div>
-                    </div>
-                @endisset
-
-                <main class="topnav-main">
-                    <div class="app-frame">
-                        {{ $slot }}
-                    </div>
-                </main>
-            </div>
-        @else
-            {{-- Super admin: collapsible sidebar --}}
-            <div class="admin-shell flex min-h-screen"
+        {{-- One shell for every signed-in role: a pinned sidebar whose
+             link set is chosen in partials/sidebar-links. --}}
+            <div class="admin-shell flex min-h-screen" data-soft-nav-root
                  :class="mobileNav ? 'mobile-nav-open' : ''"
-                 x-data="{
-                     pinned: (localStorage.getItem('sidebarPinned') ?? '1') === '1',
-                     mobileNav: false,
-                     toggleSidebar() {
-                         if (window.matchMedia('(min-width: 1024px)').matches) {
-                             this.pinned = !this.pinned;
-                         } else {
-                             this.mobileNav = !this.mobileNav;
-                         }
-                     }
-                 }"
-                 x-init="$watch('pinned', v => localStorage.setItem('sidebarPinned', v ? '1' : '0'))">
+                 x-data="{ mobileNav: false }">
                 <div x-show="mobileNav" x-cloak @click="mobileNav = false" class="sidebar-backdrop lg:hidden"></div>
-                <aside :class="pinned ? 'sidebar-pinned' : ''"
-                       @click="if ($event.target.closest('a')) mobileNav = false"
-                       class="group sticky top-0 z-40 flex h-screen w-[4.5rem] shrink-0 flex-col overflow-hidden border-r border-green-deep nav-bar transition-[width] duration-300 ease-out hover:w-64 hover:shadow-[4px_0_24px_-4px_rgba(15,77,40,0.25)]">
-                    <div class="nav-brand flex h-[4.25rem] shrink-0 items-center justify-center gap-0 border-b border-white/10 px-1 transition-all duration-300 ease-out group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-brass/60">
-                            <img src="{{ asset('images/icon.png') }}" alt="SPeED TraQR" class="h-7 w-7">
+                {{-- Fixed, always-expanded sidebar (no hover-collapse animation on navigate).
+                     The mobile drawer still slides in via .mobile-nav-open. --}}
+                <aside @click="if ($event.target.closest('a')) mobileNav = false"
+                       class="sidebar-pinned sticky top-0 z-40 flex h-screen w-[232px] shrink-0 flex-col overflow-hidden nav-bar xl:w-[297px]">
+                    {{-- Brand: the white mark on deep green, linking home. Brand,
+                         section label, nav icons and the Accessibility row all
+                         share one left edge (.sb-inset). --}}
+                    <a href="{{ $homeRoute }}" data-soft-nav-link
+                       class="sb-brand nav-brand" aria-label="{{ config('app.name', 'SPeED TraQR') }} home">
+                        <img src="{{ asset('images/staff/logo-white.png') }}" alt="" class="sb-brand-mark">
+                        <span class="nav-text truncate whitespace-nowrap tracking-tight text-white">
+                            <span class="font-display font-black text-[#f9fff9]">SPeED</span> <span class="font-sans font-medium">TraQR</span>
                         </span>
-                        <div class="nav-text min-w-0 max-w-0 overflow-hidden opacity-0 transition-all duration-300 ease-out group-hover:max-w-[200px] group-hover:opacity-100">
-                            <p class="truncate whitespace-nowrap text-base font-semibold tracking-tight text-on-green">
-                                SPeED <span class="font-bold">TraQR</span>
-                            </p>
-                            <p class="truncate whitespace-nowrap text-[11px] text-on-green-soft">San Pedro · records office</p>
-                        </div>
-                    </div>
+                    </a>
 
-                    <nav class="nav-scroll flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-1 py-4 transition-[padding] duration-300 ease-out group-hover:px-2">
-                        <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.dashboard') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 3 10v10a1 1 0 0 0 1 1h6v-7h4v7h6a1 1 0 0 0 1-1V10l-9-7z"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Dashboard</span>
-                        </a>
-                        {{-- Analytics is folded into the command-center Dashboard for super admins;
-                             the standalone Analytics page stays for Supervisors via the topnav.
-                             History moved into the account menu (header-actions). --}}
-                        <a href="{{ route('staff.index') }}" class="{{ request()->routeIs('staff.index') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('staff.index') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H2v-2a4 4 0 0 1 3-3.87m10-2.13a4 4 0 1 0-6 0M15 7a3 3 0 1 1 4 2.83"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Staff</span>
-                        </a>
-                        @can('manage users')
-                        <a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.users*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Users</span>
-                        </a>
-                        @endcan
-                        @can('assign documents')
-                        <a href="{{ route('admin.assignments.index') }}" class="{{ request()->routeIs('admin.assignments*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.assignments*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Assignments</span>
-                        </a>
-                        @endcan
-                        @can('manage system')
-                        <a href="{{ route('requests.index') }}" class="{{ request()->routeIs('requests.*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('requests.*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Internal Requests</span>
-                        </a>
-                        <a href="{{ route('admin.departments.index') }}" class="{{ request()->routeIs('admin.departments*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.departments*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M4 21V7l8-4 8 4v14M9 9h1m4 0h1M9 13h1m4 0h1M9 17h1m4 0h1"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Departments</span>
-                        </a>
-                        <a href="{{ route('admin.route-templates.index') }}" class="{{ request()->routeIs('admin.route-templates*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.route-templates*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 5a2 2 0 11-4 0 2 2 0 014 0zm14 14a2 2 0 11-4 0 2 2 0 014 0zM7 5h9a3 3 0 013 3v1m-2 10H8a3 3 0 01-3-3v-1m0-4v2m14-6v2"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Route Templates</span>
-                        </a>
-                        <a href="{{ route('admin.audit-log.index') }}" class="{{ request()->routeIs('admin.audit-log*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('admin.audit-log*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M7 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2M9 4a2 2 0 002 2h2a2 2 0 002-2M9 4a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Audit Log</span>
-                        </a>
-                        @endcan
+                    <p class="sb-section" id="sb-menu-label">Menu</p>
+
+                    <nav class="nav-scroll sb-nav" aria-labelledby="sb-menu-label" data-soft-nav="links">
+                        @include('layouts.partials.sidebar-links')
                     </nav>
 
-                    <div class="shrink-0 border-t border-white/10 p-1 transition-[padding] duration-300 ease-out group-hover:p-2">
-                        <a href="{{ route('profile.edit') }}" class="{{ request()->routeIs('profile.*') ? 'bg-[#155f37] text-on-green shadow-[inset_3px_0_0_#c79a3e]' : 'text-on-green-soft hover:bg-white/5 hover:text-on-green' }} nav-link flex w-full items-center justify-center gap-0 rounded-xl py-3 pl-0 pr-0 transition-all duration-200 group-hover:justify-start group-hover:gap-3 group-hover:px-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ request()->routeIs('profile.*') ? 'text-on-green' : 'bg-transparent text-on-green-soft' }}">
-                                <svg class="h-[25px] w-[25px]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 0 0 .05-2l2-1.55-2-3.45-2.45.7a7.6 7.6 0 0 0-1.75-1.05L14.8 3h-4l-.45 2.65a7.6 7.6 0 0 0-1.75 1.05l-2.45-.7-2 3.45L6.15 11a7.8 7.8 0 0 0 .05 2l-2 1.55 2 3.45 2.45-.7c.53.43 1.12.79 1.75 1.05L10.8 21h4l.45-2.65a7.6 7.6 0 0 0 1.75-1.05l2.45.7 2-3.45-2.05-1.55zM12 15.3A3.3 3.3 0 1 1 12 8.7a3.3 3.3 0 0 1 0 6.6z"/></svg>
-                            </span>
-                            <span class="nav-text max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-300 ease-out group-hover:max-w-[240px] group-hover:opacity-100">Settings</span>
-                        </a>
-                    </div>
+                    {{-- Opens the Sienna toolbar. Its own launcher is parked at the
+                         screen edge where it is easy to miss, so the sidebar gives
+                         it a named row. Hidden when the widget is switched off. --}}
+                    @if(config('app.accessibility_widget', true))
+                        <div class="sb-foot">
+                            <button type="button"
+                                    onclick="document.querySelector('.asw-menu-btn')?.click()"
+                                    class="sb-row sb-row-accent">
+                                <img src="{{ asset('images/staff/nav-accessibility.svg') }}" alt="" class="sb-icon">
+                                <span class="nav-text whitespace-nowrap">Accessibility</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    {{-- No Settings entry here: it lives in the profile dropdown
+                         (layouts/partials/header-actions) for every role. --}}
                 </aside>
 
                 <div class="flex min-w-0 flex-1 flex-col">
-                    <header class="sticky top-0 z-30 border-b border-hairline bg-paper/90 py-3 backdrop-blur-md">
+                    {{-- No rule under the bar: it fades from solid white into the
+                         page, which is what separates it from what scrolls
+                         beneath. --}}
+                    <header class="sticky top-0 z-30 bg-gradient-to-b from-white via-white/85 to-transparent pb-6 pt-3">
                         <div class="app-frame flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-3">
-                            <button type="button" @click="toggleSidebar()"
-                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
-                                    :aria-pressed="pinned ? 'true' : 'false'" aria-label="Toggle navigation">
+                            <button type="button" @click="mobileNav = !mobileNav"
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-green-deep transition hover:bg-green-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-green lg:hidden"
+                                    aria-label="Open navigation">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                             </button>
-                            <p class="layout-title">{{ $pageTitle }}</p>
-                            @if($roleLabel)
-                                <span class="hidden sm:inline-flex shrink-0 items-center rounded-full bg-green-wash px-2.5 py-0.5 text-xs font-semibold text-green-deep">{{ str_replace('_', ' ', ucwords($roleLabel, '_')) }}</span>
-                            @endif
+                            {{-- City and Tourism Office seals lead the page bar; they
+                                 are branding, so the title carries the alt text. --}}
+                            <span class="hidden shrink-0 items-center gap-[5px] sm:flex">
+                                <img src="{{ asset('images/staff/seal-1.png') }}" alt="" class="h-[40px] w-[40px] object-contain">
+                                <img src="{{ asset('images/staff/seal-2.png') }}" alt="" class="h-[42.5px] w-[42.5px] object-contain">
+                            </span>
+                            <img src="{{ asset('images/staff/title-divider.svg') }}" alt="" aria-hidden="true"
+                                 class="hidden h-[40px] w-[5px] shrink-0 sm:block">
+                            {{-- No role badge here: the identity chip on the right
+                                 already names the role and the desk. --}}
+                            <h1 class="layout-title" data-soft-nav="title" tabindex="-1">{{ $pageTitle }}</h1>
                         </div>
                         <div class="flex items-center gap-3">
+                            {{-- Same slot as the topnav shell, so a page's title-row
+                                 action is not lost for sidebar users (super admins). --}}
+                            {{-- Always rendered (empty when unset), so soft navigation
+                                 has a place to swap a page's actions in and out. --}}
+                            <div class="flex min-w-0 shrink items-center gap-3 empty:hidden" data-soft-nav="actions">@isset($pageActions){{ $pageActions }}@endisset</div>
                             @include('layouts.partials.header-actions')
                         </div>
                         </div>
                     </header>
 
-                    @isset($header)
-                        <div class="border-b border-transparent">
-                            <div class="app-frame pb-2 pt-4">
-                                {{ $header }}
+                    <div data-soft-nav="header">
+                        @isset($header)
+                            <div class="border-b border-transparent">
+                                <div class="app-frame pb-2 pt-4">
+                                    {{ $header }}
+                                </div>
                             </div>
-                        </div>
-                    @endisset
+                        @endisset
+                    </div>
 
-                    <main class="flex-1 pb-10 pt-2">
+                    <main id="main" class="flex-1 pb-10 pt-2 {{ $fixedHeight }}" data-soft-nav="main">
                         <div class="app-frame">
                             {{ $slot }}
                         </div>
                     </main>
+
+                    {{-- No site footer inside the signed-in shell. The footer is
+                         wayfinding for visitors — the office's contact details,
+                         the privacy notice, the legal line — and staff already
+                         have all of it in the sidebar. On a work queue it is
+                         only padding plus a dark plate between the user and the
+                         bottom of their list. It still closes every public page,
+                         including the guest branch below. --}}
                 </div>
             </div>
-        @endif
         @include('layouts.partials.keyboard-shortcuts')
     @else
-        <main class="min-h-screen">
+        {{-- Guests can reach a few app-layout pages; they get the same citizen
+             header as every other public page. --}}
+        @include('layouts.partials.portal-header')
+
+        <main id="main" class="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
             {{ $slot }}
         </main>
+
+        <x-site-footer />
     @endauth
+
+    @if($fileRequestForm ?? null)
+        {{-- Internal-request filing form, opened by the header's "File Request"
+             button on any page. Reopens by itself when filing failed
+             validation, so the errors are not lost behind a closed modal. --}}
+        <div x-data="{ open: @js($errors->hasAny(['first_department_id', 'purpose', 'paper_scan', 'qr_x', 'qr_y', 'qr_size', 'qr_page'])) }"
+             @open-file-request.window="open = true" @close-file-request.window="open = false">
+            <div x-show="open" x-cloak x-transition.opacity.duration.150ms
+                 class="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-[27px]"
+                 @click.self="open = false" role="dialog" aria-modal="true" aria-label="File internal request">
+                <div class="dm-card dm-fixed dm-fit mx-auto w-full max-w-[940px]">
+                    @include('requests.partials.file-form', $fileRequestForm + ['inModal' => true])
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if($showCreateDocumentModal ?? false)
         @include('documents.partials.create-modal')
     @endif
 
     <x-image-view-modal />
+
+    {{-- The shared pop-up error report (window.ErrorAlert). --}}
+    <x-error-alert />
+
+    @include('layouts.partials.bfcache-guard')
+
+    {{-- Keeps the sidebar's Dashboard / Internal counts current while a page
+         stays open (they are also re-rendered on every navigation). Lives
+         outside the swapped regions, so it runs once per full page load. --}}
+    @auth
+        @unless(auth()->user()->can('manage system'))
+            <script>
+                (function () {
+                    const url = @js(route('nav.badges'));
+                    const refresh = () => {
+                        if (document.hidden) return;
+                        fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                            .then((response) => (response.ok ? response.json() : null))
+                            .then((counts) => counts && window.dispatchEvent(new CustomEvent('nav-badges', { detail: counts })))
+                            .catch(() => {});
+                    };
+                    setInterval(refresh, 60000);
+                    document.addEventListener('visibilitychange', refresh);
+                })();
+            </script>
+        @endunless
+    @endauth
 </body>
 </html>

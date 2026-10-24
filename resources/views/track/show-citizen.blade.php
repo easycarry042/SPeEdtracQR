@@ -11,54 +11,39 @@
     $pillClass = $pillClassMap[$document->status] ?? 'p-amber'; // in_progress / in_review / in_transit
 @endphp
 
-<x-citizen-layout>
+{{-- Speedy starts on this request; it used to be a second assistant drawn by
+     <x-doc-assistant/>, with its own launcher in the same corner. --}}
+<x-citizen-layout :speedy-document="$document">
     <x-slot name="title">Tracking {{ $document->tracking_number }}</x-slot>
 
-    {{-- Back link --}}
-    <div class="mb-6">
-        <a href="{{ route('citizen.track') }}"
-           class="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:underline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Track Another Document
-        </a>
-    </div>
+    {{-- Back / Home live in the shared public header — no in-body duplicate here. --}}
 
-    <div class="mx-auto max-w-2xl space-y-6">
+    <div class="mx-auto max-w-[820px] space-y-6">
 
-        {{-- ── Document Header Card ─────────────────────────────────────────── --}}
-        {{-- Internal document images are intentionally NOT shown on the public
-             tracking page; they are only visible to authorized staff. --}}
-        <div class="panel">
-            <div class="ph">
-                <div class="flex items-center gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-wash text-green-deep">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h6l4 4v14H7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 3v5h5"/></svg>
-                    </span>
-                    <div>
-                        <p class="text-[15px] font-bold text-ink">{{ $document->document_type }}</p>
-                        <p class="text-[12.5px] text-ink-soft">{{ $document->citizen_name ?? 'N/A' }} &middot; submitted {{ $document->created_at->format('M d, Y') }}</p>
-                    </div>
-                </div>
-                <div class="shrink-0 text-right">
-                    <p class="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft">Tracking ID</p>
-                    <span class="id-chip mt-1 text-[13px] font-bold text-green-deep">{{ $document->tracking_number }}</span>
-                </div>
+        {{-- What this request is, opened the way every citizen page opens. The
+             tracking number and filing date sit right under the title, so the
+             details card below no longer repeats them as a header of its own. --}}
+        <div>
+            <x-page-intro eyebrow="Request tracking" :title="$document->document_type" />
+            <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] font-medium text-[#4b5a50]">
+                <span class="cz-id text-[15px]">{{ $document->tracking_number }}</span>
+                <span>Filed {{ $document->created_at->format('M d, Y') }}</span>
             </div>
         </div>
 
         @if(session('ticket_submitted'))
-            <div class="rounded-xl border border-hairline bg-green-wash px-6 py-4 text-sm text-green-deep">
+            <div class="rounded-[16px] border border-[rgba(1,114,26,0.18)] bg-[#eef8ea] px-6 py-4 text-[15px] text-[#004004]">
                 <p class="font-semibold">Your request has been submitted.</p>
                 <p class="mt-1">Save your tracking number <span class="id-chip font-bold">{{ session('ticket_submitted') }}</span>. A confirmation with your QR code has been emailed to you.</p>
             </div>
         @endif
 
-        {{-- ── Live Status Card ─────────────────────────────────────────────── --}}
-        <div class="panel" id="statusCard">
-            <div class="ph">
-                <h2>Current Status</h2>
+        {{-- ── Live status card: the stage line, then what the stage means.
+             One card rather than two — the line and the badge under it answer
+             the same question. ─────────────────────────────────────────── --}}
+        <div class="cz-card" id="statusCard">
+            <div class="cz-card-head">
+                <h2 class="cz-card-title">Current status</h2>
                 <div class="flex items-center gap-2 text-xs text-ink-soft" id="lastChecked">
                     <svg class="h-3.5 w-3.5 animate-spin text-green hidden" id="pollSpinner" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -67,31 +52,99 @@
                 </div>
             </div>
 
-            <div class="pb">
+            <div class="cz-card-body">
+                {{-- The same four-stage rail staff read on the Look Up desk, in
+                     the citizen palette (.dm-steps-cz). A citizen told "stage 3
+                     of 4" at the counter must find the same bar, drawn the same
+                     way, on their tracking link. --}}
+                <div class="mb-6">
+                    <x-stage-bar :document="$document" surface="citizen" />
+                </div>
+
+                {{-- A hold is the one state the bar cannot explain on its own:
+                     it pauses the SLA clock, and what the citizen needs is who
+                     it is waiting on and until when. --}}
+                @if($document->status === \App\Enums\DocumentStatus::OnHold->value)
+                    <div class="mb-6 rounded-[12px] border border-status-amber-wash bg-status-amber-wash px-4 py-3 text-[15px] text-status-amber">
+                        <p class="font-bold">This request is paused</p>
+                        <p class="mt-1">
+                            @if($document->blocked_by)
+                                Waiting on {{ $document->blocked_by }}.
+                            @endif
+                            @if($document->hold_until)
+                                Expected to resume by {{ $document->hold_until->format('M d, Y') }}.
+                            @endif
+                        </p>
+                        @if($document->hold_reason)
+                            <p class="mt-1">{{ $document->hold_reason }}</p>
+                        @endif
+                    </div>
+                @endif
+
                 {{-- Status badge --}}
                 <div class="flex flex-wrap items-center gap-4">
                     <span id="statusBadge" class="pill {{ $pillClass }}">
                         <span id="statusLabel">{{ $document->statusEnum()->label() }}</span>
                     </span>
 
+                    {{-- The office, never the person: staff stay anonymous on
+                         every public surface (legal advice). --}}
                     <div>
-                        <p class="text-xs text-ink-soft">Handled by</p>
-                        <p class="text-sm font-semibold text-ink" id="currentDept">
-                            {{ $document->assignedTo->name ?? 'Not yet assigned' }}
+                        <p class="cz-key">Handled by</p>
+                        <p class="mt-0.5 text-[16px] font-semibold text-[#1a1b1a]" id="currentDept">
+                            {{ $document->department?->name ?? 'Not yet routed' }}
                         </p>
                     </div>
                 </div>
 
                 {{-- Plain-language explanation of the current status (Help / Match) --}}
-                <p class="mt-3 text-sm text-ink-soft" id="statusDescription">{{ $document->statusEnum()->description() }}</p>
+                <p class="mt-4 text-[16px] leading-relaxed text-[#353535]" id="statusDescription">{{ $document->statusEnum()->description() }}</p>
 
-                <details class="mt-3 text-sm">
-                    <summary class="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-green hover:underline">
+                {{-- The decision itself: who closed the request and why. Without
+                     this the citizen only sees "Denied" and a generic sentence
+                     telling them a reason should exist. --}}
+                @php
+                    $decisionStatuses = [
+                        \App\Enums\DocumentStatus::Denied->value,
+                        \App\Enums\DocumentStatus::Returned->value,
+                        \App\Enums\DocumentStatus::OnHold->value,
+                    ];
+                    $showsDecision = in_array($document->status, $decisionStatuses, true);
+                    $decisionActor = $showsDecision ? $document->decisionActor() : null;
+                    $isDenied = $document->status === \App\Enums\DocumentStatus::Denied->value;
+                @endphp
+
+                @if($showsDecision && ($decisionActor || filled($document->remarks)))
+                    <div class="mt-4 rounded-[8px] border {{ $isDenied ? 'border-status-red/30 bg-red-50/60' : 'border-hairline bg-green-wash/40' }} p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide {{ $isDenied ? 'text-status-red' : 'text-ink-soft' }}">
+                            {{ $isDenied ? 'Reason for denial' : 'Message from staff' }}
+                        </p>
+
+                        @if($decisionActor)
+                            <p class="mt-1 text-sm text-ink">
+                                <span class="font-semibold">{{ $decisionActor['name'] }}</span>
+                                <span class="text-ink-soft">· {{ $decisionActor['role'] }}</span>
+                                @if($document->decided_at)
+                                    <span class="text-ink-soft">· {{ $document->decided_at->format('M j, Y g:i A') }}</span>
+                                @endif
+                            </p>
+                        @endif
+
+                        @if(filled($document->remarks))
+                            <p class="mt-2 whitespace-pre-line text-sm text-ink">{{ $document->remarks }}</p>
+                        @else
+                            <p class="mt-2 text-sm italic text-ink-soft">No reason was recorded. Please contact the office for details.</p>
+                        @endif
+                    </div>
+                @endif
+
+                <details class="mt-4 text-[15px]">
+                    <summary class="inline-flex min-h-[44px] cursor-pointer touch-manipulation items-center gap-1.5 font-bold text-[#01721a] hover:underline">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z"/></svg>
                         What do the statuses mean?
                     </summary>
                     <dl class="mt-2 space-y-1.5 border-t border-hairline pt-2">
-                        @foreach(\App\Enums\DocumentStatus::cases() as $s)
+                        @foreach(\App\Enums\DocumentStatus::citizenCases() as $s)
                             <div class="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
                                 <dt class="shrink-0 font-semibold text-ink sm:w-40">{{ $s->label() }}</dt>
                                 <dd class="text-ink-soft">{{ $s->description() }}</dd>
@@ -131,68 +184,227 @@
         </div>
 
         {{-- ── Predicted completion (self-hosted analytics) ─────────────────── --}}
-        <x-eta-estimate :prediction="$prediction ?? null" :document="$document" />
+        <x-eta-estimate :prediction="$prediction ?? null" :document="$document" citizen />
 
-        {{-- ── Self-hosted AI assistant (Pillar 3) ──────────────────────────── --}}
-        <x-doc-assistant :document="$document" />
+        {{-- ── Borrowing / reservation ──────────────────────────────────────── --}}
+        @if($document->booking?->resource)
+            @include('track.partials.citizen-booking', ['booking' => $document->booking])
+        @endif
 
-        <div class="panel">
-            <div class="ph"><h2>Status Progress</h2></div>
-            <div class="pb"><x-routing-stepper :document="$document" /></div>
-        </div>
+        {{-- ── Document details ─────────────────────────────────────────────── --}}
+        {{-- Internal document images are intentionally NOT shown on the public
+             tracking page; they are only visible to authorized staff. --}}
+        <div class="cz-card">
+            <div class="cz-card-head">
+                <h2 class="cz-card-title">Request details</h2>
+            </div>
 
-        {{-- ── Messages from staff (public posts only — internal notes never shown) ── --}}
-        @php $publicPosts = $document->comments->where('visibility', 'public'); @endphp
-        <div class="panel">
-            <div class="ph"><h2>Messages from staff</h2></div>
-            <div class="pb space-y-3" id="citizenMessages">
-                @forelse($publicPosts as $post)
-                    <div class="rounded-xl border border-hairline bg-paper p-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[13px] font-bold text-ink">{{ $post->author_type === 'system' ? 'Update' : 'Staff' }}</span>
-                            <span class="text-[12px] text-ink-soft">{{ optional($post->created_at)->format('M d, Y h:i A') }}</span>
+            {{-- Who / where is responsible, plus the requester's contact details. --}}
+            <div class="cz-card-body">
+                {{-- The claiming day staff set when advancing — the thing the
+                     citizen opened this page to find out. --}}
+                @if($document->claim_date)
+                    <div class="claim-day mb-5">
+                        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                        </svg>
+                        <div>
+                            <p class="k">Claim on</p>
+                            <p class="v">{{ $document->claim_date->format('l, M d, Y') }}</p>
                         </div>
-                        <p class="mt-1 whitespace-pre-wrap text-sm text-ink">{{ $post->body }}</p>
                     </div>
-                @empty
-                    <p id="citizenMessagesEmpty" class="text-sm italic text-ink-soft">No messages yet.</p>
-                @endforelse
+                @endif
+
+                {{-- Anyone with the tracking number can open this page, so the
+                     email and phone are partly hidden (App\Support\ContactMask):
+                     enough for the requester to recognise, too little for anyone
+                     else to use — and they are what the message gate below asks
+                     for. The name stays; the printable claim slip carries it. --}}
+                <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                    @foreach([
+                        'Office' => $document->department?->name ?? 'Not yet routed',
+                        'Office code' => $document->department?->code ?? '—',
+                        'Requested by' => $document->citizen_name ?? '—',
+                        'Email' => \App\Support\ContactMask::email($document->citizen_email) ?? '—',
+                        'Contact number' => \App\Support\ContactMask::phone($document->citizen_contact) ?? '—',
+                    ] as $key => $value)
+                        <div>
+                            <dt class="cz-key">{{ $key }}</dt>
+                            <dd class="mt-1 break-words text-[16px] text-[#1a1b1a]">{{ $value }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+                <div class="mt-5 border-t border-[rgba(0,64,4,0.08)] pt-5">
+                    <a href="{{ route('track.slip', ['trackingNumber' => $document->tracking_number, 'from' => 'tracking']) }}" target="_blank" rel="noopener" class="cz-btn cz-btn-secondary cz-btn-sm">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>
+                        Print claim slip
+                    </a>
+                </div>
             </div>
         </div>
+
+        {{-- ── Messages with the office ────────────────────────────────────────
+             The conversation itself lives in Speedy's "Office messages" tab —
+             one place to talk to the office, on every page, with an unread
+             badge on its launcher — instead of a second copy down here that
+             nobody knew had a reply in it. Reading it needs the same contact
+             check as writing it. ── --}}
+        <div class="cz-card">
+            <div class="cz-card-head">
+                <div>
+                    <h2 class="cz-card-title">Messages with the office</h2>
+                    <p class="cz-card-sub">
+                        @if($citizenUnread > 0)
+                            {{ $citizenUnread }} new {{ $citizenUnread === 1 ? 'reply' : 'replies' }} from the office.
+                        @elseif($citizenVerified)
+                            Ask a question or answer the office — real staff reply here.
+                        @else
+                            Ask the office about this request. You’ll confirm the email or mobile number you filed it with first.
+                        @endif
+                    </p>
+                </div>
+            </div>
+            <div class="cz-card-body">
+                @if($citizenCanVerify)
+                    <button type="button" class="cz-btn cz-btn-primary cz-btn-sm"
+                            @click="window.dispatchEvent(new CustomEvent('speedy:open-messages'))">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg>
+                        {{ $citizenUnread > 0 ? 'Read the replies' : 'Open messages' }}
+                    </button>
+                @else
+                    <p class="text-[15px] text-[#4b5a50]">
+                        This request has no contact details on file, so messaging is not available for it.
+                        Please contact the handling office directly.
+                    </p>
+                @endif
+            </div>
+        </div>
+
+        {{-- ── Documents needing revision / rejected (per-requirement) ────────── --}}
+        @php
+            $needsRevision = $document->requirements->where('review_status', 'needs_revision');
+            $rejectedReqs = $document->requirements->where('review_status', 'rejected');
+        @endphp
+        @if($needsRevision->isNotEmpty() || $rejectedReqs->isNotEmpty())
+        <div class="cz-card">
+            <div class="cz-card-head">
+                <div>
+                    <h2 class="cz-card-title">Documents to fix</h2>
+                    <p class="cz-card-sub">Staff reviewed your uploads. Re-upload <span class="font-semibold text-green-deep">only</span> the items marked below.</p>
+                </div>
+            </div>
+            <div class="cz-card-body space-y-4">
+                @if(session('upload_success'))
+                    <div class="rounded-lg border border-hairline bg-green-wash px-4 py-3 text-sm text-green-deep">{{ session('upload_success') }}</div>
+                @endif
+                @if($errors->any())
+                    <div class="rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red">{{ $errors->first() }}</div>
+                @endif
+                @foreach($needsRevision as $req)
+                    <div class="rounded-xl border border-status-amber-wash bg-status-amber-wash p-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-bold text-status-amber">{{ $req->label }}</span>
+                            <span class="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-amber">Needs revision</span>
+                        </div>
+                        @if($req->review_comment)
+                            <p class="mt-1 text-sm text-status-amber"><span class="font-semibold">What to fix:</span> {{ $req->review_comment }}</p>
+                        @endif
+                        @if($document->status !== 'completed')
+                            <form method="POST" action="{{ route('track.requirement-reupload', [$document->tracking_number, $req]) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-center gap-2">
+                                @csrf
+                                <label for="reupload-{{ $req->id }}" class="sr-only">Re-upload {{ $req->label }}</label>
+                                <input id="reupload-{{ $req->id }}" type="file" name="file" accept="{{ \App\Support\UploadRules::accept() }}" required
+                                       class="block text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
+                                <button type="submit" class="cz-btn cz-btn-primary cz-btn-sm">Re-upload</button>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+                @foreach($rejectedReqs as $req)
+                    <div class="rounded-xl border border-status-red-wash bg-status-red-wash p-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-bold text-status-red">{{ $req->label }}</span>
+                            <span class="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-status-red">Rejected</span>
+                        </div>
+                        @if($req->review_comment)
+                            <p class="mt-1 text-sm text-status-red"><span class="font-semibold">Reason:</span> {{ $req->review_comment }}</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- ── Citizen upload (notifies current department only) ──────────────── --}}
         @if($document->status !== 'completed')
-        <div class="panel">
-            <div class="ph">
+        <div class="cz-card">
+            <div class="cz-card-head">
                 <div>
-                    <h2>Upload supporting documents</h2>
-                    <p class="sub mt-0.5">Files are sent only to <span class="font-semibold text-green-deep">the office handling your ticket</span>.</p>
+                    <h2 class="cz-card-title">Upload supporting documents</h2>
+                    <p class="cz-card-sub">Files are sent only to <span class="font-semibold text-green-deep">the office handling your ticket</span>.</p>
                 </div>
             </div>
-            <div class="pb">
+            <div class="cz-card-body">
                 @if(session('upload_success'))
                     <div class="mb-4 rounded-lg border border-hairline bg-green-wash px-4 py-3 text-sm text-green-deep">
                         {{ session('upload_success') }}
                     </div>
                 @endif
+                {{-- Without JavaScript this box is the whole report; with it, the
+                     script below hands these messages to the shared pop-up and
+                     hides the box, so a refusal is not left sitting in a panel
+                     the citizen may have scrolled past. --}}
                 @if($errors->any())
-                    <div class="mb-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red">
-                        {{ $errors->first() }}
+                    <div id="uploadErrorSummary" class="mb-4 rounded-lg border border-status-red-wash bg-status-red-wash px-4 py-3 text-sm text-status-red" role="alert">
+                        <ul class="space-y-1">
+                            @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+                        </ul>
                     </div>
                 @endif
                 <form method="POST" action="{{ route('track.citizen-upload', $document->tracking_number) }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
-                    <div>
-                        <label for="citizen_attachments" class="block text-sm font-medium text-ink">Files (up to 5 — images, PDF or Word)</label>
-                        <input type="file" id="citizen_attachments" name="attachments[]" accept="image/*,.pdf,.doc,.docx" multiple required
-                               class="mt-1 block w-full text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep" />
+                    {{-- The bare file input showed only "3 files" and had no way
+                         to drop one of them — the wrong pick meant starting the
+                         whole selection again. Each chosen file is now listed by
+                         name with its own Remove button, and the 5-file cap is
+                         shown as it fills rather than announced after the fact.
+                         The input keeps name="attachments[]", so the POST and the
+                         server rules are unchanged. --}}
+                    <div data-file-picker
+                         data-max-files="5"
+                         data-max-kilobytes="{{ \App\Support\UploadRules::MAX_KILOBYTES }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <label for="citizen_attachments" class="req-label">Files (images, PDF, Word or Excel)</label>
+                            <span data-file-count class="text-xs font-semibold text-ink-soft">0 of 5 files selected</span>
+                        </div>
+
+                        {{-- Visually hidden, not display:none — it stays focusable
+                             and keyboard-reachable through its label. --}}
+                        <input type="file" id="citizen_attachments" name="attachments[]"
+                               accept="{{ \App\Support\UploadRules::accept() }}" multiple
+                               data-file-input class="sr-only" />
+
+                        <button type="button" data-file-browse
+                                class="cz-btn cz-btn-secondary cz-btn-sm mt-2">
+                            <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
+                            </svg>
+                            <span data-file-browse-label>Choose files</span>
+                        </button>
+
+                        <p class="mt-1.5 text-xs text-ink-soft">{{ \App\Support\UploadRules::hint() }}. Up to 5 files per upload.</p>
+
+                        <ul data-file-list class="mt-3 space-y-2"></ul>
                     </div>
                     <div>
-                        <label for="citizen_note" class="block text-sm font-medium text-ink">Short note (optional)</label>
+                        <label for="citizen_note" class="req-label">Short note (optional)</label>
                         <textarea id="citizen_note" name="note" rows="2" maxlength="1000" placeholder="e.g. Missing ID copy attached"
-                                  class="mt-1 block w-full rounded-lg border border-hairline-strong text-sm shadow-sm">{{ old('note') }}</textarea>
+                                  class="req-field mt-2">{{ old('note') }}</textarea>
                     </div>
-                    <button type="submit" class="cr-btn cr-btn-primary w-full justify-center sm:w-auto">
+                    {{-- Disabled until there is something to send: the button's
+                         state says what is missing before it is pressed. --}}
+                    <button type="submit" data-file-submit disabled
+                            class="cz-btn cz-btn-primary w-full sm:w-auto">
                         Send to department
                     </button>
                 </form>
@@ -200,10 +412,162 @@
         </div>
         @endif
 
+        {{-- Keeps the chosen files visible and individually removable. The real
+             <input type="file"> is still what posts; it is rewritten from the
+             kept list through a DataTransfer, because a FileList cannot be
+             edited in place. Without JavaScript the input is still a working
+             multi-file picker and the server still caps the upload at 5. --}}
+        <script>
+            // A refused upload comes back as a redirect, so its messages are
+            // rendered into the panel first; lift them into the pop-up and hide
+            // the box, the same hand-off the public request form does.
+            //
+            // Deferred to DOMContentLoaded because the alert component is
+            // included by the layout at the end of the body — window.ErrorAlert
+            // does not exist yet while this script is being parsed.
+            document.addEventListener('DOMContentLoaded', function () {
+                const summary = document.getElementById('uploadErrorSummary');
+                if (!summary) { return; }
+
+                const messages = Array.from(summary.querySelectorAll('li')).map((li) => li.textContent.trim());
+                if (!messages.length) { return; }
+
+                summary.classList.add('hidden');
+                window.ErrorAlert?.show(messages, document.getElementById('citizen_attachments'), 'Your files were not sent');
+            });
+
+            (function () {
+                document.querySelectorAll('[data-file-picker]').forEach((picker) => {
+                    const input = picker.querySelector('[data-file-input]');
+                    const list = picker.querySelector('[data-file-list]');
+                    const countEl = picker.querySelector('[data-file-count]');
+                    const browseBtn = picker.querySelector('[data-file-browse]');
+                    const browseLabel = picker.querySelector('[data-file-browse-label]');
+                    const form = picker.closest('form');
+                    const submitBtn = form && form.querySelector('[data-file-submit]');
+
+                    const maxFiles = parseInt(picker.dataset.maxFiles, 10) || 5;
+                    const maxBytes = (parseInt(picker.dataset.maxKilobytes, 10) || 10240) * 1024;
+
+                    // Files can only be removed by rebuilding the input's list,
+                    // so the kept set is tracked here and mirrored back.
+                    let kept = [];
+
+                    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+                    const formatSize = (bytes) => bytes >= 1048576
+                        ? (bytes / 1048576).toFixed(1) + ' MB'
+                        : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+
+                    // Problems are raised in the shared pop-up over the page
+                    // (window.ErrorAlert), the same report the rest of the app
+                    // uses, rather than as a line under the list.
+                    function showError(messages) {
+                        const problems = [].concat(messages || []).filter(Boolean);
+                        if (!problems.length) {
+                            window.ErrorAlert?.hide();
+
+                            return;
+                        }
+
+                        window.ErrorAlert?.show(problems, browseBtn, problems.length > 1
+                            ? 'Some files were not added'
+                            : 'That file was not added');
+                    }
+
+                    function render() {
+                        const transfer = new DataTransfer();
+                        kept.forEach((file) => transfer.items.add(file));
+                        input.files = transfer.files;
+
+                        countEl.textContent = `${kept.length} of ${maxFiles} files selected`;
+                        browseLabel.textContent = kept.length ? 'Add more files' : 'Choose files';
+                        browseBtn.disabled = kept.length >= maxFiles;
+                        browseBtn.classList.toggle('opacity-50', kept.length >= maxFiles);
+                        if (submitBtn) { submitBtn.disabled = kept.length === 0; }
+
+                        list.textContent = '';
+                        kept.forEach((file, index) => {
+                            const row = document.createElement('li');
+                            row.className = 'flex items-center justify-between gap-3 rounded-lg border border-hairline bg-white px-3 py-2';
+
+                            const meta = document.createElement('div');
+                            meta.className = 'min-w-0';
+                            const name = document.createElement('p');
+                            name.className = 'truncate text-sm font-medium text-ink';
+                            name.textContent = file.name;
+                            const size = document.createElement('p');
+                            size.className = 'text-xs text-ink-soft';
+                            size.textContent = formatSize(file.size);
+                            meta.append(name, size);
+
+                            const remove = document.createElement('button');
+                            remove.type = 'button';
+                            remove.className = 'shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-status-red transition hover:bg-status-red-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-status-red';
+                            remove.textContent = 'Remove';
+                            // Names the file, so the control is unambiguous to a
+                            // screen reader reading the buttons on their own.
+                            remove.setAttribute('aria-label', `Remove ${file.name}`);
+                            remove.addEventListener('click', () => {
+                                kept.splice(index, 1);
+                                showError([]);
+                                render();
+                            });
+
+                            row.append(meta, remove);
+                            list.append(row);
+                        });
+                    }
+
+                    function add(files) {
+                        const problems = [];
+                        let rejectedForSpace = 0;
+
+                        Array.from(files).forEach((file) => {
+                            const already = kept.some((k) => k.name === file.name
+                                && k.size === file.size
+                                && k.lastModified === file.lastModified);
+                            if (already) { return; }
+
+                            if (file.size > maxBytes) {
+                                problems.push(`"${file.name}" is ${formatSize(file.size)}, over the ${Math.round(maxBytes / 1048576)} MB limit. Compress it or photograph the document at a lower resolution, then add it again.`);
+
+                                return;
+                            }
+
+                            if (kept.length >= maxFiles) {
+                                rejectedForSpace++;
+
+                                return;
+                            }
+
+                            kept.push(file);
+                        });
+
+                        if (rejectedForSpace) {
+                            problems.push(`Only ${maxFiles} files can be sent at a time, so ${plural(rejectedForSpace, 'file')} ${rejectedForSpace === 1 ? 'was' : 'were'} not added. Remove one below to make room, or send the rest in a second upload after this one.`);
+                        }
+
+                        showError(problems);
+                        render();
+                    }
+
+                    browseBtn.addEventListener('click', () => input.click());
+                    input.addEventListener('change', () => {
+                        // Read the picker's own selection, then rebuild the input
+                        // from the kept list inside add() → render().
+                        add(input.files);
+                    });
+
+                    render();
+                });
+            })();
+        </script>
+
         {{-- ── Scan Timeline ─────────────────────────────────────────────────── --}}
-        <div class="panel">
-            <div class="ph"><h2>Activity Log</h2></div>
-            <div class="pb divide-y divide-hairline" id="timeline">
+        <div class="cz-card">
+            <div class="cz-card-head"><h2 class="cz-card-title">Activity log</h2></div>
+            <div class="cz-card-body divide-y divide-[rgba(0,64,4,0.08)]" id="timeline">
                 @forelse($timeline as $log)
                     <div class="flex items-start justify-between gap-4 py-3">
                         <div class="flex items-center gap-3">
@@ -220,16 +584,6 @@
             </div>
         </div>
 
-        {{-- ── Scan Another QR ──────────────────────────────────────────────── --}}
-        <div class="text-center">
-            <a href="{{ route('citizen.track') }}" class="cr-btn">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
-                    <rect x="9" y="9" width="6" height="6" rx="1"/>
-                </svg>
-                Scan or Search Another Document
-            </a>
-        </div>
     </div>
 
     {{-- ── Live status: real-time via Laravel Echo / Reverb, 30 s poll fallback ─ --}}
@@ -254,7 +608,7 @@
         };
 
         // Plain-language status descriptions (mirrors DocumentStatus::description()).
-        const statusDesc = @json(collect(\App\Enums\DocumentStatus::cases())->mapWithKeys(fn ($s) => [$s->value => $s->description()]));
+        const statusDesc = @json(collect(\App\Enums\DocumentStatus::citizenCases())->mapWithKeys(fn ($s) => [$s->value => $s->description()]));
 
         function getStatusClasses(status) {
             return statusPill[status] ?? statusPill['in_transit'];
@@ -276,7 +630,7 @@
             if (department) {
                 dept.textContent = department;
             } else if (department === null) {
-                dept.textContent = 'Not yet assigned';
+                dept.textContent = 'Not yet routed';
             }
             currentStatus = status;
         }
@@ -328,30 +682,19 @@
         }
 
         // ── Real-time updates via Laravel Echo / Reverb ────────────────────────
-        if (window.Echo) {
+        // whenEcho, not `if (window.Echo)`: this script runs while the document
+        // is still parsing, and the deferred bundle that creates Echo has not
+        // run yet — the old guard was always false and live updates never came.
+        window.whenEcho(() => {
             try {
                 window.Echo.channel('documents.' + trackingNumber)
                     .listen('.moved', (e) => {
                         applyStatus(e.status, e.current_department);
                         prependTimelineEntry(e);
                         flashBanner('Status updated!');
-                    })
-                    .listen('.comment', (e) => {
-                        // Only public posts ever reach this public channel.
-                        const box = document.getElementById('citizenMessages');
-                        if (!box || document.getElementById('cmsg-' + e.id)) return;
-                        document.getElementById('citizenMessagesEmpty')?.remove();
-                        const el = document.createElement('div');
-                        el.id = 'cmsg-' + e.id;
-                        el.className = 'rounded-xl border border-hairline bg-paper p-3';
-                        el.innerHTML = '<div class="flex items-center justify-between">' +
-                            '<span class="text-[13px] font-bold text-ink">' + (e.author_type === 'system' ? 'Update' : 'Staff') + '</span>' +
-                            '<span class="text-[12px] text-ink-soft">' + (e.timestamp || '') + '</span></div>' +
-                            '<p class="mt-1 whitespace-pre-wrap text-sm text-ink"></p>';
-                        el.querySelector('p').textContent = e.body;
-                        box.prepend(el);
-                        flashBanner('New message from staff');
                     });
+                // Messages: Speedy listens for the content-free '.thread' ping
+                // and fetches the conversation through the gated endpoint.
 
                 const pusher = window.Echo.connector?.pusher;
                 if (pusher) {
@@ -365,7 +708,7 @@
             } catch (_) {
                 liveConnected = false; // Echo unavailable — poll fallback stays active.
             }
-        }
+        });
 
         // ── Fallback: poll every 30 s only while the live socket is not connected ─
         async function pollStatus() {

@@ -3,16 +3,27 @@
     'chain' => null,     // deprecated (routing-era); ignored
     'compact' => false,
     'controls' => false, // render inline Advance / Move back / Return controls
+    'line' => true,      // draw the stage line; off where the page draws its own
 ])
 
 @php
     use App\Enums\DocumentStatus;
 
-    $flow    = DocumentStatus::flow();
+    // The LINE shows the four-stage rail (DocumentStatus::railStages()); the
+    // CONTROLS below still move through the five real statuses. They are not
+    // the same thing: In Progress and In Review are one stage to a citizen
+    // reading a tracking page, and two separate moves to the staff member
+    // advancing the document. Every surface showing this document now counts
+    // in fours, so none of them contradict each other.
+    $rail    = DocumentStatus::railStages();
     $stage   = $document->statusEnum();
-    $current = $stage->position();          // 1-based; 0 when Returned (off the line)
     $returned = $stage === DocumentStatus::Returned;
     $held    = $stage === DocumentStatus::OnHold;
+    // railStage() places the side states too: Returned reads as back in
+    // review, a hold sits where the request stopped.
+    $current = $stage->railStage(
+        DocumentStatus::tryFrom((string) $document->status_before_hold)
+    );
 
     // Who may operate the controls: the assigned staff member, or an admin.
     $canAct = $controls && $document->canBeAdvancedBy(auth()->user());
@@ -38,19 +49,24 @@
             <span style="font-weight:700;">On Hold</span>
             @if($document->blocked_by)<span style="opacity:.85;"> · waiting on {{ $document->blocked_by }}</span>@endif
             @if($document->hold_until)<span style="opacity:.85;"> · until {{ $document->hold_until->format('M d, Y') }}</span>@endif
+            {{-- The hold pauses the SLA clock, so nothing else flags the overrun. --}}
+            @if($document->isHoldOverdue())<span class="hold-stalled"> · {{ $document->holdOverdueDays() }}d past due</span>@endif
             @if($document->hold_reason)<div style="font-weight:400;margin-top:2px;">{{ $document->hold_reason }}</div>@endif
         </div>
     </div>
 @endif
 
 {{-- Status progress: stamped stage markers along the document's lifecycle.
-     done = filled deep-green w/ brass check · now = active · todo = hollow. --}}
+     done = filled deep-green w/ brass check · now = active · todo = hollow.
+     Suppressed with :line="false" on pages that draw the rail themselves
+     (Look Up, which uses the design's own bar) but still need the controls. --}}
+@if($line)
 <div {{ $attributes->merge(['class' => 'steps']) }} style="margin:8px 2px 4px;">
-    @foreach($flow as $i => $s)
+    @foreach($rail as $i => $s)
         @php
             $pos = $i + 1;
-            $isDone = ! $returned && $pos < $current;
-            $isCurrent = ! $returned && $pos === $current;
+            $isDone = $pos < $current;
+            $isCurrent = $pos === $current;
             $node = $isDone ? 'done' : ($isCurrent ? 'now' : 'todo');
         @endphp
 
@@ -64,7 +80,7 @@
                     {{ $pos }}
                 @endif
             </div>
-            <div class="cap {{ $isCurrent ? 'cur' : '' }}">{{ $s->label() }}</div>
+            <div class="cap {{ $isCurrent ? 'cur' : '' }}">{{ $s['label'] }}</div>
         </div>
 
         @if(!$loop->last)
@@ -72,6 +88,7 @@
         @endif
     @endforeach
 </div>
+@endif
 
 @if($canAct)
     @php
@@ -118,7 +135,7 @@
             </form>
         </div>
     @else
-        <div x-data="{ gate: null, note: '', reason: '' }"
+        <div x-data="{ gate: null, reason: '', claimDate: @js($document->claim_date?->toDateString() ?? '') }"
              @keydown.escape.window="gate = null"
              style="margin:10px 2px 2px;">
         <div class="step-controls" style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -131,14 +148,11 @@
             @if($hasNext)
                 <button type="button" class="btn-step btn-step-fwd"
                         :class="gate === 'advance' && 'is-open'"
-                        @click="gate = gate === 'advance' ? null : 'advance'; note = ''">Advance →</button>
+                        @click="gate = gate === 'advance' ? null : 'advance'">Advance →</button>
             @endif
 
-            @if(! $returned && ! $stage->isTerminal())
-                <button type="button" class="btn-step btn-step-return"
-                        :class="gate === 'return' && 'is-open'"
-                        @click="gate = gate === 'return' ? null : 'return'; reason = ''">Return for revision</button>
-            @endif
+            {{-- Return for revision / On hold live in the review modal on the
+                 Requests hub; the stepper keeps only the line's own moves. --}}
 
             @if($returned)
                 <form method="POST" action="{{ route('documents.status.set', $document) }}">
@@ -149,97 +163,85 @@
                 </form>
             @endif
 
-            {{-- Park a blocked ticket (waiting on citizen / external / internal). --}}
-            @unless($stage->isTerminal())
-                <div x-data="{ holdOpen: false }" style="display:inline-block;">
-                    <button type="button" class="btn-step btn-step-hold" @click="holdOpen = !holdOpen">⏸ On hold</button>
-                    <div x-show="holdOpen" x-cloak class="step-hold-form" style="margin-top:8px;">
-                        <form method="POST" action="{{ route('documents.status.hold', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
-                            @csrf @method('PATCH')
-                            <label style="font-size:11px;color:var(--ink-soft);">Reason (required)
-                                <textarea name="hold_reason" rows="2" required maxlength="1000"
-                                          placeholder="e.g. Waiting for the citizen to submit a clearance"></textarea>
-                            </label>
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                                <label style="font-size:11px;color:var(--ink-soft);">Who's blocking
-                                    <select name="blocked_by" required>
-                                        <option value="citizen">Citizen</option>
-                                        <option value="external">External office</option>
-                                        <option value="internal">Internal</option>
-                                    </select>
-                                </label>
-                                <label style="font-size:11px;color:var(--ink-soft);">Follow-up date (optional)
-                                    <input type="date" name="hold_until" min="{{ now()->toDateString() }}">
-                                </label>
-                            </div>
-                            <div>
-                                <button type="submit" class="btn-step btn-step-hold">Put on hold</button>
-                                <button type="button" class="btn-step btn-step-back" @click="holdOpen = false">Cancel</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            @endunless
         </div>
 
         {{-- ─── Stage-gate confirm panels ─────────────────────────────── --}}
 
         @if($hasNext)
-            <div x-show="gate === 'advance'" x-cloak class="gate-panel">
-                <p class="gate-head">{{ $stage->label() }} <span aria-hidden="true">→</span> <b>{{ $next->label() }}</b></p>
+            {{-- Advancing is a dialog now, and what it asks for is the claiming
+                 day: the date the citizen comes to collect. It replaces the old
+                 review note — the citizen sees this on their tracking page. --}}
+            <div x-show="gate === 'advance'" x-cloak
+                 class="gate-modal"
+                 role="dialog" aria-modal="true" aria-label="Advance this request">
+                <div class="gate-modal-card" @click.outside="gate = null">
+                    <p class="gate-head">{{ $stage->label() }} <span aria-hidden="true">→</span> <b>{{ $next->label() }}</b></p>
 
-                @if($gateChecks !== [])
-                    <ul class="gate-checks">
-                        @foreach($gateChecks as $check)
-                            @if(! $check['passed'] && $check['key'] === 'work_evidence')
-                                {{-- Live row: typing a note below satisfies this requirement. --}}
-                                <li :class="note.trim() ? 'ok' : 'no'" class="no">
-                                    <svg x-show="note.trim()" x-cloak width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                    <svg x-show="! note.trim()" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
-                                    <span>{{ $check['label'] }} — or add a note below</span>
-                                </li>
-                            @else
-                                <li class="{{ $check['passed'] ? 'ok' : 'no' }}">
-                                    @if($check['passed'])
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
-                                    @else
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
-                                    @endif
-                                    <span>{{ $check['label'] }}<span class="sr-only">{{ $check['passed'] ? ' — met' : ' — not met' }}</span></span>
-                                </li>
-                            @endif
-                        @endforeach
-                    </ul>
-                @endif
-
-                <form method="POST" action="{{ route('documents.status.advance', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
-                    @csrf @method('PATCH')
-                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
-                    <label>{{ $noteRequired ? 'Review note (required)' : ($noteCanSatisfy ? 'Work note (required — nothing on file yet)' : 'Note (optional)') }}
-                        <textarea name="note" rows="2" maxlength="1000" x-model="note" @if($noteRequired || $noteCanSatisfy) required @endif
-                                  placeholder="{{ $noteRequired ? 'What was checked and why this passes review' : ($noteCanSatisfy ? 'e.g. Verified the submitted documents; started processing' : 'Anything worth recording about this step') }}"></textarea>
-                    </label>
-                    @if($willEmailCitizen)
-                        <p class="gate-mail">
-                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path stroke-linecap="round" stroke-linejoin="round" d="m3 7 9 6 9-6"/></svg>
-                            The citizen will be emailed about this change.
-                        </p>
+                    @if($gateChecks !== [])
+                        <ul class="gate-checks">
+                            @foreach($gateChecks as $check)
+                                @if(! $check['passed'] && $check['key'] === 'work_evidence')
+                                    {{-- Live row: setting the claiming date records the step. --}}
+                                    <li :class="claimDate ? 'ok' : 'no'" class="no">
+                                        <svg x-show="claimDate" x-cloak width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                        <svg x-show="! claimDate" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                        <span>{{ $check['label'] }} — setting a claiming date below records this step</span>
+                                    </li>
+                                @else
+                                    <li class="{{ $check['passed'] ? 'ok' : 'no' }}">
+                                        @if($check['passed'])
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                        @else
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                                        @endif
+                                        <span>{{ $check['label'] }}<span class="sr-only">{{ $check['passed'] ? ' — met' : ' — not met' }}</span></span>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
                     @endif
-                    @unless($gatePassed)
-                        @if($noteCanSatisfy)
-                            <p class="gate-blocked" x-show="! note.trim()">Add a work note above — or attach a file to this document first.</p>
-                        @else
-                            <p class="gate-blocked">Resolve the unmet requirements above to continue.</p>
+
+                    <form method="POST" action="{{ route('documents.status.advance', $document) }}" style="display:flex;flex-direction:column;gap:10px;">
+                        @csrf @method('PATCH')
+                        <input type="hidden" name="expected_status" value="{{ $document->status }}">
+
+                        <label class="gate-claim">
+                            <span class="gate-claim-label">Claiming date (required)</span>
+                            <input type="date" name="claim_date" x-model="claimDate" required
+                                   min="{{ now()->toDateString() }}"
+                                   value="{{ $document->claim_date?->toDateString() }}">
+                            <span class="gate-claim-hint">
+                                When the citizen can collect this. Shown on their tracking page —
+                                pick the day the work will realistically be done.
+                            </span>
+                        </label>
+
+                        {{-- Quick picks for the common promises. --}}
+                        <div class="gate-claim-quick">
+                            @foreach([['+3 days', 3], ['+1 week', 7], ['+2 weeks', 14]] as [$label, $days])
+                                <button type="button" class="btn-step"
+                                        @click="claimDate = @js(now()->addDays($days)->toDateString())">{{ $label }}</button>
+                            @endforeach
+                        </div>
+
+                        @if($willEmailCitizen)
+                            <p class="gate-mail">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path stroke-linecap="round" stroke-linejoin="round" d="m3 7 9 6 9-6"/></svg>
+                                The citizen will be emailed about this change.
+                            </p>
                         @endif
-                    @endunless
-                    <div class="gate-actions">
-                        <button type="submit" class="btn-step btn-step-fwd"
-                                :disabled="{{ $gatePassed ? 'false' : ($noteCanSatisfy ? '! note.trim()' : 'true') }} || ({{ $noteRequired ? 'true' : 'false' }} && ! note.trim())">
-                            Confirm — move to {{ $next->label() }}
-                        </button>
-                        <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
-                    </div>
-                </form>
+                        @unless($gatePassed || $noteCanSatisfy)
+                            <p class="gate-blocked">Resolve the unmet requirements above to continue.</p>
+                        @endunless
+                        <div class="gate-actions">
+                            <button type="submit" class="btn-step btn-step-fwd"
+                                    :disabled="! claimDate @unless($gatePassed || $noteCanSatisfy) || true @endunless">
+                                Confirm — move to {{ $next->label() }}
+                            </button>
+                            <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         @endif
 
@@ -261,24 +263,6 @@
             </div>
         @endif
 
-        @if(! $returned && ! $stage->isTerminal())
-            <div x-show="gate === 'return'" x-cloak class="gate-panel">
-                <p class="gate-head">{{ $stage->label() }} <span aria-hidden="true">→</span> <b>{{ DocumentStatus::Returned->label() }}</b></p>
-                <form method="POST" action="{{ route('documents.status.set', $document) }}" style="display:flex;flex-direction:column;gap:8px;">
-                    @csrf @method('PATCH')
-                    <input type="hidden" name="expected_status" value="{{ $document->status }}">
-                    <input type="hidden" name="status" value="{{ DocumentStatus::Returned->value }}">
-                    <label>What must the citizen fix? (required)
-                        <textarea name="reason" rows="2" maxlength="1000" x-model="reason" required
-                                  placeholder="e.g. The uploaded barangay clearance is expired — a current one is needed"></textarea>
-                    </label>
-                    <div class="gate-actions">
-                        <button type="submit" class="btn-step btn-step-return" :disabled="! reason.trim()">Confirm — return for revision</button>
-                        <button type="button" class="btn-step btn-step-back" @click="gate = null">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        @endif
         </div>
     @endif
 @endif

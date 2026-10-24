@@ -10,8 +10,10 @@ use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
+use App\Support\Lending;
 use App\Support\RequestReview;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -45,6 +47,14 @@ class ReviewController extends Controller
         if (! $assignee->can('advance documents')) {
             throw ValidationException::withMessages([
                 'assigned_to' => 'That user does not have permission to advance documents.',
+            ]);
+        }
+
+        // Guest → Supervisor → Staff: a department head assigns only within their
+        // own department (super admins may assign across departments).
+        if (! AssignmentScope::canAssignWithinDepartment(auth()->user(), $assignee)) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'You can only assign staff in your own department.',
             ]);
         }
 
@@ -97,6 +107,9 @@ class ReviewController extends Controller
         if ($reason) {
             $document->remarks = $reason;
         }
+        // Attribute the decision so the citizen page can name who denied it.
+        $document->decided_by = auth()->id();
+        $document->decided_at = now();
         $document->save();
 
         activity()
@@ -110,6 +123,13 @@ class ReviewController extends Controller
         $actor = auth()->user()?->name ?? 'Supervisor';
         $comment = $document->logSystemComment("Denied by {$actor}".($reason ? " — {$reason}" : ''));
         event(new DocumentCommentPosted($comment));
+
+        // A denied request holds no chairs and no venue: free them for others.
+        // Quietly — the denial itself is what the citizen hears about.
+        $booking = $document->booking;
+        if ($booking && ! $booking->isCancelled() && ! $booking->isReleased()) {
+            Lending::cancel($booking, notify: false);
+        }
 
         return $this->done($document, "{$document->tracking_number} denied.");
     }
@@ -308,6 +328,59 @@ class ReviewController extends Controller
      * on the assignment itself and role — not the `advance documents` permission
      * row, which may be absent on a partially-seeded database.
      */
+    /**
+     * Set or move the claiming date without touching the stage.
+     *
+     * The citizen proposes a date on the request form (`needed_by`); this is
+     * how staff commit to one (`claim_date`) or change it afterwards. Until now
+     * the only way to set it was to advance the stage, so a date agreed over the
+     * counter could not be recorded without also moving the work forward.
+     */
+    public function setClaimDate(Request $request, Document $document)
+    {
+        $this->authorizeReview($document);
+
+        $validated = $request->validate([
+            'claim_date' => ['required', 'date', 'after_or_equal:today'],
+        ], [
+            'claim_date.required' => 'Pick the claiming date for the citizen.',
+            'claim_date.after_or_equal' => 'The claiming date cannot be in the past.',
+        ]);
+
+        $claimDate = Carbon::parse($validated['claim_date'])->startOfDay();
+
+        // A borrowing or reservation moves with it, or the Booking calendar
+        // and the Resources page keep showing the old day. Refused (and
+        // nothing saved) when the stock or the venue can't cover the new one.
+        $hadBooking = $this->bookingStart($document);
+
+        if ($refusal = Lending::followClaimDate($document, $claimDate)) {
+            throw ValidationException::withMessages(['claim_date' => $refusal]);
+        }
+
+        $document->update(['claim_date' => $claimDate]);
+
+        // Recorded as a staff note so the change shows in the feed and in Logs,
+        // rather than the date silently differing from what the citizen was told.
+        $document->comments()->create([
+            'author_id' => auth()->id(),
+            'author_type' => 'staff',
+            'body' => 'Claiming date set to '.$claimDate->format('M d, Y').'.',
+            'visibility' => 'internal',
+        ]);
+
+        $moved = $hadBooking !== null && $hadBooking !== $this->bookingStart($document);
+
+        return $this->done($document, 'Claiming date set to '.$claimDate->format('M d, Y').'.'
+            .($moved ? ' The booking moved to '.Lending::window($document->booking->fresh()).'.' : ''));
+    }
+
+    /** The current start of the request's booking, to tell whether it moved. */
+    private function bookingStart(Document $document): ?string
+    {
+        return $document->booking()->first()?->starts_at?->toDateTimeString();
+    }
+
     private function authorizeReview(Document $document): void
     {
         $user = auth()->user();

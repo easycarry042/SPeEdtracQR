@@ -2,10 +2,13 @@
 
 namespace App\Notifications;
 
+use App\Models\Booking;
 use App\Models\Document;
+use App\Models\RequestStep;
 use App\Models\User;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * One in-app (database) notification type for the header bell, with named
@@ -46,6 +49,71 @@ class DocumentEvent extends Notification
         );
     }
 
+    /**
+     * A super admin flagged an overdue document for the responsible party's
+     * attention — a nudge, not a reassignment.
+     */
+    public static function nudge(Document $document, string $byName, ?string $note = null): self
+    {
+        $label = $document->document_type ?? 'A document';
+
+        return new self(
+            event: 'nudge',
+            title: 'Flagged for your attention',
+            body: "{$label} ({$document->tracking_number}) is overdue. {$byName} asked you to follow up.".($note ? " Note: {$note}" : ''),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** The citizen asked something in their thread — the office owes an answer. */
+    public static function citizenMessage(Document $document, string $body): self
+    {
+        return new self(
+            event: 'citizen_message',
+            title: 'New message from the citizen',
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A staff member asked a question in the internal thread. */
+    public static function internalQuestion(Document $document, string $askedBy, string $body): self
+    {
+        return new self(
+            event: 'internal_question',
+            title: "{$askedBy} asked about this request",
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** Someone answered a question in the internal thread — tell whoever asked. */
+    public static function internalAnswer(Document $document, string $answeredBy, string $body): self
+    {
+        return new self(
+            event: 'internal_answer',
+            title: "{$answeredBy} answered your question",
+            body: Str::limit($body, 120),
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** A citizen re-uploaded a document that was returned for revision. */
+    public static function revisionResubmitted(Document $document, string $requirementLabel): self
+    {
+        return new self(
+            event: 'revision_resubmitted',
+            title: 'Revised document uploaded',
+            body: 'The citizen re-uploaded "'.$requirementLabel.'" for '.$document->tracking_number.' — ready for re-review.',
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /** Staff declined an assignment — the request is back in the queue. */
     public static function declined(Document $document, string $byName, ?string $reason): self
     {
@@ -70,6 +138,18 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** Someone at the next office picked it up — tell whoever filed it. */
+    public static function internalReceived(Document $document, string $who, string $office): self
+    {
+        return new self(
+            event: 'internal_received',
+            title: 'Internal request received',
+            body: ($document->purpose ?? $document->document_type)." — received by {$who} at {$office}.",
+            url: route('requests.show', $document),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /** The chain moved (approved/denied/returned/completed) — tell the filing supervisor. */
     public static function internalOutcome(Document $document, string $summary): self
     {
@@ -82,6 +162,23 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** Borrowed items are past their return date and nobody has marked them back. */
+    public static function loanOverdue(Booking $booking): self
+    {
+        $document = $booking->document;
+        $what = $booking->resource?->isEquipment()
+            ? number_format($booking->unitsOutstanding()).' × '.$booking->resource->name
+            : (string) $booking->resource?->name;
+
+        return new self(
+            event: 'loan_overdue',
+            title: 'Borrowed items overdue',
+            body: "{$what} with ".($document?->citizen_name ?: 'a borrower')." — {$booking->daysOverdue()} day(s) overdue.",
+            url: route('inventory.index'),
+            tracking: (string) $document?->tracking_number,
+        );
+    }
+
     /** Supervisors of one department (the ones who can act on its hops). */
     public static function departmentSupervisors(int $departmentId, ?int $excludeUserId = null): Collection
     {
@@ -91,12 +188,62 @@ class DocumentEvent extends Notification
             ->get();
     }
 
+    /**
+     * Who hears that an internal request reached an office: its supervisors,
+     * plus the person named to receive a soft copy there. Minus the actor.
+     */
+    public static function hopRecipients(RequestStep $step, ?int $excludeUserId = null): Collection
+    {
+        return self::departmentSupervisors($step->department_id, $excludeUserId)
+            ->when($step->recipient_id !== null && $step->recipient_id !== $excludeUserId,
+                fn (Collection $people) => $people->push(User::find($step->recipient_id)))
+            ->filter()
+            ->unique('id')
+            ->values();
+    }
+
     /** Everyone who triages/assigns (Supervisors + super_admin), minus the actor. */
     public static function supervisors(?int $excludeUserId = null): Collection
     {
         return User::permission('assign documents')
             ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
             ->get();
+    }
+
+    /**
+     * Who triages a citizen ticket routed to a department: that department's
+     * active assigning Supervisors. Excludes the actor when given.
+     *
+     * Super admins are told only when something is wrong — the ticket reached
+     * no office (its request type has none: every triager, super admins
+     * included, since any supervisor's desk shows it), or the office has no
+     * active supervisor to act on it. They used to be copied on every new
+     * ticket in the city, which buried those few in routine ones; the command
+     * center shows them the rest.
+     */
+    public static function departmentTriagers(?int $departmentId, ?int $excludeUserId = null): Collection
+    {
+        if (! $departmentId) {
+            return self::supervisors($excludeUserId);
+        }
+
+        $deptSupervisors = User::permission('assign documents')
+            ->where('department_id', $departmentId)
+            ->where('is_active', true)
+            ->get()
+            ->reject(fn (User $u): bool => $u->can('manage system'));
+
+        $recipients = $deptSupervisors->isNotEmpty() ? $deptSupervisors : self::superAdmins();
+
+        return $recipients
+            ->when($excludeUserId !== null, fn (Collection $c) => $c->reject(fn (User $u) => $u->id === $excludeUserId))
+            ->values();
+    }
+
+    /** @return Collection<int, User> */
+    public static function superAdmins(): Collection
+    {
+        return User::permission('manage system')->where('is_active', true)->get();
     }
 
     public function via(object $notifiable): array

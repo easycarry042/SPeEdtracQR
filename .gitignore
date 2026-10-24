@@ -30,3 +30,7 @@ Thumbs.db
 # spatie/laravel-backup output
 /storage/backups
 /storage/backup-temp
+phpunit.*.xml
+
+# Env backups written by scripts/setup-mysql.sh — contain secrets
+.env.bak*

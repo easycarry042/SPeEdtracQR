@@ -1,101 +1,105 @@
-<x-app-layout>
+<x-app-layout title="Dashboard">
+    @if($dept)
+        {{-- Department context rides the title row rather than a full-width band:
+             it is orientation, not content. --}}
+        <x-slot name="pageActions">
+            <span class="hidden min-w-0 items-center gap-2 rounded-full border border-hairline-strong bg-green-wash px-3 py-1 sm:inline-flex">
+                <span class="truncate text-sm font-bold text-green-deep">
+                    {{ $dept->name }} <span class="font-medium text-green">({{ $dept->code }})</span>
+                </span>
+            </span>
+            @if($completionRate !== null)
+                <span class="hidden shrink-0 items-center gap-1.5 text-sm md:inline-flex">
+                    <span class="text-xs font-semibold uppercase tracking-wide text-ink-soft">Completion</span>
+                    <span class="font-bold text-green-deep">{{ $completionRate }}%</span>
+                </span>
+            @endif
+        </x-slot>
+    @endif
+
     <div class="page-shell page-shell-loose">
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <x-stat-card label="Total Request" :value="$totalRequests" icon="list" />
-            <x-stat-card label="Pending Request" :value="$pendingRequest" icon="hourglass" />
-            <x-stat-card label="Completed" :value="$completed" icon="check" />
-            <div class="group relative overflow-hidden rounded-2xl border {{ $atRiskCount > 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200/90 bg-white' }} p-6 shadow-md transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold leading-tight {{ $atRiskCount > 0 ? 'text-amber-800' : 'text-emerald-900' }}">At Risk</p>
-                        <p class="mt-3 text-4xl font-bold tracking-tight {{ $atRiskCount > 0 ? 'text-amber-700' : 'text-gray-900' }}">{{ $atRiskCount }}</p>
-                    </div>
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {{ $atRiskCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-emerald-800' }}">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                        </svg>
-                    </div>
-                </div>
-            </div>
+
+        {{-- Headline counts, on the same gradient ramp as the staff dashboard —
+             darkest carries the oldest work, lightest the finished work.
+
+             The four the frame names walk the queue from one end to the other:
+             nobody has started it (Pending), nobody owns it (Unassigned), it is
+             moving (In Progress), it is done (Completed). At Risk is not one of
+             them — risk is not a stage, it cuts across all of them — and the
+             named at-risk list now sits on each staff member's own dashboard,
+             where the person who can advance the request will see it. --}}
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <x-staff-stat-tile label="Pending" :value="$pendingOnly" tone="deep" icon="hourglass" />
+            <x-staff-stat-tile label="Unassigned" :value="$unassigned" tone="mid" icon="people" />
+            <x-staff-stat-tile label="In Progress" :value="$inProgress" tone="bright" icon="clock" />
+            <x-staff-stat-tile label="Completed" :value="$completed" tone="brightest" icon="check" />
         </div>
 
-        @if(($internalAwaiting ?? 0) > 0)
-            <a href="{{ route('requests.index') }}"
-               class="flex items-center justify-between gap-4 rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-4 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
-                <div class="flex items-center gap-4">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0-4-4m4 4-4 4M16 17H4m0 0 4 4m-4-4 4-4"/></svg>
-                    </span>
-                    <div>
-                        <p class="text-sm font-bold text-emerald-900">
-                            {{ $internalAwaiting }} internal request{{ $internalAwaiting !== 1 ? 's' : '' }} awaiting your office
-                        </p>
-                        <p class="text-xs text-emerald-800/70">Approve, return, or deny them on the Internal Requests page.</p>
-                    </div>
-                </div>
-                <span class="text-sm font-semibold text-emerald-700">Open inbox →</span>
+        {{-- No SLA routing slip: a supervisor assigns, the staff member
+             advances, so the at-risk warning is on each staff member's own
+             dashboard. Internal requests are on the Internal tab.
+
+             One line from Reports instead of its charts: the queue below is
+             this page's job, so the numbers stay a glance and a link. --}}
+        @if($glance)
+            @php
+                $glanceOverdue = $glance['overdue']['value'];
+                $glanceAvg = \App\Support\Duration::days($glance['avg_processing']['value']);
+            @endphp
+            <a href="{{ route('reports.index') }}" class="glance-strip" data-soft-nav-link>
+                <span class="glance-label">Last 30 days</span>
+                <span><b>{{ number_format($glance['total']['value']) }}</b> filed</span>
+                <span><b>{{ number_format($glance['completed']['value']) }}</b> completed</span>
+                <span>avg. <b>{{ $glanceAvg }}</b> to complete</span>
+                <span @class(['is-late' => $glanceOverdue > 0])><b>{{ number_format($glanceOverdue) }}</b> overdue now</span>
+                <span class="glance-link">Open reports →</span>
             </a>
         @endif
 
-        @if($slip)
-            <x-routing-slip :slip="$slip" />
-        @endif
-
-        @if($atRiskDocuments->isNotEmpty())
-        <section class="space-y-4">
-            <div class="flex items-center gap-3">
-                <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                </svg>
-                <h2 class="text-2xl font-bold text-amber-800 sm:text-3xl">At-Risk Documents</h2>
-                <span class="rounded-full bg-amber-100 px-3 py-0.5 text-sm font-semibold text-amber-800">{{ $atRiskCount }} document{{ $atRiskCount !== 1 ? 's' : '' }} need attention</span>
+        {{-- ── Staff workload ──────────────────────────────────────────────────
+             The department head's primary lens: who is carrying how much.
+             ───────────────────────────────────────────────────────────────── --}}
+        @if($staffWorkload->isNotEmpty())
+        @php $maxActive = max(1, (int) $staffWorkload->max('active_count')); @endphp
+        <section>
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+                <h2 class="st-section-title">Staff workload</h2>
+                <span class="pill p-muted">Assignment distribution</span>
             </div>
 
-            <div class="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-md">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-amber-100">
+            <div class="st-card">
+                <div class="st-scroll">
+                    <table class="st-table">
                         <thead>
-                            <tr class="bg-amber-50">
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Tracking ID</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Type</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Citizen</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800">Stage</th>
-                                <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-amber-800 min-w-[160px]">SLA Usage</th>
+                            <tr>
+                                <th>Staff member</th>
+                                <th>Active</th>
+                                <th>Completed</th>
+                                <th class="min-w-[170px]">Load</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-amber-50 bg-white">
-                            @foreach($atRiskDocuments as $doc)
-                                @php
-                                    $slaHours   = $doc->statusEnum()->slaHours() ?? 0;
-                                    $elapsed    = $doc->sla_elapsed_hours ?? 0;
-                                    $pct        = $slaHours > 0 ? min(round(($elapsed / $slaHours) * 100), 100) : 0;
-                                    $overdue    = $doc->sla_overdue ?? false;
-                                    $barColor   = $overdue ? 'bg-red-500' : ($pct >= 75 ? 'bg-amber-500' : 'bg-emerald-500');
-                                    $remaining  = $slaHours > 0 ? round($slaHours - $elapsed) : 0;
-                                    $overBy     = $slaHours > 0 ? round($elapsed - $slaHours) : 0;
-                                @endphp
-                                <tr class="{{ $overdue ? 'bg-red-50/60' : '' }}">
-                                    <td class="px-4 py-3 text-sm font-mono font-semibold text-emerald-800">
-                                        <a href="{{ url('/track/' . $doc->tracking_number) }}" class="hover:underline">{{ $doc->tracking_number }}</a>
+                        <tbody>
+                            @foreach($staffWorkload as $member)
+                                <tr>
+                                    <td>
+                                        <a href="{{ route('staff.profile', $member) }}" class="st-name hover:underline">{{ $member->name }}</a>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->document_type }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->citizen_name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $doc->statusEnum()->label() }}</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <div class="h-2 w-24 flex-shrink-0 overflow-hidden rounded-full bg-gray-200">
-                                                <div class="h-2 rounded-full {{ $barColor }} transition-all duration-500" style="width:{{ $pct }}%"></div>
-                                            </div>
-                                            @if($overdue)
-                                                <span class="text-xs font-semibold text-red-600 whitespace-nowrap">+{{ $overBy }}h over</span>
-                                            @else
-                                                <span class="text-xs font-semibold text-amber-700 whitespace-nowrap">~{{ $remaining }}h left</span>
-                                            @endif
+                                    <td class="font-semibold text-green-deep">{{ $member->active_count }}</td>
+                                    <td class="text-ink-soft">{{ $member->completed_count }}</td>
+                                    <td>
+                                        <div class="h-2 w-32 overflow-hidden rounded-full bg-[#e6ece8]">
+                                            <div class="h-2 rounded-full {{ $member->active_count > 0 ? 'bg-green' : 'bg-[#cdd9d2]' }}"
+                                                 style="width:{{ (int) round(($member->active_count / $maxActive) * 100) }}%"></div>
                                         </div>
-                                        <p class="mt-0.5 text-xs text-gray-400">{{ $slaHours }}h SLA · {{ $pct }}% used</p>
                                     </td>
                                 </tr>
                             @endforeach
+
+                            @if($staffWorkload->every(fn ($m) => $m->active_count === 0 && $m->completed_count === 0))
+                                <tr class="st-empty">
+                                    <td colspan="4">No assignments yet — assign the pending requests below.</td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -103,70 +107,236 @@
         </section>
         @endif
 
-        <section class="space-y-4" x-data="reviewPanel(@js([
-            'requests' => $pendingPayload,
+        {{-- ── The office's requests ───────────────────────────────────────────
+             Two queues on one table, as the Look Up desk drew them: Unassigned
+             is the triage list (approve = assign), In Progress is the work in
+             flight. The second tab is why the desk could be retired — without
+             it a request vanished from this screen the moment it was assigned
+             and did not reappear until it was completed.
+
+             Both queues ride in one payload, so the Review modal resolves a row
+             from either tab and the table can never disagree with it. Searched,
+             filtered and paged in the browser for the same reason. Completed is
+             the office's whole history, so that tab is fetched a page at a time
+             (completed-tab-script).
+             ───────────────────────────────────────────────────────────────── --}}
+        @include('partials.completed-tab-script')
+        <section x-data="reviewPanel(@js([
+            'requests' => $pendingPayload->concat($activePayload),
             'mode' => 'supervisor',
             'staff' => $assignableStaff,
             'assignBase' => url('/documents'),
+            'reassignBase' => url('/admin/assignments'),
             'denyBase' => url('/documents'),
+            'openBase' => url('/documents'),
         ]))">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="text-2xl font-bold text-emerald-950 sm:text-3xl">Requests</h2>
-                <a href="{{ route('history') }}" class="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-gray-50 hover:text-emerald-950">
-                    Show all
-                    <span aria-hidden="true">›</span>
-                </a>
-            </div>
+            <div x-data="{
+                     ...window.stFilterMixin(),
+                     ...window.stCompletedMixin(@js(route('history.data'))),
+                     /* ?tab= / ?q= — where the old Assignments page's links land. */
+                     tab: ['pending', 'active', 'done'].includes(new URLSearchParams(location.search).get('tab'))
+                         ? new URLSearchParams(location.search).get('tab') : 'pending',
+                     q: new URLSearchParams(location.search).get('q') || '',
+                     page: 1,
+                     perPage: 10,
+                     init() {
+                         this.watchDone();
+                     },
+                     typeOptions() {
+                         return this.tab === 'done'
+                             ? this.done.types
+                             : this.uniqueTypes(this.requests.map((r) => r.document_type));
+                     },
+                     /* Unassigned, in flight or done, decided by the row itself so
+                        the tabs cannot drift apart from the modal's payload. */
+                     inQueue(req, which) {
+                         if (req.status === 'completed') {
+                             return which === 'done';
+                         }
 
-            <div class="panel">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="activityTable">
-                        <thead>
-                            <tr class="bg-gray-100/90">
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">#</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">File Name</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Tracking ID</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Date</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Category</th>
-                                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-600">Status</th>
-                                <th scope="col" class="px-4 py-3.5 text-right text-xs font-semibold tracking-wider text-gray-600">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <template x-for="(req, i) in requests" :key="req.id">
-                                <tr class="even:bg-gray-50/50">
-                                    <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="i + 1"></td>
-                                    <td class="px-4 py-3 text-sm text-gray-800" x-text="req.citizen_name || ('File ' + req.tracking_number.slice(-5))"></td>
-                                    <td class="px-4 py-3"><span class="font-mono text-sm font-semibold text-emerald-800" x-text="req.tracking_number"></span></td>
-                                    <td class="px-4 py-3 font-mono text-sm text-gray-500" x-text="req.submitted_at"></td>
-                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="req.document_type"></td>
-                                    <td class="px-4 py-3"><span class="pill p-muted">Pending</span></td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button type="button" @click="open(req)"
-                                                class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800">
-                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.46 12C3.73 7.94 7.52 5 12 5s8.27 2.94 9.54 7c-1.27 4.06-5.06 7-9.54 7s-8.27-2.94-9.54-7z"/></svg>
-                                            Review
-                                        </button>
+                         return which === 'pending' ? ! req.assigned_to : which === 'active' && !! req.assigned_to;
+                     },
+                     queueCount(which) {
+                         return this.requests.filter((r) => this.inQueue(r, which)).length;
+                     },
+                     get matches() {
+                         const needle = this.q.trim().toLowerCase();
+
+                         return this.requests.filter((r) => this.inQueue(r, this.tab)
+                             && this.passesFilter(r.document_type, r.submitted_on)
+                             && (! needle || [r.citizen_name, r.tracking_number, r.document_type, r.department]
+                                 .some((field) => (field || '').toLowerCase().includes(needle))));
+                     },
+                     get pageCount() {
+                         return this.tab === 'done' ? this.done.lastPage : Math.max(1, Math.ceil(this.matches.length / this.perPage));
+                     },
+                     get total() {
+                         return this.tab === 'done' ? this.done.total : this.matches.length;
+                     },
+                     get current() {
+                         // Searching can shrink the list out from under the open page.
+                         return this.tab === 'done' ? this.done.page : Math.min(this.page, this.pageCount);
+                     },
+                     get pageItems() {
+                         return this.tab === 'done'
+                             ? this.done.items
+                             : this.matches.slice((this.current - 1) * this.perPage, this.current * this.perPage);
+                     },
+                     get pageList() {
+                         if (this.tab === 'done') {
+                             return this.donePageList();
+                         }
+
+                         const last = this.pageCount;
+
+                         if (last <= 6) {
+                             return Array.from({ length: last }, (_, i) => i + 1);
+                         }
+
+                         if (this.current > 5) {
+                             return [1, 'gap', this.current - 1, this.current, this.current + 1, 'gap', last]
+                                 .filter((p) => p === 'gap' || (p >= 1 &amp;&amp; p <= last));
+                         }
+
+                         return [1, 2, 3, 4, 5, 'gap', last];
+                     },
+                     go(page) {
+                         const target = Math.min(Math.max(1, page), this.pageCount);
+
+                         if (this.tab === 'done') {
+                             this.loadDone(target);
+
+                             return;
+                         }
+
+                         this.page = target;
+                     },
+                 }">
+
+                {{-- Title and search share one line, as the frame draws them:
+                     the heading sits left, the search and filter right. They
+                     wrap to two lines on a narrow screen rather than squeezing
+                     the search field down to nothing. --}}
+                <div class="st-toolbar mb-4 flex-wrap justify-between gap-3">
+                    <div class="st-tabs" role="tablist" aria-label="Request queues">
+                        <button type="button" role="tab" @click="tab = 'pending'; page = 1"
+                                :class="tab === 'pending' ? 'on' : ''" :aria-selected="tab === 'pending'">
+                            Unassigned <span class="st-tab-count" x-text="queueCount('pending')"></span>
+                        </button>
+                        <button type="button" role="tab" @click="tab = 'active'; page = 1"
+                                :class="tab === 'active' ? 'on' : ''" :aria-selected="tab === 'active'">
+                            In Progress <span class="st-tab-count" x-text="queueCount('active')"></span>
+                        </button>
+                        <button type="button" role="tab" @click="tab = 'done'; page = 1"
+                                :class="tab === 'done' ? 'on' : ''" :aria-selected="tab === 'done'">
+                            Completed <span class="st-tab-count">{{ $completedCitizen }}</span>
+                        </button>
+                    </div>
+
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-3">
+                        <label for="requestSearch" class="sr-only">Search requests</label>
+                        <div class="st-search">
+                            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                            <input id="requestSearch" type="search" x-model="q" @input="page = 1" data-kbd-search placeholder="Search">
+                        </div>
+
+                        @include('partials.staff-table-filter', ['id' => 'supervisorFilter'])
+                    </div>
+                </div>
+
+                <div class="st-card">
+                    <div class="st-scroll">
+                        <table class="st-table">
+                            <thead>
+                                <tr>
+                                    <th>Request Type</th>
+                                    <th>Tracking ID</th>
+                                    {{-- A department head's queue is their own office by
+                                         definition, so the frame leaves this column out.
+                                         An org-wide admin reads the same table across
+                                         every office and would be lost without it. --}}
+                                    @if($spansDepartments)
+                                        <th>Department</th>
+                                    @endif
+                                    <th x-text="tab === 'done' ? 'Completed' : 'Date'">Date</th>
+                                    <th>Requested by</th>
+                                    {{-- Only meaningful on the In Progress tab: on the
+                                         Unassigned one it would be a column of dashes. --}}
+                                    <th x-show="tab !== 'pending'">Handled by</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="req in pageItems" :key="req.id">
+                                    <tr>
+                                        <td>
+                                            <div class="st-type">
+                                                <span class="st-disc" aria-hidden="true">
+                                                    <img src="{{ asset('images/staff/row-disc.svg') }}" alt="">
+                                                    {{-- Alpine renders these rows, so the glyph is chosen in the
+                                                         browser from the same keyword rules as <x-request-type-icon>. --}}
+                                                    <img :src="window.requestTypeIcon(req.document_type)" alt="">
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="st-name truncate" x-text="req.document_type"></p>
+                                                    {{-- No pill on the Unassigned tab: every row there is
+                                                         Pending, so the badge would be a column of the
+                                                         same word. On the In Progress tab the stage is
+                                                         the whole point of the row. --}}
+                                                    <span x-show="tab === 'active'" class="pill mt-1 inline-block"
+                                                          :class="pillClass(req)" x-text="req.status_label"></span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><span class="mono" x-text="req.tracking_number"></span></td>
+                                        @if($spansDepartments)
+                                            {{-- Department carries its own code (the THED ID) — one
+                                                 column instead of two saying the same thing. --}}
+                                            <td>
+                                                <span x-text="req.department || 'Not yet routed'"></span>
+                                                <span class="ml-1 mono text-xs text-ink-soft" x-show="req.thed_id" x-text="'· ' + req.thed_id"></span>
+                                            </td>
+                                        @endif
+                                        <td class="mono" x-text="tab === 'done' ? req.completed_at : req.submitted_at"></td>
+                                        <td x-text="req.citizen_name || '—'"></td>
+                                        <td x-show="tab !== 'pending'" x-text="req.assigned_staff || '—'"></td>
+                                        <td>
+                                            <button type="button" @click="open(req)" class="st-action">
+                                                <img src="{{ asset('images/staff/icon-eye.svg') }}" alt="">
+                                                <span x-text="tab === 'pending' ? 'Review' : 'View details'"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+
+                                <tr x-show="tab === 'done' && done.loading && ! done.loaded" class="st-empty">
+                                    <td :colspan="{{ $spansDepartments ? 7 : 6 }}"><p class="text-sm text-ink-soft">Loading completed requests…</p></td>
+                                </tr>
+
+                                <tr x-show="tab === 'done' ? (done.loaded || done.failed) && pageItems.length === 0 : matches.length === 0" class="st-empty">
+                                    <td :colspan="{{ $spansDepartments ? 6 : 5 }} + (tab === 'pending' ? 0 : 1)">
+                                        <div class="mx-auto flex max-w-sm flex-col items-center">
+                                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-wash text-green-deep">
+                                                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+                                            </div>
+                                            <p class="mt-3 text-sm font-semibold text-ink"
+                                               x-text="tab === 'done' && done.failed ? 'Completed requests could not be loaded' : (q || filterCount() ? 'No requests match' : ({ active: 'Nothing in progress', done: 'Nothing completed yet' }[tab] || 'No unassigned requests'))"></p>
+                                            <p class="mt-1 text-sm text-ink-soft"
+                                               x-text="tab === 'done' && done.failed ? 'Check your connection and open the tab again.' : (q || filterCount() ? 'Try another search, or loosen the filter.' : ({ active: 'Requests your staff are working on appear here.', done: 'Every request your office finishes appears here, newest first.' }[tab] || 'New citizen submissions awaiting approval will appear here.'))"></p>
+                                        </div>
                                     </td>
                                 </tr>
-                            </template>
-                            <tr x-show="requests.length === 0">
-                                <td colspan="7" class="px-4 py-12 text-center">
-                                    <div class="mx-auto flex max-w-sm flex-col items-center">
-                                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                                            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-                                        </div>
-                                        <p class="mt-3 text-sm font-semibold text-gray-700">No pending requests</p>
-                                        <p class="mt-1 text-sm text-gray-500">New citizen submissions awaiting approval will appear here.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @include('partials.staff-table-pager', ['label' => 'Request pages'])
                 </div>
             </div>
 
             @include('partials.review-modal', ['mode' => 'supervisor'])
         </section>
     </div>
+
+    @include('partials.request-type-icon-script')
 </x-app-layout>

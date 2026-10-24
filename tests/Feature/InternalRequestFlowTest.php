@@ -55,7 +55,7 @@ class InternalRequestFlowTest extends TestCase
     private function makeRequest(): Document
     {
         $document = Document::create([
-            'tracking_number' => 'SPD-TEST-FLOW01',
+            'tracking_number' => 'INT-'.now()->format('Ymd').'-K7M9Q2',
             'document_type' => 'Procurement Request',
             'purpose' => 'Chairs for the lobby',
             'status' => DocumentStatus::Pending->value,
@@ -139,7 +139,7 @@ class InternalRequestFlowTest extends TestCase
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.approve', $document), [
-                'password' => 'password',
+                'document_scan' => $document->tracking_number,
                 'remarks' => 'Approved for the lobby refresh.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -160,7 +160,38 @@ class InternalRequestFlowTest extends TestCase
         Notification::assertSentTo($budgetSupervisor, DocumentEvent::class);
     }
 
-    public function test_approving_the_last_hop_completes_the_request(): void
+    public function test_the_holding_office_chooses_where_the_request_goes_next(): void
+    {
+        $document = $this->makeRequest();
+        $document->requestSteps()->where('step_order', 1)->update(['status' => RequestStep::STATUS_APPROVED]);
+        $document->requestSteps()->where('step_order', 2)->update(['status' => RequestStep::STATUS_CURRENT, 'started_at' => now()]);
+        $budgetSupervisor = $this->supervisorOf($this->budget);
+        $this->takeCustody($document, $budgetSupervisor);
+
+        // Past the hops queued at filing, approving must name the next office.
+        $this->actingAs($budgetSupervisor)
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
+            ->assertSessionHasErrors('next_department_id');
+
+        $engineering = Department::factory()->create(['name' => 'Engineering Office', 'code' => 'ENGR']);
+
+        $this->actingAs($budgetSupervisor)
+            ->post(route('requests.steps.approve', $document), [
+                'document_scan' => $document->tracking_number,
+                'next_department_id' => $engineering->id,
+            ])
+            ->assertRedirect(route('requests.show', $document));
+
+        // The chain grew by the chosen office, and approving never completes.
+        $document->refresh();
+        $current = $document->currentRequestStep();
+        $this->assertNotNull($current);
+        $this->assertSame($engineering->id, $current->department_id);
+        $this->assertSame(DocumentStatus::InProgress, $document->statusEnum());
+        $this->assertNull($document->completed_at);
+    }
+
+    public function test_an_office_cannot_forward_a_request_to_itself(): void
     {
         $document = $this->makeRequest();
         $document->requestSteps()->where('step_order', 1)->update(['status' => RequestStep::STATUS_APPROVED]);
@@ -169,13 +200,73 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $budgetSupervisor);
 
         $this->actingAs($budgetSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), [
+                'document_scan' => $document->tracking_number,
+                'next_department_id' => $this->budget->id,
+            ])
+            ->assertSessionHasErrors('next_department_id');
+    }
+
+    public function test_scanning_custody_logs_the_receiving_department_onto_the_chain(): void
+    {
+        $document = $this->makeRequest();
+        $document->requestSteps()->where('step_order', 1)->update(['status' => RequestStep::STATUS_APPROVED]);
+        $document->requestSteps()->where('step_order', 2)->update(['status' => RequestStep::STATUS_CURRENT, 'started_at' => now()]);
+
+        // A scan must carry a tracking number this system issued.
+        $document->update(['tracking_number' => 'INT-'.now()->format('Ymd').'-K7M9Q2']);
+
+        // A fourth office receives the paper — it was never on the planned route.
+        $engineering = Department::factory()->create(['name' => 'Engineering Office', 'code' => 'ENGR']);
+        $engineer = $this->supervisorOf($engineering);
+
+        $this->actingAs($engineer)
+            ->post(route('documents.custody.store', $document), [
+                'capture_method' => 'scan',
+                'scanned_value' => $document->tracking_number,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $document->refresh();
+        $current = $document->currentRequestStep();
+        $this->assertNotNull($current);
+        $this->assertSame($engineering->id, $current->department_id);
+
+        // The office that was holding it is logged as having passed it on.
+        $this->assertSame(
+            RequestStep::STATUS_FORWARDED,
+            $document->requestSteps()->where('step_order', 2)->first()->status,
+        );
+
+        // Still not complete — only "mark as done" ends the chain. (Custody is
+        // additive: receiving the folder never moves the document's status.)
+        $this->assertNotSame(DocumentStatus::Completed, $document->statusEnum());
+    }
+
+    public function test_the_holding_office_marks_the_request_done_to_complete_it(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.complete', $document), [
+                'document_scan' => $document->tracking_number,
+                'remarks' => 'Chairs delivered to the lobby.',
+            ])
             ->assertRedirect(route('requests.show', $document));
 
         $document->refresh();
         $this->assertSame(DocumentStatus::Completed, $document->statusEnum());
         $this->assertNotNull($document->completed_at);
         $this->assertNull($document->currentRequestStep());
+
+        // Hops still queued behind the finished one are moot.
+        $this->assertSame(
+            RequestStep::STATUS_SKIPPED,
+            $document->requestSteps()->where('step_order', 2)->first()->status,
+        );
     }
 
     public function test_wrong_department_supervisor_cannot_act(): void
@@ -183,22 +274,32 @@ class InternalRequestFlowTest extends TestCase
         $document = $this->makeRequest();
 
         // Budget's hop is not open yet — its supervisor must wait for the Mayor's.
-        $this->actingAs($this->supervisorOf($this->budget))
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+        $budgetSupervisor = $this->supervisorOf($this->budget);
+
+        $this->actingAs($budgetSupervisor)
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertForbidden();
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->requestSteps->first()->status);
     }
 
-    public function test_wrong_password_blocks_the_decision(): void
+    public function test_a_foreign_or_mismatched_qr_blocks_the_decision(): void
     {
         $document = $this->makeRequest();
         $mayorSupervisor = $this->supervisorOf($this->mayor);
         $this->takeCustody($document, $mayorSupervisor);
 
+        // A QR this system never issued.
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'wrong-password'])
-            ->assertSessionHasErrors('password');
+            ->post(route('requests.steps.approve', $document), ['document_scan' => 'https://example.com/pay/12345'])
+            ->assertSessionHasErrors('document_scan');
+
+        // A valid code, but for the folder on the next desk.
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.approve', $document), [
+                'document_scan' => 'INT-'.now()->format('Ymd').'-ZZZ999',
+            ])
+            ->assertSessionHasErrors('document_scan');
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->fresh()->requestSteps->first()->status);
     }
@@ -210,7 +311,7 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertSessionHasErrors('signature');
 
         $this->assertSame(RequestStep::STATUS_CURRENT, $document->fresh()->requestSteps->first()->status);
@@ -223,12 +324,12 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor);
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.deny', $document), ['password' => 'password'])
+            ->post(route('requests.steps.deny', $document), ['document_scan' => $document->tracking_number])
             ->assertSessionHasErrors('remarks');
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.deny', $document), [
-                'password' => 'password',
+                'document_scan' => $document->tracking_number,
                 'remarks' => 'No budget line for decorative items this quarter.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -240,6 +341,47 @@ class InternalRequestFlowTest extends TestCase
         $this->assertNull($document->requestSteps->first()->signature_path);
     }
 
+    public function test_the_detail_renders_without_the_app_shell_for_the_internal_modal(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+
+        $this->actingAs($mayorSupervisor)
+            ->get(route('requests.show', ['document' => $document, 'modal' => 1]))
+            ->assertOk()
+            ->assertSee($document->tracking_number)
+            ->assertSee('Your office holds this request')
+            // The modal's close, and the forms say where to come back to.
+            ->assertSee("\$dispatch('close-internal-request')", false)
+            ->assertSee('<input type="hidden" name="from" value="internal">', false)
+            // No app shell: no sidebar, no layout.
+            ->assertDontSee('<aside', false)
+            ->assertDontSee('<html', false);
+    }
+
+    public function test_a_decision_taken_in_the_modal_returns_to_internal_with_it_reopened(): void
+    {
+        $document = $this->makeRequest();
+        $mayorSupervisor = $this->supervisorOf($this->mayor);
+        $this->takeCustody($document, $mayorSupervisor);
+
+        $this->actingAs($mayorSupervisor)
+            ->post(route('requests.steps.return', $document), [
+                'document_scan' => $document->tracking_number,
+                'remarks' => 'Attach three price quotations first.',
+                'from' => 'internal',
+            ])
+            ->assertRedirect(route('requests.index', ['open' => $document->id]));
+
+        $this->actingAs($mayorSupervisor)
+            ->get(route('requests.index', ['open' => $document->id]))
+            ->assertOk()
+            ->assertSee('internalRequestModal(', false)
+            // @js escapes slashes: the URL reads \/requests\/{id} in the page.
+            ->assertSee('\/requests\/'.$document->id, false);
+    }
+
     public function test_returning_a_hop_sends_the_request_back_for_revision(): void
     {
         $document = $this->makeRequest();
@@ -248,7 +390,7 @@ class InternalRequestFlowTest extends TestCase
 
         $this->actingAs($mayorSupervisor)
             ->post(route('requests.steps.return', $document), [
-                'password' => 'password',
+                'document_scan' => $document->tracking_number,
                 'remarks' => 'Attach three price quotations first.',
             ])
             ->assertRedirect(route('requests.show', $document));
@@ -268,7 +410,7 @@ class InternalRequestFlowTest extends TestCase
             ->get(route('requests.show', $document))
             ->assertOk()
             ->assertSee('Scan to take custody')
-            ->assertDontSee('Confirm your password');
+            ->assertDontSee("Scan this request's QR", false);
 
         // Once the folder is scanned in, the decision form unlocks.
         $this->takeCustody($document, $mayorSupervisor);
@@ -276,7 +418,7 @@ class InternalRequestFlowTest extends TestCase
             ->get(route('requests.show', $document))
             ->assertOk()
             ->assertSee('Your office holds this request')
-            ->assertSee('Confirm your password');
+            ->assertSee("Scan this request's QR", false);
 
         $this->actingAs($this->supervisorOf($this->budget))
             ->get(route('requests.show', $document))
@@ -299,7 +441,7 @@ class InternalRequestFlowTest extends TestCase
         // No custody yet: approve, deny, and return are all refused.
         foreach (['requests.steps.approve', 'requests.steps.deny', 'requests.steps.return'] as $route) {
             $this->actingAs($mayorSupervisor)
-                ->post(route($route, $document), ['password' => 'password', 'remarks' => 'x'])
+                ->post(route($route, $document), ['document_scan' => $document->tracking_number, 'remarks' => 'x'])
                 ->assertSessionHasErrors('custody');
         }
 
@@ -308,7 +450,7 @@ class InternalRequestFlowTest extends TestCase
         // After scanning the folder, the same approval goes through.
         $this->takeCustody($document, $mayorSupervisor);
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertRedirect(route('requests.show', $document));
 
         $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
@@ -323,7 +465,7 @@ class InternalRequestFlowTest extends TestCase
         $this->takeCustody($document, $mayorSupervisor, method: 'manual');
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertRedirect(route('requests.show', $document));
 
         $this->assertSame(RequestStep::STATUS_APPROVED, $document->fresh()->requestSteps->first()->status);
@@ -341,7 +483,7 @@ class InternalRequestFlowTest extends TestCase
         $this->assertFalse($document->currentStepHasCustody());
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertSessionHasErrors('custody');
     }
 
@@ -360,7 +502,7 @@ class InternalRequestFlowTest extends TestCase
         $this->assertFalse($document->currentStepHasCustody());
 
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password'])
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number])
             ->assertSessionHasErrors('custody');
     }
 
@@ -370,7 +512,7 @@ class InternalRequestFlowTest extends TestCase
         $mayorSupervisor = $this->supervisorOf($this->mayor);
         $this->takeCustody($document, $mayorSupervisor);
         $this->actingAs($mayorSupervisor)
-            ->post(route('requests.steps.approve', $document), ['password' => 'password']);
+            ->post(route('requests.steps.approve', $document), ['document_scan' => $document->tracking_number]);
 
         $step = $document->requestSteps()->first();
         $this->assertNotNull($step->signature_path);

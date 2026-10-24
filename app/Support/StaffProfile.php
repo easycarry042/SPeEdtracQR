@@ -53,9 +53,21 @@ class StaffProfile
             ->count();
     }
 
-    /** "Active now" / "last active" derived from the latest activity-log entry. */
+    /**
+     * When this person was last here.
+     *
+     * users.last_active_at is stamped by TrackLastActive on every page the
+     * person opens. The activity log is only a fallback, for an account that
+     * has not been seen since that column existed — on its own it answers
+     * "when did they last change something", which is why a staff member
+     * reading the site all morning used to show as an hour idle.
+     */
     public function lastActiveAt(): ?Carbon
     {
+        if ($this->user->last_active_at) {
+            return $this->user->last_active_at;
+        }
+
         $ts = Activity::where('causer_type', $this->user->getMorphClass())
             ->where('causer_id', $this->user->id)
             ->max('created_at');
@@ -63,24 +75,107 @@ class StaffProfile
         return $ts ? Date::parse($ts) : null;
     }
 
-    /** Completions per day over the last 12 months for the contribution heatmap. */
+    /**
+     * Completions per day over the last 12 months, plus the figures that read
+     * underneath the grid.
+     *
+     * The grid alone only says "busy sometimes". The strip under it answers
+     * the questions people actually bring to a profile: what does this person
+     * mostly handle, are they working now, and what does a good run look like.
+     *
+     * @return array{counts: array<string, int>, max: int, total: int, since: string,
+     *               last30: int, busiest_type: ?string, busiest_type_count: int,
+     *               peak_day: ?string, peak_day_count: int,
+     *               peak_month: ?string, peak_month_count: int,
+     *               current_streak: int, longest_streak: int}
+     */
     public function heatmap(): array
     {
         $since = now()->subYear()->startOfDay();
 
-        $counts = Document::where('assigned_to', $this->user->id)
+        $completed = Document::where('assigned_to', $this->user->id)
             ->whereNotNull('completed_at')
             ->where('completed_at', '>=', $since)
-            ->get(['completed_at'])
+            ->get(['completed_at', 'document_type']);
+
+        $counts = $completed
             ->groupBy(fn ($d) => $d->completed_at->toDateString())
             ->map->count();
+
+        $byMonth = $completed
+            ->groupBy(fn ($d) => $d->completed_at->format('Y-m'))
+            ->map->count();
+
+        $byType = $completed
+            ->groupBy('document_type')
+            ->map->count()
+            ->sortDesc();
+
+        $peakDay = $counts->sortDesc()->keys()->first();
+        $peakMonth = $byMonth->sortDesc()->keys()->first();
+
+        [$current, $longest] = $this->streaks($counts->keys()->all());
 
         return [
             'counts' => $counts->all(),       // [ 'Y-m-d' => n ]
             'max' => $counts->max() ?? 0,
             'total' => $counts->sum(),
             'since' => $since->toDateString(),
+
+            'last30' => $completed->filter(
+                fn ($d): bool => $d->completed_at->gte(now()->subDays(30)->startOfDay())
+            )->count(),
+
+            'busiest_type' => $byType->keys()->first(),
+            'busiest_type_count' => (int) ($byType->first() ?? 0),
+
+            'peak_day' => $peakDay,
+            'peak_day_count' => (int) ($peakDay ? $counts[$peakDay] : 0),
+
+            'peak_month' => $peakMonth,
+            'peak_month_count' => (int) ($peakMonth ? $byMonth[$peakMonth] : 0),
+
+            'current_streak' => $current,
+            'longest_streak' => $longest,
         ];
+    }
+
+    /**
+     * Consecutive days finishing at least one request.
+     *
+     * The current streak is allowed to end yesterday: at 9am on a working day
+     * nobody has completed anything yet, and zeroing a fortnight's run because
+     * of that would be wrong.
+     *
+     * @param  list<string>  $days  'Y-m-d', any order
+     * @return array{0: int, 1: int} [current, longest]
+     */
+    private function streaks(array $days): array
+    {
+        if ($days === []) {
+            return [0, 0];
+        }
+
+        sort($days);
+
+        $longest = 1;
+        $run = 1;
+        $previous = null;
+
+        foreach ($days as $day) {
+            if ($previous !== null) {
+                $run = Date::parse($previous)->addDay()->toDateString() === $day ? $run + 1 : 1;
+                $longest = max($longest, $run);
+            }
+
+            $previous = $day;
+        }
+
+        $today = now()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+        $current = in_array($previous, [$today, $yesterday], true) ? $run : 0;
+
+        return [$current, $longest];
     }
 
     /** Documents currently assigned to this user (registry list + at-risk flag). */

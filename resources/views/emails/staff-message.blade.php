@@ -19,9 +19,13 @@
     <div class="header"><h1>A message about your request</h1></div>
     <div class="body">
         <p>Hello {{ $document->citizen_name ?? 'there' }},</p>
-        <p>Staff handling your request <strong>{{ $document->tracking_number }}</strong> posted an update:</p>
+        <p>
+            <strong>{{ $comment->publicAuthorLabel() }}</strong> posted an update on your
+            request <strong>{{ $document->tracking_number }}</strong>:
+        </p>
         <div class="msg">{{ $comment->body }}</div>
-        <div class="cta"><a href="{{ $trackingUrl }}">View your request</a></div>
+        <div class="cta"><a href="{{ $trackingUrl }}">Reply in Speedy</a></div>
+        <p style="font-size:13px;color:#5b6b62;">You'll be asked to confirm your email address or mobile number before the conversation opens.</p>
     </div>
     <div class="footer">SPeED TraQR · This is an automated message — please do not reply.</div>
 </div>

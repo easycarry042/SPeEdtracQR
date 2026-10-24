@@ -3,7 +3,6 @@
 namespace App\Events;
 
 use App\Models\DocumentComment;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -11,10 +10,13 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * A new collaboration post. Broadcasts to the per-document PRIVATE staff channel
- * always, and additionally to the PUBLIC document channel only when the post is
- * citizen-facing. Internal notes therefore never reach the public channel a
- * citizen could subscribe to.
+ * A new collaboration post, on the per-document PRIVATE staff channel.
+ *
+ * It used to go to the request's PUBLIC channel as well whenever the post was
+ * citizen-facing — body and staff name included — and anyone who knew the
+ * tracking number could subscribe to that. The citizen side now gets a
+ * content-free ping instead (CitizenThreadChanged) and fetches the thread
+ * through the confirmed-citizen endpoint.
  */
 class DocumentCommentPosted implements ShouldBroadcast
 {
@@ -24,15 +26,7 @@ class DocumentCommentPosted implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        $document = $this->comment->document;
-
-        $channels = [new PrivateChannel('documents.'.$this->comment->document_id.'.staff')];
-
-        if ($this->comment->isPublic() && $document) {
-            $channels[] = new Channel('documents.'.$document->tracking_number);
-        }
-
-        return $channels;
+        return [new PrivateChannel('documents.'.$this->comment->document_id.'.staff')];
     }
 
     public function broadcastAs(): string

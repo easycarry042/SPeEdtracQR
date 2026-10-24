@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,21 +49,163 @@ class AdminDashboardTest extends TestCase
     {
         $this->seedRolesAndPermissions();
 
-        // EnsureHasPermission redirects users lacking "manage system" to their
-        // own dashboard rather than throwing a 403.
+        // EnsureHasPermission returns a 403 Access Denied page for authenticated
+        // users lacking "manage system".
         $this->actingAs($this->userWithRole('staff'))
             ->get(route('admin.dashboard'))
-            ->assertRedirect(route('dashboard'));
+            ->assertForbidden();
     }
 
     public function test_super_admin_analytics_redirects_to_the_dashboard(): void
     {
         $this->seedRolesAndPermissions();
 
-        // Analytics is folded into the command center for super admins.
-        $this->actingAs($this->userWithRole('super_admin'))
-            ->get(route('analytics'))
-            ->assertRedirect(route('admin.dashboard'));
+        // Analytics became Reports; a super admin's numbers are the command center.
+        $admin = $this->userWithRole('super_admin');
+        $this->actingAs($admin)->get(route('analytics'))->assertRedirect(route('reports.index'));
+        $this->actingAs($admin)->get(route('reports.index'))->assertRedirect(route('admin.dashboard'));
+    }
+
+    /**
+     * The frame's tile row splits the open work: requests nobody has started
+     * (Pending) against everything else still moving (In Progress). Before the
+     * redesign both of those were one "In Progress" count.
+     */
+    public function test_the_tile_row_splits_pending_from_in_progress(): void
+    {
+        $this->seedRolesAndPermissions();
+        $admin = $this->userWithRole('super_admin');
+
+        foreach (['pending', 'pending', 'pending'] as $i => $status) {
+            Document::create([
+                'tracking_number' => 'SPD-PEND-'.$i,
+                'document_type' => 'Business Permit',
+                'status' => $status,
+                'created_by' => $admin->id,
+                'status_changed_at' => now(),
+            ]);
+        }
+
+        Document::create([
+            'tracking_number' => 'SPD-MOVING-1',
+            'document_type' => 'Business Permit',
+            'status' => 'in_review',
+            'created_by' => $admin->id,
+            'status_changed_at' => now(),
+        ]);
+
+        $kpis = $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->viewData('kpis');
+
+        $this->assertSame(3, $kpis['pending']['value']);
+        // In Review is open work that has been picked up — not pending.
+        $this->assertSame(1, $kpis['in_progress']['value']);
+        $this->assertSame(4, $kpis['active']['value'], 'the all-open count the charts read must not change');
+    }
+
+    public function test_department_volume_is_read_against_the_busiest_office(): void
+    {
+        $this->seedRolesAndPermissions();
+        $admin = $this->userWithRole('super_admin');
+
+        $busiest = Department::create(['name' => 'Mayors Office', 'code' => 'MO', 'is_active' => true]);
+        $quiet = Department::create(['name' => 'Comelec Office', 'code' => 'COM', 'is_active' => true]);
+
+        foreach (range(1, 4) as $i) {
+            Document::create([
+                'tracking_number' => 'SPD-MO-'.$i,
+                'document_type' => 'Business Permit',
+                'department_id' => $busiest->id,
+                'status' => 'pending',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        Document::create([
+            'tracking_number' => 'SPD-COM-1',
+            'document_type' => 'Cedula',
+            'department_id' => $quiet->id,
+            'status' => 'pending',
+            'created_by' => $admin->id,
+        ]);
+
+        $volume = $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Requests by Office')
+            ->viewData('departmentVolume');
+
+        $this->assertSame(['Mayors Office', 'Comelec Office'], $volume->pluck('label')->all());
+        $this->assertSame([100, 25], $volume->pluck('pct')->all());
+        $this->assertTrue($volume->first()['busiest']);
+    }
+
+    /**
+     * The panel beside the department bars breaks the tiles' requests down by
+     * stage. It replaced a three-bucket donut that only repeated the tiles, and
+     * absorbed the second, eight-stage donut further down the page.
+     */
+    public function test_the_stage_breakdown_adds_back_to_the_tiles(): void
+    {
+        $this->seedRolesAndPermissions();
+        $admin = $this->userWithRole('super_admin');
+
+        $statuses = ['pending', 'pending', 'in_progress', 'on_hold', 'completed'];
+        foreach ($statuses as $i => $status) {
+            Document::create([
+                'tracking_number' => 'SPD-SPLIT-'.$i,
+                'document_type' => 'Business Permit',
+                'status' => $status,
+                'created_by' => $admin->id,
+                'completed_at' => $status === 'completed' ? now() : null,
+            ]);
+        }
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Where requests are now')
+            ->assertDontSee('Overall Request Status Breakdown')
+            ->assertDontSee('Where do documents sit?');
+
+        $byStage = $response->viewData('statusDistribution')->pluck('value', 'label');
+
+        $this->assertSame(2, $byStage['Pending']);
+        $this->assertSame(1, $byStage['In Progress']);
+        $this->assertSame(1, $byStage['On Hold']);
+        $this->assertSame(1, $byStage['Completed']);
+        $this->assertSame($response->viewData('kpis')['total']['value'], $byStage->sum());
+    }
+
+    public function test_recent_activity_names_who_changed_a_request_and_to_what(): void
+    {
+        $this->seedRolesAndPermissions();
+        $admin = $this->userWithRole('super_admin');
+        $staff = User::factory()->create(['name' => 'Rachel Obeda'])->assignRole('staff');
+
+        $document = Document::create([
+            'tracking_number' => 'SPD-AUDIT-01',
+            'document_type' => 'Business Permit',
+            'status' => 'pending',
+            'created_by' => $staff->id,
+            'status_changed_at' => now(),
+        ]);
+
+        $this->actingAs($staff);
+        $document->update(['status' => 'in_review']);
+
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk();
+
+        $latest = $response->viewData('recentActivity')->first();
+        $this->assertSame('Rachel Obeda', $latest['user']);
+        $this->assertSame('Staff', $latest['role']);
+        $this->assertSame('Status Updated', $latest['action']);
+        $this->assertSame('SPD-AUDIT-01', $latest['subject']);
+        $this->assertSame('→ In Review', $latest['detail']);
+
+        $response->assertSee('Recent Activity');
     }
 
     public function test_super_admin_can_reassign_an_at_risk_document(): void

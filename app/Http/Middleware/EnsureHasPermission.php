@@ -10,26 +10,20 @@ class EnsureHasPermission
 {
     /**
      * Verify the authenticated user has at least one of the required permissions.
-     * On failure, redirects to the user's own dashboard rather than throwing a 403.
+     * Unauthenticated visitors are sent to the login page; authenticated users
+     * who lack the permission get a 403 Access Denied page (nav links are already
+     * role-gated, so this only fires on direct URL access / history navigation).
      */
     public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
         if (! $request->user()) {
-            return to_route('login');
+            return redirect()->guest(route('login'));
         }
 
         if (! $request->user()->hasAnyPermission($permissions)) {
-            return $this->redirectToOwnDashboard($request->user());
+            abort(403, 'You do not have permission to access that area.');
         }
 
         return $next($request);
-    }
-
-    private function redirectToOwnDashboard($user): Response
-    {
-        $route = $user->can('manage system') ? 'admin.dashboard' : 'dashboard';
-
-        return to_route($route)
-            ->with('error', 'You do not have permission to access that area.');
     }
 }

@@ -41,8 +41,13 @@ class StatusGateTest extends TestCase
         $staff = $this->staff();
         $doc = $this->doc($staff, ['status' => 'pending', 'accepted_at' => null]);
 
+        $claim = now()->addWeek()->toDateString();
+
         $this->actingAs($staff)
-            ->patchJson(route('documents.status.advance', $doc), ['expected_status' => 'pending'])
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'pending',
+                'claim_date' => $claim,
+            ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('status');
 
@@ -51,7 +56,10 @@ class StatusGateTest extends TestCase
         $doc->forceFill(['accepted_at' => now()])->save();
 
         $this->actingAs($staff)
-            ->patchJson(route('documents.status.advance', $doc), ['expected_status' => 'pending'])
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'pending',
+                'claim_date' => $claim,
+            ])
             ->assertOk();
 
         $this->assertSame('in_progress', $doc->fresh()->status);
@@ -61,6 +69,7 @@ class StatusGateTest extends TestCase
     {
         $staff = $this->staff();
         $doc = $this->doc($staff);
+        $claim = now()->addWeek()->toDateString();
 
         $this->actingAs($staff)
             ->patchJson(route('documents.status.advance', $doc), ['expected_status' => 'in_progress'])
@@ -76,13 +85,50 @@ class StatusGateTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->patchJson(route('documents.status.advance', $doc), ['expected_status' => 'in_progress'])
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'claim_date' => $claim,
+            ])
             ->assertOk();
 
         $this->assertSame('in_review', $doc->fresh()->status);
     }
 
-    public function test_advance_to_approved_requires_a_review_note(): void
+    public function test_advancing_requires_a_claiming_date_and_records_it(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['status' => 'in_review']);
+
+        // The claiming date replaced the free-text review note.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), ['expected_status' => 'in_review'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('claim_date');
+
+        // A day already past cannot be promised to the citizen.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'claim_date' => now()->subDay()->toDateString(),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('claim_date');
+
+        $claim = now()->addWeek()->startOfDay();
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'claim_date' => $claim->toDateString(),
+            ])
+            ->assertOk();
+
+        $doc->refresh();
+        $this->assertSame('approved', $doc->status);
+        $this->assertSame($claim->toDateString(), $doc->claim_date->toDateString());
+    }
+
+    public function test_advance_to_approved_accepts_an_optional_note_alongside_the_date(): void
     {
         $staff = $this->staff();
         $doc = $this->doc($staff, ['status' => 'in_review']);
@@ -94,10 +140,44 @@ class StatusGateTest extends TestCase
         $this->actingAs($staff)
             ->patchJson(route('documents.status.advance', $doc), [
                 'expected_status' => 'in_review',
+                'claim_date' => now()->addWeek()->toDateString(),
                 'note' => 'All requirements verified; clearances valid.',
             ])
             ->assertOk();
 
+        $this->assertSame('approved', $doc->fresh()->status);
+    }
+
+    public function test_approval_is_blocked_until_mandatory_requirements_are_verified(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['status' => 'in_review']);
+        $req = $doc->requirements()->create(['label' => 'Barangay Clearance', 'is_mandatory' => true]);
+
+        // A claiming date is set, but the mandatory requirement isn't verified → blocked.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'claim_date' => now()->addWeek()->toDateString(),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+        $this->assertSame('in_review', $doc->fresh()->status);
+
+        // Staff verifies the requirement (records who/when).
+        $this->actingAs($staff)
+            ->post(route('documents.requirements.toggle', [$doc, $req]))
+            ->assertRedirect();
+        $this->assertNotNull($req->fresh()->verified_at);
+        $this->assertSame($staff->id, $req->fresh()->verified_by);
+
+        // Now approval goes through.
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'claim_date' => now()->addWeek()->toDateString(),
+            ])
+            ->assertOk();
         $this->assertSame('approved', $doc->fresh()->status);
     }
 
@@ -110,7 +190,7 @@ class StatusGateTest extends TestCase
         $this->actingAs($staff)
             ->patchJson(route('documents.status.advance', $doc), [
                 'expected_status' => 'in_progress',
-                'note' => 'Looks fine.',
+                'claim_date' => now()->addWeek()->toDateString(),
             ])
             ->assertUnprocessable();
 
@@ -145,35 +225,60 @@ class StatusGateTest extends TestCase
         $this->actingAs($staff)
             ->get(route('track.show', $doc->tracking_number))
             ->assertOk()
-            // Advance gate panel with the →In Review checklist, unmet — a
-            // typed note can satisfy it, and the panel says so.
+            // Advance dialog with the →In Review checklist, unmet — setting the
+            // claiming date records the step, and the dialog says so.
             ->assertSee('Confirm — move to In Review')
             ->assertSee('An attachment or work note on file')
-            ->assertSee('or add a note below')
-            ->assertSee('Add a work note above');
+            ->assertSee('Claiming date (required)')
+            ->assertSee('setting a claiming date below records this step')
+            // Return for revision / On hold moved to the review modal.
+            ->assertDontSee('Return for revision')
+            ->assertDontSee('On hold');
     }
 
-    public function test_a_transition_note_satisfies_the_work_evidence_gate(): void
+    public function test_the_claiming_date_satisfies_the_work_evidence_gate(): void
     {
         $staff = $this->staff();
         $doc = $this->doc($staff); // in_progress, nothing on file
+        $claim = now()->addWeek();
 
         $this->actingAs($staff)
             ->patchJson(route('documents.status.advance', $doc), [
                 'expected_status' => 'in_progress',
-                'note' => 'Verified the submitted documents; started processing.',
+                'claim_date' => $claim->toDateString(),
             ])
             ->assertOk();
 
         $doc->refresh();
         $this->assertSame('in_review', $doc->status);
+        $this->assertSame($claim->toDateString(), $doc->claim_date->toDateString());
 
-        // The note was persisted as a real staff work note on the file.
+        // The date is written to the file as a real staff work note, so the
+        // audit trail still records why the stage moved.
         $this->assertTrue(
             $doc->comments()->where('author_type', 'staff')
-                ->where('body', 'Verified the submitted documents; started processing.')
+                ->where('body', 'Claiming date set to '.$claim->format('M d, Y').'.')
                 ->exists()
         );
+    }
+
+    public function test_the_claiming_date_reaches_the_citizen_tracking_page(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['status' => 'in_review']);
+        $claim = now()->addDays(10);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_review',
+                'claim_date' => $claim->toDateString(),
+            ])
+            ->assertOk();
+
+        // The citizen sees the promised day on their public tracking page.
+        $this->get(route('track.show', $doc->tracking_number))
+            ->assertOk()
+            ->assertSee($claim->format('l, M d, Y'));
     }
 
     public function test_return_for_revision_requires_a_reason(): void
@@ -200,5 +305,63 @@ class StatusGateTest extends TestCase
         $doc->refresh();
         $this->assertSame('returned', $doc->status);
         $this->assertSame('The uploaded clearance is expired.', $doc->remarks);
+    }
+
+    public function test_advance_reuses_the_claiming_date_already_set(): void
+    {
+        $staff = $this->staff();
+        $claim = now()->addDays(4)->startOfDay();
+        $doc = $this->doc($staff, ['claim_date' => $claim]);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertOk();
+
+        $doc->refresh();
+        $this->assertSame('in_review', $doc->status);
+        $this->assertTrue($doc->claim_date->isSameDay($claim));
+    }
+
+    public function test_advance_without_a_claiming_date_asks_for_one(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['claim_date' => 'Pick the claiming date for the citizen.']);
+
+        $this->assertSame('in_progress', $doc->fresh()->status);
+    }
+
+    public function test_advance_refuses_a_claiming_date_that_has_passed(): void
+    {
+        $staff = $this->staff();
+        $doc = $this->doc($staff, ['claim_date' => now()->subDay()->startOfDay()]);
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('claim_date');
+
+        $this->actingAs($staff)
+            ->patchJson(route('documents.status.advance', $doc), [
+                'expected_status' => 'in_progress',
+                'note' => 'Verified the submitted documents.',
+                'claim_date' => now()->addDays(2)->toDateString(),
+            ])
+            ->assertOk();
+
+        $this->assertTrue($doc->fresh()->claim_date->isSameDay(now()->addDays(2)));
     }
 }

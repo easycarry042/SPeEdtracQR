@@ -97,8 +97,8 @@ class DocumentHoldTest extends TestCase
 
         $this->artisan('documents:check-sla')->assertSuccessful();
 
-        Mail::assertNotSent(SlaBreachMail::class);
-        Mail::assertNotSent(SlaWarningMail::class);
+        Mail::assertNotQueued(SlaBreachMail::class);
+        Mail::assertNotQueued(SlaWarningMail::class);
     }
 
     public function test_unhold_restores_stage_and_pauses_sla(): void

@@ -8,8 +8,10 @@ use App\Events\DocumentStatusUpdated;
 use App\Mail\ActionNeededMail;
 use App\Mail\StatusUpdated;
 use App\Models\Document;
+use App\Support\Lending;
 use App\Support\StatusGate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -27,7 +29,20 @@ class DocumentStatusController extends Controller
 
         $validated = $request->validate([
             'expected_status' => ['required', 'string'],
+            // Advancing sets the day the citizen collects. It replaces the old
+            // free-text review note: the same decision, but a date the citizen
+            // can act on rather than prose only staff read. A date already set
+            // (Adjust Date in the Review modal) carries over unless it has passed.
+            'claim_date' => [
+                Rule::requiredIf(fn () => ! $document->claim_date || $document->claim_date->lt(today())),
+                'nullable', 'date', 'after_or_equal:today',
+            ],
             'note' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'claim_date.required' => $document->claim_date
+                ? 'The claiming date ('.$document->claim_date->format('M d, Y').') has passed. Pick a new one for the citizen.'
+                : 'Pick the claiming date for the citizen.',
+            'claim_date.after_or_equal' => 'The claiming date cannot be in the past.',
         ]);
 
         StatusGate::assertExpectedStatus($document, $validated['expected_status']);
@@ -41,10 +56,26 @@ class DocumentStatusController extends Controller
             return $this->fail('Use Approve on the Requests page to mark this document completed and move it to History.');
         }
 
-        // Hard stage gates: unmet requirements (and a missing review note for
-        // →Approved) block the transition with a per-requirement message.
+        $picked = filled($validated['claim_date'] ?? null);
+        $claimDate = $picked
+            ? Carbon::parse($validated['claim_date'])->startOfDay()
+            : $document->claim_date->copy()->startOfDay();
+
+        // The claiming date is the work evidence the gate used to take as a
+        // note, so the stage checks still have something concrete to accept.
         $note = trim((string) ($validated['note'] ?? '')) ?: null;
+        $note ??= ($picked ? 'Claiming date set to ' : 'Claiming date stays ').$claimDate->format('M d, Y').'.';
+
+        // Hard stage gates: unmet requirements block the transition with a
+        // per-requirement message.
         StatusGate::validate($document, $next, $note);
+
+        // The booking follows the claiming date (see ReviewController::setClaimDate).
+        if ($refusal = Lending::followClaimDate($document, $claimDate)) {
+            return $this->fail($refusal);
+        }
+
+        $document->update(['claim_date' => $claimDate]);
 
         // The transition note is a real work note: persist it as an internal
         // staff comment so it shows in the feed and satisfies future gates.
@@ -144,6 +175,9 @@ class DocumentStatusController extends Controller
             'hold_until' => $validated['hold_until'] ?? null,
             'held_at' => now(),
             'held_by' => auth()->id(),
+            // Fresh hold = fresh backstop clock; documents:check-holds re-nags
+            // only once this hold runs past its own deadline.
+            'hold_reminder_sent_at' => null,
         ])->save();
 
         $actor = auth()->user()?->name ?? 'Staff';
@@ -197,6 +231,7 @@ class DocumentStatusController extends Controller
             'blocked_by' => null,
             'held_at' => null,
             'held_by' => null,
+            'hold_reminder_sent_at' => null,
         ])->save();
 
         $actor = auth()->user()?->name ?? 'Staff';

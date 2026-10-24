@@ -1,11 +1,10 @@
 {{-- "Document Created" confirmation card. Shown on documents/created.blade.php and
      pulled into the New Submission modal after an AJAX submit (via #documentCreatedCard). --}}
 @php
-    $trackUrl = url('/track/'.$document->tracking_number);
-    $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate($trackUrl);
+    $qrSvg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->errorCorrection('M')->generate(\App\Support\TrackingQr::payload($document->tracking_number));
 @endphp
 <div id="documentCreatedCard" class="rounded-2xl border border-gray-200/90 bg-white p-8 text-center shadow-md">
-    <p class="text-lg text-gray-600">Scan this code to open tracking, or print the sticker for the physical file.</p>
+    <p class="text-lg text-gray-600">Scan this code with SPeED TraQR's scanner to open tracking, or print the sticker for the physical file.</p>
 
     <div class="mx-auto mt-6 flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 bg-white p-3 shadow-inner [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
         {!! $qrSvg !!}

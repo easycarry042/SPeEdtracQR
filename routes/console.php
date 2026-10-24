@@ -12,6 +12,16 @@ Artisan::command('inspire', function () {
 // per-scan delayed jobs. Requires `php artisan schedule:run` on cron in prod.
 Schedule::command('documents:check-sla')->hourly();
 
+// The backstop for the above: a hold PAUSES the SLA clock, so documents:check-sla
+// skips held rows by design. This daily sweep chases holds that have run past
+// their own hold date and escalates them, so a parked document cannot hide.
+Schedule::command('documents:check-holds')->dailyAt('07:00');
+
+// Borrowed items past their return date: nothing returns to stock until staff
+// record it, so this chases the borrower and tells the office (hourly, with its
+// own re-remind cadence in tracking.loans).
+Schedule::command('inventory:check-overdue')->hourly();
+
 // Nightly data backups (DB dump + uploaded files) to the `backups` disk, then
 // prune old archives and verify a fresh one exists. Requires the scheduler
 // (`php artisan schedule:run`) on cron in production.

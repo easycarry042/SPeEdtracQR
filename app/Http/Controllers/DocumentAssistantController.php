@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Document;
 use App\Support\Ai\DocumentAssistant;
+use App\Support\Ai\SpeedyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,9 +22,9 @@ class DocumentAssistantController extends Controller
             'question' => ['required', 'string', 'min:2', 'max:500'],
         ]);
 
-        $document = Document::where('tracking_number', $trackingNumber)
-            ->with('assignedTo')
-            ->firstOrFail();
+        // Internal office-to-office requests 404 here as on every public page;
+        // this endpoint used to answer for them.
+        $document = SpeedyContext::findTrackable($trackingNumber) ?? abort(404);
 
         $result = $assistant->answer($document, $validated['question']);
 

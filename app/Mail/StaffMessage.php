@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Models\DocumentComment;
+use App\Support\CitizenView;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -35,7 +36,12 @@ class StaffMessage extends Mailable implements ShouldQueue
             view: 'emails.staff-message',
             with: [
                 'document' => $this->comment->document,
-                'trackingUrl' => url('/track/'.$this->comment->document->tracking_number),
+                // Opens Speedy straight on the conversation (?speedy=messages),
+                // not just the tracking page with the reply somewhere below.
+                'trackingUrl' => route('track.show', [
+                    'trackingNumber' => $this->comment->document->tracking_number,
+                    'speedy' => 'messages',
+                ] + CitizenView::QUERY),
             ],
         );
     }

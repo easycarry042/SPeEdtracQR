@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,9 +29,11 @@ class SupervisorReviewTest extends TestCase
     public function test_supervisor_assign_approve_assigns_and_returns_json(): void
     {
         $this->seedRolesAndPermissions();
-        $supervisor = User::factory()->create()->assignRole('Supervisor');
-        $staff = User::factory()->create()->assignRole('staff');
-        $doc = $this->doc();
+        // Department head assigns within their own department.
+        $dept = Department::create(['name' => 'Records', 'code' => 'REC', 'is_active' => true]);
+        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
+        $staff = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
+        $doc = $this->doc(['department_id' => $dept->id]);
 
         $this->actingAs($supervisor)
             ->postJson(route('documents.assign-approve', $doc), ['assigned_to' => $staff->id])
@@ -84,8 +87,9 @@ class SupervisorReviewTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            // Sidebar keeps "Staff"/"Settings"; the account menu no longer
-            // duplicates them under these labels.
-            ->assertDontSee('Staff directory');
+            // The sidebar keeps "Staff", so the menu does not duplicate it.
+            ->assertDontSee('Staff directory')
+            // Settings was removed from the sidebar and now lives only here.
+            ->assertSee(route('profile.edit'));
     }
 }

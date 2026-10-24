@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Stopwatch: the average time from filing to completion. -->
+  <path d="M32.4 15.2c11.9-.3 21.3 9.4 21 21.2-.3 11.5-9.9 20.6-21.5 20.3C20.4 56.4 11 46.9 11.3 35.5c.3-11 9.6-20 21.1-20.3Z"/>
+  <path d="M26.6 8.4c3.9-.4 7.6-.4 11.1.1M32.2 8.6l.1 6.4"/>
+  <path d="M48.6 19.6l3.5-3.8M50.3 14.2l3.6 3.4"/>
+  <path d="M32.3 36.1l.2-12.4"/>
+  <path d="M32.3 36.1l7.6 4.7"/>
+  <path d="M16.6 36.2h2.3M45.8 36.1h2.4M32.2 51.8v-2.3"/>
+</svg>

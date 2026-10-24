@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Support\TrackingQr;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder;
 use Illuminate\Support\Facades\Log;
@@ -20,8 +21,14 @@ class QrCodeService
 
     private const int TRACKING_SUFFIX_LENGTH = 6;
 
-    public function generateTrackingNumber(): string
+    /**
+     * Generate a unique tracking number. External citizen tickets use the
+     * default 'SPD' prefix; internal dept-to-dept requests pass 'INT' so the two
+     * are distinguishable at a glance (SPD-YYYYMMDD-XXXXXX vs INT-YYYYMMDD-XXXXXX).
+     */
+    public function generateTrackingNumber(string $prefix = 'SPD'): string
     {
+        $prefix = strtoupper($prefix);
         $alphabetMax = strlen(self::TRACKING_ALPHABET) - 1;
 
         do {
@@ -29,20 +36,29 @@ class QrCodeService
             for ($i = 0; $i < self::TRACKING_SUFFIX_LENGTH; $i++) {
                 $suffix .= self::TRACKING_ALPHABET[random_int(0, $alphabetMax)];
             }
-            $trackingNumber = 'SPD-'.now()->format('Ymd').'-'.$suffix;
+            $trackingNumber = $prefix.'-'.now()->format('Ymd').'-'.$suffix;
         } while (Document::where('tracking_number', $trackingNumber)->exists());
 
         return $trackingNumber;
     }
 
-    public function generateAndStore(string $trackingNumber, string $trackingUrl): array
+    /**
+     * Render and store the request's QR. It encodes a signed TrackingQr payload,
+     * not the tracking URL, so only this application's scanners can use it.
+     *
+     * An internal (INT-) request's QR wraps that payload in a link to the
+     * public internal tracker (TrackingQr::content()), so any phone camera can
+     * open it — the client's request — while the signature still decides
+     * whether it is one of ours.
+     */
+    public function generateAndStore(string $trackingNumber): array
     {
         try {
             if (! extension_loaded('gd')) {
                 throw new \RuntimeException('GD extension is required for QR generation.');
             }
 
-            $binaryPng = $this->renderPngWithGd($trackingUrl);
+            $binaryPng = $this->renderPngWithGd(TrackingQr::content($trackingNumber));
 
             $relativePath = "qrcodes/{$trackingNumber}.png";
             Storage::disk('public')->put($relativePath, $binaryPng);
@@ -74,9 +90,19 @@ class QrCodeService
      * many servers (including ours) don't ship — GD is the project baseline,
      * so drawing the modules ourselves keeps PNG output dependable.
      */
-    private function renderPngWithGd(string $content, int $targetSize = 500, int $marginModules = 1): string
+    /**
+     * Render the QR as a PNG.
+     *
+     * The quiet zone is 4 modules because that is what the QR spec (ISO/IEC
+     * 18004) requires: with a smaller margin many phone cameras and
+     * html5-qrcode simply fail to lock onto a printed sticker, which is why
+     * scanning "didn't read" in the field. Error correction is raised to Q
+     * (~25%) so a folder sticker still decodes once it is scuffed or smudged
+     * from handling — the payload is short, so there is capacity to spare.
+     */
+    private function renderPngWithGd(string $content, int $targetSize = 500, int $marginModules = 4): string
     {
-        $matrix = Encoder::encode($content, ErrorCorrectionLevel::M())->getMatrix();
+        $matrix = Encoder::encode($content, ErrorCorrectionLevel::Q())->getMatrix();
         $modules = $matrix->getWidth();
         $total = $modules + ($marginModules * 2);
         $scale = max(1, intdiv($targetSize, $total));

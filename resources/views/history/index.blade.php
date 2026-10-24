@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="History">
     <div class="page-shell page-shell-loose">
         <form method="GET" id="historyFilterForm"
               x-data="{ filtersOpen: {{ (request()->filled('document_type') || request()->filled('status') || request()->filled('from') || request()->filled('to')) ? 'true' : 'false' }} }"
@@ -7,10 +7,10 @@
             <div class="flex flex-wrap items-center gap-3">
                 <input type="text" name="search" id="historySearch" value="{{ request('search') }}" autocomplete="off"
                        placeholder="Search tracking #, citizen, or type…"
-                       class="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
+                       class="h-ctl flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
                 <button type="button" @click="filtersOpen = !filtersOpen"
                         :class="filtersOpen ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-gray-200 bg-white text-gray-600'"
-                        class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:bg-gray-50"
+                        class="inline-flex h-ctl items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition hover:bg-gray-50"
                         :aria-expanded="filtersOpen ? 'true' : 'false'">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
@@ -18,32 +18,25 @@
                     Filters
                 </button>
                 <a href="{{ route('history.export', request()->query()) }}" id="historyExportLink"
-                   class="inline-flex items-center justify-center rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+                   class="inline-flex h-ctl items-center justify-center rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
                     Export CSV
                 </a>
             </div>
 
             {{-- Toggleable filter panel --}}
-            <div x-show="filtersOpen" x-cloak class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-                <select name="document_type" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                    <option value="">All Categories</option>
-                    @foreach($documentTypes as $type)
-                        <option value="{{ $type }}" @selected(request('document_type')===$type)>{{ $type }}</option>
-                    @endforeach
-                </select>
-                <select name="status" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                    <option value="">All Statuses</option>
-                    @foreach($statuses as $status)
-                        <option value="{{ $status }}" @selected(request('status')===$status)>{{ str_replace('_', ' ', ucfirst($status)) }}</option>
-                    @endforeach
-                </select>
+            <div x-show="filtersOpen" x-cloak class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+                <x-select-menu name="document_type" variant="plain" panel-width="w-56"
+                               placeholder="All Categories"
+                               class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                               :options="collect($documentTypes)->mapWithKeys(fn ($type) => [$type => $type])->prepend('All Categories', '')->all()"
+                               :selected="request('document_type')"/>
                 <input type="date" name="from" value="{{ request('from') }}" title="From date"
-                       class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
+                       class="h-ctl rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
                 <input type="date" name="to" value="{{ request('to') }}" title="To date"
-                       class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
+                       class="h-ctl rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
                 <div class="flex items-center gap-2">
-                    <button type="submit" class="flex-1 rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">Apply</button>
-                    <a href="{{ route('history') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">Clear</a>
+                    <button type="submit" class="h-ctl flex-1 rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">Apply</button>
+                    <a href="{{ route('history') }}" class="inline-flex h-ctl items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50">Clear</a>
                 </div>
             </div>
         </form>
@@ -59,7 +52,6 @@
                             <th>Date</th>
                             <th>Category</th>
                             <th>Status</th>
-                            <th style="text-align:right">Sticker</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -73,15 +65,14 @@
                                 :tracking="$doc->tracking_number"
                                 :fileName="$doc->citizen_name ?: 'File '.substr($doc->tracking_number, -5)"
                                 :category="$doc->document_type"
-                                :status="$doc->status === 'completed' ? 'completed' : $doc->status"
+                                :status="$doc->status"
                                 :href="route('track.show', $doc->tracking_number)"
-                                :sticker-href="route('documents.sticker', $doc)"
                             />
                         @empty
                             <tr>
-                                <td colspan="7">
+                                <td colspan="6">
                                     <x-empty-state icon="search" title="No records match">
-                                        Nothing lines up with the current search or filters. Try broadening your terms or clearing the filters.
+                                        History lists completed requests only. Nothing here matches the current search or filters — try broadening your terms.
                                     </x-empty-state>
                                 </td>
                             </tr>
@@ -111,7 +102,7 @@
             });
 
             // Dropdowns and dates refresh immediately on change
-            form.querySelectorAll('select, input[type="date"]').forEach(function (el) {
+            form.querySelectorAll('select, input[type="date"], [data-filter-control]').forEach(function (el) {
                 el.addEventListener('change', refreshResults);
             });
 

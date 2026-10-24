@@ -1,0 +1,132 @@
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * The track page offers two routes in side by side — scan the receipt's QR, or
+ * type the number printed on it — each in its own glass panel.
+ */
+class CitizenTrackPageDesignTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_both_ways_in_are_offered_side_by_side(): void
+    {
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee('Where is my request?');
+        $response->assertSee('Scan QR Code to track');
+        $response->assertSee('Enter Tracking Number');
+        $response->assertSee('Start Camera');
+        $response->assertSee('Search');
+
+        // Both columns carry the tracking page's own glass panel.
+        $this->assertSame(2, substr_count($response->getContent(), 'track-panel'));
+    }
+
+    public function test_the_lookup_field_shows_the_tracking_number_shape(): void
+    {
+        $this->get(route('citizen.track'))
+            ->assertOk()
+            ->assertSee('placeholder="SPD-XXXXXXXX-XXXXXX"', false);
+    }
+
+    public function test_the_scanner_keeps_a_status_line_for_screen_readers(): void
+    {
+        // The status text is visually replaced by the framing guide, but the
+        // camera's state still has to reach assistive tech.
+        $this->get(route('citizen.track'))
+            ->assertOk()
+            ->assertSee('id="scanStatus"', false)
+            ->assertSee('aria-live="polite"', false);
+    }
+
+    public function test_camera_trouble_interrupts_with_a_dialog(): void
+    {
+        // The old inline panel sat under the card where it was easy to miss.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee("new CustomEvent('open-modal', { detail: 'camera-error' })", false);
+        $response->assertSee('id="cameraErrorTitle"', false);
+        $response->assertSee('id="cameraErrorBody"', false);
+        $response->assertSee('Try Again');
+
+        // Its copy is set per failure, so the dialog can't claim "denied" when
+        // the device simply has no camera.
+        $response->assertSee('No camera found');
+        $response->assertSee('Could not start the camera');
+        $response->assertSee('Camera access denied');
+    }
+
+    public function test_the_scanner_uses_the_bundled_shared_helper_not_a_cdn(): void
+    {
+        // The CDN copy of html5-qrcode overwrote the bundled one, so an office
+        // LAN without internet access got a Start Camera button that did
+        // nothing. SpeedQr also refuses an insecure origin loudly, which is the
+        // usual reason the browser never shows a permission prompt.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertDontSee('unpkg.com', false);
+        $response->assertDontSee('html5-qrcode.min.js', false);
+        $response->assertSee('window.SpeedQr.start(', false);
+        $response->assertSee('window.SpeedQr.describe(', false);
+
+        // Foreign QR codes are rejected rather than sent to a bogus lookup.
+        $response->assertSee('window.SpeedQr.extractTracking(', false);
+    }
+
+    public function test_a_successful_scan_opens_the_record_without_a_second_tap(): void
+    {
+        // A scan used to stop at a "Track this Document" confirmation — a step
+        // with no decision in it, over a number the citizen cannot read anyway.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $content = $response->getContent();
+        $handler = substr($content, strpos($content, 'window.SpeedQr.start('));
+
+        $this->assertStringContainsString('goToTracking(tracking);', $handler);
+        // The panel stays, but as feedback during the redirect.
+        $response->assertSee('QR code detected — opening your record…', false);
+        $response->assertSee('Open it now');
+    }
+
+    public function test_the_camera_window_never_distorts_what_the_decoder_reads(): void
+    {
+        // html5-qrcode maps its scan region through the video element's box.
+        // A 16:9 feed forced into the square (object-fit: cover) squashed every
+        // frame ~1.8x sideways, so a sharp QR in plain view never decoded. The
+        // reader is now laid out at the feed's own shape and drawn smaller with
+        // a transform, which the library's measurements ignore.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee('id="qr-reader" class="qr-surface"', false);
+        $response->assertSee('.then(() => prepareSurface(elementId))', false);
+        $response->assertSee('.then(() => fitSurface(elementId))', false);
+        // The fit waits for the stream's real size, not the 150px placeholder.
+        $response->assertSee('! video.videoWidth || ! video.videoHeight', false);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertDoesNotMatchRegularExpression('/\.qr-viewport video\s*\{[^}]*object-fit/', $css);
+    }
+
+    public function test_the_framing_guide_is_the_region_actually_decoded(): void
+    {
+        // The decoder reads 70% of the window's short side (SpeedQr's qrbox);
+        // a fixed 200px guide let a QR lined up inside it sit partly outside.
+        $response = $this->get(route('citizen.track'))->assertOk();
+
+        $response->assertSee('relative aspect-square w-[70%]', false);
+        $response->assertSee('Math.min(viewfinderWidth, viewfinderHeight) * 0.7', false);
+    }
+
+    public function test_a_failed_lookup_still_reports_inside_the_lookup_card(): void
+    {
+        $this->get(route('citizen.track', ['tracking' => 'not-a-number']))
+            ->assertOk()
+            ->assertSee('We couldn\'t track that number.', false)
+            ->assertSee('aria-describedby="tracking-error"', false);
+    }
+}

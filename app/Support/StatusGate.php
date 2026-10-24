@@ -50,8 +50,26 @@ class StatusGate
                         || $document->comments()->where('author_type', 'staff')->exists(),
                 ],
             ],
-            // The review note itself is the gate for Approved — enforced via
-            // noteRequired(), not a checklist row.
+            // Before a request is approved, staff must have verified every
+            // mandatory supporting requirement (Cedula, clearances, …) against
+            // the originals. Requests without requirements pass automatically.
+            DocumentStatus::Approved => [
+                [
+                    'key' => 'requirements_verified',
+                    'label' => ($unchecked = $document->unverifiedMandatoryRequirements())->isEmpty()
+                        ? 'All required documents checked'
+                        : 'All required documents checked (still to check: '.$unchecked->pluck('label')->join(', ').')',
+                    'passed' => $unchecked->isEmpty(),
+                ],
+                // A borrowing or reservation is approved as a whole: the
+                // request cannot read "Approved" to the citizen while its
+                // chairs or venue are still unconfirmed (or were cancelled).
+                [
+                    'key' => 'reservation_approved',
+                    'label' => 'The reservation is approved on the Resources page (or Booking calendar)',
+                    'passed' => ($booking = $document->booking()->first()) === null || $booking->isApproved(),
+                ],
+            ],
             default => [],
         };
     }

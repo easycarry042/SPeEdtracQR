@@ -93,11 +93,22 @@ class InternalRequestInboxTest extends TestCase
             ->assertDontSee('Awaiting my office');
     }
 
-    public function test_staff_cannot_open_the_inbox(): void
+    public function test_staff_can_open_the_inbox_to_draft(): void
     {
-        $staff = User::factory()->create()->assignRole('staff');
+        // Staff draft internal requests for their office, so they may open the
+        // Internal module; only supervisors can act on (endorse) a hop.
+        $staff = User::factory()
+            ->create(['department_id' => $this->tourism->id])
+            ->assignRole('staff');
 
-        $this->actingAs($staff)->get(route('requests.index'))->assertForbidden();
+        $this->actingAs($staff)->get(route('requests.index'))->assertOk();
+    }
+
+    public function test_a_user_with_no_internal_permission_cannot_open_the_inbox(): void
+    {
+        $guest = User::factory()->create(['department_id' => $this->tourism->id]);
+
+        $this->actingAs($guest)->get(route('requests.index'))->assertForbidden();
     }
 
     public function test_search_filters_by_tracking_number_and_purpose(): void
@@ -115,7 +126,11 @@ class InternalRequestInboxTest extends TestCase
             ->assertDontSee('Chairs for the lobby');
     }
 
-    public function test_dashboard_banner_counts_requests_awaiting_the_supervisors_office(): void
+    /**
+     * The count of requests awaiting the office sits on the sidebar's
+     * Internal row now, on every page, rather than a banner on the dashboard.
+     */
+    public function test_the_internal_tab_counts_requests_awaiting_the_supervisors_office(): void
     {
         $this->makeInternal('SPD-TEST-INB007', 'Chairs for the lobby', DocumentStatus::Pending->value, $this->mayor);
 
@@ -125,7 +140,8 @@ class InternalRequestInboxTest extends TestCase
 
         $this->actingAs($mayorSupervisor)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('1 internal request awaiting your office');
+            ->assertSee('<span class="sb-badge" x-data="{ n: 1 }" @nav-badges.window="n = $event.detail.internal"', false)
+            ->assertDontSee('awaiting your office');
     }
 
     public function test_internal_requests_stay_out_of_the_external_triage_table(): void

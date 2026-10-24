@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\User;
 use App\Notifications\DocumentEvent;
@@ -38,7 +39,7 @@ class NotificationsTest extends TestCase
             'citizen_name' => 'Jane Citizen',
             'citizen_email' => 'jane@example.com',
             'consent' => '1',
-        ])->assertOk();
+        ])->assertRedirect(route('public.request.submitted'));
 
         Notification::assertSentTo(
             $supervisor,
@@ -50,9 +51,10 @@ class NotificationsTest extends TestCase
     public function test_supervisor_assignment_notifies_the_assignee(): void
     {
         $this->seedRolesAndPermissions();
-        $supervisor = User::factory()->create()->assignRole('Supervisor');
-        $staff = User::factory()->create()->assignRole('staff');
-        $doc = $this->doc();
+        $dept = Department::create(['name' => 'Records', 'code' => 'REC', 'is_active' => true]);
+        $supervisor = User::factory()->create(['department_id' => $dept->id])->assignRole('Supervisor');
+        $staff = User::factory()->create(['department_id' => $dept->id])->assignRole('staff');
+        $doc = $this->doc(['department_id' => $dept->id]);
 
         $this->actingAs($supervisor)->post(route('documents.assign-approve', $doc), [
             'assigned_to' => $staff->id,

@@ -2,64 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Document;
-use App\Models\User;
-use App\Support\AdminAnalytics;
+use App\Support\CommandCenter;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * The super admin's command center: the whole city's numbers. A supervisor's
+ * Reports page (ReportsController) is the same page for one office — both are
+ * built by App\Support\CommandCenter.
+ */
 class AdminController extends Controller
 {
-    /** Selectable look-back windows (days) for the command center. */
-    private const array RANGES = [7, 30, 90];
-
     public function dashboard(Request $request): Factory|View
     {
-        $documentTypes = Document::query()
-            ->select('document_type')
-            ->whereNotNull('document_type')
-            ->distinct()
-            ->orderBy('document_type')
-            ->pluck('document_type');
+        return view('admin.dashboard', CommandCenter::data($request, office: null));
+    }
 
-        $validated = $request->validate([
-            'range' => ['nullable', Rule::in(self::RANGES)],
-            'document_type' => ['nullable', Rule::in($documentTypes->all())],
-        ]);
-
-        $range = (int) ($validated['range'] ?? 30);
-        $documentType = $validated['document_type'] ?? null;
-
-        $from = Date::now()->subDays($range - 1)->startOfDay();
-        $to = Date::now()->endOfDay();
-
-        $analytics = new AdminAnalytics($from, $to, $documentType);
-
-        $filters = [
-            'range' => $range,
-            'document_type' => $documentType,
-            'active' => $documentType || $range !== 30,
-        ];
-
-        return view('admin.dashboard', [
-            'filters' => $filters,
-            'documentTypes' => $documentTypes,
-            'updatedAt' => Date::now(),
-            'kpis' => $analytics->kpis(),
-            'throughput' => $analytics->throughput(),
-            'statusDistribution' => $analytics->statusDistribution(),
-            'staffWorkload' => $analytics->staffWorkload(),
-            'bottlenecks' => $analytics->bottlenecks(),
-            'timeByStage' => $analytics->timeByStage(),
-            'typeBreakdown' => $analytics->typeBreakdown(),
-            'atRisk' => $analytics->atRisk(),
-            'fastestStaff' => $analytics->fastestStaff(),
-            'heatmap' => $analytics->throughputHeatmap(),
-            // Staff the admin can (re)assign an at-risk document to, from the panel.
-            'assignableStaff' => User::permission('advance documents')->orderBy('name')->get(['id', 'name']),
-        ]);
+    public function export(Request $request): StreamedResponse
+    {
+        return CommandCenter::export($request, office: null);
     }
 }

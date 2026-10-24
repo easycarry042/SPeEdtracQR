@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Users">
     <div class="page-shell page-shell-loose">
 
         @if(session('success'))
@@ -16,20 +16,16 @@
         <form method="GET" id="userFilterForm" class="flex flex-wrap gap-3">
             <input type="text" name="search" id="userSearch" value="{{ request('search') }}" autocomplete="off"
                    placeholder="Search name or email…"
-                   class="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
-            <select name="role" class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none">
-                <option value="">All Roles</option>
-                @foreach($roles as $role)
-                    <option value="{{ $role->name }}" @selected(request('role') === $role->name)>
-                        {{ ucfirst($role->name) }}
-                    </option>
-                @endforeach
-            </select>
-            <button type="submit" class="rounded-xl bg-gray-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900">
+                   class="h-ctl flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 min-w-[200px]">
+            <x-select-menu name="role" variant="plain" panel-width="w-56" placeholder="All Roles"
+                           class="rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm"
+                           :options="$roles->mapWithKeys(fn ($role) => [$role->name => ucfirst($role->name)])->prepend('All Roles', '')->all()"
+                           :selected="request('role')"/>
+            <button type="submit" class="h-ctl rounded-xl bg-gray-800 px-4 text-sm font-semibold text-white hover:bg-gray-900">
                 Filter
             </button>
             @if(request()->hasAny(['search','role']))
-                <a href="{{ route('admin.users.index') }}" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <a href="{{ route('admin.users.index') }}" class="inline-flex h-ctl items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 hover:bg-gray-50">
                     Clear
                 </a>
             @endif
@@ -60,8 +56,11 @@
                                 <input type="checkbox" id="selectAllUsers" aria-label="Select all accounts on this page" class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
                             </th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Name</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Email</th>
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Office</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Role</th>
+                            {{-- From the old Staff directory: what each person is
+                                 carrying, beside their account. --}}
+                            <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Workload</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Status</th>
                             <th class="px-4 py-3.5 text-left text-xs font-semibold tracking-wider text-gray-500">Actions</th>
                         </tr>
@@ -79,16 +78,40 @@
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
                                             {{ strtoupper(mb_substr($user->name, 0, 1)) }}
                                         </span>
-                                        <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
+                                        <div class="min-w-0">
+                                            <a href="{{ route('staff.profile', ['user' => $user->id]) }}" class="text-sm font-semibold text-gray-800 hover:text-emerald-700 hover:underline">{{ $user->name }}</a>
+                                            <div class="truncate text-xs text-gray-500">{{ $user->email }}</div>
+                                        </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $user->email }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600" title="{{ $user->department?->name }}">{{ $user->department?->code ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     @foreach($user->roles as $role)
                                         <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                                             {{ ucfirst($role->name) }}
                                         </span>
                                     @endforeach
+                                </td>
+                                @php $work = $load[$user->id] ?? null; @endphp
+                                <td class="px-4 py-3 text-sm">
+                                    @if($work)
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-700">
+                                            <span><b class="font-semibold">{{ $work['assigned'] }}</b> open</span>
+                                            <span class="text-gray-500"><b class="font-semibold text-gray-700">{{ $work['completed'] }}</b> done</span>
+                                            @if($work['overdue'] > 0)
+                                                <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{{ $work['overdue'] }} overdue</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-gray-400">
+                                            @if($work['active_now'])
+                                                Active now
+                                            @elseif($work['last_active'])
+                                                Active {{ $work['last_active'] }}
+                                            @else
+                                                No activity yet
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3">
                                     @if($user->trashed())
@@ -162,7 +185,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     @if(request()->hasAny(['search','role']))
                                         <x-empty-state icon="search" title="No users match your filters">
                                             Try a different name, email, or role — or clear the filters to see everyone.
@@ -311,7 +334,7 @@
                 timer = setTimeout(refreshResults, 300);
             });
 
-            form.querySelectorAll('select').forEach(function (el) {
+            form.querySelectorAll('select, [data-filter-control]').forEach(function (el) {
                 el.addEventListener('change', refreshResults);
             });
 

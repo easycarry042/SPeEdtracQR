@@ -3,15 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DocumentStatus;
-use App\Http\Controllers\Concerns\StoresDocumentAttachments;
 use App\Mail\TicketSubmitted;
+use App\Models\Booking;
 use App\Models\Document;
+use App\Models\RequestType;
 use App\Notifications\DocumentEvent;
+use App\Rules\ContactNumber;
 use App\Services\QrCodeService;
+use App\Support\CitizenReceipt;
 use App\Support\DocumentFormOptions;
+use App\Support\UploadRules;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
@@ -24,14 +30,41 @@ use Illuminate\Support\Facades\Notification;
  */
 class PublicTicketController extends Controller
 {
-    use StoresDocumentAttachments;
-
     public function __construct(private QrCodeService $qrCodeService) {}
 
-    public function create(): Factory|View
+    public function create(Request $request): Factory|View
     {
+        // Starting a new request means the previous receipt is done with.
+        CitizenReceipt::forget($request);
+
+        // Both kinds: document types carry requirements, booking types carry
+        // a resource + date/time. The form branches on kind client-side.
+        $requestTypes = RequestType::query()
+            ->where('is_active', true)
+            // A deactivated item (Resources page) is not offered either.
+            ->where(fn ($q) => $q->whereNull('resource_id')->orWhereHas('resource', fn ($r) => $r->where('is_active', true)))
+            ->with(['requirements', 'resource'])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        // Documents record the type by name, not by id, so popularity is counted
+        // off that column rather than a relation.
+        $filedCounts = Document::query()
+            ->selectRaw('document_type, COUNT(*) as total')
+            ->groupBy('document_type')
+            ->pluck('total', 'document_type');
+
         return view('public.request', [
             'categories' => DocumentFormOptions::categoryOptions(),
+            'requestTypes' => $requestTypes,
+            // "Mostly Requested" shortcuts: the four types citizens actually file
+            // most, so the common errands skip the dropdown entirely. Ties and a
+            // cold start fall back to the curated sort order above.
+            'popularTypes' => $requestTypes
+                ->sortByDesc(fn (RequestType $type) => $filedCounts[$type->name] ?? 0)
+                ->take(4)
+                ->values(),
         ]);
     }
 
@@ -43,56 +76,199 @@ class PublicTicketController extends Controller
                 ->with('status', 'Your request has been received.');
         }
 
+        // Store the contact number in one canonical shape (09XXXXXXXXX) whatever
+        // separators or +63 prefix were typed, so follow-up calls and the
+        // contact check on the citizen thread always compare like with like.
+        $request->merge([
+            'citizen_contact' => ContactNumber::normalise($request->input('citizen_contact')),
+        ]);
+
         $validated = $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'purpose' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'citizen_name' => ['required', 'string', 'max:255'],
             'citizen_email' => ['required', 'email', 'max:255'],
-            'citizen_contact' => ['nullable', 'string', 'max:255'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:10240'], // 10 MB each: images, PDF or Word
+            'citizen_contact' => ['nullable', 'string', 'max:255', new ContactNumber],
+            // Optional per-requirement uploads, keyed by request_type_requirement id.
+            'requirements' => ['nullable', 'array'],
+            'requirements.*' => UploadRules::rules(),
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'You must agree to the data privacy notice to submit a request.',
-            'attachments.*.mimes' => 'Each file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
+            'requirements.*.mimes' => 'Each requirement file must be an image (JPG/PNG), a PDF, or a Word document (DOCX).',
         ]);
+
+        // Resolve the selected type up front so reservation requests can be
+        // schedule-validated (and facilities conflict-checked) BEFORE anything is
+        // created.
+        $type = RequestType::where('name', $validated['document_type'])
+            ->with(['requirements', 'resource'])
+            ->first();
+
+        if ($type?->resource && ! $type->resource->is_active) {
+            return back()->withInput()->withErrors([
+                'document_type' => "{$type->resource->name} is not available to request right now.",
+            ]);
+        }
+
+        $isFacility = $type && $type->kind === RequestType::KIND_BOOKING;
+        $isEquipment = $type && $type->kind === RequestType::KIND_EQUIPMENT;
+        $isService = $type && $type->kind === RequestType::KIND_SERVICE;
+
+        // Resource reservation (facility/equipment) built by the branches below.
+        $reservation = null;
+        // Quantity + due date live on the document itself (equipment: how many
+        // units; service: how many to produce, by needed_by). Null otherwise.
+        $quantity = null;
+        $neededBy = null;
+
+        if ($isFacility) {
+            // A facility is reserved for a specific window on a single day.
+            $schedule = $request->validate([
+                'booking_date' => ['required', 'date', 'after_or_equal:today'],
+                'start_time' => ['required', 'date_format:H:i'],
+                'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+            ], [
+                'booking_date.after_or_equal' => 'Please choose today or a future date.',
+                'end_time.after' => 'The end time must be after the start time.',
+            ]);
+
+            $starts = Carbon::parse($schedule['booking_date'].' '.$schedule['start_time']);
+            $ends = Carbon::parse($schedule['booking_date'].' '.$schedule['end_time']);
+
+            if ($starts->isPast()) {
+                return back()->withInput()->withErrors([
+                    'start_time' => 'That start time has already passed. Please choose a later time.',
+                ]);
+            }
+
+            if ($type->resource && $type->resource->conflicts($starts, $ends)->isNotEmpty()) {
+                return back()->withInput()->withErrors([
+                    'booking_date' => "{$type->resource->name} is already booked during that time. Please choose another slot.",
+                ]);
+            }
+
+            $reservation = ['starts_at' => $starts, 'ends_at' => $ends];
+        } elseif ($isEquipment) {
+            // Equipment is borrowed in a quantity from a pickup date to a return
+            // date. Items are shared stock, so there is no exclusive conflict —
+            // staff confirm availability when approving.
+            $schedule = $request->validate([
+                'quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+                'needed_date' => ['required', 'date', 'after_or_equal:today'],
+                'return_date' => ['required', 'date', 'after_or_equal:needed_date'],
+            ], [
+                'needed_date.after_or_equal' => 'Please choose today or a future date.',
+                'return_date.after_or_equal' => 'The return date cannot be before the pickup date.',
+            ]);
+
+            $quantity = (int) $schedule['quantity'];
+
+            // The hard ceiling: the office cannot lend what it does not own.
+            // Whether enough is free on those particular dates is settled when
+            // staff approve — a pending request holds no stock, so two people
+            // may both ask for the last fifty chairs and staff decide.
+            $stock = $type->resource?->serviceableUnits() ?? 0;
+
+            if ($stock > 0 && $quantity > $stock) {
+                return back()->withInput()->withErrors([
+                    'quantity' => "The office has {$stock} {$type->resource->name} in total. Please ask for {$stock} or fewer.",
+                ]);
+            }
+
+            $neededBy = Carbon::parse($schedule['needed_date'])->toDateString();
+            $reservation = [
+                'starts_at' => Carbon::parse($schedule['needed_date'])->setTime(8, 0),
+                'ends_at' => Carbon::parse($schedule['return_date'])->setTime(17, 0),
+            ];
+        } elseif ($isService) {
+            // Service/production request (e.g. lei making): make a quantity by a
+            // due date. No resource is reserved; it runs the normal workflow.
+            $schedule = $request->validate([
+                'quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+                'needed_by' => ['required', 'date', 'after_or_equal:today'],
+            ], [
+                'needed_by.after_or_equal' => 'Please choose today or a future date.',
+            ]);
+
+            $quantity = (int) $schedule['quantity'];
+            $neededBy = Carbon::parse($schedule['needed_by'])->toDateString();
+        }
 
         $trackingNumber = $this->qrCodeService->generateTrackingNumber();
 
         $document = Document::create([
             'tracking_number' => $trackingNumber,
             'document_type' => $validated['document_type'],
+            // Auto-route to the request type's handling department (its Supervisor
+            // triages and assigns a staff member). Null if the type has no dept.
+            'department_id' => $type?->department_id,
             'citizen_name' => $validated['citizen_name'],
             'citizen_email' => $validated['citizen_email'],
             'citizen_contact' => $validated['citizen_contact'] ?? null,
             'purpose' => $validated['purpose'] ?? null,
             'description' => $validated['description'] ?? null,
+            'quantity' => $quantity,
+            'needed_by' => $neededBy,
             'status' => DocumentStatus::Pending->value,
             'status_changed_at' => now(),
             'source' => 'online',
+            // Routing is automatic, never a choice on the form: anything filed
+            // through the public form is an EXTERNAL (citizen) request and enters
+            // the citizen flow; dept-to-dept requests are created only through the
+            // internal wizard, which stamps ORIGIN_INTERNAL. Set explicitly rather
+            // than relying on the column default so the flow is visible here.
+            'origin' => Document::ORIGIN_EXTERNAL,
             'created_by' => null, // submitted by a citizen, not a staff user
         ]);
 
-        $trackingUrl = url('/track/'.$trackingNumber);
-        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber, $trackingUrl);
+        $qrResult = $this->qrCodeService->generateAndStore($trackingNumber);
         if ($qrResult['success']) {
             $document->update(['qr_code_path' => $qrResult['relative_path']]);
         }
 
-        // Uploads land on the private disk; uploaded_by is null (no staff user).
-        $this->storeAttachmentsForDocument(
-            $document,
-            collect($request->file('attachments', []))->filter()->all(),
-        );
+        if ($reservation) {
+            // Facility/equipment request: create the pending reservation (staff
+            // approve/reschedule on the calendar; approval re-checks conflicts).
+            $document->booking()->create([
+                'resource_id' => $type->resource_id,
+                'starts_at' => $reservation['starts_at'],
+                'ends_at' => $reservation['ends_at'],
+                'status' => Booking::STATUS_PENDING,
+            ]);
+        }
+
+        if ($type) {
+            // Snapshot the requirement checklist for EVERY kind — a facility or
+            // equipment request can require a Letter of Request just like a
+            // document request lists its supporting papers. Stores any optional
+            // citizen upload per requirement (private disk).
+            $uploads = $request->file('requirements', []);
+            foreach ($type->requirements as $requirement) {
+                $file = $uploads[$requirement->id] ?? null;
+                $path = ($file && $file->isValid())
+                    ? $file->store('document-requirements', 'local')
+                    : null;
+
+                $document->requirements()->create([
+                    'request_type_requirement_id' => $requirement->id,
+                    'label' => $requirement->label,
+                    'is_mandatory' => $requirement->is_mandatory,
+                    'uploaded_file_path' => $path,
+                ]);
+            }
+        }
 
         activity()
             ->performedOn($document)
             ->log('Citizen submitted online request');
 
-        // Header-bell ping: supervisors have a new request to triage.
+        // Header-bell ping: the handling department's Supervisors (+ super admins)
+        // have a new request to triage and assign. Falls back to all triagers
+        // when the request type has no department.
         Notification::send(
-            DocumentEvent::supervisors(),
+            DocumentEvent::departmentTriagers($document->department_id),
             DocumentEvent::newTicket($document),
         );
 
@@ -101,10 +277,37 @@ class PublicTicketController extends Controller
             activity()->performedOn($document)->log('Emailed TicketSubmitted to citizen');
         }
 
-        // Show the QR + tracking number first (do NOT jump straight to the
-        // tracker) so the citizen can save the QR before navigating away.
-        return view('public.request-submitted', [
-            'document' => $document->fresh(),
-        ]);
+        // Post/Redirect/Get. Rendering the receipt straight from this POST left
+        // the browser on a submitted form, so a refresh — or Back then Forward —
+        // re-posted it and filed a second identical request. Redirecting means a
+        // refresh just re-reads the receipt.
+        //
+        // The tracking number goes through the session rather than the URL: a
+        // guessable /request/submitted/{tracking} would let anyone open someone
+        // else's receipt, QR and all.
+        CitizenReceipt::remember($request, $document);
+
+        return to_route('public.request.submitted');
+    }
+
+    /**
+     * The receipt: QR code and tracking number, shown after filing.
+     *
+     * Reached by redirect from `store`, and reopenable (refresh, or Back from
+     * the slip or tracking page) until CitizenReceipt forgets it — after a short
+     * while, or as soon as anyone starts over, so on a shared counter terminal
+     * the next person never finds the previous citizen's receipt sitting there.
+     */
+    public function submitted(Request $request): RedirectResponse|View
+    {
+        $tracking = CitizenReceipt::trackingNumber($request);
+
+        $document = $tracking ? Document::where('tracking_number', $tracking)->first() : null;
+
+        if (! $document) {
+            return to_route('public.request.create');
+        }
+
+        return view('public.request-submitted', ['document' => $document]);
     }
 }
