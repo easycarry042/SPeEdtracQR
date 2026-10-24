@@ -135,89 +135,99 @@ export async function fileInternalRequest(
 
   const documentId = toId(document.id);
 
-  const step = await db.request_steps.create({
-    data: {
-      document_id: document.id,
-      // step_order 0 was the filing office's own endorsement hop, which older
-      // requests may still carry; new ones start at the office chosen.
-      step_order: 1,
-      department_id: first.id,
-      recipient_id: recipientId === null ? null : id(recipientId),
-      action: 'Review and action',
-      status: STEP_STATUS.Current,
-      started_at: now(),
-      created_at: now(),
-      updated_at: now(),
-    },
-    select: { id: true, department_id: true, recipient_id: true, action: true },
-  });
-
-  // The filing office physically holds the paper it just created, so the trail
-  // starts with it. The receiving office still scans the folder to take custody
-  // before acting. A soft copy has no paper, so no trail.
-  if (input.hasHardCopy) {
-    await db.document_custody_events.create({
+  try {
+    const step = await db.request_steps.create({
       data: {
         document_id: document.id,
-        user_id: id(filer.id),
-        capture_method: 'manual',
-        override_reason: 'Filing office holds the paper at submission.',
+        // step_order 0 was the filing office's own endorsement hop, which older
+        // requests may still carry; new ones start at the office chosen.
+        step_order: 1,
+        department_id: first.id,
+        recipient_id: recipientId === null ? null : id(recipientId),
+        action: 'Review and action',
+        status: STEP_STATUS.Current,
+        started_at: now(),
         created_at: now(),
         updated_at: now(),
       },
+      select: { id: true, department_id: true, recipient_id: true, action: true },
     });
-  }
 
-  const generated = await qr.generateAndStore(tracking);
+    // The filing office physically holds the paper it just created, so the trail
+    // starts with it. The receiving office still scans the folder to take custody
+    // before acting. A soft copy has no paper, so no trail.
+    if (input.hasHardCopy) {
+      await db.document_custody_events.create({
+        data: {
+          document_id: document.id,
+          user_id: id(filer.id),
+          capture_method: 'manual',
+          override_reason: 'Filing office holds the paper at submission.',
+          created_at: now(),
+          updated_at: now(),
+        },
+      });
+    }
 
-  if (generated.success && generated.relativePath) {
-    await db.documents.update({
-      where: { id: document.id },
-      data: { qr_code_path: generated.relativePath, updated_at: now() },
-    });
-  }
+    const generated = await qr.generateAndStore(tracking);
 
-  if (input.paperScan) {
-    const path = await storePrivate(input.paperScan, 'document-attachments');
+    if (generated.success && generated.relativePath) {
+      await db.documents.update({
+        where: { id: document.id },
+        data: { qr_code_path: generated.relativePath, updated_at: now() },
+      });
+    }
 
-    await db.document_attachments.create({
-      data: {
-        document_id: document.id,
-        file_path: path,
-        uploaded_by: id(filer.id),
-        sort_order: 0,
-        created_at: now(),
-        updated_at: now(),
+    if (input.paperScan) {
+      const path = await storePrivate(input.paperScan, 'document-attachments');
+
+      await db.document_attachments.create({
+        data: {
+          document_id: document.id,
+          file_path: path,
+          uploaded_by: id(filer.id),
+          sort_order: 0,
+          created_at: now(),
+          updated_at: now(),
+        },
+      });
+    }
+
+    const recipientName = recipientId === null ? null : await nameOf(recipientId);
+
+    await logSystemComment(
+      documentId,
+      `Internal request filed by ${filer.name} (${office.name}), routed first to ${first.name} (${first.code})${
+        input.hasHardCopy ? '' : ` — soft copy only, received by ${recipientName ?? 'the office'}`
+      }.`,
+    );
+
+    // Ping the first hop: its supervisors, and for a soft copy the person named
+    // to receive it. A paper request is on its way to them; a soft copy is
+    // already there.
+    await tellTheHop(
+      { id: documentId, tracking_number: tracking, document_type: 'Internal Request', purpose },
+      {
+        department_id: toId(step.department_id),
+        recipient_id: step.recipient_id === null ? null : toId(step.recipient_id),
+        action: step.action,
       },
-    });
+      filer.id,
+    );
+
+    return {
+      message: `Filed as ${tracking} — routed to ${first.name}.`,
+      url: `/requests/${documentId}/created`,
+    };
+  } catch (error) {
+    // If anything fails downstream, clean up partial database rows
+    await db.document_attachments.deleteMany({ where: { document_id: document.id } }).catch(() => {});
+    await db.document_custody_events.deleteMany({ where: { document_id: document.id } }).catch(() => {});
+    await db.request_steps.deleteMany({ where: { document_id: document.id } }).catch(() => {});
+    await db.documents.delete({ where: { id: document.id } }).catch(() => {});
+
+    throw error;
   }
-
-  const recipientName = recipientId === null ? null : await nameOf(recipientId);
-
-  await logSystemComment(
-    documentId,
-    `Internal request filed by ${filer.name} (${office.name}), routed first to ${first.name} (${first.code})${
-      input.hasHardCopy ? '' : ` — soft copy only, received by ${recipientName ?? 'the office'}`
-    }.`,
-  );
-
-  // Ping the first hop: its supervisors, and for a soft copy the person named
-  // to receive it. A paper request is on its way to them; a soft copy is
-  // already there.
-  await tellTheHop(
-    { id: documentId, tracking_number: tracking, document_type: 'Internal Request', purpose },
-    {
-      department_id: toId(step.department_id),
-      recipient_id: step.recipient_id === null ? null : toId(step.recipient_id),
-      action: step.action,
-    },
-    filer.id,
-  );
-
-  return {
-    message: `Filed as ${tracking} — routed to ${first.name}.`,
-    url: `/requests/${documentId}/created`,
-  };
 }
 
 async function nameOf(userId: number): Promise<string | null> {

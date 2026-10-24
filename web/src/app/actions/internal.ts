@@ -44,8 +44,12 @@ async function run(
     }
 
     console.error('[internal action]', error);
+    const detail =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Something went wrong. Nothing was saved.';
 
-    return { ok: false, message: 'Something went wrong. Nothing was saved.' };
+    return { ok: false, message: detail };
   }
 }
 

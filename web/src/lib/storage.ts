@@ -30,6 +30,10 @@ function extensionOf(name: string): string {
   return match ? match[1].toLowerCase() : 'bin';
 }
 
+function candidateBuckets(disk: Disk): string[] {
+  return [disk, `${disk}s`];
+}
+
 async function put(disk: Disk, relative: string, contents: Buffer, contentType?: string): Promise<void> {
   if (!supabaseConfigured()) {
     const absolute = localPath(disk, relative);
@@ -40,13 +44,27 @@ async function put(disk: Disk, relative: string, contents: Buffer, contentType?:
     return;
   }
 
-  const { error } = await supabase()
-    .storage.from(disk)
-    .upload(relative, contents, { contentType, upsert: true });
+  const client = supabase();
+  const buckets = candidateBuckets(disk);
+  let lastError: Error | null = null;
 
-  if (error) {
-    throw new Error(`Storage upload to ${disk}/${relative} failed: ${error.message}`);
+  for (const bucket of buckets) {
+    const { error } = await client
+      .storage.from(bucket)
+      .upload(relative, contents, { contentType, upsert: true });
+
+    if (!error) {
+      return;
+    }
+
+    lastError = new Error(`Storage upload to ${bucket}/${relative} failed: ${error.message}`);
+    // If not a "bucket not found" error, don't keep trying other buckets
+    if (!error.message.toLowerCase().includes('not found') && !error.message.toLowerCase().includes('bucket')) {
+      break;
+    }
   }
+
+  throw lastError ?? new Error(`Storage upload to ${disk}/${relative} failed.`);
 }
 
 async function read(disk: Disk, relative: string): Promise<Buffer | null> {
@@ -58,9 +76,18 @@ async function read(disk: Disk, relative: string): Promise<Buffer | null> {
     }
   }
 
-  const { data, error } = await supabase().storage.from(disk).download(relative);
+  const client = supabase();
+  const buckets = candidateBuckets(disk);
 
-  return error || !data ? null : Buffer.from(await data.arrayBuffer());
+  for (const bucket of buckets) {
+    const { data, error } = await client.storage.from(bucket).download(relative);
+
+    if (!error && data) {
+      return Buffer.from(await data.arrayBuffer());
+    }
+  }
+
+  return null;
 }
 
 async function exists(disk: Disk, relative: string): Promise<boolean> {
@@ -72,9 +99,18 @@ async function exists(disk: Disk, relative: string): Promise<boolean> {
     }
   }
 
-  const { data, error } = await supabase().storage.from(disk).exists(relative);
+  const client = supabase();
+  const buckets = candidateBuckets(disk);
 
-  return !error && data;
+  for (const bucket of buckets) {
+    const { data, error } = await client.storage.from(bucket).exists(relative);
+
+    if (!error && data) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -119,10 +155,14 @@ export async function deletePrivate(relative: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase().storage.from('private').remove([relative]);
+  const client = supabase();
+  const buckets = candidateBuckets('private');
 
-  if (error) {
-    throw new Error(`Storage delete of private/${relative} failed: ${error.message}`);
+  for (const bucket of buckets) {
+    const { error } = await client.storage.from(bucket).remove([relative]);
+    if (!error) {
+      return;
+    }
   }
 }
 
