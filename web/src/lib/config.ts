@@ -35,6 +35,9 @@ export const tracking = {
 
   notifyStaffOnAssignment: bool(process.env.TRACKING_NOTIFY_STAFF, true),
 
+  /** Email the office's supervisors when a request is accepted and finished (the bell always rings). */
+  notifyOfficeProgress: bool(process.env.TRACKING_NOTIFY_OFFICE_PROGRESS, true),
+
   holds: {
     enabled: bool(process.env.TRACKING_HOLD_SWEEP, true),
     /** Days an open-ended hold may run before it counts as a stall. */

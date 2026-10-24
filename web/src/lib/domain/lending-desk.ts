@@ -5,8 +5,9 @@ import { logOnDocument, logOnResource } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
 import { OUTCOME, type BookingOutcome, bookingUpdatedMail } from '@/lib/mail/booking-updated';
 import { broadcastStatusUpdated } from '@/lib/realtime';
-import { DocumentStatus, isTerminal, label as statusLabel } from '@/lib/domain/document-status';
-import { statusChangeData, statusOf } from '@/lib/domain/document';
+import { DocumentStatus, FINISHABLE, isTerminal, label as statusLabel } from '@/lib/domain/document-status';
+import { statusChangeData, statusOf, unverifiedMandatoryRequirements } from '@/lib/domain/document';
+import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
 import { logSystemComment } from '@/lib/domain/comments';
 import {
   BOOKING_STATUS,
@@ -54,6 +55,8 @@ type LoadedBooking = {
   document: {
     id: number;
     tracking_number: string;
+    document_type: string;
+    department_id: number | null;
     status: string;
     assigned_to: number | null;
     assigned_at: Date | null;
@@ -101,6 +104,8 @@ export async function loadBooking(bookingId: number): Promise<LoadedBooking | nu
         select: {
           id: true,
           tracking_number: true,
+          document_type: true,
+          department_id: true,
           status: true,
           quantity: true,
           assigned_to: true,
@@ -136,6 +141,8 @@ export async function loadBooking(bookingId: number): Promise<LoadedBooking | nu
       ? {
           id: toId(document.id),
           tracking_number: document.tracking_number,
+          document_type: document.document_type,
+          department_id: document.department_id === null ? null : toId(document.department_id),
           status: document.status,
           assigned_to: document.assigned_to === null ? null : toId(document.assigned_to),
           assigned_at: document.assigned_at,
@@ -498,8 +505,18 @@ export async function release(bookingId: number, by: Actor): Promise<Refusal> {
   if (document) {
     const status = statusOf(document);
 
-    if (status !== DocumentStatus.Approved && status !== DocumentStatus.Completed) {
-      return `The request is still ${statusLabel(status)}. Move it to Approved first (requirements verified), then hand the items over.`;
+    // Pending → Ongoing → Done: the request must be accepted (Ongoing), with
+    // its required files checked — the same check Finish request makes.
+    if (!FINISHABLE.includes(status) && status !== DocumentStatus.Completed) {
+      return `The request is still ${statusLabel(status)}. It must be accepted (Ongoing) before the items are handed over.`;
+    }
+
+    if (status !== DocumentStatus.Completed) {
+      const unchecked = await unverifiedMandatoryRequirements(document.id);
+
+      if (unchecked.length > 0) {
+        return `Check the required files on the request first: ${unchecked.map((r) => r.label).join(', ')}.`;
+      }
     }
   }
 
@@ -518,16 +535,16 @@ export async function release(bookingId: number, by: Actor): Promise<Refusal> {
 }
 
 /**
- * Handing the items over is the request's release: an Approved request becomes
- * Completed (what the citizen came for has been given), and the release is
- * stamped as it is for a document claimed at the counter.
+ * Handing the items over is the request's release: an Ongoing request becomes
+ * Done (what the citizen came for has been given), the release is stamped as it
+ * is for a document claimed at the counter, and the office is told it is done.
  */
 async function markRequestReleased(
   document: NonNullable<LoadedBooking['document']>,
   by: Actor,
 ): Promise<void> {
   const from = statusOf(document);
-  const completing = from === DocumentStatus.Approved;
+  const completing = FINISHABLE.includes(from);
 
   await db.documents.update({
     where: { id: id(document.id) },
@@ -546,13 +563,14 @@ async function markRequestReleased(
 
   await logOnDocument(
     document.id,
-    'Completed: Approved → Completed (items handed over)',
+    `Finished: ${statusLabel(from)} → ${statusLabel(DocumentStatus.Completed)} (items handed over)`,
     by.id,
     { from, to: DocumentStatus.Completed },
   );
 
   await broadcastStatusUpdated(document.id);
-  await logSystemComment(document.id, `Completed — items handed over by ${by.name}`);
+  await logSystemComment(document.id, `Done — items handed over by ${by.name}`);
+  await notifyOfficeOfProgress(document, by, 'finished');
 }
 
 /**

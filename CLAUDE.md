@@ -172,6 +172,20 @@ npm run migrate:from-mysql   # one-off cutover: copy Laravel's MySQL rows + stor
 - **Public endpoints are throttled in Postgres** (`lib/rate-limit.ts`, table `rate_limits`; Laravel's `throttle:` limits by name in `LIMITS`) and refuse cross-site `Origin`s (`crossSite`) in place of the CSRF token. Route handlers may only export Next's handler names — helpers go in `lib/`. A function a server page calls must not live in a `'use client'` file (see `components/review/page-list.ts`).
 - **Stored times vs real time**: anything PHP computed from `->timestamp` (the document seal) must use `time.unixTimestamp()` — `getTime()` on a naive Manila Date is 8 hours late.
 - **Uploads on Vercel**: server actions accept 10 MB (`next.config.ts`), but Vercel refuses request bodies over 4.5 MB. Larger files need direct-to-Storage signed uploads (not built yet).
+- **CTCAO workflow (tourism focus, Oct 2026)** — from the client's REQUEST ASSIGNMENT doc and paper form CTOUR-008-0. Only the port has it.
+  - Status line is **Pending → Ongoing → Done** (`document-status.ts`: `FLOW`; labels Ongoing/Done). `InReview`/`Approved` are `RETIRED` (old rows sit on Ongoing and can still be finished; `FINISHABLE`).
+  - **Accept** (Pending → Ongoing) and **Finish request** (`status-actions.finish`, the → Done gate in `status-gate`: required files checked + reservation approved) bell and email the office's supervisors via `office-progress.ts` (`TRACKING_NOTIFY_OFFICE_PROGRESS` turns the email off).
+  - Handing borrowed items over (`lending-desk.release`) needs the request Ongoing with files checked, and finishes it.
+  - Each request type has **usual handlers** (`request_type_handlers`, set on Request Types); the Review modal's Assign box starts on the first one.
+  - Each type can ask **one extra question** (`request_types.details_label` → `documents.details`: Venue, Size…), and the public form has an optional **Office or organization** (`documents.requester_office`). Other offices file through this same form.
+  - Quantity is optional for service types.
+  - `npm run db:seed:tourism` (`scripts/seed-tourism.mjs`, idempotent) does the setup:
+    - renames TRSM to CTCAO;
+    - adds City Plaza, Gateway Park, Spider Banner and both flags (placeholder counts);
+    - adds 11 placeholder accounts (3 supervisors, 8 staff, password `staff1234`);
+    - adds the 12 CTCAO request types with their handlers;
+    - **switches every other request type off**.
+  - A flag **requisition** is a service type: stock is not deducted.
 - **Not ported on purpose**: Laravel's staff `track/show` page (staff open requests in the Review modal; `/track/{tn}` redirects them there), the PDF editor (`attachments.edit`, linked only from that page), walk-in `documents.create` and keyboard shortcuts (only reachable by shortcut), and the Breeze password-reset screens (never linked from the login page).
 
 ## Manual Testing Checklist

@@ -176,6 +176,10 @@ model documents {
   quantity                 Int?
   needed_by                DateTime?                 @db.Date
   description              String?                   @db.Text
+  /// The answer to the request type's `details_label` question.
+  details                  String?                   @db.Text
+  /// The office or organization the request comes from ("Name and Department").
+  requester_office         String?                   @db.VarChar(255)
   status                   String                    @default("pending") @db.VarChar(255)
   created_by               BigInt?
   remarks                  String?                   @db.Text
@@ -340,16 +344,35 @@ model request_types {
   department_id             BigInt?
   resource_id               BigInt?
   description               String?                     @db.Text
+  /// The one extra question the public form asks for this type (Venue, Size…).
+  details_label             String?                     @db.VarChar(255)
   is_active                 Boolean                     @default(true)
   sort_order                Int                         @default(0)
   created_at                DateTime?                   @db.Timestamp(0)
   updated_at                DateTime?                   @db.Timestamp(0)
   request_type_requirements request_type_requirements[]
+  handlers                  request_type_handlers[]
   department                departments?                @relation(fields: [department_id], references: [id], onUpdate: NoAction, map: "request_types_department_id_foreign")
   resource                  resources?                  @relation(fields: [resource_id], references: [id], onUpdate: NoAction, map: "request_types_resource_id_foreign")
 
   @@index([department_id], map: "request_types_department_id_index")
   @@index([resource_id], map: "request_types_resource_id_index")
+}
+
+/// Who usually handles a request type (CTCAO's assignment table), in order.
+/// The Review modal fills the first one in; the supervisor confirms.
+model request_type_handlers {
+  id              BigInt        @id @default(autoincrement())
+  request_type_id BigInt
+  user_id         BigInt
+  sort_order      Int           @default(0)
+  created_at      DateTime?     @db.Timestamp(0)
+  updated_at      DateTime?     @db.Timestamp(0)
+  requestType     request_types @relation(fields: [request_type_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "request_type_handlers_request_type_id_foreign")
+  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "request_type_handlers_user_id_foreign")
+
+  @@unique([request_type_id, user_id], map: "request_type_handlers_type_user_unique")
+  @@index([user_id], map: "request_type_handlers_user_id_index")
 }
 
 model resources {
@@ -465,6 +488,7 @@ model users {
   actedSteps              request_steps[]           @relation("request_steps_acted_byTousers")
   receivedSteps           request_steps[]           @relation("request_steps_recipient_idTousers")
   staff_highlights        staff_highlights[]
+  handledRequestTypes     request_type_handlers[]
   department              departments?              @relation(fields: [department_id], references: [id], onUpdate: NoAction, map: "users_department_id_foreign")
 
   @@index([department_id], map: "users_department_id_index")

@@ -59,6 +59,7 @@ export default async function RequestPage() {
     name: type.name,
     kind: type.kind,
     resource: type.resource?.name ?? null,
+    detailsLabel: type.details_label,
     requirements: type.request_type_requirements.map((requirement) => ({
       id: toId(requirement.id),
       label: requirement.label,

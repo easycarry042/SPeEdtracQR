@@ -93,9 +93,11 @@ export async function checks(
       ];
     }
 
-    // Before a request is approved, staff must have verified every mandatory
-    // supporting requirement (Cedula, clearances, …) against the originals.
-    // Requests without requirements pass automatically.
+    // Before a request is finished (Ongoing → Done), staff must have checked
+    // every mandatory supporting requirement against the originals. Requests
+    // without requirements pass automatically. (Approved, retired, kept the
+    // same checks for any caller still asking about it.)
+    case DocumentStatus.Completed:
     case DocumentStatus.Approved: {
       const [unverified, booking] = await Promise.all([
         unverifiedMandatoryRequirements(document.id),
@@ -116,7 +118,7 @@ export async function checks(
           passed: unverified.length === 0,
         },
         // A borrowing or reservation is approved as a whole: the request cannot
-        // read "Approved" to the citizen while its chairs or venue are still
+        // read "Done" to the citizen while its items or venue are still
         // unconfirmed (or were cancelled).
         {
           key: 'reservation_approved',

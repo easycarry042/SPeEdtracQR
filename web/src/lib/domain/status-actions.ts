@@ -8,6 +8,8 @@ import { broadcastStatusUpdated } from '@/lib/realtime';
 import { AUTHOR, VISIBILITY, logSystemComment, postComment } from '@/lib/domain/comments';
 import {
   DocumentStatus,
+  FINISHABLE,
+  RETIRED,
   fromLoose,
   isTerminal,
   label as statusLabel,
@@ -17,6 +19,7 @@ import {
 import { BLOCKED_BY, canBeAdvancedBy, statusChangeData, statusOf } from '@/lib/domain/document';
 import { GateError, assertExpectedStatus, validate } from '@/lib/domain/status-gate';
 import { followClaimDate } from '@/lib/domain/lending-desk';
+import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -50,6 +53,7 @@ const DOCUMENT_SELECT = {
   held_at: true,
   assigned_to: true,
   accepted_at: true,
+  department_id: true,
   citizen_name: true,
   citizen_email: true,
   notify_citizen: true,
@@ -105,16 +109,16 @@ export async function advance(
   authorizeChange(document, actor);
   assertExpectedStatus(document, input.expectedStatus);
 
+  // Ongoing (and the retired stages) end with Finish request, which checks
+  // the requirements and tells the office — not with a bare advance.
+  if (FINISHABLE.includes(statusOf(document))) {
+    throw new ActionError('Use Finish request to mark this request done.');
+  }
+
   const next = nextStatus(statusOf(document));
 
   if (next === null) {
     throw new ActionError('This document is already at the final stage.');
-  }
-
-  if (next === DocumentStatus.Completed) {
-    throw new ActionError(
-      'Use Approve on the Requests page to mark this document completed and move it to History.',
-    );
   }
 
   // A date already set (Adjust Date in the Review modal) carries over unless it
@@ -174,6 +178,52 @@ export async function advance(
   return transition(document, next, 'Advanced', actor, null);
 }
 
+/**
+ * Finish request: Ongoing → Done, CTCAO's last step. The required files must
+ * be checked and any reservation approved (`status-gate`, same checks Approved
+ * used to carry); a note is optional and kept as a staff work note. The office's
+ * supervisors are told, and the citizen gets the Done email.
+ */
+export async function finish(
+  documentId: number,
+  actor: Actor | null,
+  input: { expectedStatus: string; note?: string | null },
+): Promise<TransitionResult> {
+  const document = await loadOrFail(documentId);
+  authorizeChange(document, actor);
+  assertExpectedStatus(document, input.expectedStatus);
+
+  const stage = statusOf(document);
+
+  if (!FINISHABLE.includes(stage)) {
+    throw new ActionError(
+      stage === DocumentStatus.Pending
+        ? 'This request has not been accepted yet. It can be finished once it is Ongoing.'
+        : `This request is ${statusLabel(stage)} and cannot be finished from here.`,
+    );
+  }
+
+  const note = (input.note ?? '').trim() || null;
+
+  await validate({ id: documentId }, DocumentStatus.Completed, note);
+
+  if (note) {
+    await postComment({
+      documentId,
+      body: note,
+      authorId: actor.id,
+      authorType: AUTHOR.Staff,
+      visibility: VISIBILITY.Internal,
+    });
+  }
+
+  const result = await transition(document, DocumentStatus.Completed, 'Finished', actor, note);
+
+  await notifyOfficeOfProgress(document, actor, 'finished');
+
+  return { ...result, message: `${document.tracking_number} is done.` };
+}
+
 export async function revert(
   documentId: number,
   actor: Actor | null,
@@ -190,7 +240,9 @@ export async function revert(
     throw new ActionError('A reason is required to move a document back.');
   }
 
-  const previous = previousStatus(statusOf(document));
+  // A retired stage sits on Ongoing, so back from it is back to Pending.
+  const stage = statusOf(document);
+  const previous = previousStatus(RETIRED.includes(stage) ? DocumentStatus.InProgress : stage);
 
   if (previous === null) {
     throw new ActionError('This document is already at the first stage.');
@@ -211,12 +263,13 @@ export async function setStatus(
 
   const target = fromLoose(input.status, DocumentStatus.Pending);
 
-  // On Hold has its own endpoint (it needs a reason); Completed is reached via
-  // advance(), so neither may be set here.
+  // On Hold has its own endpoint (it needs a reason); Done is reached via
+  // Finish request; the retired stages are never entered again.
   if (
     input.status !== target ||
     target === DocumentStatus.OnHold ||
-    target === DocumentStatus.Completed
+    target === DocumentStatus.Completed ||
+    RETIRED.includes(target)
   ) {
     throw new GateError(['Unknown or disallowed status stage.']);
   }

@@ -100,8 +100,8 @@ export function DashboardQueues({
           {(
             [
               ['pending', 'Unassigned', pending.length],
-              ['inprogress', 'In Progress', active.length],
-              ['completed', 'Completed', completedCount],
+              ['inprogress', 'Ongoing', active.length],
+              ['completed', 'Done', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button

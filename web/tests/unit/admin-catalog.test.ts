@@ -35,6 +35,9 @@ const templateDelete = vi.fn();
 const templateStepCreateMany = vi.fn();
 const templateStepDeleteMany = vi.fn();
 const logActivity = vi.fn();
+const handlerCreateMany = vi.fn();
+const handlerDeleteMany = vi.fn();
+const assignableStaff = vi.fn();
 
 vi.mock('@/lib/db', () => ({
   db: {
@@ -50,6 +53,7 @@ vi.mock('@/lib/db', () => ({
       createMany: requirementCreateMany,
       deleteMany: requirementDeleteMany,
     },
+    request_type_handlers: { createMany: handlerCreateMany, deleteMany: handlerDeleteMany },
     departments: { findFirst: departmentFindFirst, findMany: departmentFindMany },
     resources: {
       findFirst: resourceFindFirst,
@@ -75,6 +79,9 @@ vi.mock('@/lib/db', () => ({
   toId: (value: bigint | number) => Number(value),
   id: (value: number) => BigInt(value),
 }));
+
+// Who counts as a handler is the Assign box's own rule: active staff of the office.
+vi.mock('@/lib/domain/request-review', () => ({ assignableStaff }));
 
 vi.mock('@/lib/activity', () => ({
   logActivity,
@@ -125,6 +132,10 @@ beforeEach(() => {
   templateFindFirst.mockResolvedValue(null);
   templateFindMany.mockResolvedValue([]);
   templateCreate.mockResolvedValue({ id: 21n });
+  assignableStaff.mockResolvedValue([
+    { id: 41, name: 'Ana Cruz', department_id: 3 },
+    { id: 42, name: 'Bea Santiago', department_id: 3 },
+  ]);
 });
 
 describe('createRequestType', () => {
@@ -257,6 +268,8 @@ describe('updateRequestType', () => {
     is_active: true,
     department_id: 3n,
     resource_id: null,
+    details_label: null,
+    handlers: [],
     request_type_requirements: [{ id: 1n, label: 'Old requirement', is_mandatory: true }],
   };
 
@@ -302,6 +315,8 @@ describe('toggleRequestType / deleteRequestType', () => {
     is_active: true,
     department_id: 3n,
     resource_id: null,
+    details_label: null,
+    handlers: [],
     request_type_requirements: [],
   };
 
@@ -338,12 +353,79 @@ describe('requestTypeList', () => {
         department: null,
         resource: null,
         _count: { request_type_requirements: 2 },
+        handlers: [],
       },
     ]);
 
     const [row] = await requestTypeList();
 
-    expect(row).toMatchObject({ office: null, officeCode: null, requirements: 2 });
+    expect(row).toMatchObject({ office: null, officeCode: null, requirements: 2, handlers: [] });
+  });
+
+  it('names the usual handlers in order', async () => {
+    typeFindMany.mockResolvedValue([
+      {
+        id: 12n,
+        name: 'City Plaza Reservation',
+        kind: 'booking',
+        description: null,
+        is_active: true,
+        department: { name: 'City Tourism, Culture and Arts Office', code: 'CTCAO' },
+        resource: { name: 'City Plaza' },
+        _count: { request_type_requirements: 0 },
+        handlers: [{ user: { name: 'Ana Cruz' } }, { user: { name: 'Bea Santiago' } }],
+      },
+    ]);
+
+    const [row] = await requestTypeList();
+
+    expect(row.handlers).toEqual(['Ana Cruz', 'Bea Santiago']);
+  });
+});
+
+/**
+ * CTCAO's assignment table: each type names who usually does it, and the
+ * Review modal starts the Assign box on the first. Only someone the office's
+ * supervisor could actually assign it to may be named.
+ */
+describe('usual handlers and the extra question', () => {
+  it('saves the handlers in the order given, and the extra question', async () => {
+    await createRequestType({ ...permit, detailsLabel: '  Venue of the event ', handlerIds: [42, 41, 42] });
+
+    expect(typeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ details_label: 'Venue of the event' }) }),
+    );
+    expect(handlerDeleteMany).toHaveBeenCalledWith({ where: { request_type_id: 11n } });
+    expect(handlerCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ request_type_id: 11n, user_id: 42n, sort_order: 0 }),
+        expect.objectContaining({ request_type_id: 11n, user_id: 41n, sort_order: 1 }),
+      ],
+    });
+    expect(assignableStaff).toHaveBeenCalledWith(3);
+  });
+
+  it('refuses a handler who is not active staff of the handling office', async () => {
+    await expect(createRequestType({ ...permit, handlerIds: [41, 99] })).rejects.toThrow(
+      'Usual handlers must be active staff of the handling office.',
+    );
+    expect(typeCreate).not.toHaveBeenCalled();
+  });
+
+  it('needs an office before anyone can be named', async () => {
+    await expect(createRequestType({ ...permit, departmentId: null, handlerIds: [41] })).rejects.toThrow(
+      'Choose the handling office before naming its usual handlers.',
+    );
+  });
+
+  it('clears the handlers when none are ticked, and stores no question when left blank', async () => {
+    await createRequestType({ ...permit, detailsLabel: '   ', handlerIds: [] });
+
+    expect(typeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ details_label: null }) }),
+    );
+    expect(handlerDeleteMany).toHaveBeenCalled();
+    expect(handlerCreateMany).not.toHaveBeenCalled();
   });
 });
 

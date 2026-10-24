@@ -224,9 +224,15 @@ describe('resolveSchedule — service requests', () => {
     expect(result.schedule.reservation).toBeNull();
   });
 
-  it('requires a quantity and a due date', () => {
-    expect(service({ quantity: '' })).toHaveProperty('errors.quantity');
+  it('requires a due date', () => {
     expect(service({ needed_by: '' })).toHaveProperty('errors.needed_by');
+  });
+
+  it('takes the quantity as optional (a layout or a post has none), but a real count when given', () => {
+    expect(service({ quantity: '' })).toHaveProperty('schedule.quantity', null);
+    expect(service({ quantity: '0' })).toHaveProperty('errors.quantity');
+    expect(service({ quantity: 'lots' })).toHaveProperty('errors.quantity');
+    expect(service({ quantity: '12' })).toHaveProperty('schedule.quantity', 12);
   });
 
   it('refuses a due date in the past but allows today', () => {

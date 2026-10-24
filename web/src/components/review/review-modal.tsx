@@ -159,9 +159,12 @@ export function ReviewModal({
               {(
                 [
                   ['Requested by', row.citizenName],
+                  ['From (office / organization)', row.requesterOffice],
                   ['Email', row.citizenEmail],
                   ['Contact', row.citizenContact],
-                  ['Purpose', row.purpose],
+                  ['Specifications / purpose', row.purpose],
+                  ...(row.quantity !== null ? ([['Quantity', String(row.quantity)]] as const) : []),
+                  ...(row.details ? ([[row.detailsLabel ?? 'Details', row.details]] as const) : []),
                   ['Office', row.department],
                   ['Office code', row.thedId],
                   ['Assigned to', row.assignedStaff],

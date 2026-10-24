@@ -191,12 +191,15 @@ export function resolveSchedule(
   }
 
   if (kind === KIND_SERVICE) {
-    // Service/production request (e.g. lei making): make a quantity by a due
-    // date. No resource is reserved; it runs the normal workflow.
-    const asked = parseQuantity(input.quantity);
+    // Service/production request (lei making, a layout, a social media post):
+    // done by a due date. A quantity is optional — the paper form's QTY/SIZE is
+    // blank for most CTCAO services — but when given it must be a real count.
+    // No resource is reserved; it runs the normal workflow.
+    const raw = (input.quantity ?? '').trim();
+    const asked = raw === '' ? null : parseQuantity(raw);
 
-    if (asked === null) {
-      return { errors: { quantity: 'Please enter how many you need (at least 1).' } };
+    if (raw !== '' && asked === null) {
+      return { errors: { quantity: 'Please enter a whole number (at least 1), or leave it blank.' } };
     }
 
     const due = parseNaive((input.needed_by ?? '').trim());

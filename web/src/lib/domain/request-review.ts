@@ -86,6 +86,14 @@ export type ReviewRow = {
   citizenContact: string | null;
   purpose: string | null;
   description: string | null;
+  /** The office or organization the request came from ("Name and Department"). */
+  requesterOffice: string | null;
+  quantity: number | null;
+  /** The request type's extra question and the requester's answer (Venue, Size…). */
+  detailsLabel: string | null;
+  details: string | null;
+  /** The type's usual handlers, in order — the supervisor's Assign box starts on the first. */
+  usualHandlers: Array<{ id: number; name: string }>;
   status: string;
   statusLabel: string;
   needsTriage: boolean;
@@ -230,6 +238,9 @@ export const REVIEW_SELECT = {
   citizen_contact: true,
   purpose: true,
   description: true,
+  details: true,
+  requester_office: true,
+  quantity: true,
   status: true,
   status_before_hold: true,
   blocked_by: true,
@@ -262,6 +273,9 @@ type ReviewSource = {
   citizen_contact: string | null;
   purpose: string | null;
   description: string | null;
+  details: string | null;
+  requester_office: string | null;
+  quantity: number | null;
   status: string;
   status_before_hold: string | null;
   blocked_by: string | null;
@@ -301,7 +315,7 @@ export async function collection(
 
   const keys = documentIds.map(id);
 
-  const [logs, comments, bookings, workEvidence] = await Promise.all([
+  const [logs, comments, bookings, workEvidence, types] = await Promise.all([
     statusLogs(documentIds),
 
     // The Messages panel renders the citizen-facing thread, so it travels with
@@ -356,7 +370,24 @@ export async function collection(
       select: { document_id: true },
       distinct: ['document_id'],
     }),
+
+    // A request carries its type by name: the extra question it answered and
+    // the type's usual handlers come from the catalog row of that name.
+    db.request_types.findMany({
+      where: { name: { in: [...new Set(documents.map((document) => document.document_type))] } },
+      select: {
+        name: true,
+        details_label: true,
+        handlers: {
+          orderBy: { sort_order: 'asc' },
+          where: { user: { is_active: true, deleted_at: null } },
+          select: { user: { select: { id: true, name: true } } },
+        },
+      },
+    }),
   ]);
+
+  const typeByName = new Map(types.map((type) => [type.name, type]));
 
   const byDocument = new Map<number, typeof comments>();
 
@@ -374,8 +405,15 @@ export async function collection(
       const thread = byDocument.get(key) ?? [];
       const booking = bookingByDocument.get(key);
 
+      const type = typeByName.get(document.document_type);
+
       return {
         ...(await forModal(document, actor, booking)),
+        detailsLabel: type?.details_label ?? null,
+        usualHandlers: (type?.handlers ?? []).map((handler) => ({
+          id: toId(handler.user.id),
+          name: handler.user.name,
+        })),
         dateShort: document.created_at ? formatNaive(document.created_at, 'm/d/y') : null,
         logs: logs.get(key) ?? [],
         messages: thread.map((comment) =>
@@ -534,6 +572,11 @@ export async function forModal(
     citizenContact: document.citizen_contact,
     purpose: document.purpose,
     description: document.description,
+    requesterOffice: document.requester_office,
+    quantity: document.quantity,
+    detailsLabel: null,
+    details: document.details,
+    usualHandlers: [],
     status: document.status,
     statusLabel: statusLabel(stage),
     needsTriage: needsTriage(document),

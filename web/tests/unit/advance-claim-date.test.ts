@@ -12,6 +12,9 @@ import { today, toDateString } from '@/lib/time';
  *
  * The booking check (`followClaimDate`) is the seam: it receives the day
  * Advance settled on, and refusing there stops the action before any write.
+ *
+ * On the CTCAO line (Pending → Ongoing → Done) Advance only ever moves a
+ * request off Pending; Ongoing ends with Finish request instead.
  */
 const findFirst = vi.fn();
 const update = vi.fn();
@@ -47,7 +50,7 @@ const admin = { id: 1, can: () => true, hasRole: () => false } as unknown as Act
 function request(claimDate: Date | null) {
   return {
     id: 19n,
-    status: DocumentStatus.InProgress,
+    status: DocumentStatus.Pending,
     assigned_to: 1n,
     claim_date: claimDate,
   };
@@ -59,7 +62,7 @@ async function chosen(claimDate: Date | null, picked?: string) {
   followClaimDate.mockResolvedValue('stop here');
 
   await expect(
-    advance(19, admin, { expectedStatus: DocumentStatus.InProgress, claimDate: picked }),
+    advance(19, admin, { expectedStatus: DocumentStatus.Pending, claimDate: picked }),
   ).rejects.toThrow('stop here');
 
   return { day: followClaimDate.mock.calls[0][1] as Date, note: validate.mock.calls[0][2] as string };
@@ -89,7 +92,7 @@ describe('advance and the claiming date', () => {
     findFirst.mockResolvedValue(request(inDays(-2)));
 
     await expect(
-      advance(19, admin, { expectedStatus: DocumentStatus.InProgress, claimDate: '' }),
+      advance(19, admin, { expectedStatus: DocumentStatus.Pending, claimDate: '' }),
     ).rejects.toThrow(/has passed\. Pick a new one for the citizen\./);
     expect(update).not.toHaveBeenCalled();
   });
@@ -98,7 +101,7 @@ describe('advance and the claiming date', () => {
     findFirst.mockResolvedValue(request(null));
 
     await expect(
-      advance(19, admin, { expectedStatus: DocumentStatus.InProgress }),
+      advance(19, admin, { expectedStatus: DocumentStatus.Pending }),
     ).rejects.toThrow('Pick the claiming date for the citizen.');
   });
 
@@ -106,7 +109,16 @@ describe('advance and the claiming date', () => {
     findFirst.mockResolvedValue(request(inDays(3)));
 
     await expect(
-      advance(19, admin, { expectedStatus: DocumentStatus.InProgress, claimDate: toDateString(inDays(-1)) }),
+      advance(19, admin, { expectedStatus: DocumentStatus.Pending, claimDate: toDateString(inDays(-1)) }),
     ).rejects.toThrow('The claiming date cannot be in the past.');
+  });
+
+  it('sends an Ongoing request to Finish request instead', async () => {
+    findFirst.mockResolvedValue({ ...request(inDays(3)), status: DocumentStatus.InProgress });
+
+    await expect(
+      advance(19, admin, { expectedStatus: DocumentStatus.InProgress }),
+    ).rejects.toThrow('Use Finish request to mark this request done.');
+    expect(validate).not.toHaveBeenCalled();
   });
 });

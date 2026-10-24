@@ -13,7 +13,8 @@ import { needsTriage } from '@/lib/domain/request-review';
 import { cancel as cancelBooking, followClaimDate } from '@/lib/domain/lending-desk';
 import { notifyMany } from '@/lib/domain/notifications';
 import { grantsFor, ROLE_SUPERVISOR, usersWithRole } from '@/lib/auth/rbac';
-import { ActionError } from '@/lib/domain/status-actions';
+import { ActionError, finish } from '@/lib/domain/status-actions';
+import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
 import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
 
@@ -220,7 +221,10 @@ export async function deny(
   return { message: `${document.tracking_number} denied.` };
 }
 
-/** Clicking "Review" transitions In Progress → In Review. */
+/**
+ * Clicking "Review" used to move In Progress → In Review. That stage is retired
+ * (Pending → Ongoing → Done), so opening a request no longer changes it.
+ */
 export async function openReview(
   documentId: number,
   actor: Actor | null,
@@ -228,40 +232,18 @@ export async function openReview(
   const document = await loadOrFail(documentId);
   authorizeAssignedOrAdmin(document, actor);
 
-  // Only advance forward from In Progress; never regress a later stage.
-  if (statusOf(document) === DocumentStatus.InProgress) {
-    await applyAndLog(document, DocumentStatus.InReview, 'Opened review', actor!);
-
-    return {
-      status: DocumentStatus.InReview,
-      statusLabel: statusLabel(DocumentStatus.InReview),
-    };
-  }
-
   return { status: document.status, statusLabel: statusLabel(statusOf(document)) };
 }
 
-/** Final staff sign-off: Approved → Completed (history). */
+/** Final staff sign-off: Ongoing → Done. Kept for callers of the old name. */
 export async function complete(
   documentId: number,
   actor: Actor | null,
+  note: string | null = null,
 ): Promise<{ message: string }> {
   const document = await loadOrFail(documentId);
-  authorizeAssignedOrAdmin(document, actor);
 
-  if (isTerminal(statusOf(document))) {
-    return { message: 'This request is already closed.' };
-  }
-
-  if (statusOf(document) !== DocumentStatus.Approved) {
-    throw new ActionError(
-      'Advance this request to Approved on the status stepper before approving it for completion.',
-    );
-  }
-
-  await applyAndLog(document, DocumentStatus.Completed, 'Completed', actor!);
-
-  return { message: `${document.tracking_number} marked completed and moved to History.` };
+  return finish(documentId, actor, { expectedStatus: document.status, note });
 }
 
 /** Staff accepts a supervisor assignment: Pending → In Progress. */
@@ -290,7 +272,10 @@ export async function acceptAssignment(
 
   await broadcastStatusUpdated(documentId);
 
-  return { message: `Accepted ${document.tracking_number}.` };
+  // CTCAO: accepting tells the office's supervisors it is now Ongoing.
+  await notifyOfficeOfProgress(document, actor!, 'accepted');
+
+  return { message: `Accepted ${document.tracking_number}. It is now Ongoing.` };
 }
 
 /** Staff declines an assignment — returns it to the supervisor queue. */

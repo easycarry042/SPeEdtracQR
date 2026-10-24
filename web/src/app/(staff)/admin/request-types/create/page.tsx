@@ -3,7 +3,7 @@ import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { Breadcrumbs } from '@/components/shell/breadcrumbs';
 import { requirePermission } from '@/lib/auth/actor';
 import { routes } from '@/lib/routes';
-import { resourceOptions } from '@/lib/domain/admin-catalog';
+import { resourceOptions, staffOptions } from '@/lib/domain/admin-catalog';
 import { activeDepartments } from '@/lib/domain/internal-request-form';
 import { RequestTypeForm } from '../request-type-form';
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Add request type' };
 export default async function CreateRequestTypePage() {
   await requirePermission('manage system');
 
-  const [offices, resources] = await Promise.all([activeDepartments(), resourceOptions()]);
+  const [offices, resources, staff] = await Promise.all([activeDepartments(), resourceOptions(), staffOptions()]);
 
   return (
     <AuthenticatedPage
@@ -27,7 +27,7 @@ export default async function CreateRequestTypePage() {
         />
       }
     >
-      <RequestTypeForm requestType={null} offices={offices} resources={resources} />
+      <RequestTypeForm requestType={null} offices={offices} resources={resources} staff={staff} />
     </AuthenticatedPage>
   );
 }

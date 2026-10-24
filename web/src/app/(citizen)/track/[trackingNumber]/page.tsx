@@ -145,6 +145,15 @@ export default async function TrackShowPage({
     },
   });
 
+  // Only a document request ends with something to collect at the counter. A
+  // CTCAO service (a layout, a post, an event set-up) is simply done, and a
+  // borrowing's pickup lives on its reservation card.
+  const requestType = await db.request_types.findFirst({
+    where: { name: document.document_type },
+    select: { kind: true },
+  });
+  const producesDocument = requestType === null || requestType.kind === 'document';
+
   const requirements = await db.document_requirements.findMany({
     where: { document_id: document.id, review_status: { in: ['needs_revision', 'rejected'] } },
     select: { id: true, label: true, review_status: true, review_comment: true },
@@ -293,15 +302,20 @@ export default async function TrackShowPage({
                       <b>Released.</b> This document was claimed at the counter on{' '}
                       <span className="id-chip">{formatNaive(document.claimed_at, 'M d, Y')}</span>.
                     </div>
-                  ) : (
+                  ) : producesDocument ? (
                     <div className="mt-4 rounded-xl border border-hairline-strong bg-green-wash px-4 py-3 text-sm text-green-deep">
                       <b>Ready for pickup.</b> Bring your QR code (from your confirmation email or
                       printed slip) to the counter — staff will scan it to release your document. No
                       QR means slower manual verification.
                     </div>
+                  ) : booking ? null : (
+                    <div className="mt-4 rounded-xl border border-hairline bg-green-wash px-4 py-3 text-sm text-green-deep">
+                      <b>Done.</b> {document.department?.name ?? 'The office'} has finished your request. If
+                      anything needs to be collected, they will contact you.
+                    </div>
                   )}
 
-                  {verifyUrl ? (
+                  {verifyUrl && producesDocument ? (
                     <p className="mt-3 text-xs text-ink-soft">
                       Third parties can confirm this document is genuine at any time via its{' '}
                       <a href={verifyUrl} className="font-semibold text-green underline">

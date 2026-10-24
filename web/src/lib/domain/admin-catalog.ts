@@ -5,6 +5,7 @@ import { ActionError } from '@/lib/domain/status-actions';
 import { BOOKING_STATUS, KIND_EQUIPMENT, KIND_FACILITY } from '@/lib/domain/lending';
 import { REQUEST_KINDS, RESOURCE_KINDS } from '@/lib/domain/request-kinds';
 import { STEP_CONDITIONS } from '@/lib/domain/route-template';
+import { assignableStaff } from '@/lib/domain/request-review';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -28,6 +29,10 @@ export type RequestTypeInput = {
   departmentId: number | null;
   resourceId: number | null;
   description: string | null;
+  /** The extra question on the public form (Venue, Size…); null for none. */
+  detailsLabel?: string | null;
+  /** Usual handlers, in order (CTCAO's assignment table). Staff of the type's office. */
+  handlerIds?: number[];
   requirements: RequirementInput[];
 };
 
@@ -41,6 +46,8 @@ export type RequestTypeRow = {
   description: string | null;
   isActive: boolean;
   requirements: number;
+  /** Usual handlers' names, in order. */
+  handlers: string[];
 };
 
 export async function requestTypeList(): Promise<RequestTypeRow[]> {
@@ -55,6 +62,7 @@ export async function requestTypeList(): Promise<RequestTypeRow[]> {
       department: { select: { name: true, code: true } },
       resource: { select: { name: true } },
       _count: { select: { request_type_requirements: true } },
+      handlers: { orderBy: { sort_order: 'asc' }, select: { user: { select: { name: true } } } },
     },
   });
 
@@ -68,6 +76,7 @@ export async function requestTypeList(): Promise<RequestTypeRow[]> {
     description: row.description,
     isActive: row.is_active,
     requirements: row._count.request_type_requirements,
+    handlers: row.handlers.map((handler) => handler.user.name),
   }));
 }
 
@@ -79,9 +88,11 @@ export async function requestTypeById(requestTypeId: number) {
       name: true,
       kind: true,
       description: true,
+      details_label: true,
       is_active: true,
       department_id: true,
       resource_id: true,
+      handlers: { orderBy: { sort_order: 'asc' }, select: { user_id: true } },
       request_type_requirements: {
         orderBy: { sort_order: 'asc' },
         select: { id: true, label: true, is_mandatory: true },
@@ -96,6 +107,8 @@ export async function requestTypeById(requestTypeId: number) {
         name: row.name,
         kind: row.kind,
         description: row.description,
+        detailsLabel: row.details_label,
+        handlerIds: row.handlers.map((handler) => toId(handler.user_id)),
         isActive: row.is_active,
         departmentId: row.department_id === null ? null : toId(row.department_id),
         resourceId: row.resource_id === null ? null : toId(row.resource_id),
@@ -104,6 +117,11 @@ export async function requestTypeById(requestTypeId: number) {
           isMandatory: requirement.is_mandatory,
         })),
       };
+}
+
+/** Staff who can be named a usual handler (the form filters by office). */
+export function staffOptions(): ReturnType<typeof assignableStaff> {
+  return assignableStaff(null);
 }
 
 /**
@@ -133,6 +151,8 @@ async function validateRequestType(
   departmentId: number | null;
   resourceId: number | null;
   description: string | null;
+  detailsLabel: string | null;
+  handlerIds: number[];
   requirements: RequirementInput[];
 }> {
   const name = input.name.trim();
@@ -216,14 +236,56 @@ async function validateRequestType(
     throw new ActionError('Keep each requirement label to 255 characters.');
   }
 
+  const detailsLabel = (input.detailsLabel ?? '').trim();
+
+  if (detailsLabel.length > 255) {
+    throw new ActionError('Keep the extra question to 255 characters.');
+  }
+
+  const handlerIds = [...new Set(input.handlerIds ?? [])];
+
+  if (handlerIds.length > 0) {
+    // A usual handler is someone the office's supervisor could assign it to.
+    if (input.departmentId === null) {
+      throw new ActionError('Choose the handling office before naming its usual handlers.');
+    }
+
+    const assignable = new Set(
+      (await assignableStaff(input.departmentId)).map((staff) => staff.id),
+    );
+
+    if (handlerIds.some((handlerId) => !assignable.has(handlerId))) {
+      throw new ActionError('Usual handlers must be active staff of the handling office.');
+    }
+  }
+
   return {
     name,
     kind: input.kind,
     departmentId: input.departmentId,
     resourceId,
     description: description === '' ? null : description,
+    detailsLabel: detailsLabel === '' ? null : detailsLabel,
+    handlerIds,
     requirements,
   };
+}
+
+/** Replace a request type's usual handlers, keeping the order given. */
+async function saveHandlers(requestTypeId: bigint, handlerIds: number[]): Promise<void> {
+  await db.request_type_handlers.deleteMany({ where: { request_type_id: requestTypeId } });
+
+  if (handlerIds.length > 0) {
+    await db.request_type_handlers.createMany({
+      data: handlerIds.map((userId, index) => ({
+        request_type_id: requestTypeId,
+        user_id: id(userId),
+        sort_order: index,
+        created_at: now(),
+        updated_at: now(),
+      })),
+    });
+  }
 }
 
 function requirementRows(requirements: RequirementInput[], requestTypeId: bigint) {
@@ -249,6 +311,7 @@ export async function createRequestType(input: RequestTypeInput): Promise<{ mess
       department_id: valid.departmentId === null ? null : id(valid.departmentId),
       resource_id: valid.resourceId === null ? null : id(valid.resourceId),
       description: valid.description,
+      details_label: valid.detailsLabel,
       is_active: true,
       sort_order: (highest._max.sort_order ?? 0) + 1,
       created_at: now(),
@@ -262,6 +325,8 @@ export async function createRequestType(input: RequestTypeInput): Promise<{ mess
       data: requirementRows(valid.requirements, created.id),
     });
   }
+
+  await saveHandlers(created.id, valid.handlerIds);
 
   return { message: `Request type ${valid.name} created.` };
 }
@@ -286,9 +351,12 @@ export async function updateRequestType(
       department_id: valid.departmentId === null ? null : id(valid.departmentId),
       resource_id: valid.resourceId === null ? null : id(valid.resourceId),
       description: valid.description,
+      details_label: valid.detailsLabel,
       updated_at: now(),
     },
   });
+
+  await saveHandlers(id(requestTypeId), valid.handlerIds);
 
   /**
    * The checklist is replaced wholesale. Requirements already snapshotted onto

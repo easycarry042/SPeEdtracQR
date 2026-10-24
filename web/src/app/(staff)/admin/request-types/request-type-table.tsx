@@ -88,6 +88,11 @@ export function RequestTypeTable({
                         /* The gap the command center's unrouted alert reports. */
                         <span className="pill p-amber">No office — requests go unrouted</span>
                       )}
+                      {type.handlers.length > 0 ? (
+                        <p className="text-[length:var(--fs-caption)] text-ink-soft">
+                          Usually {type.handlers.join(' or ')}
+                        </p>
+                      ) : null}
                     </td>
 
                     <td>

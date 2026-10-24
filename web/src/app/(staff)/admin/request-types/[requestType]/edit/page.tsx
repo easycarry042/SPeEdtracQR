@@ -4,7 +4,7 @@ import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { Breadcrumbs } from '@/components/shell/breadcrumbs';
 import { requirePermission } from '@/lib/auth/actor';
 import { routes } from '@/lib/routes';
-import { requestTypeById, resourceOptions } from '@/lib/domain/admin-catalog';
+import { requestTypeById, resourceOptions, staffOptions } from '@/lib/domain/admin-catalog';
 import { activeDepartments } from '@/lib/domain/internal-request-form';
 import { RequestTypeForm } from '../../request-type-form';
 
@@ -20,10 +20,11 @@ export default async function EditRequestTypePage({
 
   const { requestType: param } = await params;
 
-  const [requestType, offices, resources] = await Promise.all([
+  const [requestType, offices, resources, staff] = await Promise.all([
     requestTypeById(Number(param)),
     activeDepartments(),
     resourceOptions(),
+    staffOptions(),
   ]);
 
   if (!requestType) {
@@ -42,7 +43,7 @@ export default async function EditRequestTypePage({
         />
       }
     >
-      <RequestTypeForm requestType={requestType} offices={offices} resources={resources} />
+      <RequestTypeForm requestType={requestType} offices={offices} resources={resources} staff={staff} />
     </AuthenticatedPage>
   );
 }

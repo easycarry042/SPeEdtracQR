@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ user: str
 const TABS = ['activity', 'assigned', 'completions'] as const;
 
 const STATUS: Record<string, [string, string]> = {
-  in_progress: ['p-amber', 'In Progress'],
-  in_transit: ['p-amber', 'In Progress'],
+  in_progress: ['p-amber', 'Ongoing'],
+  in_transit: ['p-amber', 'Ongoing'],
   in_review: ['p-amber', 'In Review'],
   approved: ['p-green', 'Approved'],
   pending: ['p-muted', 'Pending'],
@@ -39,7 +39,7 @@ const STATUS: Record<string, [string, string]> = {
   denied: ['p-red', 'Denied'],
   withdrawn: ['p-muted', 'Withdrawn'],
   returned: ['p-red', 'Returned'],
-  completed: ['p-green', 'Completed'],
+  completed: ['p-green', 'Done'],
   on_hold: ['p-hold', 'On Hold'],
 };
 

@@ -23,6 +23,8 @@ export type TypeOption = {
   name: string;
   kind: string;
   resource: string | null;
+  /** The type's one extra question (Venue, Size…), or null for none. */
+  detailsLabel: string | null;
   requirements: RequirementOption[];
 };
 
@@ -307,11 +309,13 @@ export function RequestForm({
               <div className="req-note p-4 sm:p-5">
                 <p className="req-note-title text-[16px]">Service details</p>
                 <p className="req-note-body mt-1 text-[14px] leading-relaxed sm:text-[15px]">
-                  Tell us how many you need and by when.
+                  Tell us by when you need it, and how many if that applies.
                 </p>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="service_quantity" className="req-label text-sm">How many</label>
+                    <label htmlFor="service_quantity" className="req-label text-sm">
+                      How many <span className="font-normal text-[#4b5a50]">(optional)</span>
+                    </label>
                     <input
                       id="service_quantity"
                       type="number"
@@ -341,8 +345,29 @@ export function RequestForm({
               </div>
             ) : null}
 
+            {/* The type's one extra question — the paper form's Venue, Size or
+                "Others: ___" line. Required when the type asks it. */}
+            {type?.detailsLabel ? (
+              <div>
+                <label htmlFor="details" className="req-label">
+                  {type.detailsLabel} <span className="req-star">*</span>
+                </label>
+                <input
+                  id="details"
+                  name="details"
+                  key={type.name}
+                  defaultValue={values.details ?? ''}
+                  required
+                  maxLength={1000}
+                  aria-invalid={Boolean(errors.details)}
+                  className="req-field mt-2"
+                />
+                <FieldError message={errors.details} />
+              </div>
+            ) : null}
+
             <div>
-              <label htmlFor="purpose" className="req-label">Purpose</label>
+              <label htmlFor="purpose" className="req-label">Specifications / purpose</label>
               <input
                 id="purpose"
                 name="purpose"
@@ -352,7 +377,8 @@ export function RequestForm({
                 className="req-field mt-2"
               />
               <p className={HINT_TEXT}>
-                What the document is for — e.g. &ldquo;business permit renewal.&rdquo;
+                What it is for — e.g. &ldquo;Flag ceremony on Monday&rdquo; or &ldquo;Layout for the
+                Pista ng San Pedro tarpaulin.&rdquo;
               </p>
               <FieldError message={errors.purpose} />
             </div>
@@ -389,6 +415,25 @@ export function RequestForm({
                 className="req-field mt-2"
               />
               <FieldError message={errors.citizen_name} />
+            </div>
+
+            <div>
+              <label htmlFor="requester_office" className="req-label">
+                Office or organization{' '}
+                <span className="font-normal text-[#4b5a50]">(optional)</span>
+              </label>
+              <input
+                id="requester_office"
+                name="requester_office"
+                defaultValue={values.requester_office ?? ''}
+                autoComplete="organization"
+                maxLength={255}
+                placeholder="e.g. City Health Office, or Barangay Landayan"
+                aria-invalid={Boolean(errors.requester_office)}
+                className="req-field mt-2"
+              />
+              <p className={HINT_TEXT}>Filing for a city office, barangay or group? Name it here.</p>
+              <FieldError message={errors.requester_office} />
             </div>
 
             <div>

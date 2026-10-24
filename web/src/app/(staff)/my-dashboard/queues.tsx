@@ -76,8 +76,8 @@ export function StaffQueues({
           {(
             [
               ['triage', 'To accept', triage.length],
-              ['active', 'In progress', active.length],
-              ['completed', 'Completed', completedCount],
+              ['active', 'Ongoing', active.length],
+              ['completed', 'Done', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button

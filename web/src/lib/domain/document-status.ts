@@ -6,6 +6,11 @@
  * through the linear `FLOW` below. `Returned`, `OnHold` are side states; the
  * terminal ones end the line.
  *
+ * The line is CTCAO's: the assignee accepts (Pending → Ongoing), does the work,
+ * and finishes it (Ongoing → Done). `InReview` and `Approved` are retired —
+ * kept only so requests filed before the change still read correctly; they sit
+ * on the Ongoing stage and can be finished from there.
+ *
  * To rename a stage: edit its `label()` entry — that is the only change needed.
  * To re-order / add / remove a linear stage: edit `FLOW`. Adding a value needs
  * no migration (`documents.status` is a varchar).
@@ -28,10 +33,14 @@ export const DEFAULT_SLA_HOURS = 48;
 export const FLOW: readonly DocumentStatus[] = [
   DocumentStatus.Pending,
   DocumentStatus.InProgress,
-  DocumentStatus.InReview,
-  DocumentStatus.Approved,
   DocumentStatus.Completed,
 ];
+
+/** Retired stages: still stored on older requests, never entered again. */
+export const RETIRED: readonly DocumentStatus[] = [DocumentStatus.InReview, DocumentStatus.Approved];
+
+/** Stages a request can be finished from (Ongoing, and the retired ones). */
+export const FINISHABLE: readonly DocumentStatus[] = [DocumentStatus.InProgress, ...RETIRED];
 
 const TERMINAL: readonly DocumentStatus[] = [
   DocumentStatus.Completed,
@@ -42,10 +51,10 @@ const TERMINAL: readonly DocumentStatus[] = [
 /** EDIT LABELS HERE. */
 const LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'Pending',
-  [DocumentStatus.InProgress]: 'In Progress',
+  [DocumentStatus.InProgress]: 'Ongoing',
   [DocumentStatus.InReview]: 'In Review',
   [DocumentStatus.Approved]: 'Approved',
-  [DocumentStatus.Completed]: 'Completed',
+  [DocumentStatus.Completed]: 'Done',
   [DocumentStatus.Returned]: 'Returned / For Revision',
   [DocumentStatus.OnHold]: 'On Hold',
   [DocumentStatus.Denied]: 'Denied',
@@ -55,10 +64,10 @@ const LABELS: Record<DocumentStatus, string> = {
 /** Plain-language, citizen-facing explanation of what each status means. */
 const DESCRIPTIONS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'We received your request and it is waiting to be picked up by staff.',
-  [DocumentStatus.InProgress]: 'A staff member is actively working on your request.',
+  [DocumentStatus.InProgress]: 'A staff member has accepted your request and is working on it.',
   [DocumentStatus.InReview]: 'Your request is being checked and reviewed before approval.',
   [DocumentStatus.Approved]: 'Your request has been approved and is being finalized.',
-  [DocumentStatus.Completed]: 'Your document is finished and ready. Watch for pickup or release details.',
+  [DocumentStatus.Completed]: 'Your request is done. Watch for pickup or release details if anything is to be collected.',
   [DocumentStatus.Returned]: 'Something needs to be corrected. Please check for a message from staff.',
   [DocumentStatus.OnHold]: 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
   [DocumentStatus.Denied]: 'Your request could not be approved. Staff should have included a reason.',
@@ -101,15 +110,14 @@ const BANDS: Record<DocumentStatus, string> = {
 };
 
 /**
- * The four stages the staff progress bar shows, each with the statuses that sit
- * on it. The flow has five statuses; In Progress and In Review share the review
- * stage. Side states are placed separately — see `railStage()`.
+ * The three stages the progress bar shows, each with the statuses that sit on
+ * it. The retired In Review / Approved read as Ongoing. Side states are placed
+ * separately — see `railStage()`.
  */
 export const RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatus[] }> = [
   { label: 'Pending', statuses: [DocumentStatus.Pending] },
-  { label: 'In review', statuses: [DocumentStatus.InProgress, DocumentStatus.InReview] },
-  { label: 'Processing', statuses: [DocumentStatus.Approved] },
-  { label: 'Completed', statuses: [DocumentStatus.Completed] },
+  { label: 'Ongoing', statuses: [DocumentStatus.InProgress, ...RETIRED] },
+  { label: 'Done', statuses: [DocumentStatus.Completed] },
 ];
 
 export function label(status: DocumentStatus): string {
@@ -175,8 +183,8 @@ function railStageOrNull(status: DocumentStatus): number | null {
 }
 
 /**
- * 1-based stage on the four-stage bar. Off-line states show where the request
- * stands: Returned is back in review; On Hold, Denied and Withdrawn sit where
+ * 1-based stage on the three-stage bar. Off-line states show where the request
+ * stands: Returned is back at Ongoing; On Hold, Denied and Withdrawn sit where
  * the request was when it stopped (`before`, if recorded).
  */
 export function railStage(status: DocumentStatus, before: DocumentStatus | null = null): number {
@@ -184,12 +192,12 @@ export function railStage(status: DocumentStatus, before: DocumentStatus | null 
 
   switch (status) {
     case DocumentStatus.Returned:
-      onRail = DocumentStatus.InReview;
+      onRail = DocumentStatus.InProgress;
       break;
     case DocumentStatus.OnHold:
     case DocumentStatus.Denied:
     case DocumentStatus.Withdrawn:
-      onRail = before && railStageOrNull(before) ? before : DocumentStatus.InReview;
+      onRail = before && railStageOrNull(before) ? before : DocumentStatus.InProgress;
       break;
     default:
       onRail = status;

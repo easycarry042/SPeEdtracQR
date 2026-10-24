@@ -4,13 +4,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { BLOCKED_BY } from '@/lib/domain/document';
-import { DocumentStatus } from '@/lib/domain/document-status';
+import { DocumentStatus, FINISHABLE } from '@/lib/domain/document-status';
 import {
   type ActionResult,
   acceptAssignment,
   advanceDocument,
   assignDocument,
-  completeDocument,
+  finishDocument,
   declineAssignment,
   denyDocument,
   holdDocument,
@@ -33,6 +33,7 @@ export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
  */
 type Dialog =
   | 'advance'
+  | 'finish'
   | 'revert'
   | 'return'
   | 'hold'
@@ -56,7 +57,10 @@ export function ReviewActions({
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const [assignee, setAssignee] = useState<string>(String(row.assignedTo ?? ''));
+  // Unassigned: start on the type's first usual handler (CTCAO's assignment
+  // table) if they can be picked here; the supervisor confirms with Assign.
+  const suggested = row.usualHandlers.find((handler) => assignableStaff.some((staff) => staff.id === handler.id));
+  const [assignee, setAssignee] = useState<string>(String(row.assignedTo ?? suggested?.id ?? ''));
 
   const run = (action: () => Promise<ActionResult>, closeOnSuccess = true): void => {
     setErrors([]);
@@ -131,6 +135,11 @@ export function ReviewActions({
               Deny
             </button>
           </div>
+          {row.usualHandlers.length > 0 ? (
+            <p className="mt-2 text-[length:var(--fs-small)] text-ink-soft">
+              Usually handled by {row.usualHandlers.map((handler) => handler.name).join(' or ')}.
+            </p>
+          ) : null}
           {assignableStaff.length === 0 ? (
             <p className="mt-2 text-[length:var(--fs-small)] text-ink-soft">
               No staff in this office can be assigned work yet.
@@ -176,16 +185,37 @@ export function ReviewActions({
             </button>
           ) : (
             <>
-              {row.status === DocumentStatus.Approved ? (
+              {/* Pending → Ongoing → Done: accepting starts it, Finish ends it. */}
+              {(FINISHABLE as string[]).includes(row.status) ? (
                 <button
                   type="button"
                   className="btn-step btn-step-fwd"
                   disabled={pending}
-                  onClick={() => run(() => completeDocument(row.id))}
+                  onClick={() => setDialog('finish')}
                 >
-                  Mark completed
+                  Finish request
                 </button>
-              ) : (
+              ) : row.status === DocumentStatus.Returned ? (
+                <button
+                  type="button"
+                  className="btn-step btn-step-fwd"
+                  disabled={pending}
+                  onClick={() =>
+                    run(
+                      () =>
+                        setDocumentStatus(row.id, {
+                          expectedStatus: row.status,
+                          status: DocumentStatus.InProgress,
+                        }),
+                      false,
+                    )
+                  }
+                >
+                  Resume (back to Ongoing)
+                </button>
+              ) : row.status === DocumentStatus.Pending && (row.assignedTo === null || row.needsTriage) ? null : (
+                // Pending moves on when the assignee accepts; Advance is only for
+                // a Pending request someone already accepted (older records).
                 <button
                   type="button"
                   className="btn-step btn-step-fwd"
@@ -196,12 +226,18 @@ export function ReviewActions({
                 </button>
               )}
 
-              <button type="button" className="btn-step btn-step-back" disabled={pending} onClick={() => setDialog('revert')}>
-                Move back
-              </button>
-              <button type="button" className="btn-step btn-step-return" disabled={pending} onClick={() => setDialog('return')}>
-                Return for revision
-              </button>
+              {row.status !== DocumentStatus.Returned ? (
+                <>
+                  {row.status !== DocumentStatus.Pending ? (
+                    <button type="button" className="btn-step btn-step-back" disabled={pending} onClick={() => setDialog('revert')}>
+                      Move back
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn-step btn-step-return" disabled={pending} onClick={() => setDialog('return')}>
+                    Return for revision
+                  </button>
+                </>
+              ) : null}
               <button type="button" className="btn-step btn-step-hold" disabled={pending} onClick={() => setDialog('hold')}>
                 Put on hold
               </button>
@@ -250,6 +286,16 @@ export function ReviewActions({
               advanceDocument(row.id, { expectedStatus: row.status, claimDate, note }),
             )
           }
+        />
+      ) : null}
+
+      {dialog === 'finish' ? (
+        <FinishDialog
+          row={row}
+          pending={pending}
+          errors={errors}
+          onCancel={() => setDialog(null)}
+          onSubmit={(note) => run(() => finishDocument(row.id, { expectedStatus: row.status, note }))}
         />
       ) : null}
 
@@ -431,6 +477,77 @@ function AdvanceDialog({
           onClick={() => onSubmit(claimDate, note.trim() || null)}
         >
           {pending ? 'Saving…' : 'Advance'}
+        </button>
+        <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </DialogShell>
+  );
+}
+
+/**
+ * Finish request (Ongoing → Done). Says up front what the server will check —
+ * required files still unchecked, a reservation not yet approved — so the
+ * click is not wasted; the server enforces the same rules either way.
+ */
+function FinishDialog({
+  row,
+  pending,
+  errors,
+  onCancel,
+  onSubmit,
+}: {
+  row: ReviewRow;
+  pending: boolean;
+  errors: string[];
+  onCancel: () => void;
+  onSubmit: (note: string | null) => void;
+}) {
+  const [note, setNote] = useState('');
+  const unchecked = row.requirements.filter((requirement) => requirement.isMandatory && !requirement.verified);
+  // pending / cancelled are the two lending states of a booking not (or no longer) approved.
+  const bookingWaiting = row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+
+  return (
+    <DialogShell title="Finish this request" errors={errors}>
+      <p className="gate-claim-hint">
+        Marks it <strong>Done</strong>. Your supervisor is notified and the requester sees it as done on
+        their tracking page.
+      </p>
+
+      {unchecked.length > 0 || bookingWaiting ? (
+        <ul className="gate-checks mt-3">
+          {unchecked.length > 0 ? (
+            <li className="no">Check these required files first: {unchecked.map((r) => r.label).join(', ')}</li>
+          ) : null}
+          {bookingWaiting ? (
+            <li className="no">Approve the reservation first (in this window, or on the Resources page)</li>
+          ) : null}
+        </ul>
+      ) : null}
+
+      <label className="gate-claim-label mt-3" htmlFor={`finish-note-${row.id}`}>
+        What was done <span className="text-ink-soft">(optional)</span>
+      </label>
+      <textarea
+        id={`finish-note-${row.id}`}
+        className="field w-full"
+        rows={3}
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        maxLength={1000}
+        placeholder="e.g. 50 leis delivered to the City Hall lobby"
+      />
+
+      <div className="gate-actions mt-4">
+        <button
+          type="button"
+          className="cr-btn cr-btn-primary"
+          disabled={pending}
+          onClick={() => onSubmit(note.trim() || null)}
+        >
+          {pending ? 'Saving…' : 'Mark as done'}
         </button>
         <button type="button" className="cr-btn cr-btn-ghost" disabled={pending} onClick={onCancel}>
           Cancel

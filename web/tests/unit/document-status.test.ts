@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SLA_HOURS,
   DocumentStatus,
+  FINISHABLE,
   FLOW,
   RAIL_STAGES,
   activeValues,
@@ -46,14 +47,14 @@ describe('DocumentStatus', () => {
     }
   });
 
-  describe('the four-stage progress bar', () => {
-    it('has the prototype stages in order', () => {
-      expect(RAIL_STAGES.map((stage) => stage.label)).toEqual([
-        'Pending',
-        'In review',
-        'Processing',
-        'Completed',
-      ]);
+  describe('the three-stage progress bar (CTCAO: Pending → Ongoing → Done)', () => {
+    it('has the workflow stages in order', () => {
+      expect(RAIL_STAGES.map((stage) => stage.label)).toEqual(['Pending', 'Ongoing', 'Done']);
+    });
+
+    it('names the stages the way the office does', () => {
+      expect(label(DocumentStatus.InProgress)).toBe('Ongoing');
+      expect(label(DocumentStatus.Completed)).toBe('Done');
     });
 
     it('places every status on the forward flow on exactly one stage', () => {
@@ -66,12 +67,12 @@ describe('DocumentStatus', () => {
 
     it.each([
       ['pending', DocumentStatus.Pending, null, 1],
-      ['in progress is review', DocumentStatus.InProgress, null, 2],
-      ['in review', DocumentStatus.InReview, null, 2],
-      ['approved is processing', DocumentStatus.Approved, null, 3],
-      ['completed', DocumentStatus.Completed, null, 4],
-      ['returned goes back to review', DocumentStatus.Returned, null, 2],
-      ['on hold keeps its place', DocumentStatus.OnHold, DocumentStatus.Approved, 3],
+      ['ongoing', DocumentStatus.InProgress, null, 2],
+      ['a retired in review as ongoing', DocumentStatus.InReview, null, 2],
+      ['a retired approved as ongoing', DocumentStatus.Approved, null, 2],
+      ['done', DocumentStatus.Completed, null, 3],
+      ['returned back at ongoing', DocumentStatus.Returned, null, 2],
+      ['on hold where it stopped', DocumentStatus.OnHold, DocumentStatus.Pending, 1],
       ['on hold with no record', DocumentStatus.OnHold, null, 2],
       ['denied where it stopped', DocumentStatus.Denied, DocumentStatus.Pending, 1],
     ] as const)('lands %s on its stage', (_name, status, before, stage) => {
@@ -80,23 +81,30 @@ describe('DocumentStatus', () => {
   });
 
   describe('the forward line', () => {
-    it('walks forward and back through the flow', () => {
+    it('walks Pending → Ongoing → Done', () => {
+      expect(FLOW).toEqual([DocumentStatus.Pending, DocumentStatus.InProgress, DocumentStatus.Completed]);
       expect(next(DocumentStatus.Pending)).toBe(DocumentStatus.InProgress);
-      expect(next(DocumentStatus.Approved)).toBe(DocumentStatus.Completed);
+      expect(next(DocumentStatus.InProgress)).toBe(DocumentStatus.Completed);
       // End of the line.
       expect(next(DocumentStatus.Completed)).toBeNull();
-      // Off the line entirely.
+      // Off the line entirely, the retired stages included.
       expect(next(DocumentStatus.Returned)).toBeNull();
       expect(next(DocumentStatus.OnHold)).toBeNull();
+      expect(next(DocumentStatus.InReview)).toBeNull();
+      expect(next(DocumentStatus.Approved)).toBeNull();
 
       expect(previous(DocumentStatus.InProgress)).toBe(DocumentStatus.Pending);
       expect(previous(DocumentStatus.Pending)).toBeNull();
       expect(previous(DocumentStatus.Returned)).toBeNull();
     });
 
+    it('lets Ongoing and the retired stages be finished', () => {
+      expect(FINISHABLE).toEqual([DocumentStatus.InProgress, DocumentStatus.InReview, DocumentStatus.Approved]);
+    });
+
     it('numbers positions from 1, and 0 off the line', () => {
       expect(position(DocumentStatus.Pending)).toBe(1);
-      expect(position(DocumentStatus.Completed)).toBe(5);
+      expect(position(DocumentStatus.Completed)).toBe(3);
       expect(position(DocumentStatus.Returned)).toBe(0);
       expect(position(DocumentStatus.OnHold)).toBe(0);
     });

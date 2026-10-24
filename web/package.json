@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "migrate:from-mysql": "prisma generate --schema prisma/legacy-mysql/schema.prisma && node scripts/migrate-from-mysql.mjs"
+    "migrate:from-mysql": "prisma generate --schema prisma/legacy-mysql/schema.prisma && node scripts/migrate-from-mysql.mjs",
+    "db:seed:tourism": "node scripts/seed-tourism.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

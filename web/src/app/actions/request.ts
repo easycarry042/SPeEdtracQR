@@ -44,8 +44,8 @@ function fail(errors: Record<string, string>, form: FormData): SubmitResult {
 
   for (const key of [
     'document_type', 'purpose', 'description', 'citizen_name', 'citizen_email',
-    'citizen_contact', 'booking_date', 'start_time', 'end_time', 'quantity',
-    'needed_date', 'return_date', 'needed_by',
+    'citizen_contact', 'requester_office', 'details', 'booking_date', 'start_time',
+    'end_time', 'quantity', 'needed_date', 'return_date', 'needed_by',
   ]) {
     const value = text(form, key);
     if (value !== '') {
@@ -71,6 +71,19 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   const citizenContact = contactNumber.normalise(text(form, 'citizen_contact'));
   const purpose = text(form, 'purpose');
   const description = text(form, 'description');
+  // The paper form's "Name and Department": another office files through this
+  // same form, so where the request comes from is asked here.
+  const requesterOffice = text(form, 'requester_office');
+  // The answer to the request type's one extra question (Venue, Size…).
+  const details = text(form, 'details');
+
+  if (requesterOffice.length > 255) {
+    return fail({ requester_office: 'Keep the office or organization to 255 characters.' }, form);
+  }
+
+  if (details.length > 1000) {
+    return fail({ details: 'Keep this answer to 1,000 characters.' }, form);
+  }
 
   const input: submission.SubmissionInput = {
     document_type: documentType,
@@ -100,6 +113,10 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
     where: { name: documentType },
     include: { request_type_requirements: { orderBy: { sort_order: 'asc' } }, resource: true },
   });
+
+  if (type?.details_label && details === '') {
+    return fail({ details: `Please answer: ${type.details_label}.` }, form);
+  }
 
   if (type?.resource && !type.resource.is_active) {
     return fail({ document_type: `${type.resource.name} is not available to request right now.` }, form);
@@ -165,6 +182,8 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
       citizen_contact: citizenContact,
       purpose: purpose === '' ? null : purpose,
       description: description === '' ? null : description,
+      requester_office: requesterOffice === '' ? null : requesterOffice,
+      details: type?.details_label && details !== '' ? details : null,
       quantity,
       needed_by: neededBy === null ? null : parseNaive(neededBy),
       status: DocumentStatus.Pending,

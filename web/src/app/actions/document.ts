@@ -132,10 +132,14 @@ export async function openDocumentReview(documentId: number): Promise<ActionResu
   });
 }
 
-export async function completeDocument(documentId: number): Promise<ActionResult> {
+/** Finish request: Ongoing → Done (checks requirements, tells the office). */
+export async function finishDocument(
+  documentId: number,
+  input: { expectedStatus: string; note?: string | null },
+): Promise<ActionResult> {
   const actor = await currentActor();
 
-  return run(() => review.complete(documentId, actor));
+  return run(() => status.finish(documentId, actor, input));
 }
 
 export async function acceptAssignment(documentId: number): Promise<ActionResult> {

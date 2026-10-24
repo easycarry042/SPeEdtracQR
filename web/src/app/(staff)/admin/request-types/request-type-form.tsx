@@ -25,18 +25,23 @@ export function RequestTypeForm({
   requestType,
   offices,
   resources,
+  staff,
 }: {
   requestType: {
     id: number;
     name: string;
     kind: string;
     description: string | null;
+    detailsLabel: string | null;
+    handlerIds: number[];
     departmentId: number | null;
     resourceId: number | null;
     requirements: RequirementInput[];
   } | null;
   offices: Array<{ id: number; name: string; code: string }>;
   resources: Array<{ id: number; name: string; kind: string }>;
+  /** Everyone who can be assigned work, with their office — filtered by the chosen office. */
+  staff: Array<{ id: number; name: string; department_id: number | null }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -49,12 +54,21 @@ export function RequestTypeForm({
     requestType?.resourceId === null || requestType === null ? '' : String(requestType.resourceId),
   );
   const [description, setDescription] = useState(requestType?.description ?? '');
+  const [detailsLabel, setDetailsLabel] = useState(requestType?.detailsLabel ?? '');
+  const [handlerIds, setHandlerIds] = useState<number[]>(requestType?.handlerIds ?? []);
   const [requirements, setRequirements] = useState<RequirementInput[]>(
     requestType?.requirements ?? [],
   );
   const [error, setError] = useState<string | null>(null);
 
   const needsResource = RESOURCE_KINDS.includes(kind);
+  const officeStaff = office === '' ? [] : staff.filter((person) => person.department_id === Number(office));
+  // Handlers belong to the office; changing the office drops the ones who don't.
+  const keptHandlers = handlerIds.filter((handlerId) => officeStaff.some((person) => person.id === handlerId));
+  const toggleHandler = (handlerId: number): void =>
+    setHandlerIds((current) =>
+      current.includes(handlerId) ? current.filter((entry) => entry !== handlerId) : [...current, handlerId],
+    );
 
   const submit = (event: React.FormEvent): void => {
     event.preventDefault();
@@ -66,6 +80,8 @@ export function RequestTypeForm({
         departmentId: office === '' ? null : Number(office),
         resourceId: resource === '' ? null : Number(resource),
         description: description.trim() === '' ? null : description,
+        detailsLabel: detailsLabel.trim() === '' ? null : detailsLabel,
+        handlerIds: keptHandlers,
         requirements,
       });
 
@@ -184,6 +200,56 @@ export function RequestTypeForm({
           <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
             Requests of this type land in this office’s queue on submission, and its supervisor
             assigns a staff member. With no office they reach nobody until someone routes them.
+          </p>
+        </div>
+
+        {/* CTCAO's assignment table: who usually does this kind of request. */}
+        <div>
+          <p className="inv-field-label">Usual handlers</p>
+          <p className="text-[length:var(--fs-caption)] text-ink-soft">
+            The supervisor&apos;s Assign box starts on the first one ticked; they can still pick anyone.
+            Tick in order of preference.
+          </p>
+          {office === '' ? (
+            <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">Choose the handling office first.</p>
+          ) : officeStaff.length === 0 ? (
+            <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">This office has no staff yet.</p>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {officeStaff.map((person) => {
+                const position = keptHandlers.indexOf(person.id);
+
+                return (
+                  <label key={person.id} className="dm-panel flex cursor-pointer items-center gap-2 py-2 text-[length:var(--fs-small)]">
+                    <input
+                      type="checkbox"
+                      checked={position !== -1}
+                      onChange={() => toggleHandler(person.id)}
+                    />
+                    {person.name}
+                    {position !== -1 ? <span className="pill p-green">{position + 1}</span> : null}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="inv-field-label" htmlFor="typeDetails">
+            Extra question on the request form
+          </label>
+          <input
+            id="typeDetails"
+            type="text"
+            className="field w-full"
+            maxLength={255}
+            value={detailsLabel}
+            onChange={(event) => setDetailsLabel(event.target.value)}
+            placeholder="e.g. Venue of the event, or Size (e.g. 3 x 6 ft)"
+          />
+          <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+            Asked under this request type on the public form. Leave empty for none.
           </p>
         </div>
 
