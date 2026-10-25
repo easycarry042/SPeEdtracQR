@@ -12,7 +12,7 @@ import { sendMail } from '@/lib/mail/send';
 import { holdOverdueMail, slaBreachMail, slaWarningMail } from '@/lib/mail/sla-alerts';
 import * as lendingDesk from '@/lib/domain/lending-desk';
 import { tracking } from '@/lib/config';
-import { diffInDays, diffInHours, now } from '@/lib/time';
+import { addHours, diffInDays, diffInHours, now } from '@/lib/time';
 
 /**
  * The three scheduled sweeps, ported from `app/Console/Commands`.
@@ -105,18 +105,13 @@ export async function checkDocumentSla(): Promise<SweepResult> {
     }
   }
 
-  const reclaim = await reclaimUnacceptedRequests();
-
   return {
     job: 'documents:check-sla',
-    summary: `SLA sweep complete: ${warned} warning(s), ${breached} breach(es). Auto-escalation: ${reclaim.counts.reassigned ?? 0} reassigned, ${reclaim.counts.reclaimedToPool ?? 0} returned to pool.`,
+    summary: `SLA sweep complete: ${warned} warning(s), ${breached} breach(es).`,
     counts: {
       warned,
       breached,
       scanned: documents.length,
-      unaccepted_scanned: reclaim.counts.scanned ?? 0,
-      unaccepted_reassigned: reclaim.counts.reassigned ?? 0,
-      unaccepted_reclaimed: reclaim.counts.reclaimedToPool ?? 0,
     },
   };
 }
@@ -383,13 +378,21 @@ async function departmentSupervisors(
  */
 export async function reclaimUnacceptedRequests(
   acceptanceWindowHours = 2,
+  options: {
+    /** Only this staff member's assignments (they just went On Leave). */
+    assigneeId?: number;
+    /** Why it moved, for the log lines and bells ("is on leave"). */
+    why?: string;
+  } = {},
 ): Promise<SweepResult> {
-  const cutoff = new Date(Date.now() - acceptanceWindowHours * 3600_000);
+  // Stored times are naive Manila wall-clock (lib/time), so the cutoff is too;
+  // `Date.now()` here would sit eight hours early.
+  const cutoff = addHours(now(), -acceptanceWindowHours);
 
   const documents = await db.documents.findMany({
     where: {
       status: DocumentStatus.Pending,
-      assigned_to: { not: null },
+      assigned_to: options.assigneeId === undefined ? { not: null } : id(options.assigneeId),
       accepted_at: null,
       OR: [
         { assigned_at: { lt: cutoff } },
@@ -428,6 +431,8 @@ export async function reclaimUnacceptedRequests(
     const documentId = toId(document.id);
     const prevAssigneeId = toId(document.assigned_to);
     const prevAssigneeName = document.assignee?.name ?? 'Assigned staff';
+    // e.g. "Ana Cruz did not accept it within 2 hours" / "Ana Cruz is on leave"
+    const why = `${prevAssigneeName} ${options.why ?? `did not accept it within ${acceptanceWindowHours} hours`}`;
     const departmentId = document.department_id ?? document.assignee?.department_id ?? null;
 
     let nextAssignee: AutoDispatchResult = null;
@@ -459,11 +464,11 @@ export async function reclaimUnacceptedRequests(
 
       await logOnDocument(
         documentId,
-        `Auto-escalated: Reassigned to ${nextAssignee.name} after ${acceptanceWindowHours}h unaccepted by ${prevAssigneeName}`,
+        `Auto-escalated to ${nextAssignee.name}: ${why}`,
       );
       await logSystemComment(
         documentId,
-        `Auto-escalated: ${prevAssigneeName} did not accept within ${acceptanceWindowHours} hours. Reassigned to ${nextAssignee.name}.`,
+        `Reassigned to ${nextAssignee.name} — ${why}.`,
       );
 
       await notify(nextAssignee.id, {
@@ -481,7 +486,7 @@ export async function reclaimUnacceptedRequests(
         supervisors.map((s) => s.id),
         {
           title: `Request auto-escalated: ${document.tracking_number}`,
-          body: `${document.document_type ?? 'Document'} (${document.tracking_number}) was unattended by ${prevAssigneeName} for ${acceptanceWindowHours}+ hours and reassigned to ${nextAssignee.name}.`,
+          body: `${document.document_type ?? 'Document'} went to ${nextAssignee.name}: ${why}.`,
           url: routes.dashboard({ tab: 'active', q: document.tracking_number }),
           tracking_number: document.tracking_number,
           event: 'auto_escalated',
@@ -503,11 +508,11 @@ export async function reclaimUnacceptedRequests(
 
       await logOnDocument(
         documentId,
-        `Unattended assignment returned to department pool (unaccepted for ${acceptanceWindowHours}+ hours by ${prevAssigneeName})`,
+        `Returned to the office pool: ${why}`,
       );
       await logSystemComment(
         documentId,
-        `Unattended for over ${acceptanceWindowHours} hours by ${prevAssigneeName} — returned to department open pool.`,
+        `Returned to the office pool — ${why}.`,
       );
 
       const supervisors = await departmentSupervisors(
@@ -516,8 +521,8 @@ export async function reclaimUnacceptedRequests(
       await notifyMany(
         supervisors.map((s) => s.id),
         {
-          title: `Unattended Request Returned to Pool: ${document.tracking_number}`,
-          body: `${document.document_type ?? 'Document'} (${document.tracking_number}) was unattended by ${prevAssigneeName} for ${acceptanceWindowHours}+ hours and returned to the department open pool.`,
+          title: `Back in the pool: ${document.tracking_number}`,
+          body: `${document.document_type ?? 'Document'} is waiting in the office pool: ${why}.`,
           url: routes.dashboard({ tab: 'pending', q: document.tracking_number }),
           tracking_number: document.tracking_number,
           event: 'unattended_reclaimed',

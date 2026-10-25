@@ -3,10 +3,9 @@ import { DocumentStatus } from '@/lib/domain/document-status';
 import { addDays, now } from '@/lib/time';
 
 /**
- * Handing borrowed items over finishes the request. On CTCAO's line there is
- * no Approved stage any more: an Ongoing request with its required files
- * checked can be handed over, and the hand-over marks it Done and tells the
- * office — the same as Finish request.
+ * Handing borrowed items over is the citizen claiming them, so it waits for
+ * the supervisor's confirmation (Ready for Claim). It stamps the claim and
+ * never moves the status itself.
  */
 const bookingFindUnique = vi.fn();
 const bookingUpdate = vi.fn();
@@ -82,46 +81,33 @@ beforeEach(() => {
 });
 
 describe('handing the items over', () => {
-  it('finishes an Ongoing request and tells the office', async () => {
-    bookingFindUnique.mockResolvedValue(booking(DocumentStatus.InProgress));
+  it.each([
+    ['Pending', DocumentStatus.Pending],
+    ['Ongoing', DocumentStatus.InProgress],
+    ['Pending Approval', DocumentStatus.InReview],
+  ])('waits for the supervisor to confirm a request that is %s', async (_name, status) => {
+    bookingFindUnique.mockResolvedValue(booking(status));
 
-    expect(await release(5, ana)).toBeNull();
-
-    expect(documentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: DocumentStatus.Completed }) }),
-    );
-    expect(notifyOfficeOfProgress).toHaveBeenCalledWith(
-      expect.objectContaining({ tracking_number: 'SPD-20261024-GATE01', department_id: 8 }),
-      ana,
-      'finished',
-    );
-  });
-
-  it('waits for the required files to be checked', async () => {
-    bookingFindUnique.mockResolvedValue(booking(DocumentStatus.InProgress));
-    unverifiedMandatoryRequirements.mockResolvedValue([{ id: 1, label: 'Letter of Request' }]);
-
-    expect(await release(5, ana)).toBe('Check the required files on the request first: Letter of Request.');
+    expect(await release(5, ana)).toMatch(/Items are handed over once a supervisor confirms it as Ready for Claim\.$/);
     expect(bookingUpdate).not.toHaveBeenCalled();
+    expect(documentUpdate).not.toHaveBeenCalled();
   });
 
-  it('waits for the request to be accepted', async () => {
-    bookingFindUnique.mockResolvedValue(booking(DocumentStatus.Pending));
-
-    expect(await release(5, ana)).toBe(
-      'The request is still Pending. It must be accepted (Ongoing) before the items are handed over.',
-    );
-    expect(bookingUpdate).not.toHaveBeenCalled();
-  });
-
-  it('only stamps the release on a request already Done', async () => {
+  it('hands over a Ready for Claim request: stamps the claim, leaves the status alone', async () => {
     bookingFindUnique.mockResolvedValue(booking(DocumentStatus.Completed));
 
     expect(await release(5, ana)).toBeNull();
 
+    expect(bookingUpdate).toHaveBeenCalled();
+    expect(documentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ claimed_at: expect.any(Date), released_by: 41n }),
+      }),
+    );
     expect(documentUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.not.objectContaining({ status: expect.anything() }) }),
     );
+    // The office already heard at confirmation; handing over is not a second "done".
     expect(notifyOfficeOfProgress).not.toHaveBeenCalled();
   });
 });

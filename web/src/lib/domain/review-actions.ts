@@ -3,7 +3,6 @@ import { now, startOfDay, parseNaive, today, formatNaive } from '@/lib/time';
 import { tracking } from '@/lib/config';
 import { logOnDocument } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
-import { queueSms } from '@/lib/sms/send';
 import { assignmentNoticeMail } from '@/lib/mail/assignment-notice';
 import { broadcastStatusUpdated } from '@/lib/realtime';
 import { logSystemComment, postComment, AUTHOR, VISIBILITY } from '@/lib/domain/comments';
@@ -14,10 +13,10 @@ import { needsTriage } from '@/lib/domain/request-review';
 import { cancel as cancelBooking, followClaimDate } from '@/lib/domain/lending-desk';
 import { notifyMany } from '@/lib/domain/notifications';
 import { grantsFor, ROLE_SUPERVISOR, usersWithRole } from '@/lib/auth/rbac';
-import { ActionError, finish } from '@/lib/domain/status-actions';
+import { ActionError, notifyReadyForClaim } from '@/lib/domain/status-actions';
 import { validate } from '@/lib/domain/status-gate';
-import { statusUpdatedMail } from '@/lib/mail/status-updated';
 import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
+import { statusUpdatedMail } from '@/lib/mail/status-updated';
 import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
 
@@ -304,17 +303,6 @@ export async function openReview(
   return { status: document.status, statusLabel: statusLabel(statusOf(document)) };
 }
 
-/** Final staff sign-off: Ongoing → Done. Kept for callers of the old name. */
-export async function complete(
-  documentId: number,
-  actor: Actor | null,
-  note: string | null = null,
-): Promise<{ message: string }> {
-  const document = await loadOrFail(documentId);
-
-  return finish(documentId, actor, { expectedStatus: document.status, note });
-}
-
 /**
  * Staff claims an unassigned request from the department pool ("Open Requests").
  * Locks the record to their user_id, sets accepted_at, and advances Pending → Ongoing.
@@ -444,8 +432,8 @@ export async function submitForClearance(
     where: { id: document.id },
     data: {
       ...statusChangeData(DocumentStatus.InReview),
-      // Clear any previous supervisor correction remarks on new submission
-      remarks: null,
+      // The supervisor's correction note is answered by this resubmission.
+      supervisor_notes: null,
       updated_at: now(),
     },
   });
@@ -497,32 +485,29 @@ export async function approveClearance(
   }
 
   const document = await loadOrFail(documentId);
+  assertOwnOffice(document, actor);
   const stage = statusOf(document);
 
-  if (stage !== DocumentStatus.InReview && stage !== DocumentStatus.InProgress) {
-    throw new ActionError(`This request is ${statusLabel(stage)} and cannot be approved from here.`);
+  // Only work the staff member has submitted (or a request left on the retired
+  // Approved stage) — a supervisor never signs off work nobody has done.
+  if (stage !== DocumentStatus.InReview && stage !== DocumentStatus.Approved) {
+    throw new ActionError(
+      `This request is ${statusLabel(stage)}. It can be confirmed once its staff member submits it for review.`,
+    );
   }
 
   const trimmed = (input?.note ?? '').trim() || null;
 
-  // Validate stage gates for completion
-  await validate({ id: documentId }, DocumentStatus.Completed, trimmed);
-
-  if (trimmed) {
-    await postComment({
-      documentId,
-      body: trimmed,
-      authorId: actor.id,
-      authorType: AUTHOR.Staff,
-      visibility: VISIBILITY.Internal,
-    });
-  }
+  await validate({ id: documentId }, DocumentStatus.Completed, trimmed, actor);
 
   let claimDay: Date | null = null;
   if (input?.claimDate) {
     const parsed = parseNaive(input.claimDate);
     if (parsed) {
       claimDay = startOfDay(parsed);
+      if (claimDay.getTime() < today().getTime()) {
+        throw new ActionError('The claiming date cannot be in the past.');
+      }
       const refusal = await followClaimDate(documentId, claimDay);
       if (refusal) {
         throw new ActionError(refusal);
@@ -538,97 +523,38 @@ export async function approveClearance(
       ...(claimDay ? { claim_date: claimDay } : {}),
       reviewed_by: id(actor.id),
       reviewed_at: stamp,
-      supervisor_notes: trimmed,
+      supervisor_notes: null,
       decided_by: id(actor.id),
       decided_at: stamp,
-      completed_at: stamp,
       updated_at: stamp,
     },
   });
 
   await logOnDocument(
     documentId,
-    `Supervisor approved clearance: ${statusLabel(stage)} → ${statusLabel(DocumentStatus.Completed)}`,
+    `Supervisor confirmed: ${statusLabel(stage)} → ${statusLabel(DocumentStatus.Completed)}`,
     actor.id,
     { from: stage, to: DocumentStatus.Completed, ...(trimmed ? { note: trimmed } : {}) },
   );
 
   await broadcastStatusUpdated(documentId);
-  await logSystemComment(
-    documentId,
-    `Clearance approved by ${actor.name} — marked Ready for Claim`,
-  );
+  await logSystemComment(documentId, `Confirmed by ${actor.name} — Ready for Claim`);
 
-  const officeName = document.department?.name ?? 'the office';
-  const effectiveClaimDate = claimDay ?? document.claim_date;
+  // Email / SMS / the citizen's thread; the note goes to the citizen as claiming instructions.
+  await notifyReadyForClaim(document, actor, claimDay, trimmed);
 
-  // 1. Dispatch Email claim notification to citizen
-  if (document.citizen_email && tracking.notifyCitizen.enabled && tracking.notifyCitizen.stages[DocumentStatus.Completed]) {
-    queueMail(
-      statusUpdatedMail({
-        to: document.citizen_email,
-        trackingNumber: document.tracking_number,
-        citizenName: document.citizen_name,
-        stage: DocumentStatus.Completed,
-        officeName,
-        claimDate: effectiveClaimDate,
-      }),
-    );
-
-    await logOnDocument(
-      documentId,
-      `Dispatched claim notification email to citizen (${document.citizen_email})`,
-      actor.id,
-    );
-  }
-
-  // 2. Dispatch SMS claim notification to citizen (if contact number is provided)
-  if (document.citizen_contact) {
-    const claimDateText = effectiveClaimDate
-      ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
-      : '';
-    const smsText = `SPeED TraQR: Your request ${document.tracking_number} has been approved and is Ready for Pickup / Claiming${claimDateText} at ${officeName}. Bring your QR code or claim slip to the counter.`;
-
-    queueSms({
-      to: document.citizen_contact,
-      text: smsText,
-      trackingNumber: document.tracking_number,
-    });
-
-    await logOnDocument(
-      documentId,
-      `Dispatched claim notification SMS to citizen (${document.citizen_contact})`,
-      actor.id,
-    );
-  }
-
-  // 3. Dispatch claim notification to Speedy message thread (public citizen-visible message)
-  const claimNoticeDateText = effectiveClaimDate
-    ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
-    : '';
-  const speedyBody = `Good news! Your request has been approved by the supervisor and is now Ready for Pickup / Claiming${claimNoticeDateText}. Please bring your QR code (from your confirmation email or printed slip) to the ${officeName} counter. If you have any questions, you can reply directly in this thread.`;
-
-  await postComment({
-    documentId,
-    body: speedyBody,
-    authorId: actor.id,
-    authorType: AUTHOR.Staff,
-    visibility: VISIBILITY.Public,
-  });
-
-  // Notify assigned staff handler that their submission was approved
   const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
   if (assignedTo && assignedTo !== actor.id) {
     await notifyMany([assignedTo], {
-      title: `Clearance approved: ${document.tracking_number}`,
-      body: `Supervisor ${actor.name} approved your submission for ${document.document_type}. Marked Ready for Claim.`,
+      title: `Confirmed: ${document.tracking_number}`,
+      body: `${actor.name} confirmed your work on ${document.document_type}. It is Ready for Claim.`,
       url: routes.staffDashboard({ open: document.tracking_number }),
       tracking_number: document.tracking_number,
       event: 'clearance_approved',
     });
   }
 
-  return { message: `Approved ${document.tracking_number}. It is now Ready for Claim.` };
+  return { message: `Confirmed ${document.tracking_number}. It is now Ready for Claim.` };
 }
 
 /**
@@ -645,6 +571,7 @@ export async function returnToStaff(
   }
 
   const document = await loadOrFail(documentId);
+  assertOwnOffice(document, actor);
   const stage = statusOf(document);
 
   if (stage !== DocumentStatus.InReview) {
@@ -660,9 +587,9 @@ export async function returnToStaff(
   await db.documents.update({
     where: { id: document.id },
     data: {
-      status: DocumentStatus.InProgress,
-      remarks: trimmed,
-      status_changed_at: stamp,
+      ...statusChangeData(DocumentStatus.InProgress),
+      // Internal: kept off `remarks`, which the citizen's tracker shows.
+      supervisor_notes: trimmed,
       updated_at: stamp,
     },
   });
@@ -953,6 +880,20 @@ export async function setClaimDate(
   await logOnDocument(documentId, `Claiming date set to ${claimDate}`, actor!.id);
 
   return { message: 'Claiming date saved.' };
+}
+
+/**
+ * A supervisor signs off (or sends back) only their own office's requests; a
+ * super admin may act on any office's.
+ */
+function assertOwnOffice(document: { department_id: bigint | null }, actor: Actor): void {
+  if (actor.can('manage system') || actor.departmentId === null || document.department_id === null) {
+    return;
+  }
+
+  if (toId(document.department_id) !== actor.departmentId) {
+    throw new ActionError("You can only confirm or return your own office's requests.", 403);
+  }
 }
 
 function authorizeAssignedOrAdmin(

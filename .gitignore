@@ -1,36 +1,15 @@
+# The app lives in web/ (it has its own .gitignore).
+.env
+.env.*
+!.env.example
+node_modules
 *.log
 .DS_Store
-.env
-.env.backup*
-.env.production
-.phpactor.json
-.phpunit.result.cache
-/.codex
-/.cursor/
+Thumbs.db
 /.idea
-/.nova
-/.phpunit.cache
 /.vscode
 /.zed
-/auth.json
-/node_modules
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/storage/pail
-/vendor
-_ide_helper.php
-Homestead.json
-Homestead.yaml
-Thumbs.db
+/.cursor
+/.codex
 /.design-mockups
 /.impeccable
-
-# spatie/laravel-backup output
-/storage/backups
-/storage/backup-temp
-phpunit.*.xml
-
-# Env backups written by scripts/setup-mysql.sh — contain secrets
-.env.bak*

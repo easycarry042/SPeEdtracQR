@@ -7,7 +7,7 @@ import { publicObjectUrl, readPublic } from '@/lib/storage';
  * links, so they must keep working.
  *
  * With Supabase the file is in the `public` bucket and the browser is sent
- * straight there; on the local disk it is streamed from `storage/app/public`.
+ * straight there; on the local disk it is streamed from `web/storage/app/public`.
  * Only the public disk is reachable — uploads live on the private one and go
  * through the attachment route's office check.
  */

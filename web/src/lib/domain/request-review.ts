@@ -117,6 +117,8 @@ export type ReviewRow = {
   /** How far past its stage's budget an open request is ("3d 2h"), else null. */
   overSla: string | null;
   remarks: string | null;
+  /** The supervisor's internal correction note (Return for Revision); never shown to the citizen. */
+  supervisorNotes: string | null;
   booking: ReviewBooking | null;
   attachments: ReviewAttachment[];
   requirements: ReviewRequirement[];
@@ -249,6 +251,7 @@ export const REVIEW_SELECT = {
   hold_until: true,
   held_at: true,
   remarks: true,
+  supervisor_notes: true,
   assigned_to: true,
   accepted_at: true,
   created_at: true,
@@ -284,6 +287,7 @@ type ReviewSource = {
   hold_until: Date | null;
   held_at: Date | null;
   remarks: string | null;
+  supervisor_notes: string | null;
   assigned_to: bigint | null;
   accepted_at: Date | null;
   created_at: Date | null;
@@ -607,6 +611,7 @@ export async function forModal(
     holdOverdueDays: isHoldOverdue(holdState) ? holdOverdueDays(holdState) : null,
     overSla: overdueBy(document),
     remarks: document.remarks,
+    supervisorNotes: document.supervisor_notes,
     booking: await bookingPayload(booking, actor),
     attachments: document.document_attachments.map((attachment) => {
       const ext = extensionOf(attachment.file_path);

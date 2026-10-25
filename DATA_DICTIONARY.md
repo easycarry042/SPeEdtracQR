@@ -1,9 +1,9 @@
 # SPeED TraQR — Data Dictionary
 
-Database: `speedtraqr` (MySQL 8.0). Generated from the live schema on 2026-07-30.
+Database: Postgres on Supabase. Written from the original MySQL schema on 2026-07-30; columns added since are in `web/prisma/schema.prisma` and `web/prisma/migrations`.
 
-All `id` columns are auto-incrementing primary keys. All `created_at` / `updated_at` columns are
-Laravel timestamps recording when the row was inserted and last modified.
+All `id` columns are auto-incrementing primary keys. All `created_at` / `updated_at` columns record
+when the row was inserted and last modified (naive Manila wall-clock, see `web/src/lib/time.ts`).
 
 ---
 

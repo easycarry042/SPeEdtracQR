@@ -6,6 +6,11 @@ export type SmsMessage = {
   trackingNumber?: string;
 };
 
+/** Whether an SMS gateway is set up; without one nothing is actually sent. */
+export function smsConfigured(): boolean {
+  return Boolean(process.env.SMS_GATEWAY_URL);
+}
+
 /**
  * Dispatch an outbound SMS message to a citizen contact number.
  * Supports SMS_GATEWAY_URL / SMS_API_KEY environment variables,

@@ -50,6 +50,17 @@ const ROLES = {
     'act on internal requests',
     'manage inventory',
   ],
+  // Clerk: the staff permissions under its own name (ported from the last
+  // Laravel seeder edit). The app does not treat Clerks as staff yet — they are
+  // not in the Assign list or usual-handler picker.
+  Clerk: [
+    'scan documents',
+    'advance documents',
+    'accept documents',
+    'manage bookings',
+    'manage inventory',
+    'create internal requests',
+  ],
   super_admin: PERMISSIONS,
 };
 

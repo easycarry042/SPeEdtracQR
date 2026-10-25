@@ -83,7 +83,9 @@ export default async function StaffDashboardPage({
 
   // Requests sent back by the supervisor for revision
   const returned = active.filter(
-    (row) => Boolean(row.remarks) || row.status === DocumentStatus.Returned,
+    (row) =>
+      (Boolean(row.supervisorNotes) && row.status === DocumentStatus.InProgress) ||
+      row.status === DocumentStatus.Returned,
   );
 
   // Worst first — the order a queue should be worked in.

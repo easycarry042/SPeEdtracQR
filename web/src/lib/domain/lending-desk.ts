@@ -4,10 +4,8 @@ import { addDays, diffInCalendarDays, formatNaive, isFuture, isSameDay, now, sta
 import { logOnDocument, logOnResource } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
 import { OUTCOME, type BookingOutcome, bookingUpdatedMail } from '@/lib/mail/booking-updated';
-import { broadcastStatusUpdated } from '@/lib/realtime';
-import { DocumentStatus, FINISHABLE, isTerminal, label as statusLabel } from '@/lib/domain/document-status';
-import { statusChangeData, statusOf, unverifiedMandatoryRequirements } from '@/lib/domain/document';
-import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
+import { DocumentStatus, isTerminal, label as statusLabel } from '@/lib/domain/document-status';
+import { statusOf } from '@/lib/domain/document';
 import { logSystemComment } from '@/lib/domain/comments';
 import {
   BOOKING_STATUS,
@@ -505,18 +503,10 @@ export async function release(bookingId: number, by: Actor): Promise<Refusal> {
   if (document) {
     const status = statusOf(document);
 
-    // Pending → Ongoing → Done: the request must be accepted (Ongoing), with
-    // its required files checked — the same check Finish request makes.
-    if (!FINISHABLE.includes(status) && status !== DocumentStatus.Completed) {
-      return `The request is still ${statusLabel(status)}. It must be accepted (Ongoing) before the items are handed over.`;
-    }
-
+    // Handing over is the citizen claiming: only once a supervisor has
+    // confirmed the request (Ready for Claim). Its files were checked then.
     if (status !== DocumentStatus.Completed) {
-      const unchecked = await unverifiedMandatoryRequirements(document.id);
-
-      if (unchecked.length > 0) {
-        return `Check the required files on the request first: ${unchecked.map((r) => r.label).join(', ')}.`;
-      }
+      return `The request is ${statusLabel(status)}. Items are handed over once a supervisor confirms it as Ready for Claim.`;
     }
   }
 
@@ -535,21 +525,17 @@ export async function release(bookingId: number, by: Actor): Promise<Refusal> {
 }
 
 /**
- * Handing the items over is the request's release: an Ongoing request becomes
- * Done (what the citizen came for has been given), the release is stamped as it
- * is for a document claimed at the counter, and the office is told it is done.
+ * Handing the items over is the citizen claiming a Ready for Claim request:
+ * the release is stamped as it is for a document claimed at the counter. The
+ * status itself was set by the supervisor's confirmation.
  */
 async function markRequestReleased(
   document: NonNullable<LoadedBooking['document']>,
   by: Actor,
 ): Promise<void> {
-  const from = statusOf(document);
-  const completing = FINISHABLE.includes(from);
-
   await db.documents.update({
     where: { id: id(document.id) },
     data: {
-      ...(completing ? statusChangeData(DocumentStatus.Completed) : {}),
       // `??=` — a document already claimed keeps its original stamps.
       claimed_at: document.claimed_at ?? now(),
       released_by: document.released_by === null ? id(by.id) : id(document.released_by),
@@ -557,20 +543,7 @@ async function markRequestReleased(
     },
   });
 
-  if (!completing) {
-    return;
-  }
-
-  await logOnDocument(
-    document.id,
-    `Finished: ${statusLabel(from)} → ${statusLabel(DocumentStatus.Completed)} (items handed over)`,
-    by.id,
-    { from, to: DocumentStatus.Completed },
-  );
-
-  await broadcastStatusUpdated(document.id);
-  await logSystemComment(document.id, `Done — items handed over by ${by.name}`);
-  await notifyOfficeOfProgress(document, by, 'finished');
+  await logSystemComment(document.id, `Claimed — items handed over by ${by.name}`);
 }
 
 /**

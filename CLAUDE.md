@@ -4,363 +4,73 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SPeEdtracQR is a Laravel 13 / PHP 8.3 document tracking system for government offices. Citizens submit documents (e.g. Business Permit, Cedula) and receive a QR-coded tracking number (`SPD-YYYYMMDD-XXXXXX`, where the suffix is 6 unambiguous base32 characters — high entropy to resist enumeration). Staff scan documents IN/OUT at each department; the system records each move, enforces SLA timers, and exposes a public tracking page for citizens.
+SPeED TraQR is a request tracking system for the City Government of San Pedro, Laguna, currently focused on the **City Tourism, Culture and Arts Office (CTCAO)**. Citizens (and other city offices) file requests online and get a QR-coded tracking number (`SPD-YYYYMMDD-XXXXXX`, 6 unambiguous base32 characters). Office-to-office requests are `INT-` numbers. Staff process requests, supervisors confirm them, and the citizen claims when it is Ready for Claim.
 
-## Working Directory
+It is a **Next.js (TypeScript) app in `web/`**, hosted on **Vercel with Supabase** (Postgres, Storage, Realtime). The original Laravel/PHP app was removed on 2026-10-26; it is in git history before that date if anything needs looking up.
 
-The Laravel app lives at the **repository root** (`artisan`, `composer.json`, `app/`, `routes/`, `resources/`, `tests/` are all at the top level). Run all commands from the repo root. The `speed-traqr/` subdirectory is a near-empty leftover and is **not** the app root.
+## Working directory
 
-## Commands
-
-```bash
-# Full dev stack (server + queue + logs + Vite in parallel)
-composer dev
-
-# Run tests
-composer test
-
-# One-off test file
-php artisan test --filter=DocumentTest
-
-# PHP linting / formatting
-./vendor/bin/pint
-
-# Asset build
-npm run build          # production
-npm run dev            # watch mode only (use composer dev for full stack)
-
-# Production deploy (see DEPLOYMENT.md)
-./scripts/deploy.sh --first-time   # initial server setup
-./scripts/deploy.sh                # routine update after git pull
-
-# Queue worker (if running without composer dev)
-php artisan queue:work
-
-# First-time setup
-composer setup
-php artisan storage:link
-php artisan db:seed --class=RolesAndPermissionsSeeder
-# Set ADMIN_PASSWORD in .env before seeding in any shared/production environment;
-# it falls back to a weak dev default ("password123") if unset.
-```
-
-## Architecture
-
-### Request flow
-
-1. **Document creation** — `DocumentWebController@store` calls `QrCodeService` to generate a unique tracking number and save a PNG QR to `storage/app/public/qrcodes/`. The QR encodes the public tracking URL. The document is auto-checked-in at the first routing department.
-2. **Scanning** — `ScanController@store` (POST `/scan`, route name `api.scan.store`, web+auth middleware) records a `DocumentScan` row. On `action=in` it sets `documents.current_department_id` and dispatches the SLA jobs. On `action=out` it resolves the next department via the document's `route_steps` (falling back to `routing_rules`); if there is no next step it returns 422 asking the user to pick a destination or mark the document complete (it does **not** auto-complete).
-3. **SLA enforcement** — a single scheduled command `documents:check-sla` (hourly, see `routes/console.php`) sweeps in-transit documents and emails `SlaWarningMail` / `SlaBreachMail` once each per stay, deduped via `sla_warning_notified_at` / `sla_breach_notified_at` (reset on each IN scan). Requires `php artisan schedule:run` on cron in production. `Document::isOverdue()` and the dashboard/movements SLA bars compute elapsed time from the latest IN scan.
-4. **Attachments** — citizen/staff document uploads are stored on the **private** `local` disk and served only through `AttachmentController` (auth + per-department check). QR images stay on the public disk. Mistakes are recoverable: `documents.edit/update` corrects details and `documents.undo-scan` reverts the last scan.
-5. **Requirement checks** — In Review → Approved (Process) needs every mandatory `document_requirements` row verified (`StatusGate` names the ones left). An uploaded file must be opened first: the file route with `?open=1` (View / thumbnail in the Review modal, previews on the staff track page) stamps `opened_at/opened_by`; plain loads (modal thumbnails' `<img>`) don't. `documents.requirements.review` refuses "approved" until then and answers JSON for the modal (`RequestReview::requirementPayload`). Nothing uploaded = checked at the counter, no open needed. A citizen re-upload clears opened/verified. Advance reuses an already-set `claim_date` (Adjust Date) unless it has passed.
-
-### Key models and relationships
-
-| Model | Table | Notes |
-|---|---|---|
-| `Document` | `documents` | SoftDeletes + Spatie ActivityLog. Status: `pending`, `in_transit`, `completed`. |
-| `DocumentScan` | `document_scans` | `action` = `in` or `out`. Has `offline_uuid` for dedup on sync. |
-| `Department` | `departments` | `internal_step_hours` = turnaround for internal requests (default 72, `internalStepHours()`). No citizen SLA column — citizen stage clocks are `DocumentStatus::slaHours()`. |
-| `RoutingRule` | `routing_rules` | `document_type + from_department_id → to_department_id + step_order`. Drives the routing on OUT scans. |
-
-### Roles and permissions (Spatie)
-
-Roles seeded by `RolesAndPermissionsSeeder`:
-
-- `staff` — create documents, scan documents, view reports
-- `receiving_staff` — scan documents (intake)
-- `department_admin` — manage users (own dept), view reports, view all documents
-- `super_admin` — all permissions; org-wide (not scoped to one department)
-
-Department scoping is centralized in `App\Support\AssignmentScope`; `super_admin` is org-wide, everyone else is limited to their `department_id`.
-
-Default admin: `admin@speedtraqr.com` (password from `ADMIN_PASSWORD`, dev fallback `password123`).
-
-### Frontend stack
-
-Blade + Tailwind CSS 3 + Alpine.js + Vite. No separate SPA; all views are server-rendered Blade. The `html5-qrcode` npm package provides camera-based QR scanning on the `/scan` page.
-
-### Notable patterns
-
-- **Active layout**: `resources/views/layouts/app.blade.php` is the live shell (collapsible icon+label sidebar). Track/scan views live under their subdirectories (`resources/views/track/`, `resources/views/scan/`).
-- `QrCodeService` requires the PHP `gd` extension. Check with `php -m | grep gd`; install via `sudo apt-get install php-gd` if missing.
-- **QR codes are signed** (`App\Support\TrackingQr`, payload `SPDQR1:…`) so only this site can read them; `window.SpeedQr` (`resources/views/partials/qr-scan-helpers.blade.php`) is the one scanner helper. A square camera box must use `.qr-viewport` + `.qr-surface` (`@include('partials.qr-camera', ['id' => …])`) — never `object-fit: cover` on the video, which distorts what html5-qrcode decodes.
-
-### Citizen-facing pages
-
-- **One look.** Landing, request form, receipt, track lookup, tracking result and privacy notice share the "Citizen surface set" in `resources/css/app.css` (`cz-*` classes: `cz-card`, `cz-btn cz-btn-primary/secondary`, `cz-title`, …), the header `layouts/partials/portal-header.blade.php` (landing passes `landing: true`) and `<x-page-intro>`. Use these, not new one-off styles.
-- `/citizen` (the old portal page) only redirects to the landing page (`CitizenView::homeUrl()`). Citizen links carry `?view=citizen` so a staff login on a shared counter PC can't divert them.
-- **Staff are anonymous to the public (legal).** Citizen surfaces (tracking page, its status poll and the public `.moved` broadcast, Speedy answers, message bylines, the reply email) name the handling office (`documents.department_id`), never the staff member. Staff-only pages may still name them.
-- The public tracking page masks email/phone (`App\Support\ContactMask`). Internal (`INT-`) requests are "not found" on every public surface, including Speedy.
-- The site FAQ lives in `App\Support\SiteFaq` — the landing page and Speedy both read it.
-
-### Speedy (citizen assistant + office messaging)
-
-- `<x-speedy>` (`resources/views/components/speedy.blade.php`) is on every citizen page; pages about one request pass it via `<x-citizen-layout :speedy-document="$document">`. Endpoint `POST /speedy/ask` (`SpeedyController`): `SiteAssistant` (FAQ + requirements, LLM last) until a tracking number is typed/scanned, then `DocumentAssistant`. Shared helpers in `app/Support/Ai/`.
-- Two tabs: "Speedy" (automated, always labelled so) and "Office messages" (real staff, named with office + STAFF mark). Never present staff replies as the bot.
-- The citizen↔staff thread is read **and** written only after the citizen confirms the email/mobile on file (`CitizenThreadAccess`). Logic in `App\Support\CitizenThread`; JSON endpoints `track.messages.index/verify/store`, unread badge from `GET /speedy/inbox`. The public channel `documents.{tracking}` only carries the content-free `CitizenThreadChanged` ping; full messages go to the private staff channel only. The reply email links to `?speedy=messages`.
-
-### Super admin command center (`/admin/dashboard`) and supervisor Reports (`/reports`)
-
-- One page, two audiences: `App\Support\CommandCenter::data($request, $office)` builds it (`$office = null` → city-wide for `AdminController`; the supervisor's department → `ReportsController`), drawn by `admin/partials/command-center` inside `admin/dashboard` / `reports/index` (separate wrappers because page titles must be literals). Office mode swaps "Requests by Office" for "Bookings by Resource", links requests to `track.show` instead of `/admin/requests`, nudges via `reports.nudge` (own office only) and hides the audit-log link. `AdminAnalytics` / `InternalAnalytics` / `ActivityLine::recentOnRequests` take an optional department id; an office's internal side is `Document::involvingOffice()` (filed by it or routed through it).
-- `/reports` replaced the supervisor's Analytics page and Services report (`/analytics`, `/reports/services` redirect to it; super admins are sent on to the command center). Staff have no `view reports`.
-- Two sides, never added together (`?view=citizen|internal`): citizen numbers come from `App\Support\AdminAnalytics` (scoped with `Document::citizenFacing()`), internal ones from `App\Support\InternalAnalytics` (`Document::internal()`; overdue = held at an office longer than that office's `internal_step_hours`; returned = waiting on the filing office, no deadline).
-- Citizen side: six tiles read one cohort (requests filed in the selected range) plus Avg. Processing (with its sample size) and Overdue; overdue/at-risk is decided only by `slaState()`. "Reached no office" alert lists open requests whose type has no office. Durations via `App\Support\Duration`. On-time rate, "Fastest staff" and the deadline donut were removed on purpose. All panels use `cc-panel`.
-- `/admin/requests` (`RequestOverviewController`): every citizen request, read-only, in the shared Review modal with `mode: 'oversight'` (no assign/advance; a Notify button). Super admin request links land here with `?open=SPD-…` — `track.show` redirects them here, as do the command center's lists and the unrouted alert. Notify is one dialog, `admin/partials/notify-dialog` (`$dispatch('admin-notify', {...})`); an unassigned request notifies its office's supervisors only.
-- Super admin sidebar: Dashboard, Requests, Users (absorbed the Staff directory's workload via `App\Support\StaffLoad`), Internal Requests, Resources, Audit Log, then a "Setup" group (Departments, Route Templates, Request Types). The Services report is gone (checklist → dashboard/Reports, booking use → Resources and supervisor Reports).
-- Audit lines are worded by `App\Support\ActivityLine` (tracking numbers, not "Document #19"; empty "updated" rows hidden). Login/logout listeners are auto-discovered — don't also `Event::listen` them (that logged everything twice).
-- Super admins are not belled for every new citizen request: `DocumentEvent::departmentTriagers` goes to that office's supervisors, and only falls back to super admins when the office has no active supervisor (no office at all → every triager, as before).
-
-### Supervisor dashboard (`/dashboard`)
-
-- Sidebar: Dashboard, Internal, Resources, Reports (staff: Dashboard, Internal, Booking, Resources). Resources is `inventory.index` behind `manage inventory` (granted by migration `2026_10_20_012646_…`, so no reseed is needed); it is due to grow into inventory management. The Assignments page is gone: the dashboard's Unassigned / In Progress / Completed tabs list the office's citizen requests, and the Review modal assigns and reassigns (`admin.assignments.assign`, JSON for the modal, own office only). Old `/admin/assignments` links redirect to `dashboard?tab=…&q=…`. The staff dashboard has Active / Completed tabs. Completed (both dashboards) is the whole history, fetched a page at a time from `history.data` (`HistoryController::data`, search + the shared filter on the server; staff: their own, supervisor: their office) via `partials/completed-tab-script`; only its count is in the page. `?tab=done` opens it. The `/history` page (profile menu, CSV export) stays. The dashboard carries a one-line "Last 30 days" glance strip (`AdminAnalytics::kpis()` for the office) linking to Reports; the full numbers live there, not on the dashboard.
-- Department scoping (`AssignmentScope`): a supervisor sees their office's citizen requests, unrouted citizen intake, and internal requests their office filed or that route through it — not every office's internal requests (they carry no `department_id`).
-- No SLA routing slip (the staff member advances the work; at-risk lives on the staff dashboard). Internal requests live on the dedicated Internal tab (`/requests`, queues from `App\Support\InternalInbox`, drawn by `requests/partials/inbox`) for supervisors and staff alike — not on the dashboard.
-- Sidebar badges (`App\Support\NavBadges`): Dashboard = new citizen requests waiting on you (supervisor: unassigned in your office or unrouted; staff: assignments not yet accepted); Internal = internal requests at your office (supervisor) or sent to you / paper not yet scanned in (staff). Re-rendered with every page (soft-nav swaps the sidebar) and polled from `nav.badges` every minute. Super admins get none.
-
-### Resources tab: lending desk + stock (`/inventory`)
-
-- A borrowing is a `Booking` that runs pending → approved (staff set `bookings.quantity`, whole numbers; the citizen's ask stays on `documents.quantity`) → handed over (`released_at`) → returned (`returned_at`, set once every unit is back or written off). Rules live in `App\Support\Lending` (approve/refusal/release/receive/finish/cancel/remind), shared by the Resources page (`LendingController`, routes `inventory.loans.*`, permission `manage inventory`) and the Booking calendar (`BookingController::approve` takes `quantity` too).
-- The booking and its request are one flow: approving a booking needs the request assigned **and** accepted (`Lending::requestNotReady`; desk shows why, badge/tile count only approvable ones); the request can't reach Approved while its booking is pending or cancelled (`StatusGate` check `reservation_approved`); hand-over needs the request Approved/Completed and completes it + stamps `claimed_at`/`released_by` (`Lending::markRequestReleased`); a counter release (`documents.release`) of a borrowing hands the items over (stock-checked); denying cancels the booking quietly. The Review modal shows a Reservation card (`RequestReview::bookingPayload`, approve with a count in place via JSON from `LendingController`), and the citizen tracking page shows `track/partials/citizen-booking` (no staff names).
-- A request's claiming date (`documents.claim_date`) and its booking's pickup are one day: `ReviewController::setClaimDate` and `DocumentStatusController::advance` call `Lending::followClaimDate` (booking shifts by the same days, keeping its length; refused with nothing saved if an approved booking's stock/venue can't cover the new dates; a handed-over booking stays put), and calendar Reschedule (`Lending::reschedule`) sets the claiming date.
-- One page for every role: super admins get `inventory.index` too (`admin.resources.index` redirects there) plus catalog controls (`inventory/partials/catalog-actions`, `Admin\ResourceController`: add with kind + count, edit, deactivate, delete). Kind is fixed once an item has bookings; delete is refused while bookings are live; a deactivated item's request types are hidden from the public form and refused on submit; a request type must point at the matching kind (booking → facility, equipment → equipment).
-- Return date: "Change return date" on Overdue / On loan / For pickup rows (`inventory.loans.extend`, `Lending::extend`) — pickup stays, extra days stock-checked against only what is still out, clears overdue, emails `BookingUpdated` outcome `extended`.
-- Nothing rejoins stock on the return date: a handed-over loan holds its outstanding units until someone records the return (`Booking::unitsHeldDuring`), and past `ends_at` it is overdue. Returns can be partial; damaged units move to `resources.damaged_quantity`, missing ones come off `total_quantity`. A facility is "Done" via the same return route (frees the rest of its slot).
-- Stock columns: owned, out of service, on loan (`unitsOnLoan`), promised (`unitsReserved`, approved but not collected), available = owned − out of service − on loan − promised. Approval checks the request's own dates (`unitsAvailable`); hand-over checks the shelf (`unitsOnHand`). Owned can't be set below on loan + out of service.
-- `inventory:check-overdue` (hourly, `config('tracking.loans')`) emails the borrower (`BookingUpdated` outcome `overdue`; `returned` when a loan closes) and bells the assignee + office supervisors (`DocumentEvent::loanOverdue`), re-reminding every `remind_every_days`. Sidebar badge `resources` = requests to approve + overdue loans. Item history = activity log on the `Resource`.
-
-### Internal requests: hard copy vs soft copy
-
-- `documents.has_hard_copy` (default true). Hard copy = a folder each office scans in (custody before any decision, QR scan to confirm). Soft copy (`Document::isSoftCopy()`) = no folder: the filer names a recipient at the first office (`request_steps.recipient_id`), forwarding names one at the next office. A soft copy must still be **received** before anyone acts: the recipient or that office's supervisor scans its QR — usually with the snipping tool on the Receive card (`partials/custody-scan`): "Select the QR on screen" opens the request's QR viewer (`show-request-qr` event — use `x-on:`, Blade eats `@show`) and `window.SpeedQr.scanFromScreen('page')` dims the page for a box drag, reading the page's own images with no permission prompt; "QR open in another window?" is mode `'any'` (screen-capture a window, box it on a still) → custody `capture_method = 'screen'` ('image' = a saved picture, 'scan' = camera); no second scan to decide. Screen/picture receipts are refused for paper requests (camera only). Until received, the status reads "Awaiting receipt"; the receipt bells the filer (`DocumentEvent::internalReceived`).
-- INT- QR images encode a link to the public tracker carrying the signed payload (`TrackingQr::content()`), so a phone camera opens it; `ScannedCode` and `SpeedQr.extractTracking` read the payload back out of that link. Existing INT QR images keep the old bare payload until `php artisan qr:regenerate`. Names on the public tracker are switchable: `TRACKING_PUBLIC_INTERNAL_NAMES=false` → offices only.
-- Public internal tracker (`internal.track`, `InternalTrackerController` + `App\Support\InternalTracking`), on the sign-in page's "Track a request" tab: anyone with an INT- QR/number sees status, the office holding it, who is handling it, and the offices it passed — never the purpose, remarks or files. SPD- numbers are sent to the citizen tracker. The named recipient may act on their step even as plain staff (`canActOnCurrentStep`), so the step routes are gated in the controller, not by `permission:act on internal requests`. The filing form fetches recipients per office from `requests.recipients`.
-- Receiving vs deciding: `Document::canReceiveCurrentStep()` — anyone at the holding office may scan a **paper** folder in (custody), but only `canActOnCurrentStep()` people (the office's supervisor, or a soft copy's named recipient) approve/return/deny/complete. A soft copy is still received only by its recipient or their supervisor. The request page shows the Receive card to receivers, the decision card only once received.
-- One scan receives: the header's Scan QR Code and the Look Up page call `SpeedQr.openScanned()`, which for an INT- code posts to `documents.custody.scan` (`DocumentCustodyController::receiveByScan`): if the scanner may receive it and nobody at the office has, the same scan records the receipt (camera; a QR picture only for soft copies), then opens the request. Custody writes go through `DocumentCustodyController::record()`.
-- Returned requests: the filing office (`Document::canBeRevisedBy` — the filer, or anyone there with `create internal requests`) **Resends** (`requests.resend`: note required, optional revised scan; a new current step at the office that returned it, which must receive it again; a soft copy goes back to the same person) or **Withdraws** (`requests.withdraw`). `DocumentStatus::Withdrawn` is terminal and internal-only — citizen pages and citizen analytics use `DocumentStatus::citizenCases()`; internal analytics count it neither as moving nor as denied. The Internal badge also counts returned requests (filer; the filing office's supervisors).
-
-### Local dev notes (this machine)
-
-- **The database port differs per teammate's PC — read `DB_PORT` in `.env`, don't trust this file.** One machine runs MySQL 8 on 3306; another runs XAMPP MySQL on 3307 (start it with `C:/xampp/mysql/bin/mysqld.exe --defaults-file=C:/xampp/mysql/bin/my.ini --standalone` if it is down after a reboot). Never print `DB_PASSWORD`. Vite dev server writes `public/hot`; the PHP tests run on in-memory SQLite.
-- The landing page must render without a database query for ordinary visitors (`tests/Feature/ExampleTest.php` has no DB).
-- Working branch is `biddyblas` (the team merges it into `riskofrain`; fetch that with `git fetch origin riskofrain:refs/remotes/origin/riskofrain`). Leave `SKILL.md` and the local `package-lock.json` name change uncommitted.
-- The Next.js port is on branch **`riskofrain2`** (see below).
-
-## The Next.js port (`web/`, branch `riskofrain2`; merged into `biddyblas`)
-
-A rewrite of this system in Next.js, to be hosted on **Vercel with Supabase** (Postgres, Storage, Realtime). Laravel is still the working system; the port is incomplete and is being filled in screen by screen.
+Everything runs from `web/`. The repo root holds only docs (`DESIGN.md`, `PRODUCT.md`, `DATA_DICTIONARY.md`, `TESTING-INTERNAL-PROCESS.md`, `docs/`).
 
 ```bash
 cd web
 npm run dev                  # dev server on :3000
-npx vitest run               # the TypeScript suite
+npx vitest run               # the test suite
 npx tsc --noEmit             # typecheck
-npm run build                # production build (run it before committing a slice)
-npm run db:deploy            # apply prisma/migrations to the Supabase DB (DIRECT_URL)
-npm run migrate:from-mysql   # one-off cutover: copy Laravel's MySQL rows + storage/app files into Supabase
+npm run build                # production build (run it before committing)
+npm run db:deploy            # apply prisma/migrations (DIRECT_URL)
+node scripts/seed-roles.mjs        # roles + permissions (Spatie-shaped tables)
+node scripts/seed-departments.mjs  # the city offices
+npm run db:seed:tourism            # CTCAO office, resources, placeholder staff, request types
 ```
 
-- **Database is Postgres** (`web/prisma/schema.prisma`, `provider = "postgresql"`). Schema changes are now Prisma migrations in `web/prisma/migrations`, not Laravel migrations; every new table needs `ENABLE ROW LEVEL SECURITY` in its migration (no policies — the app uses Prisma as `postgres`, and RLS keeps Supabase's Data API shut to the browser's anon key). `prisma/legacy-mysql/schema.prisma` is the frozen MySQL schema the cutover script reads; mirror a column into both while Laravel still runs. Postgres compares strings case-sensitively, so lookups that relied on MySQL's collation (emails, names, searches) use `mode: 'insensitive'`. Timestamps stay naive Manila wall-clock (`lib/time.ts`).
-- **Files** go through `lib/storage.ts`: Supabase buckets `private` (uploads, served only by office-checked routes such as `/attachments/{id}` and `/documents/{d}/requirements/{r}/file`) and `public` (QR images, reached via `/storage/*`). With no `SUPABASE_URL` set it falls back to `../storage/app`. Never write to the filesystem directly — Vercel's is read-only.
-- **Live updates**: `lib/realtime.ts` relays only PUBLIC `documents.{tracking}` events to Supabase Realtime broadcast (anyone with the anon key can read *and write* a public topic, so the client treats an event as "re-read the page", never as data). Staff/user channels never leave the process. Without Supabase, the SSE route serves local dev.
-- **Background work** must use `after()` (see `queueMail`); a dangling promise is frozen with the Vercel function. Cron is `web/vercel.json` → `/api/cron/{job}` with `CRON_SECRET` (times are UTC: 23:00 = 07:00 Manila). Hourly crons need a Vercel Pro plan; Hobby allows one run a day.
+- **Tests and the database:** `tests/setup.ts` loads `web/.env`, and `web/.env` points at **Supabase**. The integration tests (`tests/integration`) and some unit tests that only partly mock `db` then read (and the rate-limit test writes) the live database. Run tests against a local Postgres instead: `DATABASE_URL=postgresql://postgres@127.0.0.1:5432/speedtraqr_ctcao npx vitest run`. Local Postgres 18 runs on this PC (trust auth); `speedtraqr_ctcao` has the migrations and the tourism seed.
+- Never print secrets from `.env` (DB password, mail password, keys).
 
-- **URLs are byte-identical to the Laravel ones** and are named in `web/src/lib/routes.ts` — QR stickers, receipt emails and bookmarks already in people's hands encode them.
-- **Layers**: `lib/domain/*` are the ports of `app/Support` + model logic (they reach the database); `app/actions/*` are the `'use server'` write paths, each returning `{ ok, message }` rather than throwing; pages are server components wrapped in `AuthenticatedPage`.
-- **Only types may cross into a `'use client'` component from a domain module.** Importing a runtime value from one drags Prisma into the client bundle and the build fails. Constants the browser needs live in their own client-safe module (`request-kinds.ts`, `resource-kinds.ts`, `route-template.ts`).
-- **Permissions are re-checked inside every server action**, not only on the page: an action is a POST endpoint of its own.
-- Roles in the port read from Spatie's tables, so the Laravel seeder stays the one source of truth for who can do what.
-- **Public endpoints are throttled in Postgres** (`lib/rate-limit.ts`, table `rate_limits`; Laravel's `throttle:` limits by name in `LIMITS`) and refuse cross-site `Origin`s (`crossSite`) in place of the CSRF token. Route handlers may only export Next's handler names — helpers go in `lib/`. A function a server page calls must not live in a `'use client'` file (see `components/review/page-list.ts`).
-- **Stored times vs real time**: anything PHP computed from `->timestamp` (the document seal) must use `time.unixTimestamp()` — `getTime()` on a naive Manila Date is 8 hours late.
-- **Uploads on Vercel**: server actions accept 10 MB (`next.config.ts`), but Vercel refuses request bodies over 4.5 MB. Larger files need direct-to-Storage signed uploads (not built yet).
-- **CTCAO workflow (tourism focus, Oct 2026)** — from the client's REQUEST ASSIGNMENT doc and paper form CTOUR-008-0. Only the port has it.
-  - Status line is **Pending → Ongoing → Done** (`document-status.ts`: `FLOW`; labels Ongoing/Done). `InReview`/`Approved` are `RETIRED` (old rows sit on Ongoing and can still be finished; `FINISHABLE`).
-  - **Accept** (Pending → Ongoing) and **Finish request** (`status-actions.finish`, the → Done gate in `status-gate`: required files checked + reservation approved) bell and email the office's supervisors via `office-progress.ts` (`TRACKING_NOTIFY_OFFICE_PROGRESS` turns the email off).
-  - Handing borrowed items over (`lending-desk.release`) needs the request Ongoing with files checked, and finishes it.
-  - Each request type has **usual handlers** (`request_type_handlers`, set on Request Types); the Review modal's Assign box starts on the first one.
-  - Each type can ask **one extra question** (`request_types.details_label` → `documents.details`: Venue, Size…), and the public form has an optional **Office or organization** (`documents.requester_office`). Other offices file through this same form.
-  - Quantity is optional for service types.
-  - `npm run db:seed:tourism` (`scripts/seed-tourism.mjs`, idempotent) does the setup:
-    - renames TRSM to CTCAO;
-    - adds City Plaza, Gateway Park, Spider Banner and both flags (placeholder counts);
-    - adds 11 placeholder accounts (3 supervisors, 8 staff, password `staff1234`);
-    - adds the 12 CTCAO request types with their handlers;
-    - **switches every other request type off**.
-  - A flag **requisition** is a service type: stock is not deducted.
-- **Not ported on purpose**: Laravel's staff `track/show` page (staff open requests in the Review modal; `/track/{tn}` redirects them there), the PDF editor (`attachments.edit`, linked only from that page), walk-in `documents.create` and keyboard shortcuts (only reachable by shortcut), and the Breeze password-reset screens (never linked from the login page).
+## Architecture
 
-## Manual Testing Checklist
+- **Layers:** `src/lib/domain/*` = the business rules (they reach the database through Prisma); `src/app/actions/*` = `'use server'` write paths, each returning `{ ok, message }` rather than throwing; pages are server components wrapped in `AuthenticatedPage`. **Permissions are re-checked inside every server action** — an exported action is a public POST endpoint, so never leave an unused one exported.
+- **Only types may cross into a `'use client'` component from a domain module.** Constants the browser needs live in client-safe modules (`request-kinds.ts`, `resource-kinds.ts`, `route-template.ts`). A function a server page calls must not live in a `'use client'` file.
+- **Database is Postgres** (`prisma/schema.prisma`). Every schema change is a migration in `prisma/migrations` (never `prisma db push` alone — a fresh database is built only from migrations); every new table gets `ENABLE ROW LEVEL SECURITY` (no policies). Lookups that need case-insensitivity use `mode: 'insensitive'`.
+- **Time:** timestamps are stored as naive Manila wall-clock (`lib/time.ts`). Compare stored times with `time.now()` / `addHours(now(), …)`, never `Date.now()` (8 hours off). Seal/QR maths that need a real epoch use `time.unixTimestamp()`.
+- **Roles** live in Spatie-shaped tables (`roles`, `permissions`, `model_has_roles`, `model_type = 'App\\Models\\User'`), seeded by `scripts/seed-roles.mjs`: `staff`, `Supervisor`, `super_admin`, `Clerk` (Clerk is not yet treated as staff by the app). Department scoping: `lib/domain/scope.ts`.
+- **URLs are byte-identical to the old app's** (`lib/routes.ts`) — QR stickers and emails already in people's hands encode them.
+- **Files** go through `lib/storage.ts`: Supabase buckets `private` (uploads, served only by office-checked routes) and `public` (QR images, via `/storage/*`). Without `SUPABASE_URL`, files live in `web/storage/app` (gitignored). Never write to the filesystem directly — Vercel's is read-only.
+- **Live updates:** `lib/realtime.ts` relays only PUBLIC `documents.{tracking}` events to Supabase Realtime (the client treats an event as "re-read", never as data). Without Supabase, an SSE route serves local dev.
+- **Background work** uses `after()` (`queueMail`, `queueSms`). Mail needs `MAIL_HOST`; SMS needs `SMS_GATEWAY_URL` (`smsConfigured()`); without them nothing is sent and nothing is logged as sent.
+- **Cron** (`vercel.json`, UTC; Hobby plan = once a day per job): `/api/cron/daily` at 07:00 Manila (SLA, holds, overdue loans) and `/api/cron/reclaim-unaccepted` at 10:00 Manila. Calls need `Authorization: Bearer $CRON_SECRET`.
+- **Public endpoints** are throttled in Postgres (`lib/rate-limit.ts`) and refuse cross-site `Origin`s.
+- **Uploads on Vercel:** server actions accept 10 MB, but Vercel refuses bodies over 4.5 MB (direct-to-Storage uploads not built yet).
 
-See `TESTING.md` (repo root) for a 10-step UI flow covering: document creation, QR file check, IN/OUT scans, public tracking, dashboard, history, analytics, offline mode, and a full 3-department routing flow.
+## Citizen request flow (staff do the work, supervisors confirm)
 
-===
+Statuses (`lib/domain/document-status.ts`): **Pending → Ongoing (`in_progress`) → Pending Approval (`in_review`) → Ready for Claim (`completed`)**, plus Returned, On Hold, Denied. `approved` is retired (old rows read as Ready for Claim). Citizen surfaces use `CITIZEN_LABELS` ("Received & Queued" … "Ready for Pickup / Claiming").
 
-<laravel-boost-guidelines>
-=== foundation rules ===
+1. **Intake** (`app/actions/request.ts`): the request goes to its type's office and is **auto-assigned** to an on-duty usual handler (`auto-dispatch.ts`: round-robin over `request_type_handlers` whose user is active and `is_available`). With nobody on duty it lands in the office **pool**. Supervisors are belled either way.
+2. **Staff:** accept an assignment, or **claim** from the pool (`review-actions.claim`, atomic) → Ongoing. Accepting bells the supervisors (`office-progress.ts`).
+3. **Submit for Supervisor Review** (`review-actions.submitForClearance`): required files must be checked → Pending Approval; supervisors are belled.
+4. **Supervisor** (own office only; super admins any): **Confirm & Release** (`review-actions.approveClearance`, the ONLY path to Ready for Claim; only from Pending Approval) → stamps `reviewed_by/at`, tells the citizen by email (unless opted out), SMS (if a gateway is set) and a public thread message carrying the supervisor's note as claiming instructions; or **Return for Revision** (`returnToStaff`: back to Ongoing, the note kept in `supervisor_notes` — internal, never `remarks`, which the citizen's tracker shows); or **Deny** (terminal).
+5. **Claim:** borrowed items are handed over on the Resources page only once Ready for Claim (`lending-desk.release` stamps `claimed_at`, never moves the status).
 
-# Laravel Boost Guidelines
+**Absent staff:**
+- **On Duty / On Leave** toggle (`availability.ts`; self, own-office supervisor, or super admin). Going On Leave immediately hands that person's not-yet-accepted requests to another on-duty usual handler, else the pool. Work they already accepted stays theirs until they **Release to Office Pool** or the supervisor **reassigns** it (quick-reassign shows who is On Duty).
+- **Escalation sweep** (`sweeps.reclaimUnacceptedRequests`, 10:00 Manila): requests assigned but not accepted within 2 hours move the same way.
 
-The Laravel Boost guidelines are specifically curated by Laravel maintainers for this application. These guidelines should be followed closely to ensure the best experience when building Laravel applications.
+Other rules:
+- **Requirement checks:** an uploaded file must be opened (`?open=1`) before it can be marked checked (`requirement-review.ts`); nothing uploaded = checked at the counter.
+- **Bookings:** approving a booking needs the request assigned and accepted (`lending.ts`, `lending-desk.ts`); Ready for Claim needs the reservation approved (`status-gate.ts`).
+- **CTCAO setup:** each request type has usual handlers and may ask one extra question (`request_types.details_label` → `documents.details`); the public form has an optional Office or organization field (`documents.requester_office`), so other offices file through it too. Non-tourism request types are switched off (Request Types page turns them back on).
 
-## Foundational Context
+## Citizen-facing rules
 
-This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
+- **Staff are anonymous to the public (legal).** Citizen surfaces (tracker, its live updates, Speedy, message bylines, emails) name the office, never the staff member.
+- The public tracker masks email/phone. `INT-` requests are "not found" on every public surface.
+- Speedy (`components/citizen/speedy*`, `lib/domain/ai/*`) answers from the FAQ (`site-faq.ts`) and the request; staff replies are always labelled as staff, never as the bot. The citizen thread opens only after they confirm the email/mobile on file.
 
-- php - 8.3
-- laravel/framework (LARAVEL) - v13
-- laravel/prompts (PROMPTS) - v0
-- laravel/reverb (REVERB) - v1
-- laravel/boost (BOOST) - v2
-- laravel/breeze (BREEZE) - v2
-- laravel/mcp (MCP) - v0
-- laravel/pail (PAIL) - v1
-- laravel/pint (PINT) - v1
-- phpunit/phpunit (PHPUNIT) - v12
-- laravel-echo (ECHO) - v2
-- alpinejs (ALPINEJS) - v3
-- tailwindcss (TAILWINDCSS) - v3
+## Internal requests (`INT-`, office to office)
 
-## Conventions
+Hard copy (a folder each office scans in with the camera) vs soft copy (a named recipient receives it by scanning its QR on screen). Anyone at the holding office may scan a paper folder in; only the office's supervisor or a soft copy's named recipient decides (approve / return / deny / complete). Returned requests are resent or withdrawn by the filing office. Logic in `internal-*.ts`, `custody.ts`, `request-step.ts`; manual test cases in `TESTING-INTERNAL-PROCESS.md`.
 
-- You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, and naming.
-- Use descriptive names for variables and methods. For example, `isRegisteredForDiscounts`, not `discount()`.
-- Check for existing components to reuse before writing a new one.
+## Working branch
 
-## Verification Scripts
-
-- Do not create verification scripts or tinker when tests cover that functionality and prove they work. Unit and feature tests are more important.
-
-## Application Structure & Architecture
-
-- Stick to existing directory structure; don't create new base folders without approval.
-- Do not change the application's dependencies without approval.
-
-## Frontend Bundling
-
-- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
-
-## Documentation Files
-
-- You must only create documentation files if explicitly requested by the user.
-
-## Replies
-
-- Be concise in your explanations - focus on what's important rather than explaining obvious details.
-
-=== boost rules ===
-
-# Laravel Boost
-
-## Tools
-
-- Laravel Boost is an MCP server with tools designed specifically for this application. Prefer Boost tools over manual alternatives like shell commands or file reads.
-- Use `database-query` to run read-only queries against the database instead of writing raw SQL in tinker.
-- Use `database-schema` to inspect table structure before writing migrations or models.
-- Use `get-absolute-url` to resolve the correct scheme, domain, and port for project URLs. Always use this before sharing a URL with the user.
-- Use `browser-logs` to read browser logs, errors, and exceptions. Only recent logs are useful, ignore old entries.
-
-## Searching Documentation (IMPORTANT)
-
-- Always use `search-docs` before making code changes. Do not skip this step. It returns version-specific docs based on installed packages automatically.
-- Pass a `packages` array to scope results when you know which packages are relevant.
-- Use multiple broad, topic-based queries: `['rate limiting', 'routing rate limiting', 'routing']`. Expect the most relevant results first.
-- Do not add package names to queries because package info is already shared. Use `test resource table`, not `filament 4 test resource table`.
-
-### Search Syntax
-
-1. Use words for auto-stemmed AND logic: `rate limit` matches both "rate" AND "limit".
-2. Use `"quoted phrases"` for exact position matching: `"infinite scroll"` requires adjacent words in order.
-3. Combine words and phrases for mixed queries: `middleware "rate limit"`.
-4. Use multiple queries for OR logic: `queries=["authentication", "middleware"]`.
-
-## Artisan
-
-- Run Artisan commands directly via the command line (e.g., `php artisan route:list`). Use `php artisan list` to discover available commands and `php artisan [command] --help` to check parameters.
-- Inspect routes with `php artisan route:list`. Filter with: `--method=GET`, `--name=users`, `--path=api`, `--except-vendor`, `--only-vendor`.
-- Read configuration values using dot notation: `php artisan config:show app.name`, `php artisan config:show database.default`. Or read config files directly from the `config/` directory.
-
-## Tinker
-
-- Execute PHP in app context for debugging and testing code. Do not create models without user approval, prefer tests with factories instead. Prefer existing Artisan commands over custom tinker code.
-- Always use single quotes to prevent shell expansion: `php artisan tinker --execute 'Your::code();'`
-  - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
-
-=== php rules ===
-
-# PHP
-
-- Always use curly braces for control structures, even for single-line bodies.
-- Use PHP 8 constructor property promotion: `public function __construct(public GitHub $github) { }`. Do not leave empty zero-parameter `__construct()` methods unless the constructor is private.
-- Use explicit return type declarations and type hints for all method parameters: `function isAccessible(User $user, ?string $path = null): bool`
-- Use TitleCase for Enum keys: `FavoritePerson`, `BestLake`, `Monthly`.
-- Prefer PHPDoc blocks over inline comments. Only add inline comments for exceptionally complex logic.
-- Use array shape type definitions in PHPDoc blocks.
-
-=== deployments rules ===
-
-# Deployment
-
-- Laravel can be deployed using [Laravel Cloud](https://cloud.laravel.com/), which is the fastest way to deploy and scale production Laravel applications.
-
-=== tests rules ===
-
-# Test Enforcement
-
-- Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
-- Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test --compact` with a specific filename or filter.
-
-=== laravel/core rules ===
-
-# Do Things the Laravel Way
-
-- Use `php artisan make:` commands to create new files (i.e. migrations, controllers, models, etc.). You can list available Artisan commands using `php artisan list` and check their parameters with `php artisan [command] --help`.
-- If you're creating a generic PHP class, use `php artisan make:class`.
-- Pass `--no-interaction` to all Artisan commands to ensure they work without user input. You should also pass the correct `--options` to ensure correct behavior.
-
-### Model Creation
-
-- When creating new models, create useful factories and seeders for them too. Ask the user if they need any other things, using `php artisan make:model --help` to check the available options.
-
-## APIs & Eloquent Resources
-
-- For APIs, default to using Eloquent API Resources and API versioning unless existing API routes do not, then you should follow existing application convention.
-
-## URL Generation
-
-- When generating links to other pages, prefer named routes and the `route()` function.
-
-## Testing
-
-- When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
-- Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
-- When creating tests, make use of `php artisan make:test [options] {name}` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
-
-## Vite Error
-
-- If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `npm run build` or ask the user to run `npm run dev` or `composer run dev`.
-
-=== pint/core rules ===
-
-# Laravel Pint Code Formatter
-
-- If you have modified any PHP files, you must run `vendor/bin/pint --dirty --format agent` before finalizing changes to ensure your code matches the project's expected style.
-- Do not run `vendor/bin/pint --test --format agent`, simply run `vendor/bin/pint --format agent` to fix any formatting issues.
-
-=== phpunit/core rules ===
-
-# PHPUnit
-
-- This application uses PHPUnit for testing. All tests must be written as PHPUnit classes. Use `php artisan make:test --phpunit {name}` to create a new test.
-- If you see a test using "Pest", convert it to PHPUnit.
-- Every time a test has been updated, run that singular test.
-- When the tests relating to your feature are passing, ask the user if they would like to also run the entire test suite to make sure everything is still passing.
-- Tests should cover all happy paths, failure paths, and edge cases.
-- You must not remove any tests or test files from the tests directory without approval. These are not temporary or helper files; these are core to the application.
-
-## Running Tests
-
-- Run the minimal number of tests, using an appropriate filter, before finalizing.
-- To run all tests: `php artisan test --compact`.
-- To run all tests in a file: `php artisan test --compact tests/Feature/ExampleTest.php`.
-- To filter on a particular test name: `php artisan test --compact --filter=testName` (recommended after making a change to a related file).
-
-</laravel-boost-guidelines>
+Commit only when asked. The team works on `main` (it absorbed `biddyblas`).

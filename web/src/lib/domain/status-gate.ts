@@ -67,9 +67,7 @@ export async function checks(
       ];
     }
 
-    case DocumentStatus.InReview:
-    case DocumentStatus.UnderReview:
-    case DocumentStatus.PendingClearance: {
+    case DocumentStatus.InReview: {
       const hasNote = (note ?? '').trim() !== '';
       const [unverified, attachment, staffComment] = await Promise.all([
         unverifiedMandatoryRequirements(document.id),

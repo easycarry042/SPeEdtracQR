@@ -27,6 +27,7 @@ const DEPARTMENTS = [
   ['HRMO', 'Human Resource Management Office'],
   ['ENG', 'Municipal Engineering Office'],
   ['MHO', 'Municipal Health Office'],
+  ['AM', 'Action Mamamayan'],
 ];
 
 const db = new PrismaClient();

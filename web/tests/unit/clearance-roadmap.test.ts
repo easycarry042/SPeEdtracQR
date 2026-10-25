@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentStatus } from '@/lib/domain/document-status';
 import { checks, validate, GateError } from '@/lib/domain/status-gate';
-import { finish, confirmReview, ActionError } from '@/lib/domain/status-actions';
+import { approveClearance, returnToStaff } from '@/lib/domain/review-actions';
 import { badgesFor } from '@/lib/domain/nav-badges';
 import { db } from '@/lib/db';
 import type { Actor } from '@/lib/auth/actor';
@@ -31,6 +31,7 @@ vi.mock('@/lib/mail/send', () => ({
 
 vi.mock('@/lib/sms/send', () => ({
   queueSms: vi.fn(),
+  smsConfigured: vi.fn(() => true),
 }));
 
 vi.mock('@/lib/domain/document', async () => {
@@ -93,18 +94,14 @@ describe('Implementation Roadmap (Item 5)', () => {
       await expect(validate({ id: 50 }, DocumentStatus.Completed, 'Approved note', supervisorActor)).resolves.not.toThrow();
     });
 
-    it('checks requirements and evidence for UnderReview and PendingClearance', async () => {
-      const checkListUnderReview = await checks({ id: 50 }, DocumentStatus.UnderReview, 'Has work note');
-      expect(checkListUnderReview.some((c) => c.key === 'requirements_verified')).toBe(true);
-      expect(checkListUnderReview.some((c) => c.key === 'work_evidence')).toBe(true);
-
-      const checkListPendingClearance = await checks({ id: 50 }, DocumentStatus.PendingClearance, 'Has work note');
-      expect(checkListPendingClearance.some((c) => c.key === 'requirements_verified')).toBe(true);
-      expect(checkListPendingClearance.some((c) => c.key === 'work_evidence')).toBe(true);
+    it('checks requirements and evidence before a request is submitted for review', async () => {
+      const checkList = await checks({ id: 50 }, DocumentStatus.InReview, 'Has work note');
+      expect(checkList.some((c) => c.key === 'requirements_verified')).toBe(true);
+      expect(checkList.some((c) => c.key === 'work_evidence')).toBe(true);
     });
   });
 
-  describe('Backend Gateways & Actions: finish vs confirmReview', () => {
+  describe('Supervisor sign-off: approveClearance and returnToStaff', () => {
     const mockDoc = {
       id: 50n,
       tracking_number: 'SPD-20261025-CLEAR1',
@@ -123,74 +120,122 @@ describe('Implementation Roadmap (Item 5)', () => {
       remarks: null,
     };
 
-    it('finish() rejects staff callers with a 403 guidance error', async () => {
-      vi.spyOn(db.documents, 'findFirst').mockResolvedValue(mockDoc as any);
+    it('a staff member cannot confirm their own work', async () => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({ ...mockDoc, status: DocumentStatus.InReview } as any);
 
-      await expect(
-        finish(50, staffActor, { expectedStatus: DocumentStatus.InProgress, note: 'Finishing directly' }),
-      ).rejects.toThrow(
-        'Staff cannot directly complete requests. Please submit for supervisor review instead.',
+      await expect(approveClearance(50, staffActor, { note: 'Approving myself' })).rejects.toThrow(
+        'Only a supervisor or administrator can approve clearance.',
       );
     });
 
-    it('confirmReview() updates audit columns (reviewed_by, reviewed_at, supervisor_notes) and completes request', async () => {
-      const docInReview = {
-        ...mockDoc,
-        status: DocumentStatus.InReview,
-      };
-      vi.spyOn(db.documents, 'findFirst').mockResolvedValue(docInReview as any);
+    it('confirms a submitted request: audit columns, Ready for Claim notices, note to the citizen', async () => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({ ...mockDoc, status: DocumentStatus.InReview } as any);
       vi.spyOn(db.bookings, 'findFirst').mockResolvedValue(null);
       const updateSpy = vi.spyOn(db.documents, 'update').mockResolvedValue({} as any);
       const commentSpy = vi.spyOn(db.document_comments, 'create').mockResolvedValue({ id: 1n } as any);
 
-      const result = await confirmReview(50, supervisorActor, {
-        note: 'All identity proofs verified and authorized.',
-        claimDate: '2026-11-01',
+      const result = await approveClearance(50, supervisorActor, {
+        note: 'Claim at Window 3 with a valid ID.',
+        claimDate: '2099-11-01',
       });
 
-      expect(result.status).toBe(DocumentStatus.Completed);
+      expect(result.message).toBe('Confirmed SPD-20261025-CLEAR1. It is now Ready for Claim.');
       expect(updateSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 50n },
           data: expect.objectContaining({
             status: DocumentStatus.Completed,
             reviewed_by: 2n,
-            supervisor_notes: 'All identity proofs verified and authorized.',
+            decided_by: 2n,
+            supervisor_notes: null,
           }),
         }),
       );
 
-      // Verifies claim alert was dispatched
       expect(mailSend.queueMail).toHaveBeenCalledTimes(1);
-      const mailCall = (mailSend.queueMail as any).mock.calls[0][0];
-      expect(mailCall.to).toBe('juan@test.ph');
-      expect(mailCall.subject).toContain('ready for pickup / claiming');
-
+      expect((mailSend.queueMail as any).mock.calls[0][0].to).toBe('juan@test.ph');
       expect(smsSend.queueSms).toHaveBeenCalledTimes(1);
-      const smsCall = (smsSend.queueSms as any).mock.calls[0][0];
-      expect(smsCall.to).toBe('09181234567');
-      expect(smsCall.text).toContain('Ready for Pickup / Claiming');
+      expect((smsSend.queueSms as any).mock.calls[0][0].text).toContain('Ready for Pickup / Claiming');
 
+      // The public thread message carries the supervisor's note as claiming instructions.
       expect(commentSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            body: expect.stringContaining('Ready for Pickup / Claiming'),
+            visibility: 'public',
+            body: expect.stringContaining('Claim at Window 3 with a valid ID.'),
           }),
         }),
       );
     });
 
-    it('confirmReview() rejects non-supervisor actors with 403', async () => {
-      vi.spyOn(db.documents, 'findFirst').mockResolvedValue(mockDoc as any);
+    it('sends no SMS (and logs none) when no gateway is configured', async () => {
+      vi.mocked(smsSend.smsConfigured).mockReturnValueOnce(false);
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({ ...mockDoc, status: DocumentStatus.InReview } as any);
+      vi.spyOn(db.bookings, 'findFirst').mockResolvedValue(null);
+      vi.spyOn(db.documents, 'update').mockResolvedValue({} as any);
+      vi.spyOn(db.document_comments, 'create').mockResolvedValue({ id: 1n } as any);
 
-      await expect(
-        confirmReview(50, staffActor, { note: 'Trying to approve myself' }),
-      ).rejects.toThrow('Only a supervisor or department administrator can confirm clearance.');
+      await approveClearance(50, supervisorActor);
+
+      expect(smsSend.queueSms).not.toHaveBeenCalled();
+    });
+
+    it('respects a citizen who opted out of notices', async () => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({
+        ...mockDoc,
+        status: DocumentStatus.InReview,
+        notify_citizen: false,
+      } as any);
+      vi.spyOn(db.bookings, 'findFirst').mockResolvedValue(null);
+      vi.spyOn(db.documents, 'update').mockResolvedValue({} as any);
+      vi.spyOn(db.document_comments, 'create').mockResolvedValue({ id: 1n } as any);
+
+      await approveClearance(50, supervisorActor);
+
+      expect(mailSend.queueMail).not.toHaveBeenCalled();
+      expect(smsSend.queueSms).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['Ongoing (never submitted)', DocumentStatus.InProgress],
+      ['Pending (nobody has worked on it)', DocumentStatus.Pending],
+    ])('refuses to confirm a request that is %s', async (_name, status) => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({ ...mockDoc, status } as any);
+      const updateSpy = vi.spyOn(db.documents, 'update');
+
+      await expect(approveClearance(50, supervisorActor)).rejects.toThrow(
+        'It can be confirmed once its staff member submits it for review.',
+      );
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("refuses another office's supervisor", async () => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({
+        ...mockDoc,
+        status: DocumentStatus.InReview,
+        department_id: 9n,
+      } as any);
+
+      await expect(approveClearance(50, supervisorActor)).rejects.toThrow(
+        "You can only confirm or return your own office's requests.",
+      );
+    });
+
+    it('returning to staff keeps the note internal (supervisor_notes, never remarks)', async () => {
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValue({ ...mockDoc, status: DocumentStatus.InReview } as any);
+      const updateSpy = vi.spyOn(db.documents, 'update').mockResolvedValue({} as any);
+      vi.spyOn(db.document_comments, 'create').mockResolvedValue({ id: 1n } as any);
+
+      await returnToStaff(50, supervisorActor, 'Wrong venue on the permit.');
+
+      const data = (updateSpy.mock.calls[0][0] as any).data;
+      expect(data).toMatchObject({ status: DocumentStatus.InProgress, supervisor_notes: 'Wrong venue on the permit.' });
+      expect(data).not.toHaveProperty('remarks');
     });
   });
 
   describe('Supervisor NavBadges & Clearance Queue', () => {
-    it('counts documents in InReview, UnderReview, and PendingClearance in home badge for supervisors', async () => {
+    it('counts submissions awaiting review in the home badge for supervisors', async () => {
       const countSpy = vi.spyOn(db.documents, 'count').mockResolvedValue(3);
 
       const badges = await badgesFor(supervisorActor);
@@ -201,9 +246,7 @@ describe('Implementation Roadmap (Item 5)', () => {
           where: expect.objectContaining({
             OR: expect.arrayContaining([
               expect.objectContaining({
-                status: {
-                  in: [DocumentStatus.InReview, DocumentStatus.UnderReview, DocumentStatus.PendingClearance],
-                },
+                status: DocumentStatus.InReview,
               }),
             ]),
           }),

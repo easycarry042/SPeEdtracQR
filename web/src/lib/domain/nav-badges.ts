@@ -48,7 +48,7 @@ async function homeBadge(actor: Actor): Promise<number> {
         OR: [
           // Submissions awaiting supervisor review and clearance (primary queue)
           {
-            status: { in: [DocumentStatus.InReview, DocumentStatus.UnderReview, DocumentStatus.PendingClearance] },
+            status: DocumentStatus.InReview,
             ...(actor.departmentId === null
               ? {}
               : { OR: [{ department_id: id(actor.departmentId) }, { department_id: null }] }),

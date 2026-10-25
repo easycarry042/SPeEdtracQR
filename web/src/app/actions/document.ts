@@ -174,30 +174,6 @@ export async function openDocumentReview(documentId: number): Promise<ActionResu
   });
 }
 
-/** Finish request: Ongoing → Done (checks requirements, tells the office). */
-export async function finishDocument(
-  documentId: number,
-  input: { expectedStatus: string; note?: string | null },
-): Promise<ActionResult> {
-  const actor = await currentActor();
-
-  return run(() => status.finish(documentId, actor, input));
-}
-
-/**
- * Supervisor confirms clearance: Pending Approval (or In Progress) → Completed.
- * Restricted to department_admin, supervisors, or administrators with review permissions.
- * Sets reviewed_by, reviewed_at, supervisor_notes.
- */
-export async function confirmReviewDocument(
-  documentId: number,
-  input?: { note?: string | null; claimDate?: string | null },
-): Promise<ActionResult> {
-  const actor = await currentActor();
-
-  return run(() => status.confirmReview(documentId, actor, input));
-}
-
 export async function acceptAssignment(documentId: number): Promise<ActionResult> {
   const actor = await currentActor();
 

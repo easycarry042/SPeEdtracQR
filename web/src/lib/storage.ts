@@ -4,7 +4,7 @@ import path from 'node:path';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 
 /**
- * The two Laravel disks, now two Supabase Storage buckets.
+ * Two Supabase Storage buckets.
  *
  * `private` is where every citizen and staff upload goes — those are served
  * only through the attachment route, which checks the viewer's office first.
@@ -13,12 +13,12 @@ import { supabase, supabaseConfigured } from '@/lib/supabase';
  * (`qrcodes/SPD-….png`, `attachments/…`), so migrated rows keep resolving.
  *
  * Vercel's filesystem is read-only, so Supabase is the only option there. When
- * SUPABASE_URL is unset (local dev beside the Laravel app) the old disk folders
- * under `storage/app` are used instead.
+ * SUPABASE_URL is unset (local dev) files live under `web/storage/app` instead
+ * (gitignored).
  */
 export type Disk = 'private' | 'public';
 
-const LOCAL_ROOT = path.join(process.cwd(), '..', 'storage', 'app');
+const LOCAL_ROOT = path.join(process.cwd(), 'storage', 'app');
 
 function localPath(disk: Disk, relative: string): string {
   return path.join(LOCAL_ROOT, disk, relative);

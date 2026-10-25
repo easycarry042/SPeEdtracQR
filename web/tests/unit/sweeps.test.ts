@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentStatus } from '@/lib/domain/document-status';
+import { addHours, now } from '@/lib/time';
 
 /**
  * Port of `CheckDocumentSlaTest`, `CheckDocumentHoldsTest` and
@@ -218,29 +219,13 @@ describe('checkDocumentSla', () => {
     expect((await checkDocumentSla()).counts.breached).toBe(0);
   });
 
-  it('includes unaccepted auto-escalation in its sweep cycle', async () => {
-    findMany
-      .mockResolvedValueOnce([slaRow({ status_changed_at: hoursAgo(10) })])
-      .mockResolvedValueOnce([unacceptedRow()]);
-
-    resolveAutoDispatch.mockResolvedValue(null);
-    usersWithRole.mockResolvedValue([
-      { id: 9, name: 'Supervisor Elena', email: 'elena@speedtraqr.com', department_id: 2 },
-    ]);
+  it('leaves auto-escalation to its own later run (10:00 Manila), not the 07:00 sweep', async () => {
+    findMany.mockResolvedValueOnce([slaRow({ status_changed_at: hoursAgo(10) })]);
 
     const result = await checkDocumentSla();
 
-    expect(result.counts).toMatchObject({
-      warned: 0,
-      breached: 0,
-      unaccepted_reclaimed: 1,
-    });
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 10n },
-        data: expect.objectContaining({ assigned_to: null }),
-      }),
-    );
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(result.counts).not.toHaveProperty('unaccepted_reclaimed');
   });
 });
 
@@ -425,17 +410,17 @@ describe('reclaimUnacceptedRequests', () => {
     );
     expect(logOnDocument).toHaveBeenCalledWith(
       10,
-      expect.stringContaining('returned to department pool'),
+      expect.stringContaining('Returned to the office pool'),
     );
     expect(logSystemComment).toHaveBeenCalledWith(
       10,
-      expect.stringContaining('returned to department open pool'),
+      expect.stringContaining('Returned to the office pool'),
     );
     expect(notifyMany).toHaveBeenCalledWith(
       [9],
       expect.objectContaining({
         event: 'unattended_reclaimed',
-        title: expect.stringContaining('Unattended Request Returned to Pool'),
+        title: expect.stringContaining('Back in the pool'),
       }),
     );
     expect(broadcastStatusUpdated).toHaveBeenCalledWith(10);
@@ -482,7 +467,7 @@ describe('reclaimUnacceptedRequests', () => {
     );
     expect(logOnDocument).toHaveBeenCalledWith(
       10,
-      expect.stringContaining('Reassigned to Backup Staff'),
+      expect.stringContaining('Auto-escalated to Backup Staff'),
     );
     expect(logSystemComment).toHaveBeenCalledWith(
       10,
@@ -504,6 +489,30 @@ describe('reclaimUnacceptedRequests', () => {
 
     expect(result.counts.reclaimedToPool).toBe(1);
     expect(notifyMany).toHaveBeenCalledWith([1], expect.objectContaining({ event: 'unattended_reclaimed' }));
+  });
+
+  it('measures the 2-hour window on the stored Manila clock', async () => {
+    findMany.mockResolvedValue([]);
+
+    await reclaimUnacceptedRequests(2);
+
+    // Stored times are naive Manila wall-clock: the cutoff is now() − 2h on that
+    // clock, not Date.now() − 2h (which sits eight hours early).
+    const cutoff = (findMany.mock.calls[0][0] as any).where.OR[0].assigned_at.lt as Date;
+    expect(Math.abs(cutoff.getTime() - addHours(now(), -2).getTime())).toBeLessThan(5_000);
+  });
+
+  it('hands on only one person\'s requests when they go On Leave, and says why', async () => {
+    findMany.mockResolvedValue([unacceptedRow()]);
+    resolveAutoDispatch.mockResolvedValue(null);
+    usersWithRole.mockResolvedValue([
+      { id: 9, name: 'Supervisor Elena', email: 'elena@speedtraqr.com', department_id: 2 },
+    ]);
+
+    await reclaimUnacceptedRequests(0, { assigneeId: 5, why: 'is on leave' });
+
+    expect((findMany.mock.calls[0][0] as any).where.assigned_to).toBe(5n);
+    expect(logSystemComment).toHaveBeenCalledWith(10, expect.stringContaining('is on leave'));
   });
 
   it('ignores rows not in Pending status', async () => {

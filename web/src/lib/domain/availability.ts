@@ -54,10 +54,22 @@ export async function setUserAvailability(
     },
   });
 
+  // Going On Leave hands their not-yet-accepted requests on now — to another
+  // on-duty usual handler, else the office pool — instead of leaving them to
+  // wait for the morning escalation sweep. Work they already accepted stays
+  // theirs: they release it, or the supervisor reassigns it.
+  let moved = 0;
+  if (!isAvailable && target.is_available) {
+    const { reclaimUnacceptedRequests } = await import('@/lib/sweeps');
+    const result = await reclaimUnacceptedRequests(0, { assigneeId: targetUserId, why: 'is on leave' });
+    moved = (result.counts.reassigned ?? 0) + (result.counts.reclaimedToPool ?? 0);
+  }
+
   const label = isAvailable ? 'On Duty' : 'On Leave';
+  const handedOn = moved > 0 ? ` ${moved} request${moved === 1 ? '' : 's'} waiting for acceptance ${moved === 1 ? 'was' : 'were'} passed on.` : '';
   const message = isSelf
-    ? `You are now marked as ${label}.`
-    : `${target.name} has been marked as ${label}.`;
+    ? `You are now marked as ${label}.${handedOn}`
+    : `${target.name} has been marked as ${label}.${handedOn}`;
 
   return { ok: true, isAvailable, message };
 }

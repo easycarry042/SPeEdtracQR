@@ -5,3 +5,6 @@ node_modules
 next-env.d.ts
 *.tsbuildinfo
 .vercel
+
+# Local uploads when Supabase is not configured
+/storage

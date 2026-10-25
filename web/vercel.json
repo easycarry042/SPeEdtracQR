@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "crons": [
-    { "path": "/api/cron/daily", "schedule": "0 23 * * *" }
+    { "path": "/api/cron/daily", "schedule": "0 23 * * *" },
+    { "path": "/api/cron/reclaim-unaccepted", "schedule": "0 2 * * *" }
   ]
 }

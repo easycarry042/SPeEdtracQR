@@ -18,6 +18,7 @@ vi.mock('@/lib/mail/send', () => ({
 vi.mock('@/lib/sms/send', () => ({
   queueSms: vi.fn(),
   sendSms: vi.fn(),
+  smsConfigured: vi.fn(() => true),
 }));
 
 vi.mock('@/lib/realtime', () => ({

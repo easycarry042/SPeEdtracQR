@@ -12,7 +12,6 @@ import {
   approveClearanceDocument,
   assignDocument,
   claimDocument,
-  finishDocument,
   declineAssignment,
   denyDocument,
   holdDocument,
@@ -30,7 +29,6 @@ export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 
 type Dialog =
   | 'advance'
-  | 'finish'
   | 'clearance'
   | 'approve_clearance'
   | 'return_staff'
@@ -455,7 +453,7 @@ export function ReviewActions({
       !row.needsTriage &&
       row.status !== DocumentStatus.InReview ? (
         <div className="gate-actions mt-3">
-          {mode === 'staff' && row.status === DocumentStatus.InProgress && row.remarks ? (
+          {mode === 'staff' && row.status === DocumentStatus.InProgress && row.supervisorNotes ? (
             <div className="mb-3 w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
               <div className="flex items-center gap-1.5 font-bold text-amber-900">
                 <svg className="h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -463,7 +461,7 @@ export function ReviewActions({
                 </svg>
                 Supervisor Requested Revision
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-amber-900">{row.remarks}</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-900">{row.supervisorNotes}</p>
               <p className="mt-2 text-xs font-semibold text-amber-700">Please address the requested corrections and resubmit for supervisor review.</p>
             </div>
           ) : null}
@@ -487,7 +485,7 @@ export function ReviewActions({
                     disabled={pending}
                     onClick={() => setDialog('clearance')}
                   >
-                    {row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
+                    {row.supervisorNotes ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
                   </button>
                   <button
                     type="button"
@@ -499,15 +497,6 @@ export function ReviewActions({
                     Release to Office Pool
                   </button>
                 </>
-              ) : mode !== 'staff' && (FINISHABLE as string[]).includes(row.status) ? (
-                <button
-                  type="button"
-                  className="btn-step btn-step-fwd"
-                  disabled={pending}
-                  onClick={() => setDialog('finish')}
-                >
-                  Finish request
-                </button>
               ) : row.status === DocumentStatus.Returned ? (
                 <button
                   type="button"
@@ -621,18 +610,6 @@ export function ReviewActions({
             run(() =>
               advanceDocument(row.id, { expectedStatus: row.status, claimDate, note }),
             )
-          }
-        />
-      ) : null}
-
-      {dialog === 'finish' ? (
-        <FinishDialog
-          row={row}
-          pending={pending}
-          errors={errors}
-          onCancel={() => setDialog(null)}
-          onSubmit={(note) =>
-            run(() => finishDocument(row.id, { expectedStatus: row.status, note }))
           }
         />
       ) : null}
@@ -878,82 +855,6 @@ function AdvanceDialog({
   );
 }
 
-function FinishDialog({
-  row,
-  pending,
-  errors,
-  onCancel,
-  onSubmit,
-}: {
-  row: ReviewRow;
-  pending: boolean;
-  errors: string[];
-  onCancel: () => void;
-  onSubmit: (note: string | null) => void;
-}) {
-  const [note, setNote] = useState('');
-  const unchecked = row.requirements.filter(
-    (requirement) => requirement.isMandatory && !requirement.verified,
-  );
-  const bookingWaiting =
-    row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
-
-  return (
-    <DialogShell title="Finish this request" errors={errors}>
-      <p className="gate-claim-hint">
-        Marks it <strong>Done</strong>. Your supervisor is notified and the requester sees it as
-        done on their tracking page.
-      </p>
-
-      {unchecked.length > 0 || bookingWaiting ? (
-        <ul className="gate-checks mt-3">
-          {unchecked.length > 0 ? (
-            <li className="no">
-              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
-            </li>
-          ) : null}
-          {bookingWaiting ? (
-            <li className="no">
-              Approve the reservation first (in this window, or on the Resources page)
-            </li>
-          ) : null}
-        </ul>
-      ) : null}
-
-      <label className="gate-claim-label mt-3" htmlFor={`finish-note-${row.id}`}>
-        What was done <span className="text-ink-soft">(optional)</span>
-      </label>
-      <textarea
-        id={`finish-note-${row.id}`}
-        className="st-filter-field mt-1 h-auto w-full py-2"
-        rows={3}
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        maxLength={1000}
-        placeholder="e.g. 50 leis delivered to the City Hall lobby"
-      />
-
-      <div className="gate-actions mt-4">
-        <button
-          type="button"
-          className="cr-btn cr-btn-primary"
-          disabled={pending}
-          onClick={() => onSubmit(note.trim() || null)}
-        >
-          {pending ? 'Saving…' : 'Mark as done'}
-        </button>
-        <button
-          type="button"
-          className="cr-btn cr-btn-ghost"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-      </div>
-    </DialogShell>
-  );
-}
 
 function localIsoDate(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');
@@ -1124,7 +1025,7 @@ function ClearanceDialog({
 
   return (
     <DialogShell
-      title={row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
+      title={row.supervisorNotes ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
       errors={errors}
     >
       <p className="gate-claim-hint">
@@ -1243,8 +1144,9 @@ function ApproveClearanceDialog({
         rows={3}
         value={note}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="Add instructions or confirmation remarks for citizen pickup..."
+        placeholder="e.g. Claim at Window 3, bring a valid ID"
       />
+      <p className="gate-claim-hint mt-1">Sent to the citizen with the Ready for Claim notice.</p>
 
       <div className="gate-actions mt-4">
         <button
