@@ -10,6 +10,7 @@ import {
   acceptAssignment,
   advanceDocument,
   assignDocument,
+  claimDocument,
   finishDocument,
   declineAssignment,
   denyDocument,
@@ -229,6 +230,26 @@ export function ReviewActions({
             </div>
           </section>
         )
+      ) : null}
+
+      {/* ── Staff pool claim: unassigned request in department pool ────────── */}
+      {mode === 'staff' && !row.assignedTo && !isTerminal ? (
+        <section className="dm-panel-strong space-y-2 text-[length:var(--fs-small)] text-ink">
+          <p className="font-bold text-green-deep">Open Request (Department Pool)</p>
+          <p>
+            This request has not been assigned to anyone yet. Claiming it will lock the record to your account and move it to Ongoing so you can start processing immediately.
+          </p>
+          <div className="gate-actions pt-1">
+            <button
+              type="button"
+              className="cr-btn cr-btn-primary"
+              disabled={pending}
+              onClick={() => run(() => claimDocument(row.id), false)}
+            >
+              {pending ? 'Claiming…' : 'Claim / Start Processing'}
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {/* ── Staff triage: this assignment is awaiting a decision ────────── */}

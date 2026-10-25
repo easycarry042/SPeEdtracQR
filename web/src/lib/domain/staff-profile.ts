@@ -10,6 +10,7 @@ import { forUsers } from '@/lib/domain/staff-load';
 import { broadcastStatusUpdated } from '@/lib/realtime';
 import { routes } from '@/lib/routes';
 import { addDays, now, startOfDay, subDays, toDateString } from '@/lib/time';
+import { claim } from '@/lib/domain/review-actions';
 
 /**
  * Port of `StaffProfileController` + `App\Support\StaffProfile` — the staff
@@ -555,45 +556,5 @@ export async function postHighlight(
 
 /** Port of `AssignmentController@accept` — take an unassigned request yourself. */
 export async function claimUnassigned(actor: Actor, documentId: number): Promise<{ message: string }> {
-  if (!(actor.can('accept documents') || actor.can('assign documents')) || !canViewUnclaimedQueue(actor)) {
-    throw new ActionError('This action is unauthorized.', 403);
-  }
-
-  const document = await db.documents.findFirst({
-    where: { id: id(documentId), deleted_at: null },
-    select: { id: true, tracking_number: true, status: true, assigned_to: true },
-  });
-
-  if (!document) {
-    throw new ActionError('That request no longer exists.');
-  }
-
-  if (document.assigned_to !== null) {
-    throw new ActionError('Document is already assigned.');
-  }
-
-  const stamp = now();
-  const { count } = await db.documents.updateMany({
-    where: { id: document.id, assigned_to: null },
-    data: {
-      assigned_to: id(actor.id),
-      assigned_by: id(actor.id),
-      assigned_at: stamp,
-      accepted_at: stamp,
-      ...(fromLoose(document.status) === DocumentStatus.Pending ? statusChangeData(DocumentStatus.InProgress) : {}),
-      updated_at: stamp,
-    },
-  });
-
-  if (count === 0) {
-    throw new ActionError('Document is already assigned.');
-  }
-
-  const line = `Accepted assignment by ${actor.name}`;
-
-  await logOnDocument(toId(document.id), line, actor.id);
-  await logSystemComment(toId(document.id), line);
-  await broadcastStatusUpdated(toId(document.id));
-
-  return { message: `Accepted ${document.tracking_number}.` };
+  return claim(documentId, actor);
 }

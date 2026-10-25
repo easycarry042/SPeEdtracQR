@@ -17,6 +17,11 @@ import { queueMail } from '@/lib/mail/send';
 import { ticketSubmittedMail } from '@/lib/mail/ticket-submitted';
 import { citizenTrackingUrl } from '@/lib/domain/document';
 import { now, parseNaive } from '@/lib/time';
+import { resolveAutoDispatch } from '@/lib/domain/auto-dispatch';
+import { logSystemComment } from '@/lib/domain/comments';
+import { assignmentNoticeMail } from '@/lib/mail/assignment-notice';
+import { tracking } from '@/lib/config';
+import { routes } from '@/lib/routes';
 
 /**
  * Citizen self-service ticket creation (no account).
@@ -170,12 +175,16 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   const trackingNumber = await qr.generateTrackingNumber();
   const timestamp = now();
 
+  // Option B: Auto-dispatch to the primary handler if configured on this request type.
+  // Uses least-loaded rotation across active handlers. If unmapped, autoAssignee is null
+  // and the document enters the unassigned Department Pool (Option A).
+  const autoAssignee = type?.id ? await resolveAutoDispatch(type.id) : null;
+
   const document = await db.documents.create({
     data: {
       tracking_number: trackingNumber,
       document_type: documentType,
-      // Auto-route to the request type's handling department (its Supervisor
-      // triages and assigns a staff member). Null if the type has no dept.
+      // Auto-route to the request type's handling department. Null if the type has no dept.
       department_id: type?.department_id ?? null,
       citizen_name: citizenName,
       citizen_email: citizenEmail,
@@ -196,6 +205,10 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
       // flow is visible here.
       origin: ORIGIN_EXTERNAL,
       created_by: null, // submitted by a citizen, not a staff user
+      assigned_to: autoAssignee ? id(autoAssignee.id) : null,
+      assigned_by: null, // auto-dispatched by system
+      assigned_at: autoAssignee ? timestamp : null,
+      accepted_at: null,
       created_at: timestamp,
       updated_at: timestamp,
     },
@@ -254,22 +267,61 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
 
   await logOnDocument(documentId, 'Citizen submitted online request');
 
-  // Header-bell ping: the handling department's Supervisors have a new request
-  // to triage and assign. Falls back per `departmentTriagers`.
+  if (autoAssignee) {
+    await logOnDocument(
+      documentId,
+      `Auto-assigned to ${autoAssignee.name} based on request type routing`,
+    );
+    await logSystemComment(
+      documentId,
+      `Auto-assigned to ${autoAssignee.name} based on request type routing — awaiting staff acceptance`,
+    );
+
+    // Bell notification for the assigned staff member
+    await notifyMany([toId(autoAssignee.id)], {
+      title: `New assignment: ${trackingNumber}`,
+      body: `Auto-assigned to you: ${documentType || 'Document'}.`,
+      url: routes.staffDashboard({ open: trackingNumber }),
+      tracking_number: trackingNumber,
+      event: 'assigned',
+    });
+
+    if (autoAssignee.email && tracking.notifyStaffOnAssignment) {
+      queueMail(
+        assignmentNoticeMail({
+          to: autoAssignee.email,
+          assigneeName: autoAssignee.name,
+          trackingNumber,
+          documentType,
+        }),
+      );
+    }
+  }
+
+  // Header-bell ping: notify the department's Supervisors.
+  // If auto-assigned, supervisors know who was assigned.
+  // If unassigned, supervisors know it landed in the Department Pool for staff to claim.
   const triagers = await departmentTriagers(
     type?.department_id === null || type?.department_id === undefined ? null : toId(type.department_id),
   );
 
-  await notifyMany(
-    triagers.map((triager) => triager.id),
-    {
+  const triagerIds = triagers
+    .map((triager) => triager.id)
+    .filter((id) => id !== (autoAssignee ? toId(autoAssignee.id) : 0));
+
+  if (triagerIds.length > 0) {
+    await notifyMany(triagerIds, {
       event: 'new_ticket',
-      title: 'New request to review',
-      body: [documentType || 'Document', citizenName || 'no name'].join(' — '),
+      title: autoAssignee ? 'New request auto-assigned' : 'New request in department pool',
+      body: [
+        documentType || 'Document',
+        citizenName || 'no name',
+        autoAssignee ? `Assigned to ${autoAssignee.name}` : 'Unassigned (Open Requests pool)',
+      ].join(' — '),
       url: citizenTrackingUrl(trackingNumber),
       tracking_number: trackingNumber,
-    },
-  );
+    });
+  }
 
   queueMail(
     ticketSubmittedMail({

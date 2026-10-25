@@ -113,6 +113,12 @@ export async function assignDocument(
   return run(() => review.assign(documentId, actor, assigneeId));
 }
 
+export async function claimDocument(documentId: number): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => review.claim(documentId, actor));
+}
+
 export async function denyDocument(
   documentId: number,
   reason: string | null,

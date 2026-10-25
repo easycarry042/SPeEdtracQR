@@ -246,6 +246,90 @@ export async function complete(
   return finish(documentId, actor, { expectedStatus: document.status, note });
 }
 
+/**
+ * Staff claims an unassigned request from the department pool ("Open Requests").
+ * Locks the record to their user_id, sets accepted_at, and advances Pending → Ongoing.
+ */
+export async function claim(
+  documentId: number,
+  actor: Actor | null,
+): Promise<{ message: string }> {
+  if (!actor) {
+    throw new ActionError('Please sign in again.', 403);
+  }
+
+  const canClaim =
+    actor.can('accept documents') ||
+    actor.can('assign documents') ||
+    actor.can('manage system') ||
+    actor.hasRole('staff');
+
+  if (!canClaim) {
+    throw new ActionError('You do not have permission to claim requests.', 403);
+  }
+
+  const document = await loadOrFail(documentId);
+
+  if (document.assigned_to !== null) {
+    throw new ActionError('This request has already been claimed or assigned.');
+  }
+
+  if (isTerminal(statusOf(document))) {
+    throw new ActionError('This request is already closed.');
+  }
+
+  // Department scope check: staff may only claim within their department unless they have global access
+  const docDept = document.department_id === null ? null : toId(document.department_id);
+  if (
+    actor.departmentId !== null &&
+    docDept !== null &&
+    actor.departmentId !== docDept &&
+    !canViewAll(actor)
+  ) {
+    throw new ActionError('You can only claim requests within your department.', 403);
+  }
+
+  const stamp = now();
+  const from = statusOf(document);
+  const shouldMoveToInProgress = from === DocumentStatus.Pending;
+
+  // Atomic update to prevent race conditions if multiple staff members click Claim at the same instant
+  const { count } = await db.documents.updateMany({
+    where: { id: document.id, assigned_to: null },
+    data: {
+      assigned_to: id(actor.id),
+      assigned_by: id(actor.id),
+      assigned_at: stamp,
+      accepted_at: stamp,
+      ...(shouldMoveToInProgress ? statusChangeData(DocumentStatus.InProgress) : {}),
+      updated_at: stamp,
+    },
+  });
+
+  if (count === 0) {
+    throw new ActionError('This request was just claimed by another staff member.');
+  }
+
+  const to = shouldMoveToInProgress ? DocumentStatus.InProgress : from;
+  await logOnDocument(
+    documentId,
+    `Claimed and started processing: ${statusLabel(from)} → ${statusLabel(to)}`,
+    actor.id,
+    { from, to },
+  );
+
+  await broadcastStatusUpdated(documentId);
+  await logSystemComment(
+    documentId,
+    `Claimed from department pool by ${actor.name} — now Ongoing`,
+  );
+
+  // Notify office supervisors that the request was claimed and is now Ongoing
+  await notifyOfficeOfProgress(document, actor, 'accepted');
+
+  return { message: `Claimed ${document.tracking_number}. It is now in your Ongoing requests.` };
+}
+
 /** Staff accepts a supervisor assignment: Pending → In Progress. */
 export async function acceptAssignment(
   documentId: number,

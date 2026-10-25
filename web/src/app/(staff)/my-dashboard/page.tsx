@@ -32,7 +32,27 @@ export default async function StaffDashboardPage({
     assigned_to: id(actor.id),
   } as const;
 
-  const [triageRows, activeRows, completedTotal] = await Promise.all([
+  const deptFilter = actor.can('view all documents')
+    ? {}
+    : actor.departmentId !== null
+      ? { department_id: id(actor.departmentId) }
+      : { department_id: { lt: 0 } };
+
+  const [openRows, triageRows, activeRows, completedTotal] = await Promise.all([
+    // Department Pool ("Open Requests"): unassigned requests in staff's department
+    db.documents.findMany({
+      where: {
+        deleted_at: null,
+        origin: { not: ORIGIN_INTERNAL },
+        assigned_to: null,
+        ...deptFilter,
+        status: { in: [DocumentStatus.Pending, DocumentStatus.InProgress] },
+      },
+      orderBy: { created_at: 'desc' },
+      select: REVIEW_SELECT,
+      take: 100,
+    }),
+
     // Assigned but not yet accepted — the decision only this person can make.
     db.documents.findMany({
       where: {
@@ -55,7 +75,8 @@ export default async function StaffDashboardPage({
     completedCount(actor),
   ]);
 
-  const [triage, active] = await Promise.all([
+  const [openRequests, triage, active] = await Promise.all([
+    collection(openRows, actor),
     collection(triageRows, actor),
     collection(activeRows, actor),
   ]);
@@ -74,17 +95,22 @@ export default async function StaffDashboardPage({
   );
 
   const activeTab =
-    tab === 'triage' || tab === 'active' || tab === 'completed'
+    tab === 'open' || tab === 'triage' || tab === 'active' || tab === 'completed'
       ? tab
       : triage.length > 0
         ? 'triage'
-        : 'active';
+        : active.length > 0
+          ? 'active'
+          : openRequests.length > 0
+            ? 'open'
+            : 'active';
 
   return (
     <AuthenticatedPage title="Requests">
       {pressing.length > 0 ? <AtRiskStrip rows={pressing} /> : null}
 
       <StaffQueues
+        openRequests={openRequests}
         triage={triage}
         active={active}
         completedCount={completedTotal}
