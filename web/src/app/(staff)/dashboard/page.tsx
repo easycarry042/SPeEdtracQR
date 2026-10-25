@@ -13,6 +13,7 @@ import { ORIGIN_INTERNAL, canViewAll, documentScope } from '@/lib/domain/scope';
 import { REVIEW_SELECT, assignableStaff, collection } from '@/lib/domain/request-review';
 import { DashboardQueues } from './queues';
 import { GlanceStrip } from './glance-strip';
+import { DutyStatusToggle } from '@/components/shell/duty-status-toggle';
 import { kpis } from '@/lib/domain/admin-analytics';
 import { completedCount } from '@/lib/domain/completed-history';
 
@@ -194,6 +195,7 @@ export default async function DashboardPage({
   const staffWorkload = staff.map((member) => ({
     id: member.id,
     name: member.name,
+    is_available: member.is_available ?? true,
     active_count: activeByStaff.get(member.id) ?? 0,
     completed_count: completedByStaff.get(member.id) ?? 0,
   }));
@@ -296,6 +298,7 @@ export default async function DashboardPage({
                   <thead>
                     <tr>
                       <th>Staff member</th>
+                      <th>Duty status</th>
                       <th>Active</th>
                       <th>Completed</th>
                       <th className="min-w-[170px]">Load</th>
@@ -311,6 +314,13 @@ export default async function DashboardPage({
                           >
                             {member.name}
                           </Link>
+                        </td>
+                        <td>
+                          <DutyStatusToggle
+                            userId={member.id}
+                            isAvailable={member.is_available}
+                            size="sm"
+                          />
                         </td>
                         <td className="font-semibold text-green-deep">{member.active_count}</td>
                         <td className="text-ink-soft">{member.completed_count}</td>
@@ -331,7 +341,7 @@ export default async function DashboardPage({
 
                     {allIdle ? (
                       <tr className="st-empty">
-                        <td colSpan={4}>
+                        <td colSpan={5}>
                           No assignments yet — assign the pending requests below.
                         </td>
                       </tr>

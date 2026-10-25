@@ -322,6 +322,7 @@ Route::middleware(['auth', 'verified', 'permission:manage users'])
         Route::put('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
         Route::post('users/bulk', [AdminUserController::class, 'bulk'])->name('users.bulk');
         Route::patch('users/{user}/toggle-active', [AdminUserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::patch('users/{user}/availability', [AdminUserController::class, 'toggleAvailability'])->name('users.availability.toggle');
         Route::patch('users/{user}/archive', [AdminUserController::class, 'archive'])->name('users.archive');
         Route::patch('users/{user}/restore', [AdminUserController::class, 'restore'])->name('users.restore')->withTrashed();
         Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy')->withTrashed();
@@ -430,6 +431,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/availability', [AdminUserController::class, 'toggleAvailability'])->name('profile.availability.toggle');
 
     Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
 

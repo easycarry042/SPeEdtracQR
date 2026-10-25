@@ -8,6 +8,7 @@ import { narrate } from '@/lib/domain/activity-narrative';
 import { profile, type DocRow, type FeedEntry, type Heatmap } from '@/lib/domain/staff-profile';
 import { routes } from '@/lib/routes';
 import { forHumans, formatNaive, now } from '@/lib/time';
+import { DutyStatusToggle } from '@/components/shell/duty-status-toggle';
 import { ClaimButton, Composer, FoldedTimeline } from './profile-parts';
 
 export const dynamic = 'force-dynamic';
@@ -325,13 +326,19 @@ export default async function StaffProfilePage({
               </div>
             </div>
           </div>
-          {data.isOwn ? (
-            <div className="gs-pagehead-actions">
+          <div className="gs-pagehead-actions flex items-center gap-2">
+            {(data.isOwn || viewer.isSupervisor() || viewer.isSuperAdmin() || viewer.can('manage users')) ? (
+              <DutyStatusToggle
+                userId={data.isOwn ? undefined : data.user.id}
+                isAvailable={data.user.isAvailable}
+              />
+            ) : null}
+            {data.isOwn ? (
               <Link href={routes.profileEdit()} className="gs-btn">
                 Edit Profile
               </Link>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </header>
 
         <div className="gs-layout">

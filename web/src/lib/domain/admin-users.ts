@@ -21,6 +21,7 @@ export type UserRow = {
   role: string | null;
   office: string | null;
   isActive: boolean;
+  isAvailable: boolean;
   isArchived: boolean;
   load: Load | null;
 };
@@ -79,6 +80,7 @@ export async function userList(options: {
         name: true,
         email: true,
         is_active: true,
+        is_available: true,
         deleted_at: true,
         department: { select: { name: true } },
       },
@@ -110,6 +112,7 @@ export async function userList(options: {
       role: roleByUser.get(String(user.id)) ?? null,
       office: user.department?.name ?? null,
       isActive: user.is_active,
+      isAvailable: user.is_available ?? true,
       isArchived: user.deleted_at !== null,
       load: load.get(toId(user.id)) ?? null,
     })),

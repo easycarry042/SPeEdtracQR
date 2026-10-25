@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { requireActor } from '@/lib/auth/actor';
 import { directory } from '@/lib/domain/staff-profile';
+import { DutyStatusToggle } from '@/components/shell/duty-status-toggle';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = { title: 'Staff' };
@@ -127,7 +128,20 @@ export default async function StaffDirectoryPage({
                     </span>
                   </div>
                 </div>
-                {person.overdue > 0 ? <span className="pill p-red dir-ovd">{person.overdue} overdue</span> : null}
+                <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                  {actor.isSupervisor() || actor.isSuperAdmin() || actor.id === person.id ? (
+                    <DutyStatusToggle
+                      userId={person.id}
+                      isAvailable={person.isAvailable}
+                      size="sm"
+                    />
+                  ) : (
+                    <span className={`pill text-[11px] ${person.isAvailable ? 'p-green' : 'p-amber'}`}>
+                      {person.isAvailable ? 'On Duty' : 'On Leave'}
+                    </span>
+                  )}
+                  {person.overdue > 0 ? <span className="pill p-red dir-ovd">{person.overdue} overdue</span> : null}
+                </div>
               </div>
               <div className="dir-stats2">
                 <div className="dir-stat">

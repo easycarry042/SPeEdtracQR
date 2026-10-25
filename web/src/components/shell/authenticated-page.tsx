@@ -83,6 +83,7 @@ export async function AuthenticatedPage({
     canFileInternal: actor.can('create internal requests'),
     canScan: actor.can('scan documents') || actor.can('act on internal requests'),
     isSuperAdmin: actor.isSuperAdmin(),
+    isAvailable: actor.isAvailable,
   };
 
   return (

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { routes } from '@/lib/routes';
 import { ScanDialog } from './scan-dialog';
+import { DutyStatusToggle } from './duty-status-toggle';
 import { logout } from '@/app/(auth)/login/actions';
 
 export type HeaderUser = {
@@ -17,6 +18,7 @@ export type HeaderUser = {
   canFileInternal: boolean;
   canScan: boolean;
   isSuperAdmin: boolean;
+  isAvailable: boolean;
 };
 
 export type BellNotification = {
@@ -73,6 +75,11 @@ export function HeaderActions({
 
   return (
     <div ref={container} className="flex items-center gap-3">
+      {/* Daily Availability Toggle: On Duty / On Leave */}
+      <div className="hidden sm:flex items-center">
+        <DutyStatusToggle isAvailable={user.isAvailable} />
+      </div>
+
       {user.canScan ? (
         <button type="button" className="header-action" onClick={() => setScanning(true)} aria-haspopup="dialog">
           <svg fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
@@ -188,6 +195,10 @@ export function HeaderActions({
             <div className="border-b border-hairline px-4 py-3">
               <p className="truncate text-sm font-semibold text-ink">{user.name}</p>
               {user.roleLabel ? <p className="text-xs text-ink-soft">{user.roleLabel}</p> : null}
+            </div>
+            <div className="flex items-center justify-between border-b border-hairline px-4 py-2.5 bg-green-wash/40">
+              <span className="text-xs font-semibold text-ink-soft">Shift status:</span>
+              <DutyStatusToggle isAvailable={user.isAvailable} size="sm" />
             </div>
             <Link
               href={routes.staffProfile(user.id)}

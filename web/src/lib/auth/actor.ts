@@ -25,6 +25,7 @@ export type Actor = {
   avatarPath: string | null;
   signaturePath: string | null;
   isActive: boolean;
+  isAvailable: boolean;
   roles: string[];
   permissions: string[];
   can(permission: Permission): boolean;
@@ -41,6 +42,7 @@ type UserRow = {
   avatar_path: string | null;
   signature_path: string | null;
   is_active: boolean;
+  is_available: boolean;
   department: { name: string } | null;
 };
 
@@ -57,6 +59,7 @@ function build(user: UserRow, roles: string[], permissions: string[]): Actor {
     avatarPath: user.avatar_path,
     signaturePath: user.signature_path,
     isActive: user.is_active,
+    isAvailable: user.is_available ?? true,
     roles,
     permissions,
     can: (permission) => permissionSet.has(permission),
@@ -74,6 +77,7 @@ const SELECT = {
   avatar_path: true,
   signature_path: true,
   is_active: true,
+  is_available: true,
   department: { select: { name: true } },
 } as const;
 

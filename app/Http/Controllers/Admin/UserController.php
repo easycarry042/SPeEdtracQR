@@ -141,6 +141,34 @@ class UserController extends Controller
         return back()->with('success', "Account for {$user->name} has been {$action}.");
     }
 
+    public function toggleAvailability(Request $request, ?User $user = null)
+    {
+        $target = $user ?? auth()->user();
+        $actor = auth()->user();
+
+        // Self-toggle is always allowed
+        if ($target->id !== $actor->id) {
+            $canOverride = $actor->can('manage system')
+                || $actor->can('manage users')
+                || ($actor->hasRole('Supervisor') && $actor->department_id === $target->department_id);
+
+            abort_unless($canOverride, 403, 'You do not have permission to change this staff member\'s duty status.');
+        }
+
+        $target->update(['is_available' => ! ($target->is_available ?? true)]);
+        $status = $target->is_available ? 'On Duty' : 'On Leave';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'is_available' => $target->is_available,
+                'message' => "{$target->name} is now marked as {$status}.",
+            ]);
+        }
+
+        return back()->with('success', "{$target->name} is now marked as {$status}.");
+    }
+
     public function archive(User $user)
     {
         if ($user->id === auth()->id()) {

@@ -144,7 +144,7 @@ function isImageExtension(extension: string): boolean {
  */
 export async function assignableStaff(
   departmentId: number | null = null,
-): Promise<Array<{ id: number; name: string; department_id: number | null }>> {
+): Promise<Array<{ id: number; name: string; department_id: number | null; is_available: boolean }>> {
   const links = await db.model_has_roles.findMany({
     where: { model_type: 'App\\Models\\User', roles: { name: 'staff' } },
     select: { model_id: true },
@@ -162,13 +162,14 @@ export async function assignableStaff(
       ...(departmentId === null ? {} : { department_id: id(departmentId) }),
     },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, department_id: true },
+    select: { id: true, name: true, department_id: true, is_available: true },
   });
 
   return users.map((user) => ({
     id: toId(user.id),
     name: user.name,
     department_id: user.department_id === null ? null : toId(user.department_id),
+    is_available: user.is_available ?? true,
   }));
 }
 

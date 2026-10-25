@@ -217,6 +217,7 @@ export const routes = {
   profileSignatureShow: () => '/profile/signature',
   profileSignatureStore: () => '/profile/signature',
   profileSignatureDestroy: () => '/profile/signature',
+  profileAvailabilityToggle: () => '/profile/availability',
 
   /* ── Notifications & nav ─────────────────────────────────────────────── */
   navBadges: () => '/nav/badges',
@@ -248,6 +249,7 @@ export const routes = {
   adminUsersArchive: (userId: number | string) => `/admin/users/${seg(userId)}/archive`,
   adminUsersRestore: (userId: number | string) => `/admin/users/${seg(userId)}/restore`,
   adminUsersToggleActive: (userId: number | string) => `/admin/users/${seg(userId)}/toggle-active`,
+  adminUsersToggleAvailability: (userId: number | string) => `/admin/users/${seg(userId)}/availability`,
   adminUsersBulk: () => '/admin/users/bulk',
 
   adminDepartmentsIndex: (q?: Params) => withQuery('/admin/departments', q),

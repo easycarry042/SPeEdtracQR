@@ -16,7 +16,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_active', 'department_id', 'signature_path'])]
+#[Fillable(['name', 'email', 'password', 'is_active', 'is_available', 'department_id', 'signature_path'])]
 #[Hidden(['password', 'remember_token', 'identity_code'])]
 class User extends Authenticatable
 {
@@ -36,6 +36,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_available' => 'boolean',
             // Stamped by TrackLastActive; drives the "Active now" marker.
             'last_active_at' => 'datetime',
         ];

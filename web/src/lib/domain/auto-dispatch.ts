@@ -37,6 +37,7 @@ export async function resolveAutoDispatch(
           name: true,
           email: true,
           is_active: true,
+          is_available: true,
           deleted_at: true,
         },
       },
@@ -44,7 +45,7 @@ export async function resolveAutoDispatch(
   });
 
   const activeHandlers = handlers.filter(
-    (h) => h.user && h.user.is_active && h.user.deleted_at === null,
+    (h) => h.user && h.user.is_active && h.user.is_available && h.user.deleted_at === null,
   );
 
   if (activeHandlers.length === 0) {

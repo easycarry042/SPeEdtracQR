@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { UserListing, UserRow } from '@/lib/domain/admin-users';
 import type { BulkAction } from '@/lib/domain/admin-users';
+import { DutyStatusToggle } from '@/components/shell/duty-status-toggle';
 import { routes } from '@/lib/routes';
 import {
   archiveUserAccount,
@@ -236,13 +237,14 @@ export function UserDirectory({
                 {/* From the old staff directory: what each person is carrying. */}
                 <th scope="col">Workload</th>
                 <th scope="col">Status</th>
+                <th scope="col">Duty</th>
                 <th scope="col" />
               </tr>
             </thead>
             <tbody>
               {listing.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center">
+                  <td colSpan={8} className="py-10 text-center">
                     <p className="cr-empty-title">
                       {filtered ? 'No users match your filters' : 'No staff accounts yet'}
                     </p>
@@ -297,6 +299,18 @@ export function UserDirectory({
                       >
                         {row.isArchived ? 'Archived' : row.isActive ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+
+                    <td>
+                      {row.isArchived ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <DutyStatusToggle
+                          userId={row.id}
+                          isAvailable={row.isAvailable}
+                          size="sm"
+                        />
+                      )}
                     </td>
 
                     <td>

@@ -107,6 +107,7 @@ export type DirectoryRow = {
   overdue: number;
   lastActive: string | null;
   activeNow: boolean;
+  isAvailable: boolean;
 };
 
 async function rolesByUser(userIds: bigint[]): Promise<Map<number, string>> {
@@ -150,7 +151,7 @@ export async function directory(filters: { q?: string; role?: string; sort?: str
       ...(roleUserIds ? { id: { in: roleUserIds } } : {}),
     },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, avatar_path: true },
+    select: { id: true, name: true, avatar_path: true, is_available: true },
   });
 
   const [load, userRoles] = await Promise.all([forUsers(users.map((u) => toId(u.id))), rolesByUser(users.map((u) => u.id))]);
@@ -169,6 +170,7 @@ export async function directory(filters: { q?: string; role?: string; sort?: str
       overdue: figures?.overdue ?? 0,
       lastActive: figures?.last_active ?? null,
       activeNow: figures?.active_now ?? false,
+      isAvailable: user.is_available ?? true,
     };
   });
 
@@ -328,7 +330,7 @@ export type FeedEntry =
 export async function profile(userId: number, viewer: Actor, tab: string) {
   const user = await db.users.findFirst({
     where: { id: id(userId) },
-    select: { id: true, name: true, email: true, avatar_path: true, created_at: true, last_active_at: true },
+    select: { id: true, name: true, email: true, avatar_path: true, created_at: true, last_active_at: true, is_available: true },
   });
 
   if (!user) {
@@ -391,6 +393,7 @@ export async function profile(userId: number, viewer: Actor, tab: string) {
       email: user.email,
       avatarUrl: user.avatar_path ? routes.staffAvatar(toId(user.id)) : null,
       createdAt: user.created_at,
+      isAvailable: user.is_available ?? true,
     },
     isOwn,
     role: role ?? null,
