@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
 import { QrCamera } from '@/components/qr-camera';
 import * as SpeedQr from '@/lib/client/speed-qr';
+import { renderPdfUrlPage } from '@/lib/client/pdf-preview';
 import {
   approveStep,
   completeStep,
@@ -16,27 +17,100 @@ import {
   type InternalResult,
 } from '@/app/actions/internal';
 
+async function openAndWaitForQr(expected: string): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('request-qr-ready', onReady);
+      clearTimeout(timer);
+      requestAnimationFrame(() => setTimeout(resolve, 120));
+    };
+    const onReady = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (!detail || detail.toUpperCase() === expected) {
+        finish();
+      }
+    };
+    const timer = setTimeout(finish, 1800);
+    window.addEventListener('request-qr-ready', onReady);
+    window.dispatchEvent(new CustomEvent('show-request-qr', { detail: expected }));
+  });
+}
+
 /**
  * Port of `partials/qr-tile.blade.php`.
  * Listens for `show-request-qr` / `hide-request-qr` events dispatched by the
- * Receive card's "Select the QR on screen" button.
+ * Receive or Decision card's "Select the QR on screen" button, opening the
+ * attached QR-stamped file (or QR sticker fallback) so the user can snip the
+ * QR code directly off the document.
  */
 export function QrTile({
   trackingNumber,
   qrUrl,
   stickerUrl,
+  stampedAttachment = null,
 }: {
   trackingNumber: string;
   qrUrl: string | null;
   stickerUrl: string;
+  stampedAttachment?: { id: number; url: string; label: string; ext: string } | null;
 }) {
   const [qrOpen, setQrOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'document' | 'sticker'>(
+    stampedAttachment ? 'document' : 'sticker',
+  );
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfPageCount, setPdfPageCount] = useState(1);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   const expected = trackingNumber.toUpperCase();
+  const isPdf = stampedAttachment?.ext.toUpperCase() === 'PDF';
+  const showingDocument = Boolean(stampedAttachment && viewMode === 'document');
+
+  useEffect(() => {
+    setViewMode(stampedAttachment ? 'document' : 'sticker');
+  }, [stampedAttachment]);
+
+  useEffect(() => {
+    if (!qrOpen || !showingDocument || !stampedAttachment || !isPdf) {
+      return;
+    }
+
+    let active = true;
+    setPdfLoading(true);
+
+    void renderPdfUrlPage(stampedAttachment.url, pdfPage)
+      .then((res) => {
+        if (!active) return;
+        setPdfDataUrl(res.dataUrl);
+        setPdfPageCount(res.pageCount);
+        setPdfPage(res.page);
+      })
+      .catch(() => {
+        if (!active) return;
+        setViewMode('sticker');
+      })
+      .finally(() => {
+        if (active) {
+          setPdfLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [qrOpen, showingDocument, stampedAttachment, isPdf, pdfPage]);
 
   useEffect(() => {
     const onShow = (event: Event): void => {
       const detail = (event as CustomEvent<string>).detail;
       if (detail?.toUpperCase() === expected) {
+        if (stampedAttachment) {
+          setViewMode('document');
+        }
         setQrOpen(true);
       }
     };
@@ -61,7 +135,11 @@ export function QrTile({
       window.removeEventListener('hide-request-qr', onHide);
       window.removeEventListener('keydown', onKey);
     };
-  }, [expected]);
+  }, [expected, stampedAttachment]);
+
+  const notifyReady = () => {
+    window.dispatchEvent(new CustomEvent('request-qr-ready', { detail: expected }));
+  };
 
   return (
     <>
@@ -105,25 +183,103 @@ export function QrTile({
             }
           }}
         >
-          <div className="dm-qr-panel">
-            <div className="flex items-center justify-between gap-3">
-              <p className="dm-section">QR code</p>
-              <button
-                type="button"
-                aria-label="Close QR code"
-                className="dm-close"
-                onClick={() => setQrOpen(false)}
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-                </svg>
-              </button>
+          <div
+            className="dm-qr-panel"
+            style={showingDocument ? { maxWidth: 'min(92vw, 760px)' } : undefined}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="dm-section">
+                {showingDocument ? stampedAttachment?.label ?? 'Attached document' : 'QR code'}
+              </p>
+
+              <div className="flex items-center gap-2">
+                {stampedAttachment ? (
+                  <div className="flex items-center rounded-lg border border-hairline bg-[#f4f7f5] p-0.5 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('document')}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
+                      }`}
+                    >
+                      Attached file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('sticker')}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        !showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
+                      }`}
+                    >
+                      QR only
+                    </button>
+                  </div>
+                ) : null}
+
+                {showingDocument && isPdf && pdfPageCount > 1 ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
+                      disabled={pdfPage <= 1 || pdfLoading}
+                      className="ff-page-btn"
+                      aria-label="Previous page"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-[11px] font-semibold text-ink-soft">
+                      {pdfPage}/{pdfPageCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPdfPage((p) => Math.min(pdfPageCount, p + 1))}
+                      disabled={pdfPage >= pdfPageCount || pdfLoading}
+                      className="ff-page-btn"
+                      aria-label="Next page"
+                    >
+                      ›
+                    </button>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  aria-label="Close QR code"
+                  className="dm-close"
+                  onClick={() => setQrOpen(false)}
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {qrUrl ? (
+            {showingDocument && stampedAttachment ? (
+              <div className="mt-3 flex min-h-[220px] flex-col items-center justify-center rounded-[12px] border border-hairline bg-[#f4f7f5] p-3">
+                {isPdf && (pdfLoading || !pdfDataUrl) ? (
+                  <p className="text-[length:var(--fs-small)] font-semibold text-ink-soft">
+                    Opening attached PDF…
+                  </p>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={isPdf ? pdfDataUrl! : stampedAttachment.url}
+                    alt={`${stampedAttachment.label} for ${trackingNumber}`}
+                    className="block max-h-[66vh] max-w-full w-auto rounded-[6px] bg-white shadow-sm"
+                    onLoad={notifyReady}
+                    onError={() => setViewMode('sticker')}
+                  />
+                )}
+              </div>
+            ) : qrUrl ? (
               <div className="dm-qr-frame">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrUrl} alt={`QR code for ${trackingNumber}`} />
+                <img
+                  src={qrUrl}
+                  alt={`QR code for ${trackingNumber}`}
+                  onLoad={notifyReady}
+                />
               </div>
             ) : (
               <p className="dm-qr-missing">No QR code has been generated for this request.</p>
@@ -133,18 +289,30 @@ export function QrTile({
               {trackingNumber}
             </p>
             <p className="mt-1 text-center text-[length:var(--fs-caption)] text-ink-soft">
-              {trackingNumber.startsWith('INT-')
-                ? 'Any phone camera can scan it to see which office has it — no account needed.'
-                : "Scanning it opens this request's public tracking page."}
+              {showingDocument
+                ? 'Drag the selection box around the QR code stamped on this attached document.'
+                : trackingNumber.startsWith('INT-')
+                  ? 'Any phone camera can scan it to see which office has it — no account needed.'
+                  : "Scanning it opens this request's public tracking page."}
             </p>
 
             <div className="dm-actions mt-4 justify-center">
+              {stampedAttachment ? (
+                <a
+                  href={stampedAttachment.url}
+                  target="_blank"
+                  rel="noopener"
+                  className="cr-btn"
+                >
+                  Open full file
+                </a>
+              ) : null}
               {qrUrl ? (
                 <a href={qrUrl} download={`${trackingNumber}.png`} className="cr-btn">
                   <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" />
                   </svg>
-                  Download PNG
+                  Download QR
                 </a>
               ) : null}
               <a href={stickerUrl} target="_blank" rel="noopener" className="cr-btn cr-btn-primary">
@@ -345,8 +513,7 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
     setError(null);
 
     if (mode === 'page') {
-      window.dispatchEvent(new CustomEvent('show-request-qr', { detail: expected }));
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await openAndWaitForQr(expected);
     }
 
     let accepted = false;
@@ -444,50 +611,48 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
             </button>
           </div>
 
-          {detail.isSoftCopy ? (
-            <div className="qr-drop">
-              <svg fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" />
-              </svg>
+          <div className="qr-drop">
+            <svg fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" />
+            </svg>
+            <button
+              type="button"
+              className="cr-btn cr-btn-primary"
+              disabled={pending || reading}
+              onClick={() => void snip('page')}
+            >
+              {reading ? 'Reading the QR…' : 'Select the QR on screen'}
+            </button>
+            <span className="qr-drop-hint">
+              Opens the attached document with its QR code — drag a box around the QR to receive it.
+            </span>
+            <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
               <button
                 type="button"
-                className="cr-btn cr-btn-primary"
+                className="qr-drop-alt"
                 disabled={pending || reading}
-                onClick={() => void snip('page')}
+                onClick={() => void snip('any')}
               >
-                {reading ? 'Reading the QR…' : 'Select the QR on screen'}
+                QR open in another window?
               </button>
-              <span className="qr-drop-hint">
-                This request&apos;s QR opens and the page dims — drag a box around the QR.
+              <span className="text-ink-soft" aria-hidden="true">
+                ·
               </span>
-              <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                <button
-                  type="button"
-                  className="qr-drop-alt"
-                  disabled={pending || reading}
-                  onClick={() => void snip('any')}
-                >
-                  QR open in another window?
-                </button>
-                <span className="text-ink-soft" aria-hidden="true">
-                  ·
-                </span>
-                <label className="qr-drop-alt">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={(event) => {
-                      void readFile(event.target.files?.[0]);
-                      event.target.value = '';
-                    }}
-                  />
-                  Choose a saved picture
-                </label>
-              </span>
-            </div>
-          ) : null}
+              <label className="qr-drop-alt">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    void readFile(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+                Choose a saved picture
+              </label>
+            </span>
+          </div>
 
           {scanning ? (
             <div className="custody-scan">
@@ -559,11 +724,88 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
   const [nextDepartment, setNextDepartment] = useState('');
   const [nextRecipient, setNextRecipient] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [reading, setReading] = useState(false);
   const [payload, setPayload] = useState('');
   const [manualOpen, setManualOpen] = useState(false);
   const [override, setOverride] = useState('');
 
+  const expected = detail.trackingNumber.toUpperCase();
   const people = nextDepartment ? (detail.forwardRecipients[Number(nextDepartment)] ?? []) : [];
+
+  const acceptDecisionScan = (decoded: string): boolean => {
+    const scanned = SpeedQr.extractTracking(decoded);
+
+    if (!scanned) {
+      setError(SpeedQr.FOREIGN_CODE_MESSAGE);
+      return false;
+    }
+
+    if (scanned !== expected) {
+      setError(`That QR is for ${scanned}. Scan the QR on this request's document.`);
+      return false;
+    }
+
+    setPayload(decoded);
+    return true;
+  };
+
+  const snipForDecision = async (snipMode: SpeedQr.SnipMode): Promise<void> => {
+    if (pending) {
+      return;
+    }
+
+    if (scanning) {
+      void SpeedQr.stop();
+      setScanning(false);
+    }
+
+    setError(null);
+
+    if (snipMode === 'page') {
+      await openAndWaitForQr(expected);
+    }
+
+    let accepted = false;
+
+    try {
+      const decoded = await SpeedQr.scanFromScreen(snipMode);
+
+      if (decoded === null) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+        return;
+      }
+
+      setReading(true);
+      accepted = acceptDecisionScan(decoded);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No QR code was found in that box. Drag it around the whole QR.',
+      );
+    } finally {
+      setReading(false);
+      window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+    }
+  };
+
+  const readFileForDecision = async (file: File | null | undefined): Promise<void> => {
+    if (!file || pending) {
+      return;
+    }
+
+    setError(null);
+    setReading(true);
+
+    try {
+      const decoded = await SpeedQr.decodeImage(file);
+      acceptDecisionScan(decoded);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No QR code was found in that picture.');
+    } finally {
+      setReading(false);
+    }
+  };
 
   const input = {
     remarks: remarks.trim() || null,
@@ -826,16 +1068,39 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
                 </button>
               </p>
             ) : (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  className="cr-btn cr-btn-sm"
-                  onClick={() =>
-                    scanning ? (void SpeedQr.stop(), setScanning(false)) : startCamera()
-                  }
-                >
-                  {scanning ? 'Cancel scan' : 'Scan request QR'}
-                </button>
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="cr-btn cr-btn-primary cr-btn-sm"
+                    disabled={pending || reading}
+                    onClick={() => void snipForDecision('page')}
+                  >
+                    {reading ? 'Reading the QR…' : 'Select the QR on screen'}
+                  </button>
+                  <button
+                    type="button"
+                    className="cr-btn cr-btn-sm"
+                    disabled={pending || reading}
+                    onClick={() =>
+                      scanning ? (void SpeedQr.stop(), setScanning(false)) : startCamera()
+                    }
+                  >
+                    {scanning ? 'Cancel scan' : 'Scan with camera'}
+                  </button>
+                  <label className="cr-btn cr-btn-sm cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(event) => {
+                        void readFileForDecision(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
+                    />
+                    Choose picture
+                  </label>
+                </div>
 
                 {scanning ? (
                   <div className="mt-3">

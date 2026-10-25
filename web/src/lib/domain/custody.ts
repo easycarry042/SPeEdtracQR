@@ -45,8 +45,6 @@ export const CAPTURE = {
 export type CaptureMethod = (typeof CAPTURE)[keyof typeof CAPTURE];
 
 const SCAN_METHODS: string[] = [CAPTURE.Scan, CAPTURE.Image, CAPTURE.Screen];
-/** A picture of a QR proves someone had the file, not that the folder arrived. */
-const PAPERLESS_METHODS: string[] = [CAPTURE.Image, CAPTURE.Screen];
 
 const CUSTODY_SELECT = {
   id: true,
@@ -385,13 +383,6 @@ export async function takeCustody(
   }
 
   const method = input.captureMethod;
-
-  if (PAPERLESS_METHODS.includes(method) && !isSoftCopy(document)) {
-    throw new ActionError(
-      'This request has a paper folder. Scan the QR on the folder with the camera.',
-    );
-  }
-
   const scanned = SCAN_METHODS.includes(method);
 
   if (scanned) {
@@ -473,11 +464,6 @@ export async function receiveByScan(
     !canReceiveCurrentStep(document, step, actor) ||
     (await currentStepHasCustody(documentId, step))
   ) {
-    return { url, received: false };
-  }
-
-  // A paper request is received by camera only.
-  if (input.captureMethod === 'image' && !isSoftCopy(document)) {
     return { url, received: false };
   }
 

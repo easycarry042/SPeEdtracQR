@@ -104,6 +104,7 @@ export default async function InternalRequestPage({
                   trackingNumber={detail.trackingNumber}
                   qrUrl={detail.qrUrl}
                   stickerUrl={detail.stickerUrl}
+                  stampedAttachment={detail.stampedAttachment}
                 />
               </div>
 

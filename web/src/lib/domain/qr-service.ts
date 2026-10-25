@@ -54,6 +54,19 @@ export async function generateTrackingNumber(prefix = 'SPD'): Promise<string> {
   }
 }
 
+/**
+ * Render a request's QR as a PNG without storing it — the same payload and
+ * settings as the stored sticker, for stamping onto the paper scan.
+ */
+export async function renderPng(trackingNumber: string): Promise<Buffer> {
+  return QRCode.toBuffer(trackingQr.content(trackingNumber), {
+    type: 'png',
+    errorCorrectionLevel: 'Q',
+    margin: 4,
+    width: 500,
+  });
+}
+
 export type QrResult = {
   success: boolean;
   relativePath: string | null;

@@ -7,6 +7,7 @@ import { GateError } from '@/lib/domain/status-gate';
 import * as steps from '@/lib/domain/internal-steps';
 import * as custody from '@/lib/domain/custody';
 import { fileInternalRequest, type FilingInput } from '@/lib/domain/internal-filing';
+import { placementNumber } from '@/lib/domain/qr-stamp';
 
 /**
  * The internal request write paths: receiving a folder, the four hop decisions,
@@ -142,6 +143,12 @@ export async function fileRequest(form: FormData): Promise<InternalResult> {
     hasHardCopy: hasHardCopy === null ? true : hasHardCopy === '1' || hasHardCopy === 'true',
     recipientId: recipient ? Number(recipient) : null,
     paperScan: scan instanceof File && scan.size > 0 ? scan : null,
+    qrPlacement: {
+      x: placementNumber(form.get('qr_x'), 0, 1),
+      y: placementNumber(form.get('qr_y'), 0, 1),
+      size: placementNumber(form.get('qr_size'), 0.05, 0.6),
+      page: placementNumber(form.get('qr_page'), 1, 500),
+    },
   };
 
   return run(() => fileInternalRequest(actor, input));

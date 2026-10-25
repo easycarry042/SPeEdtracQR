@@ -11,6 +11,7 @@ import * as qr from '@/lib/domain/qr-service';
 import { checkPaperScan } from '@/lib/domain/upload-rules';
 import { isRecipientAt } from '@/lib/domain/internal-request-form';
 import { tellTheHop } from '@/lib/domain/internal-events';
+import { ensureStampedCopy, NO_PLACEMENT, type StampPlacement } from '@/lib/domain/qr-stamp';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -32,6 +33,8 @@ export type FilingInput = {
   /** Who receives a soft copy at the first office (required when there is no paper). */
   recipientId: number | null;
   paperScan: File | null;
+  /** Where the filer dragged the QR on the scan; null fields mean bottom-right. */
+  qrPlacement?: StampPlacement;
 };
 
 const PURPOSE_LIMIT = 255;
@@ -191,6 +194,10 @@ export async function fileInternalRequest(
           updated_at: now(),
         },
       });
+
+      // Archive a digital copy with the QR stamped on, beside the untouched
+      // original. Never fatal: the request stands without it.
+      await ensureStampedCopy(documentId, input.qrPlacement ?? NO_PLACEMENT, filer.id);
     }
 
     const recipientName = recipientId === null ? null : await nameOf(recipientId);

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FormDepartment, FormRecipient } from '@/lib/domain/internal-request-form';
 import { fileRequest } from '@/app/actions/internal';
+import { renderPdfFilePage } from '@/lib/client/pdf-preview';
 
 type QrPlacement = {
   ready: boolean;
@@ -76,6 +77,11 @@ export function FilingForm({
   const [fileName, setFileName] = useState('');
   const [fileError, setFileError] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPdf, setIsPdf] = useState(false);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfPageCount, setPdfPageCount] = useState(1);
+  const [pdfRendering, setPdfRendering] = useState(false);
+  const [pdfError, setPdfError] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
   const [qr, setQr] = useState<QrPlacement>(INITIAL_QR);
@@ -106,7 +112,7 @@ export function FilingForm({
 
   useEffect(() => {
     return () => {
-      if (previewUrl) {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
     };
@@ -117,12 +123,35 @@ export function FilingForm({
   const selectedRecipient =
     people.find((p) => String(p.id) === String(recipientId)) ?? null;
 
+  const loadPdfPage = async (file: File, pageNumber: number) => {
+    setPdfRendering(true);
+    setPdfError('');
+    try {
+      const result = await renderPdfFilePage(file, pageNumber);
+      setPdfPageCount(result.pageCount);
+      setPdfPage(result.page);
+      setQr((prev) => ({ ...prev, ready: false }));
+      setPreviewUrl(result.dataUrl);
+    } catch {
+      setPreviewUrl(null);
+      setPdfError(
+        'That PDF could not be previewed, so the QR will be stamped at the bottom-right of page 1.',
+      );
+    } finally {
+      setPdfRendering(false);
+    }
+  };
+
   const handleFile = (file: File | null) => {
-    if (previewUrl) {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(previewUrl);
     }
     setQr(INITIAL_QR);
     setFileError('');
+    setIsPdf(false);
+    setPdfPage(1);
+    setPdfPageCount(1);
+    setPdfError('');
 
     if (!file) {
       setScan(null);
@@ -146,6 +175,14 @@ export function FilingForm({
 
     setScan(file);
     setFileName(file.name);
+
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      setIsPdf(true);
+      setPreviewUrl(null);
+      void loadPdfPage(file, 1);
+      return;
+    }
+
     setPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
   };
 
@@ -248,6 +285,10 @@ export function FilingForm({
       form.set('qr_x', qr.x.toFixed(4));
       form.set('qr_y', qr.y.toFixed(4));
       form.set('qr_size', qr.scaleShort.toFixed(4));
+    }
+
+    if (isPdf) {
+      form.set('qr_page', String(pdfPage));
     }
 
     startTransition(async () => {
@@ -628,13 +669,46 @@ export function FilingForm({
               <div className="flex min-h-0 flex-col">
                 <div className="flex items-center justify-between gap-2">
                   <p className="st-filter-label !mb-0">QR Placement</p>
+                  {isPdf && pdfPageCount > 1 ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => scan && void loadPdfPage(scan, pdfPage - 1)}
+                        disabled={pdfPage <= 1 || pdfRendering}
+                        className="ff-page-btn"
+                        aria-label="Previous page"
+                      >
+                        ‹
+                      </button>
+                      <span className="text-[length:var(--fs-caption)] font-semibold text-ink-soft">
+                        Page {pdfPage} of {pdfPageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => scan && void loadPdfPage(scan, pdfPage + 1)}
+                        disabled={pdfPage >= pdfPageCount || pdfRendering}
+                        className="ff-page-btn"
+                        aria-label="Next page"
+                      >
+                        ›
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="ff-stage">
-                  {!previewUrl ? (
+                  {pdfRendering ? (
+                    <p className="text-[length:var(--fs-small)] font-semibold text-ink-soft">
+                      Opening the PDF…
+                    </p>
+                  ) : pdfError ? (
+                    <p className="px-4 text-center text-[length:var(--fs-small)] font-semibold text-status-amber">
+                      {pdfError}
+                    </p>
+                  ) : !previewUrl ? (
                     <p className="px-4 text-center text-[length:var(--fs-small)] text-ink-soft">
-                      This file is a PDF, so the QR will be stamped cleanly at the bottom-right
-                      corner of page 1.
+                      This file can&apos;t be previewed, so the QR will be stamped at the
+                      bottom-right corner.
                     </p>
                   ) : (
                     <div

@@ -796,24 +796,39 @@ async function cropFrame(frame: Frame, rect: BoxRect): Promise<Blob> {
  */
 async function cropFromPage(rect: BoxRect): Promise<Blob | null> {
   const centre = document.elementsFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  const target = centre.find((node): node is HTMLImageElement => node instanceof HTMLImageElement);
+  const target = centre.find(
+    (node): node is HTMLImageElement | HTMLCanvasElement =>
+      node instanceof HTMLImageElement || node instanceof HTMLCanvasElement,
+  );
 
   if (!target) {
-    throw new Error('No QR image was found in that box. Drag it around the QR picture itself.');
+    throw new Error('No QR image was found in that box. Drag it around the QR code on the document.');
   }
 
   const bounds = target.getBoundingClientRect();
-  const scaleX = target.naturalWidth / bounds.width;
-  const scaleY = target.naturalHeight / bounds.height;
+  const intrinsicWidth =
+    target instanceof HTMLCanvasElement ? target.width : target.naturalWidth;
+  const intrinsicHeight =
+    target instanceof HTMLCanvasElement ? target.height : target.naturalHeight;
 
-  // The whole image is usually the QR; crop to the box but clamp to the image.
-  return cropImage(
-    await loadImage(target.currentSrc || target.src),
-    Math.max(0, (rect.x - bounds.left) * scaleX),
-    Math.max(0, (rect.y - bounds.top) * scaleY),
-    Math.min(target.naturalWidth, rect.width * scaleX),
-    Math.min(target.naturalHeight, rect.height * scaleY),
-  );
+  if (!intrinsicWidth || !intrinsicHeight || !bounds.width || !bounds.height) {
+    throw new Error('The document preview is still loading. Try again in a moment.');
+  }
+
+  const scaleX = intrinsicWidth / bounds.width;
+  const scaleY = intrinsicHeight / bounds.height;
+
+  const source =
+    target instanceof HTMLCanvasElement || (target.complete && target.naturalWidth > 0)
+      ? target
+      : await loadImage(target.currentSrc || target.src);
+
+  const sx = Math.max(0, (rect.x - bounds.left) * scaleX);
+  const sy = Math.max(0, (rect.y - bounds.top) * scaleY);
+  const sw = Math.min(intrinsicWidth - sx, rect.width * scaleX);
+  const sh = Math.min(intrinsicHeight - sy, rect.height * scaleY);
+
+  return cropImage(source, sx, sy, Math.max(1, sw), Math.max(1, sh));
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -827,7 +842,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 async function cropImage(
-  image: HTMLImageElement,
+  image: HTMLImageElement | HTMLCanvasElement,
   x: number,
   y: number,
   width: number,

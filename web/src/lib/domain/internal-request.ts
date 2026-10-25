@@ -17,6 +17,7 @@ import {
 } from '@/lib/domain/document';
 import { currentCustody, custodyTrail, captureLabel, type CustodyEntry } from '@/lib/domain/custody';
 import { activeDepartments, recipients, type FormDepartment, type FormRecipient } from '@/lib/domain/internal-request-form';
+import { ensureStampedCopy, isStampable, isStampedPath } from '@/lib/domain/qr-stamp';
 import { privateExists } from '@/lib/storage';
 import type { Actor } from '@/lib/auth/actor';
 
@@ -65,7 +66,9 @@ export type InternalRequestDetail = {
   custodyTrail: CustodyEntry[];
   /** Who holds it now, for the "document in hand" line on the decision card. */
   heldBy: { name: string | null; how: string } | null;
-  attachments: Array<{ id: number; url: string; label: string; ext: string }>;
+  attachments: Array<{ id: number; url: string; label: string; ext: string; isStamped: boolean }>;
+  /** Primary QR-stamped attachment (or first attachment) to open when snipping the QR on screen. */
+  stampedAttachment: { id: number; url: string; label: string; ext: string } | null;
   currentStep: {
     id: number;
     office: string;
@@ -127,6 +130,37 @@ export async function internalRequestDetail(
   if (!document || !isInternal(document)) {
     return null;
   }
+
+  let rawAttachments = document.document_attachments;
+  const hasStamped = rawAttachments.some((row) => isStampedPath(row.file_path));
+  const hasStampable = rawAttachments.some((row) => isStampable(row.file_path));
+
+  if (!hasStamped && hasStampable) {
+    const createdPath = await ensureStampedCopy(documentId);
+    if (createdPath) {
+      rawAttachments = await db.document_attachments.findMany({
+        where: { document_id: document.id },
+        select: { id: true, file_path: true },
+        orderBy: { sort_order: 'asc' },
+      });
+    }
+  }
+
+  const mappedAttachments = rawAttachments
+    .map((attachment) => {
+      const isStamped = isStampedPath(attachment.file_path);
+      return {
+        id: toId(attachment.id),
+        url: routes.attachmentsShow(toId(attachment.id)),
+        label: isStamped ? 'QR-stamped copy' : 'Original upload',
+        ext: extensionOf(attachment.file_path),
+        isStamped,
+      };
+    })
+    .sort((a, b) => Number(b.isStamped) - Number(a.isStamped));
+
+  const stampedAttachment =
+    mappedAttachments.find((a) => a.isStamped) ?? mappedAttachments[0] ?? null;
 
   const requestingDepartmentId =
     document.requesting_department_id === null
@@ -238,15 +272,15 @@ export async function internalRequestDetail(
     }),
     custodyTrail: trail,
     heldBy: held ? { name: held.userName, how: captureLabel(held.method) } : null,
-    attachments: document.document_attachments.map((attachment) => ({
-      id: toId(attachment.id),
-      url: routes.attachmentsShow(toId(attachment.id)),
-      // A stamped copy is a different artefact from the original upload.
-      label: attachment.file_path.includes('-qr-stamped.')
-        ? 'QR-stamped copy'
-        : 'Uploaded document',
-      ext: extensionOf(attachment.file_path),
-    })),
+    attachments: mappedAttachments,
+    stampedAttachment: stampedAttachment
+      ? {
+          id: stampedAttachment.id,
+          url: stampedAttachment.url,
+          label: stampedAttachment.label,
+          ext: stampedAttachment.ext,
+        }
+      : null,
     currentStep: step
       ? {
           id: step.id,

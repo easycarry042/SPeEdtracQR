@@ -143,11 +143,15 @@ export function canEditDocument(
 }
 
 export function canAccessDocument(
-  document: { created_by: number | null; assigned_to: number | null },
+  document: { created_by: number | null; assigned_to: number | null; origin?: string | null },
   actor: Actor | null,
 ): boolean {
   if (!actor) {
     return false;
+  }
+
+  if (document.origin === ORIGIN_INTERNAL) {
+    return true;
   }
 
   if (canViewAll(actor)) {

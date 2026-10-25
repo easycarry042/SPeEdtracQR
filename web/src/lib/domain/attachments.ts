@@ -12,13 +12,13 @@ import { now } from '@/lib/time';
  */
 export async function attachmentFor(attachmentId: number): Promise<{
   filePath: string;
-  document: { created_by: number | null; assigned_to: number | null };
+  document: { created_by: number | null; assigned_to: number | null; origin: string };
 } | null> {
   const row = await db.document_attachments.findFirst({
     where: { id: id(attachmentId), document: { deleted_at: null } },
     select: {
       file_path: true,
-      document: { select: { created_by: true, assigned_to: true } },
+      document: { select: { created_by: true, assigned_to: true, origin: true } },
     },
   });
 
@@ -31,6 +31,7 @@ export async function attachmentFor(attachmentId: number): Promise<{
     document: {
       created_by: row.document.created_by === null ? null : toId(row.document.created_by),
       assigned_to: row.document.assigned_to === null ? null : toId(row.document.assigned_to),
+      origin: row.document.origin,
     },
   };
 }
