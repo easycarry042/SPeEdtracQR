@@ -14,18 +14,28 @@ export function statusUpdatedMail(args: {
   trackingNumber: string;
   citizenName: string | null;
   stage: DocumentStatus;
+  reason?: string | null;
 }): Mailable {
   const stage = statusLabel(args.stage);
+  const isDenied = args.stage === DocumentStatus.Denied;
 
   return {
     to: args.to,
-    subject: `Update on your request ${args.trackingNumber}: ${stage}`,
+    subject: isDenied
+      ? `Update on your request ${args.trackingNumber}: Denied`
+      : `Update on your request ${args.trackingNumber}: ${stage}`,
     html: layout({
-      heading: 'Status update',
-      body: `    <p>Hello ${e(args.citizenName ?? 'there')},</p>
+      heading: isDenied ? 'Request Denied' : 'Status update',
+      tone: isDenied ? 'danger' : undefined,
+      body: isDenied
+        ? `    <p>Hello ${e(args.citizenName ?? 'there')},</p>
+    <p>We regret to inform you that your request <strong>${e(args.trackingNumber)}</strong> could not be approved and has been denied.</p>
+${args.reason ? `    <p><strong>Official Reason:</strong></p>\n    <div class="stage" style="border-left: 3px solid #dc2626; color: #991b1b; background: #fef2f2; padding: 12px; border-radius: 6px;">${e(args.reason)}</div>` : ''}
+    <p>Please open your tracking page for full details or contact the office if you need further clarification.</p>`
+        : `    <p>Hello ${e(args.citizenName ?? 'there')},</p>
     <p>Your request <strong>${e(args.trackingNumber)}</strong> has a new status:</p>
     <div class="stage">${e(stage)}</div>`,
-      cta: { label: 'View details', url: absoluteUrl(citizenTrackingUrl(args.trackingNumber)) },
+      cta: { label: isDenied ? 'View request details' : 'View details', url: absoluteUrl(citizenTrackingUrl(args.trackingNumber)) },
     }),
   };
 }

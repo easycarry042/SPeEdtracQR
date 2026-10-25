@@ -47,14 +47,20 @@ describe('DocumentStatus', () => {
     }
   });
 
-  describe('the three-stage progress bar (CTCAO: Pending → Ongoing → Done)', () => {
+  describe('the four-stage progress bar (Pending → Ongoing → Pending Approval → Ready for Claim)', () => {
     it('has the workflow stages in order', () => {
-      expect(RAIL_STAGES.map((stage) => stage.label)).toEqual(['Pending', 'Ongoing', 'Done']);
+      expect(RAIL_STAGES.map((stage) => stage.label)).toEqual([
+        'Pending',
+        'Ongoing',
+        'Pending Approval',
+        'Ready for Claim',
+      ]);
     });
 
     it('names the stages the way the office does', () => {
       expect(label(DocumentStatus.InProgress)).toBe('Ongoing');
-      expect(label(DocumentStatus.Completed)).toBe('Done');
+      expect(label(DocumentStatus.InReview)).toBe('Pending Approval');
+      expect(label(DocumentStatus.Completed)).toBe('Ready for Claim');
     });
 
     it('places every status on the forward flow on exactly one stage', () => {
@@ -68,9 +74,9 @@ describe('DocumentStatus', () => {
     it.each([
       ['pending', DocumentStatus.Pending, null, 1],
       ['ongoing', DocumentStatus.InProgress, null, 2],
-      ['a retired in review as ongoing', DocumentStatus.InReview, null, 2],
-      ['a retired approved as ongoing', DocumentStatus.Approved, null, 2],
-      ['done', DocumentStatus.Completed, null, 3],
+      ['in review as pending approval', DocumentStatus.InReview, null, 3],
+      ['a retired approved as completed', DocumentStatus.Approved, null, 4],
+      ['done', DocumentStatus.Completed, null, 4],
       ['returned back at ongoing', DocumentStatus.Returned, null, 2],
       ['on hold where it stopped', DocumentStatus.OnHold, DocumentStatus.Pending, 1],
       ['on hold with no record', DocumentStatus.OnHold, null, 2],
@@ -81,18 +87,24 @@ describe('DocumentStatus', () => {
   });
 
   describe('the forward line', () => {
-    it('walks Pending → Ongoing → Done', () => {
-      expect(FLOW).toEqual([DocumentStatus.Pending, DocumentStatus.InProgress, DocumentStatus.Completed]);
+    it('walks Pending → Ongoing → Pending Approval → Ready for Claim', () => {
+      expect(FLOW).toEqual([
+        DocumentStatus.Pending,
+        DocumentStatus.InProgress,
+        DocumentStatus.InReview,
+        DocumentStatus.Completed,
+      ]);
       expect(next(DocumentStatus.Pending)).toBe(DocumentStatus.InProgress);
-      expect(next(DocumentStatus.InProgress)).toBe(DocumentStatus.Completed);
+      expect(next(DocumentStatus.InProgress)).toBe(DocumentStatus.InReview);
+      expect(next(DocumentStatus.InReview)).toBe(DocumentStatus.Completed);
       // End of the line.
       expect(next(DocumentStatus.Completed)).toBeNull();
       // Off the line entirely, the retired stages included.
       expect(next(DocumentStatus.Returned)).toBeNull();
       expect(next(DocumentStatus.OnHold)).toBeNull();
-      expect(next(DocumentStatus.InReview)).toBeNull();
       expect(next(DocumentStatus.Approved)).toBeNull();
 
+      expect(previous(DocumentStatus.InReview)).toBe(DocumentStatus.InProgress);
       expect(previous(DocumentStatus.InProgress)).toBe(DocumentStatus.Pending);
       expect(previous(DocumentStatus.Pending)).toBeNull();
       expect(previous(DocumentStatus.Returned)).toBeNull();
@@ -104,7 +116,9 @@ describe('DocumentStatus', () => {
 
     it('numbers positions from 1, and 0 off the line', () => {
       expect(position(DocumentStatus.Pending)).toBe(1);
-      expect(position(DocumentStatus.Completed)).toBe(3);
+      expect(position(DocumentStatus.InProgress)).toBe(2);
+      expect(position(DocumentStatus.InReview)).toBe(3);
+      expect(position(DocumentStatus.Completed)).toBe(4);
       expect(position(DocumentStatus.Returned)).toBe(0);
       expect(position(DocumentStatus.OnHold)).toBe(0);
     });
@@ -114,7 +128,7 @@ describe('DocumentStatus', () => {
     it('gives the four open stages a budget', () => {
       expect(slaHours(DocumentStatus.Pending)).toBe(24);
       expect(slaHours(DocumentStatus.InProgress)).toBe(72);
-      expect(slaHours(DocumentStatus.InReview)).toBe(48);
+      expect(slaHours(DocumentStatus.InReview)).toBe(24);
       expect(slaHours(DocumentStatus.Approved)).toBe(24);
       expect(DEFAULT_SLA_HOURS).toBe(48);
     });

@@ -44,6 +44,8 @@ const PILL_CLASS: Record<string, string> = {
   completed: 'p-green',
   approved: 'p-green',
   pending: 'p-muted',
+  in_progress: 'p-amber',
+  in_review: 'p-amber',
   returned: 'p-red',
   rejected: 'p-red',
   denied: 'p-red',

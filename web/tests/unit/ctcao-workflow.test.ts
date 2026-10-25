@@ -92,7 +92,7 @@ describe('Finish request (Ongoing → Done)', () => {
       ana,
       'finished',
     );
-    expect(result).toMatchObject({ status: DocumentStatus.Completed, statusLabel: 'Done' });
+    expect(result).toMatchObject({ status: DocumentStatus.Completed, statusLabel: 'Ready for Claim' });
   });
 
   it('needs no note', async () => {

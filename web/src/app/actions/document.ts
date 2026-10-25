@@ -119,6 +119,33 @@ export async function claimDocument(documentId: number): Promise<ActionResult> {
   return run(() => review.claim(documentId, actor));
 }
 
+export async function submitForClearanceDocument(
+  documentId: number,
+  note?: string | null,
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => review.submitForClearance(documentId, actor, note));
+}
+
+export async function approveClearanceDocument(
+  documentId: number,
+  input?: { claimDate?: string | null; note?: string | null },
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => review.approveClearance(documentId, actor, input));
+}
+
+export async function returnToStaffDocument(
+  documentId: number,
+  remarks: string,
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => review.returnToStaff(documentId, actor, remarks));
+}
+
 export async function denyDocument(
   documentId: number,
   reason: string | null,

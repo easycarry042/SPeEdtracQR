@@ -26,7 +26,7 @@ export const tracking = {
       [DocumentStatus.Returned]: true,
       // "Action needed" email when a hold is blocked on the citizen.
       [DocumentStatus.OnHold]: true,
-      [DocumentStatus.Denied]: false,
+      [DocumentStatus.Denied]: true,
       [DocumentStatus.Withdrawn]: false,
     } as Record<DocumentStatus, boolean>,
 

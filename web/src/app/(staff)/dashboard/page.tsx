@@ -74,6 +74,7 @@ export default async function DashboardPage({
     dept,
     pendingRows,
     activeRows,
+    clearanceRows,
     completedTotal,
     pendingOnly,
     inProgressCount,
@@ -100,12 +101,23 @@ export default async function DashboardPage({
       take: 200,
     }),
 
-    // The office's work in flight.
+    // The office's work in flight (Ongoing / On Hold).
     db.documents.findMany({
       where: {
         AND: [scope, citizenBase, deptScope],
-        status: { in: activeValues() },
+        status: { in: [DocumentStatus.InProgress, DocumentStatus.OnHold] },
         assigned_to: { not: null },
+      },
+      orderBy: { status_changed_at: 'desc' },
+      select: REVIEW_SELECT,
+      take: 200,
+    }),
+
+    // For Clearance: submitted by staff awaiting supervisor approval.
+    db.documents.findMany({
+      where: {
+        AND: [scope, citizenBase, deptScope],
+        status: DocumentStatus.InReview,
       },
       orderBy: { status_changed_at: 'desc' },
       select: REVIEW_SELECT,
@@ -142,7 +154,7 @@ export default async function DashboardPage({
   ]);
 
   const staffIds = staff.map((s) => id(s.id));
-  const [staffActiveRows, staffCompletedRows, pending, active] = await Promise.all([
+  const [staffActiveRows, staffCompletedRows, pending, active, clearance] = await Promise.all([
     staffIds.length === 0
       ? Promise.resolve([])
       : db.documents.groupBy({
@@ -169,6 +181,7 @@ export default async function DashboardPage({
         }),
     collection(pendingRows, actor),
     collection(activeRows, actor),
+    collection(clearanceRows, actor),
   ]);
 
   const activeByStaff = new Map(
@@ -194,13 +207,17 @@ export default async function DashboardPage({
     totalForCompletion > 0 ? Math.round((completedTotal / totalForCompletion) * 100) : null;
 
   const activeTab =
-    tab === 'pending' || tab === 'inprogress' || tab === 'completed'
+    tab === 'pending' || tab === 'inprogress' || tab === 'clearance' || tab === 'completed'
       ? tab
       : tab === 'active'
         ? 'inprogress'
         : tab === 'done'
           ? 'completed'
-          : 'pending';
+          : clearance.length > 0
+            ? 'clearance'
+            : pending.length > 0
+              ? 'pending'
+              : 'inprogress';
 
   return (
     <AuthenticatedPage
@@ -322,6 +339,7 @@ export default async function DashboardPage({
         <DashboardQueues
           pending={pending}
           active={active}
+          clearance={clearance}
           completedCount={completedTotal}
           assignableStaff={staff.map((member) => ({ id: member.id, name: member.name }))}
           activeTab={activeTab}

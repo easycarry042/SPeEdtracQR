@@ -24,6 +24,7 @@ vi.mock('@/lib/db', () => ({
     users: { findFirst: usersFindFirst, findUnique: usersFindUnique, update: usersUpdate },
     documents: { findFirst: documentsFindFirst, updateMany: documentsUpdateMany },
     staff_highlights: { create: highlightsCreate },
+    model_has_roles: { findMany: vi.fn().mockResolvedValue([]) },
   },
   toId: Number,
   id: (value: number | bigint) => BigInt(value),

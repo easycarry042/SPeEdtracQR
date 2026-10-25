@@ -33,14 +33,19 @@ export const DEFAULT_SLA_HOURS = 48;
 export const FLOW: readonly DocumentStatus[] = [
   DocumentStatus.Pending,
   DocumentStatus.InProgress,
+  DocumentStatus.InReview,
   DocumentStatus.Completed,
 ];
 
 /** Retired stages: still stored on older requests, never entered again. */
-export const RETIRED: readonly DocumentStatus[] = [DocumentStatus.InReview, DocumentStatus.Approved];
+export const RETIRED: readonly DocumentStatus[] = [DocumentStatus.Approved];
 
-/** Stages a request can be finished from (Ongoing, and the retired ones). */
-export const FINISHABLE: readonly DocumentStatus[] = [DocumentStatus.InProgress, ...RETIRED];
+/** Stages a request can be finished from (Ongoing, InReview, and the retired ones). */
+export const FINISHABLE: readonly DocumentStatus[] = [
+  DocumentStatus.InProgress,
+  DocumentStatus.InReview,
+  ...RETIRED,
+];
 
 const TERMINAL: readonly DocumentStatus[] = [
   DocumentStatus.Completed,
@@ -52,9 +57,9 @@ const TERMINAL: readonly DocumentStatus[] = [
 const LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'Pending',
   [DocumentStatus.InProgress]: 'Ongoing',
-  [DocumentStatus.InReview]: 'In Review',
+  [DocumentStatus.InReview]: 'Pending Approval',
   [DocumentStatus.Approved]: 'Approved',
-  [DocumentStatus.Completed]: 'Done',
+  [DocumentStatus.Completed]: 'Ready for Claim',
   [DocumentStatus.Returned]: 'Returned / For Revision',
   [DocumentStatus.OnHold]: 'On Hold',
   [DocumentStatus.Denied]: 'Denied',
@@ -63,11 +68,11 @@ const LABELS: Record<DocumentStatus, string> = {
 
 /** Plain-language, citizen-facing explanation of what each status means. */
 const DESCRIPTIONS: Record<DocumentStatus, string> = {
-  [DocumentStatus.Pending]: 'We received your request and it is waiting to be picked up by staff.',
-  [DocumentStatus.InProgress]: 'A staff member has accepted your request and is working on it.',
-  [DocumentStatus.InReview]: 'Your request is being checked and reviewed before approval.',
+  [DocumentStatus.Pending]: 'We received your request and it is waiting to be processed.',
+  [DocumentStatus.InProgress]: 'A staff member has claimed your request and is actively processing it.',
+  [DocumentStatus.InReview]: 'Staff has completed processing and submitted your request for supervisor review and clearance.',
   [DocumentStatus.Approved]: 'Your request has been approved and is being finalized.',
-  [DocumentStatus.Completed]: 'Your request is done. Watch for pickup or release details if anything is to be collected.',
+  [DocumentStatus.Completed]: 'Your request is complete and ready for claiming. Please check the claiming instructions below.',
   [DocumentStatus.Returned]: 'Something needs to be corrected. Please check for a message from staff.',
   [DocumentStatus.OnHold]: 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
   [DocumentStatus.Denied]: 'Your request could not be approved. Staff should have included a reason.',
@@ -83,7 +88,7 @@ const DESCRIPTIONS: Record<DocumentStatus, string> = {
 const SLA_HOURS: Record<DocumentStatus, number | null> = {
   [DocumentStatus.Pending]: 24,
   [DocumentStatus.InProgress]: 72,
-  [DocumentStatus.InReview]: 48,
+  [DocumentStatus.InReview]: 24,
   [DocumentStatus.Approved]: 24,
   [DocumentStatus.Completed]: null,
   [DocumentStatus.Returned]: null,
@@ -110,14 +115,14 @@ const BANDS: Record<DocumentStatus, string> = {
 };
 
 /**
- * The three stages the progress bar shows, each with the statuses that sit on
- * it. The retired In Review / Approved read as Ongoing. Side states are placed
- * separately — see `railStage()`.
+ * The four stages the progress bar shows, each with the statuses that sit on it.
+ * Citizen tracking and staff dashboards display this standardized stepper.
  */
 export const RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatus[] }> = [
   { label: 'Pending', statuses: [DocumentStatus.Pending] },
-  { label: 'Ongoing', statuses: [DocumentStatus.InProgress, ...RETIRED] },
-  { label: 'Done', statuses: [DocumentStatus.Completed] },
+  { label: 'Ongoing', statuses: [DocumentStatus.InProgress] },
+  { label: 'Pending Approval', statuses: [DocumentStatus.InReview] },
+  { label: 'Ready for Claim', statuses: [DocumentStatus.Completed, ...RETIRED] },
 ];
 
 export function label(status: DocumentStatus): string {

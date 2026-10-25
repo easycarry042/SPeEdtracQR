@@ -9,6 +9,7 @@ import {
   type ActionResult,
   acceptAssignment,
   advanceDocument,
+  approveClearanceDocument,
   assignDocument,
   claimDocument,
   finishDocument,
@@ -16,8 +17,10 @@ import {
   denyDocument,
   holdDocument,
   requestRevision,
+  returnToStaffDocument,
   revertDocument,
   setDocumentStatus,
+  submitForClearanceDocument,
   unholdDocument,
 } from '@/app/actions/document';
 import { NotifyButton } from './notify-dialog';
@@ -27,6 +30,9 @@ export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 type Dialog =
   | 'advance'
   | 'finish'
+  | 'clearance'
+  | 'approve_clearance'
+  | 'return_staff'
   | 'revert'
   | 'return'
   | 'hold'
@@ -98,9 +104,89 @@ export function ReviewActions({
         </ul>
       ) : null}
 
-      {/* ── Supervisor: assign / reassign / deny ────────────────────────── */}
+      {/* ── Supervisor: assign / reassign / clearance / deny ────────────── */}
       {mode === 'supervisor' && !isTerminal ? (
-        !row.assignedTo ? (
+        row.status === DocumentStatus.InReview ? (
+          <section className="dm-panel-strong space-y-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="pill p-brass text-xs">For Clearance</span>
+                <h4 className="font-bold text-green-deep text-sm">Supervisor Clearance Review</h4>
+              </div>
+              <p className="text-xs text-ink-soft mt-1">
+                Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance. Review requirements, attached evidence, and citizen details above before making a decision.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
+              <button
+                type="button"
+                className="cr-btn cr-btn-primary"
+                disabled={pending}
+                onClick={() => setDialog('approve_clearance')}
+              >
+                Approve & Ready for Claim
+              </button>
+              <button
+                type="button"
+                className="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber font-semibold"
+                disabled={pending}
+                onClick={() => setDialog('return_staff')}
+              >
+                Return for Corrections
+              </button>
+              <button
+                type="button"
+                className="cr-btn cr-btn-danger"
+                disabled={pending}
+                onClick={() => setDialog('deny')}
+              >
+                Deny Request
+              </button>
+              <button
+                type="button"
+                onClick={() => setReassignOpen(!reassignOpen)}
+                className="cr-btn cr-btn-ghost text-xs ml-auto"
+              >
+                {reassignOpen ? 'Cancel Reassign' : 'Reassign…'}
+              </button>
+            </div>
+            {reassignOpen ? (
+              <div className="w-full pt-2 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
+                <label
+                  htmlFor={`reassign-${row.id}`}
+                  className="block font-bold text-xs text-green-deep"
+                >
+                  Reassign to
+                </label>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <select
+                    id={`reassign-${row.id}`}
+                    value={assignee}
+                    onChange={(event) => setAssignee(event.target.value)}
+                    className="st-filter-field min-w-0 flex-1 text-xs"
+                  >
+                    <option value="">Select a staff member…</option>
+                    {assignableStaff
+                      .filter((m) => m.id !== row.assignedTo)
+                      .map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!assignee || pending}
+                    onClick={() => run(() => assignDocument(row.id, Number(assignee)), false)}
+                    className="cr-btn cr-btn-primary text-xs"
+                  >
+                    Reassign
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : !row.assignedTo ? (
           <section className="dm-panel-strong">
             <label
               className="block text-[length:var(--fs-small)] font-bold text-green-deep"
@@ -290,9 +376,34 @@ export function ReviewActions({
         </section>
       ) : null}
 
+      {/* ── Staff clearance pending notice ── */}
+      {mode === 'staff' && row.status === DocumentStatus.InReview ? (
+        <section className="dm-panel-strong space-y-2 text-sm text-ink">
+          <div className="flex items-center gap-2">
+            <span className="pill p-brass text-xs">For Clearance</span>
+            <p className="font-bold text-green-deep">Awaiting Supervisor Clearance</p>
+          </div>
+          <p className="text-xs text-ink-soft">
+            You have completed processing and submitted this request for supervisor clearance. Once approved by your supervisor, the citizen will be notified with claiming details.
+          </p>
+        </section>
+      ) : null}
+
       {/* ── Status cockpit ─────────────────────────────────────────────── */}
-      {row.canAdvance && !isTerminal && !(mode === 'staff' && row.needsTriage) ? (
+      {row.canAdvance && !isTerminal && !(mode === 'staff' && row.needsTriage) && !(mode === 'staff' && row.status === DocumentStatus.InReview) ? (
         <div className="gate-actions mt-3">
+          {mode === 'staff' && row.status === DocumentStatus.InProgress && row.remarks ? (
+            <div className="mb-3 w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                <svg className="h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Supervisor Requested Corrections
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-amber-900">{row.remarks}</p>
+            </div>
+          ) : null}
+
           {row.status === DocumentStatus.OnHold ? (
             <button
               type="button"
@@ -304,7 +415,16 @@ export function ReviewActions({
             </button>
           ) : (
             <>
-              {(FINISHABLE as string[]).includes(row.status) ? (
+              {mode === 'staff' && row.status === DocumentStatus.InProgress ? (
+                <button
+                  type="button"
+                  className="btn-step btn-step-fwd"
+                  disabled={pending}
+                  onClick={() => setDialog('clearance')}
+                >
+                  {row.remarks ? 'Resubmit for Clearance' : 'Submit for Clearance'}
+                </button>
+              ) : (FINISHABLE as string[]).includes(row.status) ? (
                 <button
                   type="button"
                   className="btn-step btn-step-fwd"
@@ -513,6 +633,43 @@ export function ReviewActions({
           errors={errors}
           onCancel={() => setDialog(null)}
           onSubmit={(reason) => run(() => requestRevision(row.id, reason))}
+        />
+      ) : null}
+
+      {dialog === 'clearance' ? (
+        <ClearanceDialog
+          row={row}
+          pending={pending}
+          errors={errors}
+          onCancel={() => setDialog(null)}
+          onSubmit={(note) =>
+            run(() => submitForClearanceDocument(row.id, note))
+          }
+        />
+      ) : null}
+
+      {dialog === 'approve_clearance' ? (
+        <ApproveClearanceDialog
+          row={row}
+          pending={pending}
+          errors={errors}
+          onCancel={() => setDialog(null)}
+          onSubmit={(input) =>
+            run(() => approveClearanceDocument(row.id, input))
+          }
+        />
+      ) : null}
+
+      {dialog === 'return_staff' ? (
+        <ReasonDialog
+          title="Return to Staff for Corrections"
+          hint="Specify what clerical errors or missing documents need to be resolved. The citizen will NOT see these internal remarks; their public tracker remains in an active Processing state."
+          submitLabel="Return to Staff"
+          required
+          pending={pending}
+          errors={errors}
+          onCancel={() => setDialog(null)}
+          onSubmit={(remarks) => run(() => returnToStaffDocument(row.id, remarks))}
         />
       ) : null}
 
@@ -840,6 +997,169 @@ function HoldDialog({
           }
         >
           {pending ? 'Saving…' : 'Put on hold'}
+        </button>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </DialogShell>
+  );
+}
+
+function ClearanceDialog({
+  row,
+  pending,
+  errors,
+  onCancel,
+  onSubmit,
+}: {
+  row: ReviewRow;
+  pending: boolean;
+  errors: string[];
+  onCancel: () => void;
+  onSubmit: (note: string | null) => void;
+}) {
+  const [note, setNote] = useState('');
+  const unchecked = row.requirements.filter(
+    (requirement) => requirement.isMandatory && !requirement.verified,
+  );
+  const bookingWaiting =
+    row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+
+  return (
+    <DialogShell title="Submit for Supervisor Clearance" errors={errors}>
+      <p className="gate-claim-hint">
+        Submits this request to your supervisor for clearance. Once approved by the supervisor, the request will be marked <strong>Ready for Claim</strong> and the citizen will be notified with claiming details.
+      </p>
+
+      {unchecked.length > 0 || bookingWaiting ? (
+        <ul className="gate-checks mt-3">
+          {unchecked.length > 0 ? (
+            <li className="no">
+              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
+            </li>
+          ) : null}
+          {bookingWaiting ? (
+            <li className="no">
+              Approve the reservation first (in this window, or on the Resources page)
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+
+      <label className="gate-claim-label mt-3 block" htmlFor={`clearance-note-${row.id}`}>
+        Staff handover note <span className="text-ink-soft">(optional)</span>
+      </label>
+      <textarea
+        id={`clearance-note-${row.id}`}
+        className="st-filter-field mt-1 h-auto w-full py-2"
+        rows={3}
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Add any internal handover notes for the supervisor..."
+      />
+
+      <div className="gate-actions mt-4">
+        <button
+          type="button"
+          className="cr-btn cr-btn-primary"
+          disabled={pending || unchecked.length > 0 || bookingWaiting}
+          onClick={() => onSubmit(note.trim() || null)}
+        >
+          {pending ? 'Submitting…' : 'Submit for Clearance'}
+        </button>
+        <button
+          type="button"
+          className="cr-btn cr-btn-ghost"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </DialogShell>
+  );
+}
+
+function ApproveClearanceDialog({
+  row,
+  pending,
+  errors,
+  onCancel,
+  onSubmit,
+}: {
+  row: ReviewRow;
+  pending: boolean;
+  errors: string[];
+  onCancel: () => void;
+  onSubmit: (input: { claimDate?: string | null; note?: string | null }) => void;
+}) {
+  const [claimDate, setClaimDate] = useState(row.claimDate ?? '');
+  const [note, setNote] = useState('');
+  const unchecked = row.requirements.filter(
+    (requirement) => requirement.isMandatory && !requirement.verified,
+  );
+  const bookingWaiting =
+    row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+
+  return (
+    <DialogShell title="Approve Clearance & Mark Ready for Claim" errors={errors}>
+      <p className="gate-claim-hint">
+        Approving validates staff verification and marks the request <strong>Ready for Claim</strong>. The citizen will be notified with claiming instructions.
+      </p>
+
+      {unchecked.length > 0 || bookingWaiting ? (
+        <ul className="gate-checks mt-3">
+          {unchecked.length > 0 ? (
+            <li className="no">
+              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
+            </li>
+          ) : null}
+          {bookingWaiting ? (
+            <li className="no">
+              Approve the reservation first (in this window, or on the Resources page)
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+
+      <label className="gate-claim-label mt-3 block" htmlFor={`approve-claim-date-${row.id}`}>
+        Citizen claim date <span className="text-ink-soft">(optional)</span>
+      </label>
+      <input
+        id={`approve-claim-date-${row.id}`}
+        type="date"
+        className="st-filter-field mt-1"
+        value={claimDate}
+        min={localIsoDate(new Date())}
+        onChange={(event) => setClaimDate(event.target.value)}
+      />
+
+      <label className="gate-claim-label mt-3 block" htmlFor={`approve-clearance-note-${row.id}`}>
+        Approval note <span className="text-ink-soft">(optional)</span>
+      </label>
+      <textarea
+        id={`approve-clearance-note-${row.id}`}
+        className="st-filter-field mt-1 h-auto w-full py-2"
+        rows={3}
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Add an internal clearance confirmation note..."
+      />
+
+      <div className="gate-actions mt-4">
+        <button
+          type="button"
+          className="cr-btn cr-btn-primary"
+          disabled={pending || unchecked.length > 0 || bookingWaiting}
+          onClick={() => onSubmit({ claimDate: claimDate || null, note: note.trim() || null })}
+        >
+          {pending ? 'Approving…' : 'Approve & Ready for Claim'}
         </button>
         <button
           type="button"

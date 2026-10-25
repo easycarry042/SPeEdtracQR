@@ -31,7 +31,7 @@ describe('ActivityLine', () => {
   it('words a status change with the stage and the tracking number', () => {
     expect(describeLine(row({ properties: { attributes: { status: 'in_review' } } }), lookups)).toEqual({
       action: 'Status Updated',
-      detail: '→ In Review',
+      detail: '→ Pending Approval',
       subject: 'SPD-20261023-ABC234',
     });
   });

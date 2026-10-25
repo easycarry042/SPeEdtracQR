@@ -24,13 +24,14 @@ import { useCompletedHistory } from '@/components/review/use-completed-history';
  * Completed is the office's whole history, fetched a page at a time; only its
  * count rides in the page.
  */
-type Tab = 'pending' | 'inprogress' | 'completed';
+type Tab = 'pending' | 'inprogress' | 'clearance' | 'completed';
 
 const PER_PAGE = 10;
 
 export function DashboardQueues({
   pending,
   active,
+  clearance,
   completedCount,
   assignableStaff,
   activeTab,
@@ -41,6 +42,7 @@ export function DashboardQueues({
 }: {
   pending: ReviewRow[];
   active: ReviewRow[];
+  clearance: ReviewRow[];
   completedCount: number;
   assignableStaff: Array<{ id: number; name: string }>;
   activeTab: Tab;
@@ -62,14 +64,21 @@ export function DashboardQueues({
   const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
 
-  const allLocal = useMemo(() => [...pending, ...active], [pending, active]);
+  const allLocal = useMemo(() => [...pending, ...active, ...clearance], [pending, active, clearance]);
   const typeOptions = useMemo(() => {
     const source = tab === 'completed' ? completed : allLocal;
     return source.map((r) => r.documentType);
   }, [tab, completed, allLocal]);
 
   const matches = useMemo(() => {
-    const base = tab === 'pending' ? pending : tab === 'inprogress' ? active : completed;
+    const base =
+      tab === 'pending'
+        ? pending
+        : tab === 'inprogress'
+          ? active
+          : tab === 'clearance'
+            ? clearance
+            : completed;
     const needle = query.trim().toLowerCase();
 
     return base.filter((r) => {
@@ -86,7 +95,7 @@ export function DashboardQueues({
         (field ?? '').toLowerCase().includes(needle),
       );
     });
-  }, [tab, pending, active, completed, filter, query]);
+  }, [tab, pending, active, clearance, completed, filter, query]);
 
   const pageCount =
     tab === 'completed'
@@ -107,14 +116,14 @@ export function DashboardQueues({
       return;
     }
 
-    const found = [...pending, ...active, ...completed].find(
+    const found = [...pending, ...active, ...clearance, ...completed].find(
       (row) => row.trackingNumber === openTracking,
     );
 
     if (found) {
       setOpen(found);
     }
-  }, [openTracking, pending, active, completed]);
+  }, [openTracking, pending, active, clearance, completed]);
 
   // Keep the open row's data fresh after an action re-renders the server page,
   // so the modal shows the new stage instead of the one it opened with.
@@ -123,12 +132,12 @@ export function DashboardQueues({
       return;
     }
 
-    const refreshed = [...pending, ...active, ...completed].find((row) => row.id === open.id);
+    const refreshed = [...pending, ...active, ...clearance, ...completed].find((row) => row.id === open.id);
 
     if (refreshed && refreshed !== open) {
       setOpen(refreshed);
     }
-  }, [pending, active, completed, open]);
+  }, [pending, active, clearance, completed, open]);
 
   const hasFilter = Boolean(query.trim() || staffFilterCount(filter) > 0);
 
@@ -140,6 +149,7 @@ export function DashboardQueues({
             [
               ['pending', 'Unassigned', pending.length],
               ['inprogress', 'In Progress', active.length],
+              ['clearance', 'For Clearance', clearance.length],
               ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
@@ -207,9 +217,9 @@ export function DashboardQueues({
           rows={pageItems}
           onOpen={setOpen}
           spansDepartments={spansDepartments}
-          showStatusPill={tab === 'inprogress'}
+          showStatusPill={tab === 'inprogress' || tab === 'clearance'}
           dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
-          actionLabel={tab === 'pending' ? 'Review' : 'View details'}
+          actionLabel={tab === 'pending' ? 'Review' : tab === 'clearance' ? 'Review Clearance' : 'View details'}
           showAssignee={tab !== 'pending'}
           loading={tab === 'completed' && history.loading && !history.data}
           emptyTitle={
@@ -219,9 +229,11 @@ export function DashboardQueues({
                 ? 'No requests match'
                 : tab === 'inprogress'
                   ? 'Nothing in progress'
-                  : tab === 'completed'
-                    ? 'Nothing completed yet'
-                    : 'No unassigned requests'
+                  : tab === 'clearance'
+                    ? 'No requests awaiting clearance'
+                    : tab === 'completed'
+                      ? 'Nothing completed yet'
+                      : 'No unassigned requests'
           }
           emptyBody={
             tab === 'completed' && history.failed
@@ -230,9 +242,11 @@ export function DashboardQueues({
                 ? 'Try another search, or loosen the filter.'
                 : tab === 'inprogress'
                   ? 'Requests your staff are working on appear here.'
-                  : tab === 'completed'
-                    ? `Every request ${officeName ?? 'your office'} finishes appears here, newest first.`
-                    : 'New citizen submissions awaiting approval will appear here.'
+                  : tab === 'clearance'
+                    ? 'Requests submitted by staff for supervisor sign-off will appear here.'
+                    : tab === 'completed'
+                      ? `Every request ${officeName ?? 'your office'} finishes appears here, newest first.`
+                      : 'New citizen submissions awaiting approval will appear here.'
           }
         />
 

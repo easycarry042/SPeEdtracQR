@@ -140,7 +140,7 @@ describe('DocumentAssistant', () => {
     );
 
     expect(result.answer).toBe(
-      'Document SPD-20261023-ABC234 (Business Permit) is in review. It is being handled by the Business Permits Office.',
+      'Document SPD-20261023-ABC234 (Business Permit) is pending approval. It is being handled by the Business Permits Office.',
     );
     expect(neverCalled.chat).not.toHaveBeenCalled();
   });

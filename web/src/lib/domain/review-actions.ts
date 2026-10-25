@@ -5,15 +5,17 @@ import { logOnDocument } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
 import { assignmentNoticeMail } from '@/lib/mail/assignment-notice';
 import { broadcastStatusUpdated } from '@/lib/realtime';
-import { logSystemComment } from '@/lib/domain/comments';
+import { logSystemComment, postComment, AUTHOR, VISIBILITY } from '@/lib/domain/comments';
 import { DocumentStatus, isTerminal, label as statusLabel } from '@/lib/domain/document-status';
-import { statusChangeData, statusOf } from '@/lib/domain/document';
+import { statusChangeData, statusOf, unverifiedMandatoryRequirements } from '@/lib/domain/document';
 import { canAssignWithinDepartment, canViewAll } from '@/lib/domain/scope';
 import { needsTriage } from '@/lib/domain/request-review';
 import { cancel as cancelBooking, followClaimDate } from '@/lib/domain/lending-desk';
 import { notifyMany } from '@/lib/domain/notifications';
 import { grantsFor, ROLE_SUPERVISOR, usersWithRole } from '@/lib/auth/rbac';
 import { ActionError, finish } from '@/lib/domain/status-actions';
+import { validate } from '@/lib/domain/status-gate';
+import { statusUpdatedMail } from '@/lib/mail/status-updated';
 import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
 import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
@@ -34,8 +36,11 @@ const SELECT = {
   accepted_at: true,
   department_id: true,
   citizen_name: true,
+  citizen_email: true,
+  notify_citizen: true,
   created_at: true,
   claim_date: true,
+  remarks: true,
 } as const;
 
 async function loadOrFail(documentId: number) {
@@ -218,6 +223,34 @@ export async function deny(
     await cancelBooking(toId(booking.id), false);
   }
 
+  if (tracking.notifyCitizen.enabled && document.notify_citizen && document.citizen_email && tracking.notifyCitizen.stages[DocumentStatus.Denied]) {
+    queueMail(
+      statusUpdatedMail({
+        to: document.citizen_email,
+        trackingNumber: document.tracking_number,
+        citizenName: document.citizen_name,
+        stage: DocumentStatus.Denied,
+        reason: trimmed,
+      }),
+    );
+
+    await logOnDocument(
+      documentId,
+      `Emailed denial notice to citizen${trimmed ? ` (Reason: ${trimmed})` : ''}`,
+      actor!.id,
+    );
+  }
+
+  if (document.assigned_to) {
+    await notifyMany([toId(document.assigned_to)], {
+      title: `Request denied: ${document.tracking_number}`,
+      body: `Request was denied by supervisor ${actor!.name}${trimmed ? `: ${trimmed}` : ''}.`,
+      url: routes.staffDashboard({ open: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'denied',
+    });
+  }
+
   return { message: `${document.tracking_number} denied.` };
 }
 
@@ -279,11 +312,12 @@ export async function claim(
   }
 
   // Department scope check: staff may only claim within their department unless they have global access
-  const docDept = document.department_id === null ? null : toId(document.department_id);
+  const docDept = document.department_id ? toId(document.department_id) : null;
+  const actorDept = actor.departmentId ?? null;
   if (
-    actor.departmentId !== null &&
+    actorDept !== null &&
     docDept !== null &&
-    actor.departmentId !== docDept &&
+    actorDept !== docDept &&
     !canViewAll(actor)
   ) {
     throw new ActionError('You can only claim requests within your department.', 403);
@@ -307,7 +341,7 @@ export async function claim(
   });
 
   if (count === 0) {
-    throw new ActionError('This request was just claimed by another staff member.');
+    throw new ActionError('This request was already assigned or claimed by another staff member.');
   }
 
   const to = shouldMoveToInProgress ? DocumentStatus.InProgress : from;
@@ -327,7 +361,249 @@ export async function claim(
   // Notify office supervisors that the request was claimed and is now Ongoing
   await notifyOfficeOfProgress(document, actor, 'accepted');
 
-  return { message: `Claimed ${document.tracking_number}. It is now in your Ongoing requests.` };
+  return { message: `Accepted ${document.tracking_number}.` };
+}
+
+/**
+ * Staff Submits for Clearance: Ongoing → Pending Approval.
+ * Validates that mandatory requirements are verified and work is ready for supervisor sign-off.
+ */
+export async function submitForClearance(
+  documentId: number,
+  actor: Actor | null,
+  note?: string | null,
+): Promise<{ message: string }> {
+  const document = await loadOrFail(documentId);
+  authorizeAssignedOrAdmin(document, actor);
+
+  const stage = statusOf(document);
+  if (stage !== DocumentStatus.InProgress) {
+    throw new ActionError(`This request is ${statusLabel(stage)} and cannot be submitted for clearance.`);
+  }
+
+  // Validate that all mandatory supporting documents have been verified
+  const unverified = await unverifiedMandatoryRequirements(documentId);
+  if (unverified.length > 0) {
+    throw new ActionError(
+      `All required documents must be checked before submitting for clearance (still to check: ${unverified.map((r) => r.label).join(', ')}).`,
+    );
+  }
+
+  const trimmed = (note ?? '').trim() || null;
+
+  // Stage gate validation
+  await validate({ id: documentId }, DocumentStatus.InReview, trimmed);
+
+  if (trimmed) {
+    await postComment({
+      documentId,
+      body: trimmed,
+      authorId: actor.id,
+      authorType: AUTHOR.Staff,
+      visibility: VISIBILITY.Internal,
+    });
+  }
+
+  await db.documents.update({
+    where: { id: document.id },
+    data: {
+      ...statusChangeData(DocumentStatus.InReview),
+      // Clear any previous supervisor correction remarks on new submission
+      remarks: null,
+      updated_at: now(),
+    },
+  });
+
+  await logOnDocument(
+    documentId,
+    `Submitted for clearance: ${statusLabel(stage)} → ${statusLabel(DocumentStatus.InReview)}`,
+    actor.id,
+    { from: stage, to: DocumentStatus.InReview, ...(trimmed ? { note: trimmed } : {}) },
+  );
+
+  await broadcastStatusUpdated(documentId);
+  await logSystemComment(
+    documentId,
+    `Submitted for clearance by ${actor.name}${trimmed ? ` — ${trimmed}` : ''} (awaiting supervisor review)`,
+  );
+
+  // Notify the office's supervisors that a request is waiting for their clearance
+  const supervisors = await usersWithRole(
+    ROLE_SUPERVISOR,
+    document.department_id === null ? null : toId(document.department_id),
+  );
+
+  await notifyMany(
+    supervisors.map((s) => s.id).filter((sId) => sId !== actor.id),
+    {
+      title: `Clearance requested: ${document.tracking_number}`,
+      body: `${actor.name} submitted ${document.document_type} for approval.`,
+      url: routes.dashboard({ tab: 'clearance', q: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'clearance_requested',
+    },
+  );
+
+  return { message: `Submitted ${document.tracking_number} for supervisor clearance.` };
+}
+
+/**
+ * Supervisor Approves Clearance: Pending Approval → Ready for Claim (Completed).
+ * Validates staff's work and requirements, marks complete, and triggers citizen notification.
+ */
+export async function approveClearance(
+  documentId: number,
+  actor: Actor | null,
+  input?: { claimDate?: string | null; note?: string | null },
+): Promise<{ message: string }> {
+  if (!actor || (!canViewAll(actor) && !actor.can('assign documents'))) {
+    throw new ActionError('Only a supervisor or administrator can approve clearance.', 403);
+  }
+
+  const document = await loadOrFail(documentId);
+  const stage = statusOf(document);
+
+  if (stage !== DocumentStatus.InReview && stage !== DocumentStatus.InProgress) {
+    throw new ActionError(`This request is ${statusLabel(stage)} and cannot be approved from here.`);
+  }
+
+  const trimmed = (input?.note ?? '').trim() || null;
+
+  // Validate stage gates for completion
+  await validate({ id: documentId }, DocumentStatus.Completed, trimmed);
+
+  if (trimmed) {
+    await postComment({
+      documentId,
+      body: trimmed,
+      authorId: actor.id,
+      authorType: AUTHOR.Staff,
+      visibility: VISIBILITY.Internal,
+    });
+  }
+
+  const stamp = now();
+  await db.documents.update({
+    where: { id: document.id },
+    data: {
+      ...statusChangeData(DocumentStatus.Completed),
+      decided_by: id(actor.id),
+      decided_at: stamp,
+      completed_at: stamp,
+      updated_at: stamp,
+    },
+  });
+
+  await logOnDocument(
+    documentId,
+    `Supervisor approved clearance: ${statusLabel(stage)} → ${statusLabel(DocumentStatus.Completed)}`,
+    actor.id,
+    { from: stage, to: DocumentStatus.Completed, ...(trimmed ? { note: trimmed } : {}) },
+  );
+
+  await broadcastStatusUpdated(documentId);
+  await logSystemComment(
+    documentId,
+    `Clearance approved by ${actor.name} — marked Ready for Claim`,
+  );
+
+  // Notify citizen that request is approved & ready for claim
+  if (document.citizen_email && tracking.notifyCitizen.enabled && tracking.notifyCitizen.stages[DocumentStatus.Completed]) {
+    queueMail(
+      statusUpdatedMail({
+        to: document.citizen_email,
+        trackingNumber: document.tracking_number,
+        citizenName: document.citizen_name,
+        stage: DocumentStatus.Completed,
+      }),
+    );
+  }
+
+  // Notify assigned staff handler that their submission was approved
+  const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
+  if (assignedTo && assignedTo !== actor.id) {
+    await notifyMany([assignedTo], {
+      title: `Clearance approved: ${document.tracking_number}`,
+      body: `Supervisor ${actor.name} approved your submission for ${document.document_type}. Marked Ready for Claim.`,
+      url: routes.staffDashboard({ open: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'clearance_approved',
+    });
+  }
+
+  return { message: `Approved ${document.tracking_number}. It is now Ready for Claim.` };
+}
+
+/**
+ * Supervisor Returns to Staff (Correction Loop): Pending Approval → Ongoing (Needs Revision).
+ * Internal rework with mandatory remarks. Citizen public tracker stays in active "Processing" state.
+ */
+export async function returnToStaff(
+  documentId: number,
+  actor: Actor | null,
+  remarks: string,
+): Promise<{ message: string }> {
+  if (!actor || (!canViewAll(actor) && !actor.can('assign documents'))) {
+    throw new ActionError('Only a supervisor or administrator can return requests for corrections.', 403);
+  }
+
+  const document = await loadOrFail(documentId);
+  const stage = statusOf(document);
+
+  if (stage !== DocumentStatus.InReview) {
+    throw new ActionError(`This request is ${statusLabel(stage)} and is not currently awaiting clearance.`);
+  }
+
+  const trimmed = (remarks ?? '').trim();
+  if (!trimmed) {
+    throw new ActionError('Internal remarks for staff are required when returning for corrections.');
+  }
+
+  const stamp = now();
+  await db.documents.update({
+    where: { id: document.id },
+    data: {
+      status: DocumentStatus.InProgress,
+      remarks: trimmed,
+      status_changed_at: stamp,
+      updated_at: stamp,
+    },
+  });
+
+  await postComment({
+    documentId,
+    body: `Supervisor requested corrections: ${trimmed}`,
+    authorId: actor.id,
+    authorType: AUTHOR.Staff,
+    visibility: VISIBILITY.Internal,
+  });
+
+  await logOnDocument(
+    documentId,
+    `Returned to staff for corrections: ${trimmed}`,
+    actor.id,
+    { from: stage, to: DocumentStatus.InProgress, remarks: trimmed },
+  );
+
+  await broadcastStatusUpdated(documentId);
+  await logSystemComment(
+    documentId,
+    `Supervisor ${actor.name} returned for correction: ${trimmed}`,
+  );
+
+  // Notify assigned staff handler with the supervisor's instructions
+  const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
+  if (assignedTo) {
+    await notifyMany([assignedTo], {
+      title: `Corrections requested: ${document.tracking_number}`,
+      body: `Supervisor ${actor.name} returned this request for corrections: ${trimmed}`,
+      url: routes.staffDashboard({ open: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'supervisor_returned',
+    });
+  }
+
+  return { message: `Returned ${document.tracking_number} to staff for corrections.` };
 }
 
 /** Staff accepts a supervisor assignment: Pending → In Progress. */
