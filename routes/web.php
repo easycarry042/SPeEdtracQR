@@ -268,6 +268,13 @@ Route::middleware(['auth', 'verified', 'permission:manage system'])
     });
 
 // Document assignment desk (admins assign the responsible staff member)
+Route::middleware(['auth', 'verified'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::post('assignments/{document}/release', [AssignmentController::class, 'release'])->name('assignments.release');
+    });
+
 Route::middleware(['auth', 'verified', 'permission:assign documents'])
     ->prefix('admin')
     ->name('admin.')

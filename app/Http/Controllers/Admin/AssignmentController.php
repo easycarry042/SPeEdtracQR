@@ -162,4 +162,67 @@ class AssignmentController extends Controller
 
         return back()->with('status', "Accepted {$document->tracking_number}.");
     }
+
+    /**
+     * Staff (or an authorized supervisor) releases an active task back to the
+     * office pool (e.g. leaving early for field work or an emergency).
+     */
+    public function release(Request $request, Document $document)
+    {
+        $user = auth()->user();
+        abort_unless($user, 403);
+        abort_unless(
+            $document->assigned_to === $user->id || $user->can('assign documents'),
+            403,
+            'Only the assigned staff member or an office supervisor can release this request.'
+        );
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+        $reason = trim($validated['reason'] ?? '');
+
+        $document->update([
+            'assigned_to' => null,
+            'assigned_by' => null,
+            'assigned_at' => null,
+            'accepted_at' => null,
+            'status' => DocumentStatus::Pending->value,
+            'status_changed_at' => now(),
+        ]);
+
+        event(new DocumentStatusUpdated($document->fresh(), $user));
+
+        $note = "Released to office pool by {$user->name}".($reason ? ": {$reason}" : '');
+        activity()
+            ->performedOn($document)
+            ->causedBy($user)
+            ->log($note);
+
+        $systemComment = $document->logSystemComment(
+            "Released to office pool by {$user->name}".($reason ? " — {$reason}" : '').'. Returned to unassigned pool for peers to pick up.'
+        );
+        event(new DocumentCommentPosted($systemComment));
+
+        // Notify department supervisors
+        $supervisors = DocumentEvent::departmentTriagers($document->department_id, $user->id);
+        foreach ($supervisors as $supervisor) {
+            $supervisor->notify(new DocumentEvent(
+                event: 'released_to_pool',
+                title: "Request returned to pool: {$document->tracking_number}",
+                body: "{$user->name} released ".($document->document_type ?? 'a document')." back to the office pool".($reason ? " ({$reason})" : '').'.',
+                url: route('staff.dashboard', ['tab' => 'pending', 'q' => $document->tracking_number]),
+                tracking: $document->tracking_number,
+            ));
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => "Released {$document->tracking_number} back to the office pool.",
+                'request' => $document->fresh(),
+            ]);
+        }
+
+        return back()->with('status', "Released {$document->tracking_number} back to the office pool.");
+    }
 }

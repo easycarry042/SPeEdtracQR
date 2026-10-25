@@ -44,7 +44,7 @@ export function DashboardQueues({
   active: ReviewRow[];
   clearance: ReviewRow[];
   completedCount: number;
-  assignableStaff: Array<{ id: number; name: string }>;
+  assignableStaff: Array<{ id: number; name: string; is_available?: boolean }>;
   activeTab: Tab;
   search: string;
   openTracking: string | null;

@@ -359,7 +359,11 @@ export default async function DashboardPage({
           active={active}
           clearance={clearance}
           completedCount={completedTotal}
-          assignableStaff={staff.map((member) => ({ id: member.id, name: member.name }))}
+          assignableStaff={staff.map((member) => ({
+            id: member.id,
+            name: member.name,
+            is_available: member.is_available,
+          }))}
           activeTab={activeTab}
           search={search}
           openTracking={open ?? null}

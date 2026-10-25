@@ -25,7 +25,7 @@ export function ReviewModal({
 }: {
   row: ReviewRow;
   mode: ReviewMode;
-  assignableStaff: Array<{ id: number; name: string }>;
+  assignableStaff: Array<{ id: number; name: string; is_available?: boolean }>;
   onClose: () => void;
 }) {
   const [side, setSide] = useState<'date' | 'messages' | null>(

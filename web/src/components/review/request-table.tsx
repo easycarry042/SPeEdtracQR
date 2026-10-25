@@ -30,6 +30,7 @@ export function RequestTable({
   rows,
   onOpen,
   onClaim,
+  onRelease,
   emptyTitle,
   emptyBody,
   showAssignee = true,
@@ -42,6 +43,7 @@ export function RequestTable({
   rows: ReviewRow[];
   onOpen: (row: ReviewRow) => void;
   onClaim?: (row: ReviewRow) => void;
+  onRelease?: (row: ReviewRow) => void;
   emptyTitle: string;
   emptyBody: string;
   showAssignee?: boolean;
@@ -181,6 +183,19 @@ export function RequestTable({
                         title="Claim and start processing"
                       >
                         Claim
+                      </button>
+                    ) : null}
+                    {onRelease && row.assignedTo ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRelease(row);
+                        }}
+                        className="cr-btn !bg-amber-50 !border-amber-300 !text-amber-800 hover:!bg-amber-100 !px-2.5 !py-1 !text-xs font-semibold transition-colors"
+                        title="Release back to office pool (field work / emergency)"
+                      >
+                        Release
                       </button>
                     ) : null}
                     <button

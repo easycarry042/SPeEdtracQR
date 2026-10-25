@@ -132,6 +132,16 @@ export async function assign(
     throw new ActionError('You can only assign staff in your own department.');
   }
 
+  const prevAssigneeId = document.assigned_to === null ? null : toId(document.assigned_to);
+  const prevAssignee = prevAssigneeId
+    ? await db.users.findUnique({
+        where: { id: id(prevAssigneeId) },
+        select: { id: true, name: true },
+      })
+    : null;
+
+  const isReassignment = prevAssignee !== null && prevAssignee.id !== assignee.id;
+
   await db.documents.update({
     where: { id: document.id },
     data: {
@@ -146,8 +156,16 @@ export async function assign(
   });
 
   await broadcastStatusUpdated(documentId);
-  await logOnDocument(documentId, `Assigned to ${assignee.name}`, actor!.id);
-  await logSystemComment(documentId, `Assigned to ${assignee.name} — awaiting staff acceptance`);
+  const actionText = isReassignment
+    ? `Reassigned from ${prevAssignee.name} to ${assignee.name}`
+    : `Assigned to ${assignee.name}`;
+  await logOnDocument(documentId, actionText, actor!.id);
+  await logSystemComment(
+    documentId,
+    isReassignment
+      ? `Reassigned by ${actor!.name} from ${prevAssignee.name} to ${assignee.name} — awaiting staff acceptance`
+      : `Assigned to ${assignee.name} — awaiting staff acceptance`,
+  );
 
   if (assignee.email && tracking.notifyStaffOnAssignment) {
     queueMail(
@@ -162,16 +180,31 @@ export async function assign(
     await logOnDocument(documentId, `Emailed AssignmentNotice to ${assignee.name}`, actor!.id);
   }
 
-  // Header-bell ping for the assignee.
+  // Header-bell ping for the new assignee.
   await notifyMany([toId(assignee.id)], {
-    title: `New assignment: ${document.tracking_number}`,
+    title: isReassignment
+      ? `Reassigned to you: ${document.tracking_number}`
+      : `New assignment: ${document.tracking_number}`,
     body: `${actor!.name} assigned you ${document.document_type}.`,
     url: routes.staffDashboard({ open: document.tracking_number }),
     tracking_number: document.tracking_number,
     event: 'assigned',
   });
 
-  return { message: `Assigned ${document.tracking_number} to ${assignee.name}.` };
+  // Notify previous assignee that this request was reassigned to someone else
+  if (isReassignment && prevAssigneeId) {
+    await notifyMany([prevAssigneeId], {
+      title: `Assignment updated: ${document.tracking_number}`,
+      body: `${actor!.name} reassigned ${document.document_type} to ${assignee.name}.`,
+      url: routes.staffDashboard(),
+      tracking_number: document.tracking_number,
+      event: 'reassigned',
+    });
+  }
+
+  return {
+    message: `${isReassignment ? 'Reassigned' : 'Assigned'} ${document.tracking_number} to ${assignee.name}.`,
+  };
 }
 
 /** Supervisor deny = reject the request (terminal). */
@@ -761,6 +794,81 @@ export async function declineAssignment(
   );
 
   return { message: `Declined ${document.tracking_number}.` };
+}
+
+/**
+ * Staff (or an authorized supervisor) releases an accepted task back to the
+ * office pool.
+ *
+ * Used when a staff member accepted a task but has to leave early for field
+ * work or an emergency. Unbinds their ID (assigned_to: null, assigned_at: null,
+ * accepted_at: null), moves status back to Pending (so it enters the Department
+ * Open Pool), records an internal audit log note and system comment, broadcasts
+ * real-time update, and alerts office supervisors.
+ */
+export async function releaseToPool(
+  documentId: number,
+  actor: Actor | null,
+  reason?: string | null,
+): Promise<{ message: string }> {
+  if (!actor) {
+    throw new ActionError('This action is unauthorized.', 403);
+  }
+
+  const document = await loadOrFail(documentId);
+  const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
+
+  if (assignedTo !== actor.id && !actor.can('assign documents')) {
+    throw new ActionError(
+      'Only the assigned staff member or an office supervisor can release this request.',
+      403,
+    );
+  }
+
+  if (isTerminal(document.status as DocumentStatus)) {
+    throw new ActionError('Terminal requests cannot be released to the pool.');
+  }
+
+  const trimmed = (reason ?? '').trim() || null;
+
+  await db.documents.update({
+    where: { id: document.id },
+    data: {
+      assigned_to: null,
+      assigned_by: null,
+      assigned_at: null,
+      accepted_at: null,
+      ...statusChangeData(DocumentStatus.Pending),
+      updated_at: now(),
+    },
+  });
+
+  const auditNote = `Released to office pool${trimmed ? `: ${trimmed}` : ''}`;
+  await logOnDocument(documentId, auditNote, actor.id);
+  await logSystemComment(
+    documentId,
+    `Released to office pool by ${actor.name}${trimmed ? ` — ${trimmed}` : ''}. Returned to unassigned pool for peers to pick up.`,
+  );
+  await broadcastStatusUpdated(documentId);
+
+  // Notify department supervisors so they know the request returned to the pool
+  const supervisors = await usersWithRole(
+    ROLE_SUPERVISOR,
+    document.department_id === null ? null : toId(document.department_id),
+  );
+
+  await notifyMany(
+    supervisors.map((user) => user.id).filter((userId) => userId !== actor.id),
+    {
+      title: `Request returned to pool: ${document.tracking_number}`,
+      body: `${actor.name} released ${document.document_type} back to the office pool${trimmed ? ` (${trimmed})` : ''}.`,
+      url: routes.dashboard({ tab: 'pending', q: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'released_to_pool',
+    },
+  );
+
+  return { message: `Released ${document.tracking_number} back to the office pool.` };
 }
 
 /** Staff sends the request back for citizen revision. */

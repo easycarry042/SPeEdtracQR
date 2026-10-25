@@ -119,6 +119,15 @@ export async function claimDocument(documentId: number): Promise<ActionResult> {
   return run(() => review.claim(documentId, actor));
 }
 
+export async function releaseToPoolDocument(
+  documentId: number,
+  reason?: string | null,
+): Promise<ActionResult> {
+  const actor = await currentActor();
+
+  return run(() => review.releaseToPool(documentId, actor, reason));
+}
+
 export async function submitForClearanceDocument(
   documentId: number,
   note?: string | null,

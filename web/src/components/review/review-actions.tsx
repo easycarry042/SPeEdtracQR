@@ -16,6 +16,7 @@ import {
   declineAssignment,
   denyDocument,
   holdDocument,
+  releaseToPoolDocument,
   requestRevision,
   returnToStaffDocument,
   revertDocument,
@@ -39,6 +40,7 @@ type Dialog =
   | 'deny'
   | 'decline'
   | 'revision'
+  | 'release_pool'
   | null;
 
 export function ReviewActions({
@@ -49,7 +51,7 @@ export function ReviewActions({
 }: {
   row: ReviewRow;
   mode: ReviewMode;
-  assignableStaff: Array<{ id: number; name: string }>;
+  assignableStaff: Array<{ id: number; name: string; is_available?: boolean }>;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -158,6 +160,28 @@ export function ReviewActions({
                 >
                   Reassign to
                 </label>
+                {/* Two-click quick reassign to available colleagues */}
+                {assignableStaff.filter((m) => m.id !== row.assignedTo && m.is_available !== false).length > 0 ? (
+                  <div className="mt-1.5 mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-ink-soft">Quick reassign:</span>
+                    {assignableStaff
+                      .filter((m) => m.id !== row.assignedTo && m.is_available !== false)
+                      .slice(0, 4)
+                      .map((colleague) => (
+                        <button
+                          key={colleague.id}
+                          type="button"
+                          disabled={pending}
+                          onClick={() => run(() => assignDocument(row.id, colleague.id), false)}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                          title={`Click to reassign to ${colleague.name} (On Duty)`}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          {colleague.name}
+                        </button>
+                      ))}
+                  </div>
+                ) : null}
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <select
                     id={`reassign-${row.id}`}
@@ -170,7 +194,7 @@ export function ReviewActions({
                       .filter((m) => m.id !== row.assignedTo)
                       .map((staff) => (
                         <option key={staff.id} value={staff.id}>
-                          {staff.name}
+                          {staff.name} {staff.is_available === false ? '(On Leave)' : '(On Duty)'}
                         </option>
                       ))}
                   </select>
@@ -285,6 +309,28 @@ export function ReviewActions({
                   >
                     Reassign to
                   </label>
+                  {/* Two-click quick reassign to available colleagues */}
+                  {assignableStaff.filter((m) => m.id !== row.assignedTo && m.is_available !== false).length > 0 ? (
+                    <div className="mt-2 mb-1 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-ink-soft">Quick reassign:</span>
+                      {assignableStaff
+                        .filter((m) => m.id !== row.assignedTo && m.is_available !== false)
+                        .slice(0, 5)
+                        .map((colleague) => (
+                          <button
+                            key={colleague.id}
+                            type="button"
+                            disabled={pending}
+                            onClick={() => run(() => assignDocument(row.id, colleague.id), false)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                            title={`Click to reassign to ${colleague.name} (On Duty)`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            {colleague.name}
+                          </button>
+                        ))}
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <select
                       id={`reassign-${row.id}`}
@@ -297,7 +343,7 @@ export function ReviewActions({
                         .filter((m) => m.id !== row.assignedTo)
                         .map((staff) => (
                           <option key={staff.id} value={staff.id}>
-                            {staff.name}
+                            {staff.name} {staff.is_available === false ? '(On Leave)' : '(On Duty)'}
                           </option>
                         ))}
                     </select>
@@ -430,14 +476,25 @@ export function ReviewActions({
           ) : (
             <>
               {mode === 'staff' && row.status === DocumentStatus.InProgress ? (
-                <button
-                  type="button"
-                  className="btn-step btn-step-fwd"
-                  disabled={pending}
-                  onClick={() => setDialog('clearance')}
-                >
-                  {row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn-step btn-step-fwd"
+                    disabled={pending}
+                    onClick={() => setDialog('clearance')}
+                  >
+                    {row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-step btn-step-back !text-amber-800 !border-amber-300 hover:!bg-amber-50"
+                    disabled={pending}
+                    onClick={() => setDialog('release_pool')}
+                    title="Release this task back to the unassigned department pool for colleagues to pick up"
+                  >
+                    Release to Office Pool
+                  </button>
+                </>
               ) : mode !== 'staff' && (FINISHABLE as string[]).includes(row.status) ? (
                 <button
                   type="button"
@@ -694,6 +751,21 @@ export function ReviewActions({
           errors={errors}
           onCancel={() => setDialog(null)}
           onSubmit={(input) => run(() => holdDocument(row.id, input), false)}
+        />
+      ) : null}
+
+      {dialog === 'release_pool' ? (
+        <ReasonDialog
+          title="Release to Office Pool"
+          hint="Leaving for field work or an emergency? Releasing this request unbinds your ID, logs an audit note, and places it back in the office's available pool for peers to pick up."
+          submitLabel="Release to Pool"
+          danger
+          pending={pending}
+          errors={errors}
+          onCancel={() => setDialog(null)}
+          onSubmit={(reason) =>
+            run(() => releaseToPoolDocument(row.id, reason || null))
+          }
         />
       ) : null}
     </div>
