@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QrCamera } from '@/components/qr-camera';
 import {
   FOREIGN_CODE_MESSAGE,
@@ -27,8 +28,15 @@ export function ScanDialog({ onClose }: { onClose: () => void }) {
   const readerId = useId().replace(/:/g, '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     void start(
       readerId,
       (decodedText) => {
@@ -43,7 +51,7 @@ export function ScanDialog({ onClose }: { onClose: () => void }) {
     };
     // `use` is stable for the dialog's lifetime; re-running would restart the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerId]);
+  }, [mounted, readerId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -69,9 +77,23 @@ export function ScanDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="headerScanTitle">
-      <div className="w-full max-w-[420px] rounded-2xl bg-paper p-5 shadow-xl">
+  if (!mounted) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="headerScanTitle"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="relative my-auto w-full max-w-[420px] rounded-2xl bg-paper p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="headerScanTitle" className="text-lg font-bold text-ink">
@@ -154,6 +176,7 @@ export function ScanDialog({ onClose }: { onClose: () => void }) {
           </p>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
