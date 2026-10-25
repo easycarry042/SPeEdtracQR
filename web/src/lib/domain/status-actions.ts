@@ -3,6 +3,7 @@ import { formatNaive, now, parseNaive, startOfDay, today } from '@/lib/time';
 import { tracking } from '@/lib/config';
 import { logOnDocument } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
+import { queueSms } from '@/lib/sms/send';
 import { statusUpdatedMail, actionNeededMail } from '@/lib/mail/status-updated';
 import { broadcastStatusUpdated } from '@/lib/realtime';
 import { AUTHOR, VISIBILITY, logSystemComment, postComment } from '@/lib/domain/comments';
@@ -20,6 +21,8 @@ import { BLOCKED_BY, canBeAdvancedBy, statusChangeData, statusOf } from '@/lib/d
 import { GateError, assertExpectedStatus, validate } from '@/lib/domain/status-gate';
 import { followClaimDate } from '@/lib/domain/lending-desk';
 import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
+import { notifyMany } from '@/lib/domain/notifications';
+import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -54,8 +57,10 @@ const DOCUMENT_SELECT = {
   assigned_to: true,
   accepted_at: true,
   department_id: true,
+  department: { select: { name: true } },
   citizen_name: true,
   citizen_email: true,
+  citizen_contact: true,
   notify_citizen: true,
   qr_code_path: true,
   remarks: true,
@@ -203,9 +208,24 @@ export async function finish(
     );
   }
 
+  // Staff cannot directly move a request to Completed. Staff can advance from Ongoing to Pending Approval.
+  const isSupervisorOrAdmin =
+    actor !== null &&
+    (actor.can('manage system') ||
+      actor.can('assign documents') ||
+      actor.hasRole('Supervisor') ||
+      actor.hasRole('department_admin'));
+
+  if (!isSupervisorOrAdmin) {
+    throw new ActionError(
+      'Staff cannot directly complete requests. Please submit for supervisor review instead.',
+      403,
+    );
+  }
+
   const note = (input.note ?? '').trim() || null;
 
-  await validate({ id: documentId }, DocumentStatus.Completed, note);
+  await validate({ id: documentId }, DocumentStatus.Completed, note, actor);
 
   if (note) {
     await postComment({
@@ -222,6 +242,122 @@ export async function finish(
   await notifyOfficeOfProgress(document, actor, 'finished');
 
   return { ...result, message: `${document.tracking_number} is done.` };
+}
+
+/**
+ * Supervisor-only clearance confirmation: Pending Approval (or In Progress) → Completed.
+ * Restricted to department_admin, supervisors, or administrators with review/assign permissions.
+ * Sets audit columns: reviewed_by, reviewed_at, and supervisor_notes.
+ * Dispatches claim notification across email, SMS, and Speedy message thread.
+ */
+export async function confirmReview(
+  documentId: number,
+  actor: Actor | null,
+  input?: { note?: string | null; claimDate?: string | null },
+): Promise<TransitionResult> {
+  const document = await loadOrFail(documentId);
+
+  if (!actor) {
+    throw new ActionError('Please sign in again.', 403);
+  }
+
+  const isSupervisorOrAdmin =
+    actor.can('manage system') ||
+    actor.can('assign documents') ||
+    actor.hasRole('Supervisor') ||
+    actor.hasRole('department_admin');
+
+  if (!isSupervisorOrAdmin) {
+    throw new ActionError(
+      'Only a supervisor or department administrator can confirm clearance.',
+      403,
+    );
+  }
+
+  const stage = statusOf(document);
+
+  if (isTerminal(stage)) {
+    throw new ActionError('This request is already closed.');
+  }
+
+  const note = (input?.note ?? '').trim() || null;
+
+  // Validate status gate with actor
+  await validate({ id: documentId }, DocumentStatus.Completed, note, actor);
+
+  let claimDay: Date | null = null;
+  if (input?.claimDate) {
+    const parsed = parseNaive(input.claimDate);
+    if (parsed) {
+      claimDay = startOfDay(parsed);
+      const refusal = await followClaimDate(documentId, claimDay);
+      if (refusal) {
+        throw new ActionError(refusal);
+      }
+    }
+  }
+
+  const stamp = now();
+
+  // Audit columns: reviewed_by, reviewed_at, supervisor_notes
+  await db.documents.update({
+    where: { id: document.id },
+    data: {
+      ...statusChangeData(DocumentStatus.Completed),
+      ...(claimDay ? { claim_date: claimDay } : {}),
+      reviewed_by: id(actor.id),
+      reviewed_at: stamp,
+      supervisor_notes: note,
+      decided_by: id(actor.id),
+      decided_at: stamp,
+      completed_at: stamp,
+      updated_at: stamp,
+    },
+  });
+
+  if (note) {
+    await postComment({
+      documentId,
+      body: `Supervisor review: ${note}`,
+      authorId: actor.id,
+      authorType: AUTHOR.Staff,
+      visibility: VISIBILITY.Internal,
+    });
+  }
+
+  await logOnDocument(
+    documentId,
+    `Supervisor confirmed clearance: ${statusLabel(stage)} → ${statusLabel(DocumentStatus.Completed)}`,
+    actor.id,
+    { from: stage, to: DocumentStatus.Completed, ...(note ? { note } : {}) },
+  );
+
+  await broadcastStatusUpdated(documentId);
+  await logSystemComment(
+    documentId,
+    `Clearance confirmed by ${actor.name} — marked Ready for Claim`,
+  );
+
+  // Dispatch claim notifications via email, SMS, and Speedy message thread
+  await dispatchClaimNotifications(document, actor, claimDay, note);
+
+  // Notify assigned staff handler that their submission was approved
+  const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
+  if (assignedTo && assignedTo !== actor.id) {
+    await notifyMany([assignedTo], {
+      title: `Clearance confirmed: ${document.tracking_number}`,
+      body: `Supervisor ${actor.name} approved your submission for ${document.document_type}. Marked Ready for Claim.`,
+      url: routes.staffDashboard({ open: document.tracking_number }),
+      tracking_number: document.tracking_number,
+      event: 'clearance_approved',
+    });
+  }
+
+  return {
+    message: `Approved ${document.tracking_number}. It is now Ready for Claim.`,
+    status: DocumentStatus.Completed,
+    statusLabel: statusLabel(DocumentStatus.Completed),
+  };
 }
 
 export async function revert(
@@ -473,6 +609,79 @@ async function transition(
 }
 
 /**
+ * Dispatches claim notification across email, SMS, and Speedy message thread
+ * ONLY upon supervisor clearance confirmation (DocumentStatus.Completed).
+ */
+async function dispatchClaimNotifications(
+  document: DocumentRow,
+  actor: Actor,
+  claimDay: Date | null = null,
+  note: string | null = null,
+): Promise<void> {
+  const documentId = toId(document.id);
+  const officeName = document.department?.name ?? 'City Hall';
+  const effectiveClaimDate = claimDay ?? document.claim_date;
+
+  // 1. Dispatch Email claim notification to citizen
+  if (
+    document.citizen_email &&
+    tracking.notifyCitizen.enabled &&
+    tracking.notifyCitizen.stages[DocumentStatus.Completed]
+  ) {
+    queueMail(
+      statusUpdatedMail({
+        to: document.citizen_email,
+        trackingNumber: document.tracking_number,
+        citizenName: document.citizen_name,
+        stage: DocumentStatus.Completed,
+        officeName,
+        claimDate: effectiveClaimDate,
+      }),
+    );
+
+    await logOnDocument(
+      documentId,
+      `Dispatched claim notification email to citizen (${document.citizen_email})`,
+      actor.id,
+    );
+  }
+
+  // 2. Dispatch SMS claim notification to citizen (if contact number is provided)
+  if (document.citizen_contact) {
+    const claimDateText = effectiveClaimDate
+      ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
+      : '';
+    const smsText = `SPeED TraQR: Your request ${document.tracking_number} has been approved and is Ready for Pickup / Claiming${claimDateText} at ${officeName}. Bring your QR code or claim slip to the counter.`;
+
+    queueSms({
+      to: document.citizen_contact,
+      text: smsText,
+      trackingNumber: document.tracking_number,
+    });
+
+    await logOnDocument(
+      documentId,
+      `Dispatched claim notification SMS to citizen (${document.citizen_contact})`,
+      actor.id,
+    );
+  }
+
+  // 3. Dispatch claim notification to Speedy message thread (public citizen-visible message)
+  const claimNoticeDateText = effectiveClaimDate
+    ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
+    : '';
+  const speedyBody = `Good news! Your request has been approved by the supervisor and is now Ready for Pickup / Claiming${claimNoticeDateText}. Please bring your QR code (from your confirmation email or printed slip) to the ${officeName} counter. If you have any questions, you can reply directly in this thread.`;
+
+  await postComment({
+    documentId,
+    body: speedyBody,
+    authorId: actor.id,
+    authorType: AUTHOR.Staff,
+    visibility: VISIBILITY.Public,
+  });
+}
+
+/**
  * Email the citizen about a status change, gated by: the global kill switch,
  * the per-stage toggle, the document's `notify_citizen` opt-out, and a
  * `citizen_email` being present.
@@ -482,6 +691,12 @@ async function notifyCitizen(
   to: DocumentStatus,
   actor: Actor,
 ): Promise<void> {
+  // Move the claim notification dispatch out of the staff finish action
+  // and into the supervisor approval action (confirmReview / approveClearance).
+  if (to === DocumentStatus.Completed) {
+    return;
+  }
+
   if (!tracking.notifyCitizen.enabled) {
     return;
   }

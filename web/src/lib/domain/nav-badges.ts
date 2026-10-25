@@ -45,23 +45,42 @@ async function homeBadge(actor: Actor): Promise<number> {
       where: {
         ...citizenFacing,
         deleted_at: null,
-        status: DocumentStatus.Pending,
-        assigned_to: null,
-        ...(actor.departmentId === null
-          ? {}
-          : { OR: [{ department_id: id(actor.departmentId) }, { department_id: null }] }),
+        OR: [
+          // Submissions awaiting supervisor review and clearance (primary queue)
+          {
+            status: { in: [DocumentStatus.InReview, DocumentStatus.UnderReview, DocumentStatus.PendingClearance] },
+            ...(actor.departmentId === null
+              ? {}
+              : { OR: [{ department_id: id(actor.departmentId) }, { department_id: null }] }),
+          },
+          // Unassigned requests waiting in the department pool
+          {
+            status: DocumentStatus.Pending,
+            assigned_to: null,
+            ...(actor.departmentId === null
+              ? {}
+              : { OR: [{ department_id: id(actor.departmentId) }, { department_id: null }] }),
+          },
+        ],
       },
     });
   }
 
-  // Assigned to them, not yet accepted.
+  // Assigned to staff: not yet accepted or returned for revision.
   return db.documents.count({
     where: {
       ...citizenFacing,
       deleted_at: null,
       assigned_to: id(actor.id),
-      accepted_at: null,
-      status: { in: [DocumentStatus.Pending, DocumentStatus.InProgress] },
+      OR: [
+        {
+          accepted_at: null,
+          status: { in: [DocumentStatus.Pending, DocumentStatus.InProgress] },
+        },
+        {
+          status: DocumentStatus.Returned,
+        },
+      ],
     },
   });
 }

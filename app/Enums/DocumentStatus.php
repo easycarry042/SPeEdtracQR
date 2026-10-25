@@ -18,6 +18,8 @@ enum DocumentStatus: string
     case Pending = 'pending';
     case InProgress = 'in_progress';
     case InReview = 'in_review';
+    case UnderReview = 'under_review';
+    case PendingClearance = 'pending_clearance';
     case Approved = 'approved';
     case Completed = 'completed';
     case Returned = 'returned'; // side state — off the linear flow
@@ -30,10 +32,10 @@ enum DocumentStatus: string
     {
         return match ($this) {
             self::Pending => 'Pending',
-            self::InProgress => 'In Progress',
-            self::InReview => 'In Review',
+            self::InProgress => 'Ongoing',
+            self::InReview, self::UnderReview, self::PendingClearance => 'Pending Approval',
             self::Approved => 'Approved',
-            self::Completed => 'Completed',
+            self::Completed => 'Ready for Claim',
             self::Returned => 'Returned / For Revision',
             self::OnHold => 'On Hold',
             self::Denied => 'Denied',
@@ -45,11 +47,11 @@ enum DocumentStatus: string
     public function description(): string
     {
         return match ($this) {
-            self::Pending => 'We received your request and it is waiting to be picked up by staff.',
-            self::InProgress => 'A staff member is actively working on your request.',
-            self::InReview => 'Your request is being checked and reviewed before approval.',
+            self::Pending => 'We received your request and it is waiting to be processed.',
+            self::InProgress => 'A staff member has claimed your request and is actively processing it.',
+            self::InReview, self::UnderReview, self::PendingClearance => 'Staff has completed processing and submitted your request for supervisor review and clearance.',
             self::Approved => 'Your request has been approved and is being finalized.',
-            self::Completed => 'Your document is finished and ready. Watch for pickup or release details.',
+            self::Completed => 'Your request is complete and ready for claiming. Please check the claiming instructions below.',
             self::Returned => 'Something needs to be corrected. Please check for a message from staff.',
             self::OnHold => 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
             self::Denied => 'Your request could not be approved. Staff should have included a reason.',
@@ -58,9 +60,8 @@ enum DocumentStatus: string
     }
 
     /**
-     * The four stages the staff progress bar shows (Figma: Pending, In review,
-     * Processing, Completed), each with the statuses that sit on it. The flow
-     * has five statuses; In Progress and In Review are both the review stage.
+     * The four stages the staff progress bar shows (Pending, Ongoing, Pending Approval, Ready for Claim),
+     * each with the statuses that sit on it.
      *
      * Side states are placed separately — see railStage().
      *
@@ -70,9 +71,9 @@ enum DocumentStatus: string
     {
         return [
             ['label' => 'Pending', 'statuses' => [self::Pending->value]],
-            ['label' => 'In review', 'statuses' => [self::InProgress->value, self::InReview->value]],
-            ['label' => 'Processing', 'statuses' => [self::Approved->value]],
-            ['label' => 'Completed', 'statuses' => [self::Completed->value]],
+            ['label' => 'Ongoing', 'statuses' => [self::InProgress->value]],
+            ['label' => 'Pending Approval', 'statuses' => [self::InReview->value, self::UnderReview->value, self::PendingClearance->value]],
+            ['label' => 'Ready for Claim', 'statuses' => [self::Completed->value, self::Approved->value]],
         ];
     }
 
@@ -194,7 +195,7 @@ enum DocumentStatus: string
         return match ($this) {
             self::Pending => 24,
             self::InProgress => 72,
-            self::InReview => 48,
+            self::InReview, self::UnderReview, self::PendingClearance => 24,
             self::Approved => 24,
             // Terminal + off-line side states have no SLA. On Hold PAUSES the
             // clock — a null budget means isOverdue() is always false and the
@@ -213,7 +214,7 @@ enum DocumentStatus: string
     {
         return match ($this) {
             self::Completed, self::Approved => 'green',
-            self::InProgress, self::InReview => 'brass',
+            self::InProgress, self::InReview, self::UnderReview, self::PendingClearance => 'brass',
             self::Returned, self::Denied => 'warn',
             self::OnHold => 'hold',
             self::Pending, self::Withdrawn => 'muted',
@@ -233,6 +234,10 @@ enum DocumentStatus: string
 
         if ($value === 'in_transit') {
             return self::InProgress;
+        }
+
+        if ($value === 'under_review' || $value === 'pending_clearance') {
+            return self::InReview;
         }
 
         return self::tryFrom($value) ?? $default;

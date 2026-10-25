@@ -216,6 +216,9 @@ model documents {
   held_by                  BigInt?
   decided_by               BigInt?
   decided_at               DateTime?                 @db.Timestamp(0)
+  reviewed_by              BigInt?
+  reviewed_at              DateTime?                 @db.Timestamp(0)
+  supervisor_notes         String?                   @db.Text
   hold_reminder_sent_at    DateTime?                 @db.Timestamp(0)
   bookings                 bookings[]
   document_attachments     document_attachments[]
@@ -226,6 +229,7 @@ model documents {
   assignee                 users?                    @relation("documents_assigned_toTousers", fields: [assigned_to], references: [id], onUpdate: NoAction, map: "documents_assigned_to_foreign")
   creator                  users?                    @relation("documents_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "documents_created_by_foreign")
   decider                  users?                    @relation("documents_decided_byTousers", fields: [decided_by], references: [id], onUpdate: NoAction, map: "documents_decided_by_foreign")
+  reviewer                 users?                    @relation("documents_reviewed_byTousers", fields: [reviewed_by], references: [id], onUpdate: NoAction, map: "documents_reviewed_by_foreign")
   department               departments?              @relation("documents_department_idTodepartments", fields: [department_id], references: [id], onUpdate: NoAction, map: "documents_department_id_foreign")
   holder                   users?                    @relation("documents_held_byTousers", fields: [held_by], references: [id], onUpdate: NoAction, map: "documents_held_by_foreign")
   releaser                 users?                    @relation("documents_released_byTousers", fields: [released_by], references: [id], onUpdate: NoAction, map: "documents_released_by_foreign")
@@ -237,6 +241,7 @@ model documents {
   @@index([assigned_to], map: "documents_assigned_to_index")
   @@index([created_by], map: "documents_created_by_index")
   @@index([decided_by], map: "documents_decided_by_index")
+  @@index([reviewed_by], map: "documents_reviewed_by_index")
   @@index([department_id], map: "documents_department_id_index")
   @@index([held_by], map: "documents_held_by_index")
   @@index([origin], map: "documents_origin_index")
@@ -483,6 +488,7 @@ model users {
   assignedDocuments       documents[]               @relation("documents_assigned_toTousers")
   createdDocuments        documents[]               @relation("documents_created_byTousers")
   decidedDocuments        documents[]               @relation("documents_decided_byTousers")
+  reviewedDocuments       documents[]               @relation("documents_reviewed_byTousers")
   heldDocuments           documents[]               @relation("documents_held_byTousers")
   releasedDocuments       documents[]               @relation("documents_released_byTousers")
   actedSteps              request_steps[]           @relation("request_steps_acted_byTousers")

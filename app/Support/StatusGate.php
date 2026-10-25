@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Enums\DocumentStatus;
 use App\Models\Document;
+use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -26,7 +27,7 @@ class StatusGate
      * →In Review — the controller persists it as a staff comment, so the
      * record stays consistent with what the gate accepted.
      */
-    public static function checks(Document $document, DocumentStatus $to, ?string $note = null): array
+    public static function checks(Document $document, DocumentStatus $to, ?string $note = null, ?User $actor = null): array
     {
         return match ($to) {
             DocumentStatus::InProgress => [
@@ -41,7 +42,16 @@ class StatusGate
                     'passed' => $document->accepted_at !== null,
                 ],
             ],
-            DocumentStatus::InReview => [
+            DocumentStatus::InReview,
+            DocumentStatus::UnderReview,
+            DocumentStatus::PendingClearance => [
+                [
+                    'key' => 'requirements_verified',
+                    'label' => ($unchecked = $document->unverifiedMandatoryRequirements())->isEmpty()
+                        ? 'All required documents checked'
+                        : 'All required documents checked (still to check: '.$unchecked->pluck('label')->join(', ').')',
+                    'passed' => $unchecked->isEmpty(),
+                ],
                 [
                     'key' => 'work_evidence',
                     'label' => 'An attachment or work note on file',
@@ -50,26 +60,45 @@ class StatusGate
                         || $document->comments()->where('author_type', 'staff')->exists(),
                 ],
             ],
-            // Before a request is approved, staff must have verified every
+            // Before a request is approved/completed, staff must have verified every
             // mandatory supporting requirement (Cedula, clearances, …) against
             // the originals. Requests without requirements pass automatically.
-            DocumentStatus::Approved => [
-                [
-                    'key' => 'requirements_verified',
-                    'label' => ($unchecked = $document->unverifiedMandatoryRequirements())->isEmpty()
-                        ? 'All required documents checked'
-                        : 'All required documents checked (still to check: '.$unchecked->pluck('label')->join(', ').')',
-                    'passed' => $unchecked->isEmpty(),
-                ],
-                // A borrowing or reservation is approved as a whole: the
-                // request cannot read "Approved" to the citizen while its
-                // chairs or venue are still unconfirmed (or were cancelled).
-                [
-                    'key' => 'reservation_approved',
-                    'label' => 'The reservation is approved on the Resources page (or Booking calendar)',
-                    'passed' => ($booking = $document->booking()->first()) === null || $booking->isApproved(),
-                ],
-            ],
+            // Staff cannot directly move a request to Completed; supervisor clearance is required.
+            DocumentStatus::Approved,
+            DocumentStatus::Completed => (function () use ($document, $actor) {
+                $items = [
+                    [
+                        'key' => 'requirements_verified',
+                        'label' => ($unchecked = $document->unverifiedMandatoryRequirements())->isEmpty()
+                            ? 'All required documents checked'
+                            : 'All required documents checked (still to check: '.$unchecked->pluck('label')->join(', ').')',
+                        'passed' => $unchecked->isEmpty(),
+                    ],
+                    // A borrowing or reservation is approved as a whole: the
+                    // request cannot read "Approved" to the citizen while its
+                    // chairs or venue are still unconfirmed (or were cancelled).
+                    [
+                        'key' => 'reservation_approved',
+                        'label' => 'The reservation is approved on the Resources page (or Booking calendar)',
+                        'passed' => ($booking = $document->booking()->first()) === null || $booking->isApproved(),
+                    ],
+                ];
+
+                if ($actor) {
+                    $isSupervisorOrAdmin = $actor->can('manage system')
+                        || $actor->can('assign documents')
+                        || $actor->hasRole('Supervisor')
+                        || $actor->hasRole('department_admin');
+
+                    array_unshift($items, [
+                        'key' => 'supervisor_clearance',
+                        'label' => 'Supervisor review and sign-off (staff must submit for supervisor review)',
+                        'passed' => $isSupervisorOrAdmin,
+                    ]);
+                }
+
+                return $items;
+            })(),
             default => [],
         };
     }
@@ -77,13 +106,13 @@ class StatusGate
     /** Stages whose transition must carry a note (the "why" for the audit trail). */
     public static function noteRequired(DocumentStatus $to): bool
     {
-        return $to === DocumentStatus::Approved;
+        return $to === DocumentStatus::Approved || $to === DocumentStatus::Completed;
     }
 
     /** Throws a ValidationException listing every unmet requirement. */
-    public static function validate(Document $document, DocumentStatus $to, ?string $note = null): void
+    public static function validate(Document $document, DocumentStatus $to, ?string $note = null, ?User $actor = null): void
     {
-        $failed = array_filter(self::checks($document, $to, $note), fn (array $c): bool => ! $c['passed']);
+        $failed = array_filter(self::checks($document, $to, $note, $actor), fn (array $c): bool => ! $c['passed']);
 
         $messages = array_map(
             fn (array $c): string => "Requirement not met: {$c['label']}.",

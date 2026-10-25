@@ -12,6 +12,7 @@ use App\Notifications\DocumentEvent;
 use App\Support\AssignmentScope;
 use App\Support\Lending;
 use App\Support\RequestReview;
+use App\Support\StatusGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -152,14 +153,28 @@ class ReviewController extends Controller
         ]);
     }
 
-    /** Final staff sign-off: Approved → Completed (history). */
+    /** Final sign-off: Approved → Completed (history). Restricted to supervisors/admins. */
     public function complete(Document $document)
     {
         $this->authorizeReview($document);
 
+        $user = auth()->user();
+        $isSupervisorOrAdmin = $user && (
+            $user->can('manage system')
+            || $user->can('assign documents')
+            || $user->hasRole('Supervisor')
+            || $user->hasRole('department_admin')
+        );
+
+        if (! $isSupervisorOrAdmin) {
+            abort(403, 'Staff cannot directly complete requests. Please submit for supervisor review instead.');
+        }
+
         if ($document->statusEnum()->isTerminal()) {
             return $this->done($document, 'This request is already closed.');
         }
+
+        StatusGate::validate($document, DocumentStatus::Completed, null, $user);
 
         if ($document->statusEnum() !== DocumentStatus::Approved) {
             $message = 'Advance this request to Approved on the status stepper before approving it for completion.';

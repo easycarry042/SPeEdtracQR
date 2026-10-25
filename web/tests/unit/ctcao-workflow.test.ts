@@ -48,6 +48,13 @@ const ana = {
   hasRole: () => false,
 } as unknown as Actor;
 
+const supervisor = {
+  id: 41,
+  name: 'Elena Marquez',
+  can: (permission: string) => permission === 'advance documents' || permission === 'assign documents',
+  hasRole: (role: string) => role === 'Supervisor',
+} as unknown as Actor;
+
 function request(status: DocumentStatus, extra: Record<string, unknown> = {}) {
   return {
     id: 30n,
@@ -72,15 +79,23 @@ beforeEach(() => {
 });
 
 describe('Finish request (Ongoing → Done)', () => {
-  it('marks an Ongoing request Done, keeps the note and tells the office', async () => {
+  it('blocks staff from directly finishing, requiring supervisor review', async () => {
     findFirst.mockResolvedValue(request(DocumentStatus.InProgress));
 
-    const result = await finish(30, ana, {
+    await expect(finish(30, ana, { expectedStatus: DocumentStatus.InProgress })).rejects.toThrow(
+      'Staff cannot directly complete requests. Please submit for supervisor review instead.',
+    );
+  });
+
+  it('marks an Ongoing request Done when confirmed by supervisor, keeps the note and tells the office', async () => {
+    findFirst.mockResolvedValue(request(DocumentStatus.InProgress));
+
+    const result = await finish(30, supervisor, {
       expectedStatus: DocumentStatus.InProgress,
       note: ' 50 leis delivered to the lobby ',
     });
 
-    expect(validate).toHaveBeenCalledWith({ id: 30 }, DocumentStatus.Completed, '50 leis delivered to the lobby');
+    expect(validate).toHaveBeenCalledWith({ id: 30 }, DocumentStatus.Completed, '50 leis delivered to the lobby', supervisor);
     expect(postComment).toHaveBeenCalledWith(
       expect.objectContaining({ body: '50 leis delivered to the lobby', authorType: 'staff', visibility: 'internal' }),
     );
@@ -89,7 +104,7 @@ describe('Finish request (Ongoing → Done)', () => {
     );
     expect(notifyOfficeOfProgress).toHaveBeenCalledWith(
       expect.objectContaining({ tracking_number: 'SPD-20261024-LEI7MK', department_id: 8n }),
-      ana,
+      supervisor,
       'finished',
     );
     expect(result).toMatchObject({ status: DocumentStatus.Completed, statusLabel: 'Ready for Claim' });
@@ -98,7 +113,7 @@ describe('Finish request (Ongoing → Done)', () => {
   it('needs no note', async () => {
     findFirst.mockResolvedValue(request(DocumentStatus.InProgress));
 
-    await finish(30, ana, { expectedStatus: DocumentStatus.InProgress });
+    await finish(30, supervisor, { expectedStatus: DocumentStatus.InProgress });
 
     expect(postComment).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalled();
@@ -107,7 +122,7 @@ describe('Finish request (Ongoing → Done)', () => {
   it('finishes a request left on a retired stage from before the change', async () => {
     findFirst.mockResolvedValue(request(DocumentStatus.Approved));
 
-    await finish(30, ana, { expectedStatus: DocumentStatus.Approved });
+    await finish(30, supervisor, { expectedStatus: DocumentStatus.Approved });
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: DocumentStatus.Completed }) }),
@@ -117,7 +132,7 @@ describe('Finish request (Ongoing → Done)', () => {
   it('refuses a request nobody has accepted yet', async () => {
     findFirst.mockResolvedValue(request(DocumentStatus.Pending));
 
-    await expect(finish(30, ana, { expectedStatus: DocumentStatus.Pending })).rejects.toThrow(
+    await expect(finish(30, supervisor, { expectedStatus: DocumentStatus.Pending })).rejects.toThrow(
       'This request has not been accepted yet. It can be finished once it is Ongoing.',
     );
     expect(update).not.toHaveBeenCalled();
@@ -127,7 +142,7 @@ describe('Finish request (Ongoing → Done)', () => {
     findFirst.mockResolvedValue(request(DocumentStatus.InProgress));
     validate.mockRejectedValue(new Error('Requirement not met: All required documents checked.'));
 
-    await expect(finish(30, ana, { expectedStatus: DocumentStatus.InProgress, note: 'done' })).rejects.toThrow(
+    await expect(finish(30, supervisor, { expectedStatus: DocumentStatus.InProgress, note: 'done' })).rejects.toThrow(
       'Requirement not met',
     );
     expect(postComment).not.toHaveBeenCalled();

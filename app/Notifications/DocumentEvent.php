@@ -49,6 +49,30 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** Supervisor approved clearance — tell the assigned staff handler. */
+    public static function approved(Document $document, string $byName): self
+    {
+        return new self(
+            event: 'approved',
+            title: 'Clearance approved',
+            body: ($document->document_type ?? 'Document')." ({$document->tracking_number}) has been approved by {$byName} and is ready for citizen claiming.",
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** Staff submitted request for supervisor review. */
+    public static function submittedForReview(Document $document, string $byName): self
+    {
+        return new self(
+            event: 'submitted_for_review',
+            title: 'Request awaiting review',
+            body: ($document->document_type ?? 'Document')." ({$document->tracking_number}) submitted for clearance review by {$byName}.",
+            url: route('track.show', $document->tracking_number),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /**
      * A super admin flagged an overdue document for the responsible party's
      * attention — a nudge, not a reassignment.

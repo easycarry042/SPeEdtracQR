@@ -19,6 +19,8 @@ export enum DocumentStatus {
   Pending = 'pending',
   InProgress = 'in_progress',
   InReview = 'in_review',
+  UnderReview = 'under_review',
+  PendingClearance = 'pending_clearance',
   Approved = 'approved',
   Completed = 'completed',
   Returned = 'returned', // side state — off the linear flow
@@ -58,6 +60,8 @@ const LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'Pending',
   [DocumentStatus.InProgress]: 'Ongoing',
   [DocumentStatus.InReview]: 'Pending Approval',
+  [DocumentStatus.UnderReview]: 'Pending Approval',
+  [DocumentStatus.PendingClearance]: 'Pending Clearance',
   [DocumentStatus.Approved]: 'Approved',
   [DocumentStatus.Completed]: 'Ready for Claim',
   [DocumentStatus.Returned]: 'Returned / For Revision',
@@ -77,6 +81,8 @@ export const CITIZEN_LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'Received & Queued',
   [DocumentStatus.InProgress]: 'Processing with Office',
   [DocumentStatus.InReview]: 'Under Final Review & Quality Check',
+  [DocumentStatus.UnderReview]: 'Under Final Review & Quality Check',
+  [DocumentStatus.PendingClearance]: 'Under Final Review & Quality Check',
   [DocumentStatus.Approved]: 'Ready for Pickup / Claiming',
   [DocumentStatus.Completed]: 'Ready for Pickup / Claiming',
   [DocumentStatus.Returned]: 'Returned / For Revision',
@@ -90,6 +96,8 @@ const DESCRIPTIONS: Record<DocumentStatus, string> = {
   [DocumentStatus.Pending]: 'We received your request and it is queued for review by the office.',
   [DocumentStatus.InProgress]: 'The handling office has claimed your request and is actively processing it.',
   [DocumentStatus.InReview]: 'Processing is complete and your request is undergoing final review and quality check.',
+  [DocumentStatus.UnderReview]: 'Processing is complete and your request is undergoing final review and quality check.',
+  [DocumentStatus.PendingClearance]: 'Processing is complete and your request is undergoing final review and quality check.',
   [DocumentStatus.Approved]: 'Your request has been approved and is ready for pickup / claiming.',
   [DocumentStatus.Completed]: 'Your request is complete and ready for pickup / claiming. Please review the claiming instructions below.',
   [DocumentStatus.Returned]: 'Something needs to be corrected. Please check for a message from staff.',
@@ -108,6 +116,8 @@ const SLA_HOURS: Record<DocumentStatus, number | null> = {
   [DocumentStatus.Pending]: 24,
   [DocumentStatus.InProgress]: 72,
   [DocumentStatus.InReview]: 24,
+  [DocumentStatus.UnderReview]: 24,
+  [DocumentStatus.PendingClearance]: 24,
   [DocumentStatus.Approved]: 24,
   [DocumentStatus.Completed]: null,
   [DocumentStatus.Returned]: null,
@@ -126,6 +136,8 @@ const BANDS: Record<DocumentStatus, string> = {
   [DocumentStatus.Approved]: 'green',
   [DocumentStatus.InProgress]: 'brass',
   [DocumentStatus.InReview]: 'brass',
+  [DocumentStatus.UnderReview]: 'brass',
+  [DocumentStatus.PendingClearance]: 'brass',
   [DocumentStatus.Returned]: 'warn',
   [DocumentStatus.Denied]: 'warn',
   [DocumentStatus.OnHold]: 'hold',
@@ -140,7 +152,10 @@ const BANDS: Record<DocumentStatus, string> = {
 export const RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatus[] }> = [
   { label: 'Pending', statuses: [DocumentStatus.Pending] },
   { label: 'Ongoing', statuses: [DocumentStatus.InProgress] },
-  { label: 'Pending Approval', statuses: [DocumentStatus.InReview] },
+  {
+    label: 'Pending Approval',
+    statuses: [DocumentStatus.InReview, DocumentStatus.UnderReview, DocumentStatus.PendingClearance],
+  },
   { label: 'Ready for Claim', statuses: [DocumentStatus.Completed, ...RETIRED] },
 ];
 
@@ -151,7 +166,10 @@ export const RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatu
 export const CITIZEN_RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatus[] }> = [
   { label: 'Received & Queued', statuses: [DocumentStatus.Pending] },
   { label: 'Processing with Office', statuses: [DocumentStatus.InProgress] },
-  { label: 'Under Final Review & Quality Check', statuses: [DocumentStatus.InReview] },
+  {
+    label: 'Under Final Review & Quality Check',
+    statuses: [DocumentStatus.InReview, DocumentStatus.UnderReview, DocumentStatus.PendingClearance],
+  },
   { label: 'Ready for Pickup / Claiming', statuses: [DocumentStatus.Completed, ...RETIRED] },
 ];
 

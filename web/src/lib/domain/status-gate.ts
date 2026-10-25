@@ -2,6 +2,7 @@ import { db, id } from '@/lib/db';
 import { DocumentStatus, fromLoose, label as statusLabel } from '@/lib/domain/document-status';
 import { unverifiedMandatoryRequirements } from '@/lib/domain/document';
 import { isApproved } from '@/lib/domain/lending';
+import type { Actor } from '@/lib/auth/actor';
 
 /**
  * Stage gates: the requirements a document must meet before it may enter a
@@ -43,6 +44,7 @@ export async function checks(
   document: { id: number },
   to: DocumentStatus,
   note: string | null = null,
+  actor: Actor | null = null,
 ): Promise<GateCheck[]> {
   switch (to) {
     case DocumentStatus.InProgress: {
@@ -65,38 +67,47 @@ export async function checks(
       ];
     }
 
-    case DocumentStatus.InReview: {
+    case DocumentStatus.InReview:
+    case DocumentStatus.UnderReview:
+    case DocumentStatus.PendingClearance: {
       const hasNote = (note ?? '').trim() !== '';
-
-      // Short-circuit: a note submitted with the move is itself the evidence.
-      if (hasNote) {
-        return [{ key: 'work_evidence', label: 'An attachment or work note on file', passed: true }];
-      }
-
-      const [attachment, staffComment] = await Promise.all([
-        db.document_attachments.findFirst({
-          where: { document_id: id(document.id) },
-          select: { id: true },
-        }),
-        db.document_comments.findFirst({
-          where: { document_id: id(document.id), author_type: 'staff', parent_id: null },
-          select: { id: true },
-        }),
+      const [unverified, attachment, staffComment] = await Promise.all([
+        unverifiedMandatoryRequirements(document.id),
+        hasNote
+          ? null
+          : db.document_attachments.findFirst({
+              where: { document_id: id(document.id) },
+              select: { id: true },
+            }),
+        hasNote
+          ? null
+          : db.document_comments.findFirst({
+              where: { document_id: id(document.id), author_type: 'staff', parent_id: null },
+              select: { id: true },
+            }),
       ]);
 
       return [
         {
+          key: 'requirements_verified',
+          label:
+            unverified.length === 0
+              ? 'All required documents checked'
+              : `All required documents checked (still to check: ${unverified.map((r) => r.label).join(', ')})`,
+          passed: unverified.length === 0,
+        },
+        {
           key: 'work_evidence',
           label: 'An attachment or work note on file',
-          passed: attachment !== null || staffComment !== null,
+          passed: hasNote || attachment !== null || staffComment !== null,
         },
       ];
     }
 
     // Before a request is finished (Ongoing → Done), staff must have checked
     // every mandatory supporting requirement against the originals. Requests
-    // without requirements pass automatically. (Approved, retired, kept the
-    // same checks for any caller still asking about it.)
+    // without requirements pass automatically. Staff cannot directly move a
+    // request to Completed; supervisor review sign-off is required.
     case DocumentStatus.Completed:
     case DocumentStatus.Approved: {
       const [unverified, booking] = await Promise.all([
@@ -107,7 +118,7 @@ export async function checks(
         }),
       ]);
 
-      return [
+      const items: GateCheck[] = [
         {
           key: 'requirements_verified',
           // Names the files left, so the reviewer knows which rows to open.
@@ -126,6 +137,22 @@ export async function checks(
           passed: booking === null || isApproved(booking),
         },
       ];
+
+      if (actor) {
+        const isSupervisorOrAdmin =
+          actor.can('manage system') ||
+          actor.can('assign documents') ||
+          actor.hasRole('Supervisor') ||
+          actor.hasRole('department_admin');
+
+        items.unshift({
+          key: 'supervisor_clearance',
+          label: 'Supervisor review and sign-off (staff must submit for supervisor review)',
+          passed: isSupervisorOrAdmin,
+        });
+      }
+
+      return items;
     }
 
     default:
@@ -143,8 +170,9 @@ export async function validate(
   document: { id: number },
   to: DocumentStatus,
   note: string | null = null,
+  actor: Actor | null = null,
 ): Promise<void> {
-  const failed = (await checks(document, to, note)).filter((check) => !check.passed);
+  const failed = (await checks(document, to, note, actor)).filter((check) => !check.passed);
   const messages = failed.map((check) => `Requirement not met: ${check.label}.`);
 
   if (noteRequired(to) && (note ?? '').trim() === '') {

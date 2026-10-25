@@ -70,11 +70,21 @@ final class NavBadges
 
     private static function home(User $user): int
     {
-        if ($user->hasRole('Supervisor')) {
+        if ($user->hasRole('Supervisor') || $user->hasRole('department_admin')) {
             return Document::query()
                 ->citizenFacing()
-                ->where('status', DocumentStatus::Pending->value)
-                ->whereNull('assigned_to')
+                ->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->whereIn('status', [
+                            DocumentStatus::InReview->value,
+                            DocumentStatus::UnderReview->value,
+                            DocumentStatus::PendingClearance->value,
+                        ]);
+                    })->orWhere(function ($sub) {
+                        $sub->where('status', DocumentStatus::Pending->value)
+                            ->whereNull('assigned_to');
+                    });
+                })
                 ->when($user->department_id, fn ($q) => $q->where(fn ($inner) => $inner
                     ->where('department_id', $user->department_id)
                     ->orWhereNull('department_id')))

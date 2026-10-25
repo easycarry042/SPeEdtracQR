@@ -503,6 +503,9 @@ export async function approveClearance(
     data: {
       ...statusChangeData(DocumentStatus.Completed),
       ...(claimDay ? { claim_date: claimDay } : {}),
+      reviewed_by: id(actor.id),
+      reviewed_at: stamp,
+      supervisor_notes: trimmed,
       decided_by: id(actor.id),
       decided_at: stamp,
       completed_at: stamp,

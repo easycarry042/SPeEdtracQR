@@ -24,6 +24,7 @@ use App\Http\Controllers\DocumentNudgeController;
 use App\Http\Controllers\DocumentPdfEditorController;
 use App\Http\Controllers\DocumentReleaseController;
 use App\Http\Controllers\DocumentRequirementController;
+use App\Http\Controllers\DocumentReviewController;
 use App\Http\Controllers\DocumentSlipController;
 use App\Http\Controllers\DocumentStatusController;
 use App\Http\Controllers\DocumentWebController;
@@ -408,6 +409,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Staff review lifecycle: open (→ In Review) and approve (→ Completed / History).
     Route::post('/documents/{document}/review/open', [ReviewController::class, 'open'])->name('documents.review.open');
     Route::patch('/documents/{document}/review/complete', [ReviewController::class, 'complete'])->name('documents.review.complete');
+    // Supervisor clearance confirmation: Ongoing / In Review -> Completed (Ready for Claim).
+    Route::post('/documents/{document}/review/confirm', [DocumentReviewController::class, 'confirm'])->name('documents.review.confirm');
     // Move the claiming date without moving the stage (Look Up's "Adjust Date").
     Route::patch('/documents/{document}/claim-date', [ReviewController::class, 'setClaimDate'])->name('documents.claim-date');
 
