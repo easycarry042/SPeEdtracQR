@@ -302,4 +302,126 @@ describe('Proactive Layer: "On Duty" Availability & Dispatch (Item 1)', () => {
       expect(dispatchResult).toBeNull();
     });
   });
+
+  describe('Structural Layer: Multi-Handler Rotation & Pool Fallback (Item 3)', () => {
+    const handler1 = {
+      id: 1n,
+      request_type_id: 200n,
+      user_id: 101n,
+      sort_order: 1,
+      requestType: { id: 200n, name: 'Community Tax Certificate (Cedula)' },
+      user: {
+        id: 101n,
+        name: 'Staff One (Ana)',
+        email: 'ana@speedtraqr.com',
+        is_active: true,
+        is_available: true,
+        deleted_at: null,
+      },
+    };
+
+    const handler2 = {
+      id: 2n,
+      request_type_id: 200n,
+      user_id: 102n,
+      sort_order: 2,
+      requestType: { id: 200n, name: 'Community Tax Certificate (Cedula)' },
+      user: {
+        id: 102n,
+        name: 'Staff Two (Paolo)',
+        email: 'paolo@speedtraqr.com',
+        is_active: true,
+        is_available: true,
+        deleted_at: null,
+      },
+    };
+
+    const handler3 = {
+      id: 3n,
+      request_type_id: 200n,
+      user_id: 103n,
+      sort_order: 3,
+      requestType: { id: 200n, name: 'Community Tax Certificate (Cedula)' },
+      user: {
+        id: 103n,
+        name: 'Staff Three (Rosa)',
+        email: 'rosa@speedtraqr.com',
+        is_active: true,
+        is_available: true,
+        deleted_at: null,
+      },
+    };
+
+    it('routes requests sequentially in round-robin fashion among 3 active/present handlers', async () => {
+      vi.spyOn(db.request_type_handlers, 'findMany').mockResolvedValue([
+        handler1,
+        handler2,
+        handler3,
+      ] as any);
+
+      // 1. When last assigned was Handler 1 (Ana), next request should go to Handler 2 (Paolo)
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValueOnce({ assigned_to: 101n } as any);
+      const res1 = await resolveAutoDispatch(200);
+      expect(res1?.id).toBe(102);
+      expect(res1?.name).toBe('Staff Two (Paolo)');
+
+      // 2. When last assigned was Handler 2 (Paolo), next request should go to Handler 3 (Rosa)
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValueOnce({ assigned_to: 102n } as any);
+      const res2 = await resolveAutoDispatch(200);
+      expect(res2?.id).toBe(103);
+      expect(res2?.name).toBe('Staff Three (Rosa)');
+
+      // 3. When last assigned was Handler 3 (Rosa), next request wraps around to Handler 1 (Ana)
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValueOnce({ assigned_to: 103n } as any);
+      const res3 = await resolveAutoDispatch(200);
+      expect(res3?.id).toBe(101);
+      expect(res3?.name).toBe('Staff One (Ana)');
+    });
+
+    it('skips handlers who are marked absent/on leave during round-robin rotation', async () => {
+      // Handler 2 (Paolo) is on leave
+      const paoloOnLeave = {
+        ...handler2,
+        user: { ...handler2.user, is_available: false },
+      };
+
+      vi.spyOn(db.request_type_handlers, 'findMany').mockResolvedValue([
+        handler1,
+        paoloOnLeave,
+        handler3,
+      ] as any);
+
+      // When last assigned was Handler 1 (Ana), next should SKIP Paolo and go to Handler 3 (Rosa)
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValueOnce({ assigned_to: 101n } as any);
+      const res = await resolveAutoDispatch(200);
+      expect(res?.id).toBe(103);
+      expect(res?.name).toBe('Staff Three (Rosa)');
+
+      // When last assigned was Handler 3 (Rosa), next wraps around to Handler 1 (Ana)
+      vi.spyOn(db.documents, 'findFirst').mockResolvedValueOnce({ assigned_to: 103n } as any);
+      const resNext = await resolveAutoDispatch(200);
+      expect(resNext?.id).toBe(101);
+      expect(resNext?.name).toBe('Staff One (Ana)');
+    });
+
+    it('empty roster fallback: returns null (routes straight into department open pool) when all handlers are absent', async () => {
+      const allAbsent = [
+        { ...handler1, user: { ...handler1.user, is_available: false } },
+        { ...handler2, user: { ...handler2.user, is_available: false } },
+        { ...handler3, user: { ...handler3.user, is_available: false } },
+      ];
+
+      vi.spyOn(db.request_type_handlers, 'findMany').mockResolvedValue(allAbsent as any);
+
+      const res = await resolveAutoDispatch(200);
+      expect(res).toBeNull();
+    });
+
+    it('empty roster fallback: returns null when no handlers are configured for the request type', async () => {
+      vi.spyOn(db.request_type_handlers, 'findMany').mockResolvedValue([]);
+
+      const res = await resolveAutoDispatch(200);
+      expect(res).toBeNull();
+    });
+  });
 });

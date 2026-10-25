@@ -1,5 +1,4 @@
 import { db, id, toId } from '@/lib/db';
-import { activeValues } from '@/lib/domain/document-status';
 
 export type AutoDispatchResult = {
   id: number;
@@ -11,14 +10,18 @@ export type AutoDispatchResult = {
  * Resolves which staff member should be auto-assigned a new citizen request
  * based on the request type's configured handlers (request_type_handlers).
  *
- * Implements the "Least-Loaded" rotation rule:
- * - Handlers must be active users and not deleted.
- * - If 0 handlers are configured, returns null (request lands in Department Pool).
- * - If 1 handler is configured, returns that handler.
- * - If multiple handlers are configured, counts currently active documents
- *   (Pending, InProgress, OnHold, etc.) assigned to each candidate, and assigns
- *   to the handler with the lowest active workload.
- * - In case of ties, breaks tie by handler sort_order (and id).
+ * Implements the Structural Layer: Multi-Handler Rotation & Pool Fallback:
+ *
+ * 1. Round-Robin Among Type Handlers:
+ *    If a request type has multiple assigned handlers (e.g. 3 staff members),
+ *    routes requests sequentially among handlers who are marked active and present
+ *    (is_active = true and is_available = true).
+ *
+ * 2. Empty Roster Fallback:
+ *    If all pre-configured handlers for that request type are marked absent or
+ *    unavailable (or none configured), defaults to null (assigned_to = null) and
+ *    routes the document straight into the department's Unassigned / Open Pool
+ *    so any staff member on duty can manually claim it.
  */
 export async function resolveAutoDispatch(
   requestTypeId: bigint | number | null | undefined,
@@ -32,6 +35,12 @@ export async function resolveAutoDispatch(
     where: { request_type_id: id(requestTypeId) },
     orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     include: {
+      requestType: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       user: {
         select: {
           id: true,
@@ -56,6 +65,7 @@ export async function resolveAutoDispatch(
       !excluded.has(toId(h.user.id)),
   );
 
+  // Empty Roster Fallback: all handlers absent or unconfigured -> Department Open Pool
   if (activeHandlers.length === 0) {
     return null;
   }
@@ -65,36 +75,46 @@ export async function resolveAutoDispatch(
     return { id: toId(user.id), name: user.name, email: user.email };
   }
 
-  // Multiple candidates: calculate workload of active (non-terminal) requests
-  const candidateIds = activeHandlers.map((h) => h.user.id);
-  const counts = await db.documents.groupBy({
-    by: ['assigned_to'],
-    where: {
-      assigned_to: { in: candidateIds },
-      status: { in: activeValues() },
-      deleted_at: null,
-    },
-    _count: { assigned_to: true },
-  });
+  // Round-Robin: Multiple active & present handlers. Determine last assigned
+  // handler for this request type and pick the next in sequence.
+  let selected = activeHandlers[0].user;
 
-  const loadMap = new Map<number, number>();
-  for (const row of counts) {
-    if (row.assigned_to !== null) {
-      loadMap.set(toId(row.assigned_to), row._count.assigned_to);
+  const typeName =
+    handlers[0]?.requestType?.name ??
+    (
+      await db.request_types
+        .findUnique({
+          where: { id: id(requestTypeId) },
+          select: { name: true },
+        })
+        .catch(() => null)
+    )?.name ??
+    null;
+
+  if (typeName) {
+    const lastDoc = await db.documents.findFirst({
+      where: {
+        document_type: typeName,
+        assigned_to: { not: null },
+        deleted_at: null,
+      },
+      orderBy: { id: 'desc' },
+      select: { assigned_to: true },
+    });
+
+    if (lastDoc?.assigned_to !== null && lastDoc?.assigned_to !== undefined) {
+      const lastAssignedId = toId(lastDoc.assigned_to);
+      const lastIndex = activeHandlers.findIndex(
+        (h) => toId(h.user.id) === lastAssignedId,
+      );
+
+      if (lastIndex !== -1) {
+        const nextIndex = (lastIndex + 1) % activeHandlers.length;
+        selected = activeHandlers[nextIndex].user;
+      }
     }
   }
 
-  // Sort candidate handlers by workload ascending, preserving sort_order as tie-breaker
-  const sorted = [...activeHandlers].sort((a, b) => {
-    const loadA = loadMap.get(toId(a.user.id)) ?? 0;
-    const loadB = loadMap.get(toId(b.user.id)) ?? 0;
-    if (loadA !== loadB) {
-      return loadA - loadB;
-    }
-    return a.sort_order - b.sort_order;
-  });
-
-  const selected = sorted[0].user;
   return {
     id: toId(selected.id),
     name: selected.name,
