@@ -18,7 +18,7 @@ export function QrCamera({
     <div className={`qr-viewport relative overflow-hidden rounded-[16px] bg-[#1e1e1e] ${className}`}>
       <div id={id} className="qr-surface" />
       <div
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         aria-hidden="true"
       >
         <div className="relative aspect-square w-[70%]">

@@ -10,7 +10,7 @@
  * a forged code here can at most open a tracking page anyone could have typed
  * the number into anyway. The server is the gate.
  */
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 /**
  * Tracking numbers this system issues: SPD- (citizen) and INT- (internal
@@ -119,30 +119,42 @@ export function isStaffBadge(text: string | null | undefined): boolean {
 
 /** Human-readable camera failure, so a refusal explains itself. */
 export function describe(error: unknown): string {
+  const name = error instanceof Error ? error.name : '';
   const message = error instanceof Error ? error.message : String(error ?? '');
 
-  if (/NotAllowed|Permission|denied/i.test(message)) {
-    return 'The camera permission was refused. Allow camera access for this site, then try again.';
+  if (typeof window !== 'undefined' && (!window.isSecureContext || !navigator.mediaDevices)) {
+    return (
+      `Your browser blocks the camera on this address (${window.location.origin}). ` +
+      'Cameras only work over https:// or on http://localhost — allowing the permission cannot override this. ' +
+      'Open the site over HTTPS, or scan the QR from the machine running the server.'
+    );
   }
 
-  if (/NotFound|no camera|Requested device not found/i.test(message)) {
-    return 'No camera was found on this device.';
+  if (name === 'NotAllowedError' || name === 'SecurityError' || /NotAllowed|Permission|denied/i.test(message)) {
+    return 'The browser is still blocking the camera for this site. Open the padlock/camera icon in the address bar, set Camera to Allow, then reload the page.';
   }
 
-  if (/NotReadable|TrackStart|in use/i.test(message)) {
-    return 'The camera is already in use by another app or tab.';
+  if (
+    name === 'NotFoundError' ||
+    name === 'DevicesNotFoundError' ||
+    name === 'OverconstrainedError' ||
+    /NotFound|no camera|Requested device not found/i.test(message)
+  ) {
+    return 'No camera was found on this device. Use a phone or a machine with a webcam, or record it manually.';
   }
 
-  if (/secure|https/i.test(message)) {
-    return 'The camera needs a secure (https) connection.';
+  if (name === 'NotReadableError' || name === 'TrackStartError' || /NotReadable|TrackStart|in use/i.test(message)) {
+    return 'Another app or browser tab is already using the camera. Close it (Zoom, Meet, another scanner tab) and try again.';
   }
 
-  return 'The camera could not be started.';
+  return message || 'The camera could not be started.';
 }
 
 /* ── Camera ─────────────────────────────────────────────────────────────────── */
 
 let scanner: Html5Qrcode | null = null;
+let fitObserver: ResizeObserver | null = null;
+let activeScanId = 0;
 
 /**
  * Serializes every start/stop. Releasing a camera is asynchronous, so without
@@ -162,10 +174,247 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export async function hasCamera(): Promise<boolean> {
+  if (typeof window === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
+    return false;
+  }
+
   try {
-    return (await Html5Qrcode.getCameras()).length > 0;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.some((d) => d.kind === 'videoinput');
   } catch {
     return false;
+  }
+}
+
+/**
+ * html5-qrcode measures its container when it starts. Callers reveal the box
+ * and call start() in the same tick, so the div can still be absent from the DOM
+ * or 0px wide at that moment — wait for it to actually be laid out.
+ */
+function waitForBox(elementId: string, timeoutMs = 4000): Promise<HTMLElement> {
+  const startedAt = Date.now();
+
+  return new Promise((resolve, reject) => {
+    function check(): void {
+      const element = document.getElementById(elementId);
+
+      if (!element) {
+        if (Date.now() - startedAt > timeoutMs) {
+          reject(new Error('The scanner box is not on the page.'));
+          return;
+        }
+        requestAnimationFrame(check);
+        return;
+      }
+
+      if (element.getClientRects().length > 0 && element.offsetWidth > 0) {
+        resolve(element);
+        return;
+      }
+
+      if (Date.now() - startedAt > timeoutMs) {
+        reject(
+          new Error(
+            'The scanner area stayed hidden, so the camera could not be sized. Close and reopen the scanner, or reload the page.',
+          ),
+        );
+        return;
+      }
+
+      requestAnimationFrame(check);
+    }
+
+    check();
+  });
+}
+
+/**
+ * A .qr-surface (see .qr-viewport in globals.css) is laid out at a real
+ * decoding size and only drawn small. Its width is set before the camera
+ * starts, because html5-qrcode reads it then to size the video: 1280px
+ * for a landscape feed, 720px where the screen is portrait.
+ */
+function prepareSurface(elementId: string): void {
+  const element = document.getElementById(elementId);
+
+  if (!element || !element.classList.contains('qr-surface')) {
+    return;
+  }
+
+  element.classList.remove('is-fitted');
+  element.style.transform = '';
+  element.style.width = `${window.innerHeight > window.innerWidth ? 720 : 1280}px`;
+}
+
+/**
+ * Scale the surface down to cover its square window, centered. A
+ * transform, never a width change: html5-qrcode measures clientWidth /
+ * clientHeight, which a transform leaves alone, so its decoding stays
+ * undistorted and full resolution while the feed fills the window.
+ */
+function fitSurface(elementId: string): void {
+  const element = document.getElementById(elementId);
+
+  if (!element) {
+    return;
+  }
+
+  const target: HTMLElement = element;
+
+  if (!target.classList.contains('qr-surface')) {
+    target.classList.add('is-fitted');
+    return;
+  }
+
+  const box = target.parentElement;
+  if (!box) {
+    target.classList.add('is-fitted');
+    return;
+  }
+
+  const apply = (): boolean => {
+    const video = target.querySelector('video');
+
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      return false;
+    }
+
+    const width = target.offsetWidth;
+    const height = video.offsetHeight;
+
+    if (!width || !height || !box.clientWidth) {
+      return false;
+    }
+
+    const scale = Math.max(box.clientWidth / width, box.clientHeight / height);
+    const x = (box.clientWidth - width * scale) / 2;
+    const y = (box.clientHeight - height * scale) / 2;
+
+    target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    target.classList.add('is-fitted');
+
+    return true;
+  };
+
+  const startedAt = Date.now();
+  function fitWhenReady(): void {
+    if (!apply()) {
+      if (Date.now() - startedAt < 5000) {
+        requestAnimationFrame(fitWhenReady);
+      } else {
+        // Fallback: make visible anyway if metadata is slow
+        target.classList.add('is-fitted');
+      }
+    }
+  }
+
+  fitWhenReady();
+
+  if (fitObserver) {
+    fitObserver.disconnect();
+    fitObserver = null;
+  }
+
+  if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
+    fitObserver = new ResizeObserver(() => {
+      apply();
+    });
+    fitObserver.observe(box);
+    fitObserver.observe(target);
+  }
+}
+
+/** Square viewfinder that always fits — a fixed qrbox throws on small boxes. */
+function qrbox(viewfinderWidth: number, viewfinderHeight: number): { width: number; height: number } {
+  const side = Math.max(120, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7));
+  return { width: side, height: side };
+}
+
+/** Ask for HD frames for accurate barcode reading. */
+const HD = { width: { ideal: 1280 }, height: { ideal: 720 } };
+
+function scanConfig(camera?: MediaTrackConstraints) {
+  return {
+    fps: 10,
+    qrbox,
+    videoConstraints: Object.assign({}, camera, HD),
+  };
+}
+
+function scannerOptions() {
+  const formats =
+    typeof Html5QrcodeSupportedFormats !== 'undefined'
+      ? [Html5QrcodeSupportedFormats.QR_CODE]
+      : undefined;
+
+  return {
+    verbose: false,
+    formatsToSupport: formats,
+    useBarCodeDetectorIfSupported: true,
+  };
+}
+
+/**
+ * Launch the scanner: prefer the rear environment camera, but gracefully fall back
+ * to whatever camera this machine has (e.g. laptop / desktop webcams).
+ */
+async function launch(
+  elementId: string,
+  onDecode: (text: string) => void,
+): Promise<void> {
+  const activeScanner = new Html5Qrcode(elementId, scannerOptions());
+  scanner = activeScanner;
+
+  try {
+    await activeScanner.start(
+      { facingMode: 'environment' },
+      scanConfig({ facingMode: 'environment' }),
+      (decodedText) => onDecode(decodedText),
+      () => {},
+    );
+    return;
+  } catch (error) {
+    // Desktops with only a built-in webcam reject "environment"
+    // outright (OverconstrainedError), so retry by device id.
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      if (cameras && cameras.length > 0) {
+        const camera = { deviceId: { exact: cameras[0].id } };
+        await activeScanner.start(
+          camera,
+          scanConfig(camera),
+          (decodedText) => onDecode(decodedText),
+          () => {},
+        );
+        return;
+      }
+    } catch {
+      // Fall through to user-facing mode
+    }
+
+    try {
+      await activeScanner.start(
+        { facingMode: 'user' },
+        scanConfig({ facingMode: 'user' }),
+        (decodedText) => onDecode(decodedText),
+        () => {},
+      );
+      return;
+    } catch {
+      // Fall through to basic constraints
+    }
+
+    try {
+      await activeScanner.start(
+        {},
+        { fps: 10, qrbox },
+        (decodedText) => onDecode(decodedText),
+        () => {},
+      );
+      return;
+    } catch {
+      throw error;
+    }
   }
 }
 
@@ -174,30 +423,58 @@ export function start(
   onDecoded: (text: string) => void,
   onError?: (error: unknown) => void,
 ): Promise<void> {
+  if (typeof window !== 'undefined' && (!window.isSecureContext || !navigator.mediaDevices)) {
+    onError?.(new DOMException('Camera unavailable on an insecure origin.', 'SecurityError'));
+    return Promise.resolve();
+  }
+
+  const scanId = ++activeScanId;
+
   return enqueue(async () => {
     await stopInternal();
 
-    try {
-      scanner = new Html5Qrcode(elementId, { verbose: false });
+    if (scanId !== activeScanId) {
+      return;
+    }
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        // A square box: never `object-fit: cover` on the video, which distorts
-        // what html5-qrcode decodes.
-        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1 },
-        (decodedText) => onDecoded(decodedText),
-        () => {
-          // Per-frame "not found" callbacks are noise, not errors.
-        },
-      );
+    try {
+      await waitForBox(elementId);
+      if (scanId !== activeScanId) return;
+
+      prepareSurface(elementId);
+      if (scanId !== activeScanId) return;
+
+      await launch(elementId, onDecoded);
+      if (scanId !== activeScanId) {
+        await stopInternal();
+        return;
+      }
+
+      fitSurface(elementId);
     } catch (error) {
-      scanner = null;
+      await stopInternal();
       onError?.(error);
     }
   });
 }
 
 async function stopInternal(): Promise<void> {
+  activeScanId++;
+
+  if (fitObserver) {
+    fitObserver.disconnect();
+    fitObserver = null;
+  }
+
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('.qr-surface.is-fitted').forEach((surface) => {
+      surface.classList.remove('is-fitted');
+      if (surface instanceof HTMLElement) {
+        surface.style.transform = '';
+      }
+    });
+  }
+
   if (!scanner) {
     return;
   }
@@ -207,9 +484,14 @@ async function stopInternal(): Promise<void> {
 
   try {
     await current.stop();
-    current.clear();
   } catch {
     // Already stopped, or the element went away with the component.
+  }
+
+  try {
+    current.clear();
+  } catch {
+    // Ignore clear errors if DOM is already gone
   }
 }
 
