@@ -15,7 +15,8 @@
         // waits for it. A returned request waits on the office that filed it.
         $showReceive = $canReceive && $currentStep && ! $hasCustody;
         $showDecision = $canAct && $currentStep && $hasCustody;
-        $hasActionPanel = $showReceive || $showDecision || $canRevise;
+        $showCustodyStatus = $canReceive && $currentStep && $hasCustody && ! $canAct;
+        $hasActionPanel = $showReceive || $showDecision || $showCustodyStatus || $canRevise;
         // The QR tile (partials/qr-tile) reads these off the record.
         $qrRecord = [
             'tracking_number' => $document->tracking_number,
@@ -420,6 +421,40 @@
                                     <span x-show="mode === 'deny'" x-cloak>Deny request</span>
                                 </button>
                             </form>
+                    </div>
+                </section>
+            @elseif($showCustodyStatus)
+                @php $custody = $document->currentCustody(); @endphp
+                <section class="dm-card dm-page-card @if($inModal) dm-in-modal @endif lg:sticky lg:top-24">
+                    <div class="dm-head">
+                        <div class="min-w-0">
+                            <span class="pill pill-green">In Office Custody</span>
+                            <h2 class="dm-section mt-1">{{ $document->isSoftCopy() ? 'Received & In Queue' : 'Folder in Custody' }}</h2>
+                            <p class="text-[length:var(--fs-caption)] text-ink-soft">{{ $currentStep->department?->name }} · {{ $currentStep->action }}</p>
+                        </div>
+                    </div>
+                    <div class="dm-body space-y-4">
+                        @if($custody)
+                            <div class="mb-4 flex items-center gap-2 rounded-[8px] border border-green/25 bg-green/5 px-4 py-2.5 text-[13px] text-ink" role="status">
+                                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true" class="text-green"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5 9-10"/></svg>
+                                <span>{{ $document->isSoftCopy() ? 'Received by' : 'Document in hand — held by' }} <b>{{ $custody->user->name ?? 'your office' }}</b>{{ match ($custody->capture_method) { 'manual' => ' (recorded manually)', 'image' => ' (QR image)', 'screen' => ' (QR on screen)', default => ' (QR scanned)' } }}.</span>
+                            </div>
+                        @endif
+
+                        <p class="text-[length:var(--fs-small)] text-ink-soft">
+                            This request has been received by your office. Official endorsement (approval, return for revision, or completion) rests with your department supervisor.
+                        </p>
+
+                        <div class="mt-4 flex flex-wrap items-center gap-2">
+                            <a href="{{ route('documents.sticker', $document) }}" target="_blank" class="cr-btn cr-btn-sm">
+                                Print routing slip
+                            </a>
+                            @if($document->attachments->isNotEmpty())
+                                <a href="{{ \App\Support\PublicStorage::url($document->attachments->first()->file_path) }}" target="_blank" class="cr-btn cr-btn-sm">
+                                    Open attached file
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 </section>
             @elseif($canRevise)

@@ -43,8 +43,8 @@ export default async function InternalRequestPage({
   }
 
   const hasPanel =
-    (detail.canReceive && detail.currentStep !== null && !detail.hasCustody) ||
-    (detail.canAct && detail.currentStep !== null && detail.hasCustody) ||
+    (detail.canReceive && detail.currentStep !== null) ||
+    (detail.canAct && detail.currentStep !== null) ||
     detail.canRevise;
 
   const isClosed = (

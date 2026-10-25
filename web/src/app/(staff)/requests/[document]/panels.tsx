@@ -331,16 +331,16 @@ export function QrTile({
 }
 
 /**
- * The three panels beside an internal request: receive it, decide on it, or —
- * when it has come back to the office that filed it — revise or withdraw it.
- *
- * Which one shows follows the same order the server enforces: receiving first
- * (anyone at the holding office, for paper), deciding only once the office has
- * custody. A viewer with nothing to do sees none of them.
+ * The panels beside an internal request:
+ *  - Receive it (when custody hasn't been recorded yet for this hop);
+ *  - Decide on it (for supervisors or named recipients once custody is held);
+ *  - Custody status (for office staff holding custody while awaiting supervisor review);
+ *  - Revise or withdraw it (when returned to the filing office).
  */
 export function RequestPanels({ detail }: { detail: InternalRequestDetail }) {
   const showReceive = detail.canReceive && detail.currentStep !== null && !detail.hasCustody;
   const showDecision = detail.canAct && detail.currentStep !== null && detail.hasCustody;
+  const showCustodyStatus = detail.canReceive && detail.currentStep !== null && detail.hasCustody && !detail.canAct;
 
   if (showReceive) {
     return <ReceiveCard detail={detail} />;
@@ -348,6 +348,10 @@ export function RequestPanels({ detail }: { detail: InternalRequestDetail }) {
 
   if (showDecision) {
     return <DecisionCard detail={detail} />;
+  }
+
+  if (showCustodyStatus) {
+    return <CustodyStatusCard detail={detail} />;
   }
 
   if (detail.canRevise) {
@@ -536,10 +540,8 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
           : 'No QR code was found in that box. Drag it around the whole QR.',
       );
     } finally {
-      if (!accepted) {
-        setReading(false);
-        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
-      }
+      setReading(false);
+      window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
     }
   };
 
@@ -708,6 +710,333 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
             </div>
           ) : null}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Displayed when the document has been received / taken into custody at this office,
+ * but the current user does not hold decision privileges (e.g. staff member whose
+ * department supervisor must sign off on the step).
+ *
+ * Keeps the action panel visible, confirms physical custody with clear audit trail,
+ * and maintains essential staff actions: on-screen QR viewing, slip printing,
+ * and custody re-scan / handover.
+ */
+function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
+  const { pending, error, notice, run, setError } = useAction();
+  const [scanning, setScanning] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [reScanOpen, setReScanOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [reason, setReason] = useState('');
+
+  const expected = detail.trackingNumber.toUpperCase();
+
+  const receive = (
+    captureMethod: 'scan' | 'image' | 'screen' | 'manual',
+    scannedValue: string | null = null,
+  ): void =>
+    run(() =>
+      receiveRequest(detail.id, {
+        captureMethod,
+        scannedValue,
+        overrideReason: captureMethod === 'manual' ? reason.trim() : null,
+      }),
+    );
+
+  const accept = (decoded: string, method: 'scan' | 'image' | 'screen'): boolean => {
+    const scanned = SpeedQr.extractTracking(decoded);
+
+    if (scanned === expected) {
+      receive(method, decoded);
+      setReScanOpen(false);
+      return true;
+    }
+
+    setError(
+      scanned
+        ? `That QR is for a different request (${scanned}). Use this request's own QR.`
+        : SpeedQr.FOREIGN_CODE_MESSAGE,
+    );
+
+    return false;
+  };
+
+  const toggleScan = (): void => {
+    setError(null);
+    setManualOpen(false);
+
+    if (scanning) {
+      void SpeedQr.stop();
+      setScanning(false);
+      return;
+    }
+
+    setScanning(true);
+
+    SpeedQr.start(
+      'custodyStatusReader',
+      (decoded) => {
+        void SpeedQr.stop();
+        setScanning(false);
+        accept(decoded, 'scan');
+      },
+      (cameraError) => {
+        setScanning(false);
+        setManualOpen(true);
+        setError(SpeedQr.describe(cameraError));
+      },
+    );
+  };
+
+  const readFile = async (file: File | null | undefined): Promise<void> => {
+    if (!file || pending) return;
+    setError(null);
+    setReading(true);
+
+    try {
+      const decoded = await SpeedQr.decodeImage(file);
+      accept(decoded, 'image');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No QR code was found in that picture.');
+    } finally {
+      setReading(false);
+    }
+  };
+
+  const snip = async (mode: SpeedQr.SnipMode): Promise<void> => {
+    if (pending) return;
+    if (scanning) {
+      void SpeedQr.stop();
+      setScanning(false);
+    }
+
+    setError(null);
+
+    if (mode === 'page') {
+      await openAndWaitForQr(expected);
+    }
+
+    try {
+      const decoded = await SpeedQr.scanFromScreen(mode);
+      if (decoded === null) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+        return;
+      }
+
+      setReading(true);
+      accept(decoded, 'screen');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No QR code was found in that box. Drag it around the whole QR.',
+      );
+    } finally {
+      setReading(false);
+      window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+    }
+  };
+
+  return (
+    <section className="dm-card dm-page-card lg:sticky lg:top-24">
+      <div className="dm-head">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="pill pill-green flex items-center gap-1">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              In Office Custody
+            </span>
+          </div>
+          <h2 className="dm-section mt-1">
+            {detail.isSoftCopy ? 'Received & In Queue' : 'Folder in Custody'}
+          </h2>
+          <p className="text-[length:var(--fs-caption)] text-ink-soft">
+            {detail.currentStep?.office} · {detail.currentStep?.action}
+          </p>
+        </div>
+      </div>
+
+      <div className="dm-body space-y-4">
+        <Feedback error={error} notice={notice} />
+
+        <div className="dm-callout dm-callout-green" role="status">
+          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="font-semibold text-ink">
+              {detail.heldBy?.name
+                ? `Custody confirmed with ${detail.heldBy.name}`
+                : 'Physical custody confirmed with your office'}
+            </p>
+            <p className="text-xs text-ink-soft mt-0.5">
+              Verified via {detail.heldBy?.how ?? 'QR scan'}. The physical folder is at {detail.currentStep?.office}.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[length:var(--fs-small)] text-ink-soft">
+          This request has been verified and received by your office. Official sign-off (approval,
+          return for revision, or completion) rests with your department supervisor.
+        </p>
+
+        <div className="rounded-xl border border-hairline bg-[#f8faf9] p-3 space-y-2.5">
+          <p className="text-xs font-semibold text-ink uppercase tracking-wider">Office Actions</p>
+
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              className="cr-btn cr-btn-primary w-full justify-center"
+              disabled={pending || reading}
+              onClick={() => void snip('page')}
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4 mr-1.5" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" />
+              </svg>
+              {reading ? 'Reading the QR…' : 'Select the QR on screen'}
+            </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={detail.stickerUrl}
+                target="_blank"
+                rel="noopener"
+                className="cr-btn justify-center text-xs"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
+                  <path strokeLinejoin="round" d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" />
+                  <path strokeLinejoin="round" d="M7 14h10v6H7z" />
+                </svg>
+                Print slip
+              </a>
+
+              {detail.stampedAttachment ? (
+                <a
+                  href={detail.stampedAttachment.url}
+                  target="_blank"
+                  rel="noopener"
+                  className="cr-btn justify-center text-xs"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Open file
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setReScanOpen(!reScanOpen)}
+                  className="cr-btn justify-center text-xs"
+                >
+                  {reScanOpen ? 'Close re-scan' : 'Re-scan / Update'}
+                </button>
+              )}
+            </div>
+
+            {detail.stampedAttachment ? (
+              <button
+                type="button"
+                onClick={() => setReScanOpen(!reScanOpen)}
+                className="cr-btn cr-btn-sm justify-center text-xs text-ink-soft hover:text-ink mt-0.5"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {reScanOpen ? 'Hide re-scan options' : 'Update custody / Re-scan'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {reScanOpen ? (
+          <div className="custody-box mt-3 pt-3 border-t border-hairline">
+            <p className="text-xs text-ink-soft mb-2 font-medium">Re-scan or transfer physical custody:</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="cr-btn cr-btn-sm"
+                disabled={pending}
+                onClick={toggleScan}
+              >
+                {scanning ? 'Cancel camera' : 'Scan with camera'}
+              </button>
+              <label className="cr-btn cr-btn-sm cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    void readFile(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+                Upload image
+              </label>
+              <button
+                type="button"
+                className="qr-drop-alt text-xs"
+                disabled={pending || reading}
+                onClick={() => void snip('any')}
+              >
+                QR in another window?
+              </button>
+            </div>
+
+            {scanning ? (
+              <div className="custody-scan mt-2">
+                <QrCamera id="custodyStatusReader" />
+              </div>
+            ) : null}
+
+            {!detail.isSoftCopy ? (
+              <div className="custody-manual mt-2 pt-2 border-t border-hairline">
+                <button
+                  type="button"
+                  className="cs-manual-link"
+                  onClick={() => {
+                    if (scanning) {
+                      void SpeedQr.stop();
+                      setScanning(false);
+                    }
+                    setError(null);
+                    setManualOpen(!manualOpen);
+                  }}
+                >
+                  QR torn or unreadable? Record manually
+                </button>
+                {manualOpen ? (
+                  <div className="cs-manual-form mt-2">
+                    <label htmlFor="custody-status-reason">
+                      Why can&apos;t the QR be scanned? (required)
+                      <textarea
+                        id="custody-status-reason"
+                        rows={2}
+                        maxLength={500}
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        placeholder="e.g. QR sticker torn off the folder"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="cr-btn cr-btn-sm"
+                      disabled={pending || reason.trim() === ''}
+                      onClick={() => receive('manual')}
+                    >
+                      Record custody manually
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );
