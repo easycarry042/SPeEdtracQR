@@ -16,14 +16,20 @@ const bookingFindMany = vi.fn();
 const bookingUpdate = vi.fn();
 const sendMail = vi.fn();
 const usersWithRole = vi.fn();
+const notify = vi.fn();
 const notifyMany = vi.fn();
 const logOnDocument = vi.fn();
+const logSystemComment = vi.fn();
+const broadcastStatusUpdated = vi.fn();
+const resolveAutoDispatch = vi.fn();
 const remind = vi.fn();
+const requestTypeFindFirst = vi.fn();
 
 vi.mock('@/lib/db', () => ({
   db: {
     documents: { findMany, update },
     bookings: { findMany: bookingFindMany, update: bookingUpdate },
+    request_types: { findFirst: requestTypeFindFirst },
   },
   toId: (value: bigint | number) => Number(value),
   id: (value: number) => BigInt(value),
@@ -43,11 +49,14 @@ vi.mock('@/lib/auth/rbac', () => ({
   usersWithRole,
 }));
 
-vi.mock('@/lib/domain/notifications', () => ({ notifyMany }));
+vi.mock('@/lib/domain/notifications', () => ({ notify, notifyMany }));
 vi.mock('@/lib/activity', () => ({ logOnDocument, logOnResource: vi.fn(), logActivity: vi.fn() }));
+vi.mock('@/lib/domain/comments', () => ({ logSystemComment }));
+vi.mock('@/lib/realtime', () => ({ broadcastStatusUpdated }));
+vi.mock('@/lib/domain/auto-dispatch', () => ({ resolveAutoDispatch }));
 vi.mock('@/lib/domain/lending-desk', () => ({ remind }));
 
-const { checkDocumentSla, checkDocumentHolds, checkOverdueLoans } = await import('@/lib/sweeps');
+const { checkDocumentSla, checkDocumentHolds, checkOverdueLoans, reclaimUnacceptedRequests } = await import('@/lib/sweeps');
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600_000);
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
@@ -68,12 +77,50 @@ function slaRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function unacceptedRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 10n,
+    tracking_number: 'SPD-20261025-ESC01',
+    document_type: 'Mayor Recommendation',
+    status: DocumentStatus.Pending,
+    request_type_id: 1n,
+    department_id: 2n,
+    assigned_to: 5n,
+    assigned_at: hoursAgo(3),
+    accepted_at: null,
+    assignee: {
+      id: 5n,
+      name: 'Absent Staff',
+      email: 'absent@example.com',
+      department_id: 2n,
+    },
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
-  for (const fn of [findMany, update, bookingFindMany, bookingUpdate, sendMail, usersWithRole, notifyMany, logOnDocument, remind]) {
+  for (const fn of [
+    findMany,
+    update,
+    bookingFindMany,
+    bookingUpdate,
+    sendMail,
+    usersWithRole,
+    notify,
+    notifyMany,
+    logOnDocument,
+    logSystemComment,
+    broadcastStatusUpdated,
+    resolveAutoDispatch,
+    remind,
+    requestTypeFindFirst,
+  ]) {
     fn.mockReset();
   }
   usersWithRole.mockResolvedValue([]);
+  resolveAutoDispatch.mockResolvedValue(null);
   remind.mockResolvedValue(true);
+  requestTypeFindFirst.mockResolvedValue({ id: 1n });
 });
 
 describe('checkDocumentSla', () => {
@@ -169,6 +216,31 @@ describe('checkDocumentSla', () => {
     findMany.mockResolvedValue([slaRow({ assignee: null })]);
 
     expect((await checkDocumentSla()).counts.breached).toBe(0);
+  });
+
+  it('includes unaccepted auto-escalation in its sweep cycle', async () => {
+    findMany
+      .mockResolvedValueOnce([slaRow({ status_changed_at: hoursAgo(10) })])
+      .mockResolvedValueOnce([unacceptedRow()]);
+
+    resolveAutoDispatch.mockResolvedValue(null);
+    usersWithRole.mockResolvedValue([
+      { id: 9, name: 'Supervisor Elena', email: 'elena@speedtraqr.com', department_id: 2 },
+    ]);
+
+    const result = await checkDocumentSla();
+
+    expect(result.counts).toMatchObject({
+      warned: 0,
+      breached: 0,
+      unaccepted_reclaimed: 1,
+    });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10n },
+        data: expect.objectContaining({ assigned_to: null }),
+      }),
+    );
   });
 });
 
@@ -326,5 +398,121 @@ describe('checkOverdueLoans', () => {
     bookingFindMany.mockResolvedValue([]);
 
     expect((await checkOverdueLoans()).counts).toMatchObject({ overdue: 0, chased: 0 });
+  });
+});
+
+describe('reclaimUnacceptedRequests', () => {
+  it('reclaims stalled request to department open pool when no alternate handler is available', async () => {
+    findMany.mockResolvedValue([unacceptedRow()]);
+    resolveAutoDispatch.mockResolvedValue(null);
+    usersWithRole.mockResolvedValue([
+      { id: 9, name: 'Supervisor Elena', email: 'elena@speedtraqr.com', department_id: 2 },
+    ]);
+
+    const result = await reclaimUnacceptedRequests(2);
+
+    expect(result.counts).toMatchObject({ scanned: 1, reassigned: 0, reclaimedToPool: 1 });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10n },
+        data: expect.objectContaining({
+          assigned_to: null,
+          assigned_by: null,
+          assigned_at: null,
+          accepted_at: null,
+        }),
+      }),
+    );
+    expect(logOnDocument).toHaveBeenCalledWith(
+      10,
+      expect.stringContaining('returned to department pool'),
+    );
+    expect(logSystemComment).toHaveBeenCalledWith(
+      10,
+      expect.stringContaining('returned to department open pool'),
+    );
+    expect(notifyMany).toHaveBeenCalledWith(
+      [9],
+      expect.objectContaining({
+        event: 'unattended_reclaimed',
+        title: expect.stringContaining('Unattended Request Returned to Pool'),
+      }),
+    );
+    expect(broadcastStatusUpdated).toHaveBeenCalledWith(10);
+  });
+
+  it('auto-escalates to secondary handler when one is configured and available', async () => {
+    findMany.mockResolvedValue([unacceptedRow()]);
+    resolveAutoDispatch.mockResolvedValue({
+      id: 8,
+      name: 'Backup Staff',
+      email: 'backup@speedtraqr.com',
+    });
+    usersWithRole.mockResolvedValue([
+      { id: 9, name: 'Supervisor Elena', email: 'elena@speedtraqr.com', department_id: 2 },
+    ]);
+
+    const result = await reclaimUnacceptedRequests(2);
+
+    expect(result.counts).toMatchObject({ scanned: 1, reassigned: 1, reclaimedToPool: 0 });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10n },
+        data: expect.objectContaining({
+          assigned_to: 8n,
+          assigned_by: null,
+          assigned_at: expect.any(Date),
+          accepted_at: null,
+        }),
+      }),
+    );
+    expect(notify).toHaveBeenCalledWith(
+      8,
+      expect.objectContaining({
+        event: 'assigned',
+        title: 'Assigned to you',
+      }),
+    );
+    expect(notifyMany).toHaveBeenCalledWith(
+      [9],
+      expect.objectContaining({
+        event: 'auto_escalated',
+        title: expect.stringContaining('Request auto-escalated'),
+      }),
+    );
+    expect(logOnDocument).toHaveBeenCalledWith(
+      10,
+      expect.stringContaining('Reassigned to Backup Staff'),
+    );
+    expect(logSystemComment).toHaveBeenCalledWith(
+      10,
+      expect.stringContaining('Reassigned to Backup Staff'),
+    );
+    expect(broadcastStatusUpdated).toHaveBeenCalledWith(10);
+  });
+
+  it('falls back to super admin if department has no active supervisor', async () => {
+    findMany.mockResolvedValue([unacceptedRow({ department_id: null, assignee: null })]);
+    resolveAutoDispatch.mockResolvedValue(null);
+    usersWithRole.mockImplementation(async (role: string) =>
+      role === 'super_admin'
+        ? [{ id: 1, name: 'Super Admin', email: 'admin@speedtraqr.com', department_id: null }]
+        : [],
+    );
+
+    const result = await reclaimUnacceptedRequests(2);
+
+    expect(result.counts.reclaimedToPool).toBe(1);
+    expect(notifyMany).toHaveBeenCalledWith([1], expect.objectContaining({ event: 'unattended_reclaimed' }));
+  });
+
+  it('ignores rows not in Pending status', async () => {
+    findMany.mockResolvedValue([unacceptedRow({ status: DocumentStatus.InProgress })]);
+
+    const result = await reclaimUnacceptedRequests(2);
+
+    expect(result.counts).toMatchObject({ scanned: 1, reassigned: 0, reclaimedToPool: 0 });
+    expect(update).not.toHaveBeenCalled();
+    expect(notifyMany).not.toHaveBeenCalled();
   });
 });

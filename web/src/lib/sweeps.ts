@@ -1,9 +1,13 @@
-import { db, toId } from '@/lib/db';
+import { db, id, toId } from '@/lib/db';
 import { DocumentStatus, isTerminal, slaHours } from '@/lib/domain/document-status';
 import { holdOverdueDays, isHoldOverdue } from '@/lib/domain/document';
 import { ROLE_SUPERVISOR, ROLE_SUPER_ADMIN, usersWithRole } from '@/lib/auth/rbac';
-import { notifyMany } from '@/lib/domain/notifications';
+import { notify, notifyMany } from '@/lib/domain/notifications';
 import { logOnDocument } from '@/lib/activity';
+import { logSystemComment } from '@/lib/domain/comments';
+import { broadcastStatusUpdated } from '@/lib/realtime';
+import { routes } from '@/lib/routes';
+import { resolveAutoDispatch, type AutoDispatchResult } from '@/lib/domain/auto-dispatch';
 import { sendMail } from '@/lib/mail/send';
 import { holdOverdueMail, slaBreachMail, slaWarningMail } from '@/lib/mail/sla-alerts';
 import * as lendingDesk from '@/lib/domain/lending-desk';
@@ -101,10 +105,19 @@ export async function checkDocumentSla(): Promise<SweepResult> {
     }
   }
 
+  const reclaim = await reclaimUnacceptedRequests();
+
   return {
     job: 'documents:check-sla',
-    summary: `SLA sweep complete: ${warned} warning(s), ${breached} breach(es).`,
-    counts: { warned, breached, scanned: documents.length },
+    summary: `SLA sweep complete: ${warned} warning(s), ${breached} breach(es). Auto-escalation: ${reclaim.counts.reassigned ?? 0} reassigned, ${reclaim.counts.reclaimedToPool ?? 0} returned to pool.`,
+    counts: {
+      warned,
+      breached,
+      scanned: documents.length,
+      unaccepted_scanned: reclaim.counts.scanned ?? 0,
+      unaccepted_reassigned: reclaim.counts.reassigned ?? 0,
+      unaccepted_reclaimed: reclaim.counts.reclaimedToPool ?? 0,
+    },
   };
 }
 
@@ -342,11 +355,198 @@ async function loanStaffIds(document: {
   return [...new Set(ids)];
 }
 
+/** Supervisors of a department, falling back to super admins if none exist. */
+async function departmentSupervisors(
+  departmentId: number | null,
+): Promise<Array<{ id: number; name: string; email: string }>> {
+  const people = departmentId
+    ? await usersWithRole(ROLE_SUPERVISOR, departmentId)
+    : await usersWithRole(ROLE_SUPER_ADMIN);
+
+  return people.length > 0 ? people : await usersWithRole(ROLE_SUPER_ADMIN);
+}
+
+/**
+ * Reactive escalation: Reclaims or auto-escalates unaccepted requests.
+ *
+ * When a citizen request is assigned to a staff member, it sits in `Pending`
+ * until accepted (`accepted_at`). If the assignee is absent or unattended past
+ * the acceptance window (default 2 hours), the system auto-escalates:
+ * 1. If another active & available handler is configured for the request type
+ *    in `request_type_handlers`, reassign to the least-loaded candidate.
+ * 2. If no secondary handler is available, strip `assigned_to` and return the
+ *    document to the Department Open Pool (`assigned_to: null`).
+ *
+ * In either case, audit logs and system comments are recorded, real-time status
+ * is broadcast, and the department's supervisors are alerted (incrementing
+ * their NavBadges count for unassigned pool requests).
+ */
+export async function reclaimUnacceptedRequests(
+  acceptanceWindowHours = 2,
+): Promise<SweepResult> {
+  const cutoff = new Date(Date.now() - acceptanceWindowHours * 3600_000);
+
+  const documents = await db.documents.findMany({
+    where: {
+      status: DocumentStatus.Pending,
+      assigned_to: { not: null },
+      accepted_at: null,
+      OR: [
+        { assigned_at: { lt: cutoff } },
+        { assigned_at: null, status_changed_at: { lt: cutoff } },
+        { assigned_at: null, status_changed_at: null, created_at: { lt: cutoff } },
+      ],
+      deleted_at: null,
+    },
+    select: {
+      id: true,
+      tracking_number: true,
+      document_type: true,
+      status: true,
+      department_id: true,
+      assigned_to: true,
+      assigned_at: true,
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          department_id: true,
+        },
+      },
+    },
+  });
+
+  let reassigned = 0;
+  let reclaimedToPool = 0;
+
+  for (const document of documents) {
+    if (document.status !== DocumentStatus.Pending || document.assigned_to === null) {
+      continue;
+    }
+
+    const documentId = toId(document.id);
+    const prevAssigneeId = toId(document.assigned_to);
+    const prevAssigneeName = document.assignee?.name ?? 'Assigned staff';
+    const departmentId = document.department_id ?? document.assignee?.department_id ?? null;
+
+    let nextAssignee: AutoDispatchResult = null;
+    if (document.document_type) {
+      try {
+        const type = await db.request_types.findFirst({
+          where: { name: document.document_type },
+          select: { id: true },
+        });
+        if (type) {
+          nextAssignee = await resolveAutoDispatch(type.id, [prevAssigneeId]);
+        }
+      } catch {
+        nextAssignee = null;
+      }
+    }
+
+    if (nextAssignee) {
+      await db.documents.update({
+        where: { id: document.id },
+        data: {
+          assigned_to: id(nextAssignee.id),
+          assigned_by: null,
+          assigned_at: now(),
+          accepted_at: null,
+          updated_at: now(),
+        },
+      });
+
+      await logOnDocument(
+        documentId,
+        `Auto-escalated: Reassigned to ${nextAssignee.name} after ${acceptanceWindowHours}h unaccepted by ${prevAssigneeName}`,
+      );
+      await logSystemComment(
+        documentId,
+        `Auto-escalated: ${prevAssigneeName} did not accept within ${acceptanceWindowHours} hours. Reassigned to ${nextAssignee.name}.`,
+      );
+
+      await notify(nextAssignee.id, {
+        title: 'Assigned to you',
+        body: `${document.document_type ?? 'Document'} — auto-escalated to you. Accept it on your Requests page.`,
+        url: routes.staffDashboard({ open: document.tracking_number }),
+        tracking_number: document.tracking_number,
+        event: 'assigned',
+      });
+
+      const supervisors = await departmentSupervisors(
+        departmentId === null ? null : toId(departmentId),
+      );
+      await notifyMany(
+        supervisors.map((s) => s.id),
+        {
+          title: `Request auto-escalated: ${document.tracking_number}`,
+          body: `${document.document_type ?? 'Document'} (${document.tracking_number}) was unattended by ${prevAssigneeName} for ${acceptanceWindowHours}+ hours and reassigned to ${nextAssignee.name}.`,
+          url: routes.dashboard({ tab: 'active', q: document.tracking_number }),
+          tracking_number: document.tracking_number,
+          event: 'auto_escalated',
+        },
+      );
+
+      reassigned += 1;
+    } else {
+      await db.documents.update({
+        where: { id: document.id },
+        data: {
+          assigned_to: null,
+          assigned_by: null,
+          assigned_at: null,
+          accepted_at: null,
+          updated_at: now(),
+        },
+      });
+
+      await logOnDocument(
+        documentId,
+        `Unattended assignment returned to department pool (unaccepted for ${acceptanceWindowHours}+ hours by ${prevAssigneeName})`,
+      );
+      await logSystemComment(
+        documentId,
+        `Unattended for over ${acceptanceWindowHours} hours by ${prevAssigneeName} — returned to department open pool.`,
+      );
+
+      const supervisors = await departmentSupervisors(
+        departmentId === null ? null : toId(departmentId),
+      );
+      await notifyMany(
+        supervisors.map((s) => s.id),
+        {
+          title: `Unattended Request Returned to Pool: ${document.tracking_number}`,
+          body: `${document.document_type ?? 'Document'} (${document.tracking_number}) was unattended by ${prevAssigneeName} for ${acceptanceWindowHours}+ hours and returned to the department open pool.`,
+          url: routes.dashboard({ tab: 'pending', q: document.tracking_number }),
+          tracking_number: document.tracking_number,
+          event: 'unattended_reclaimed',
+        },
+      );
+
+      reclaimedToPool += 1;
+    }
+
+    try {
+      await broadcastStatusUpdated(documentId);
+    } catch {
+      // Realtime broadcast failures should not abort the sweep
+    }
+  }
+
+  return {
+    job: 'documents:reclaim-unaccepted',
+    summary: `Reclaim unaccepted sweep complete: ${documents.length} scanned, ${reassigned} reassigned, ${reclaimedToPool} returned to pool.`,
+    counts: { scanned: documents.length, reassigned, reclaimedToPool },
+  };
+}
+
 /** Every sweep, by the Artisan name it had, so the cron route can dispatch by job. */
 export const SWEEPS: Record<string, () => Promise<SweepResult>> = {
   'check-sla': checkDocumentSla,
   'check-holds': checkDocumentHolds,
   'check-overdue-loans': checkOverdueLoans,
+  'reclaim-unaccepted': () => reclaimUnacceptedRequests(),
   'daily': async () => {
     const sla = await checkDocumentSla();
     const holds = await checkDocumentHolds();

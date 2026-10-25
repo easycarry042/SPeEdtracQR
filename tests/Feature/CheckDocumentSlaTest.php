@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class CheckDocumentSlaTest extends TestCase
@@ -66,5 +67,30 @@ class CheckDocumentSlaTest extends TestCase
 
         $this->artisan('documents:check-sla')->assertSuccessful();
         Mail::assertNothingSent();
+    }
+
+    public function test_unattended_pending_request_returned_to_open_pool(): void
+    {
+        Notification::fake();
+        Mail::fake();
+
+        $supervisor = User::factory()->create(['email' => 'sup'.uniqid().'@example.com']);
+        $staff = User::factory()->create(['email' => 'staff'.uniqid().'@example.com']);
+
+        $document = Document::create([
+            'tracking_number' => 'SPD-UNATTENDED-'.uniqid(),
+            'document_type' => 'Business Permit',
+            'status' => DocumentStatus::Pending->value,
+            'assigned_to' => $staff->id,
+            'assigned_at' => now()->subHours(3),
+            'accepted_at' => null,
+        ]);
+
+        $this->artisan('documents:check-sla')->assertSuccessful();
+
+        $fresh = $document->fresh();
+        $this->assertNull($fresh->assigned_to);
+        $this->assertNull($fresh->assigned_at);
+        $this->assertNull($fresh->accepted_at);
     }
 }

@@ -73,6 +73,30 @@ class DocumentEvent extends Notification
         );
     }
 
+    /** An unaccepted request sat past the acceptance window and returned to the department pool. */
+    public static function unattendedReturned(Document $document, string $staffName, int $hours = 2): self
+    {
+        return new self(
+            event: 'unattended_reclaimed',
+            title: "Unattended Request Returned to Pool: {$document->tracking_number}",
+            body: ($document->document_type ?? 'Document')." ({$document->tracking_number}) was unattended by {$staffName} for {$hours}+ hours and returned to the department open pool.",
+            url: route('staff.dashboard', ['tab' => 'pending', 'q' => $document->tracking_number]),
+            tracking: $document->tracking_number,
+        );
+    }
+
+    /** An unaccepted request sat past the acceptance window and was auto-escalated to another handler. */
+    public static function autoEscalated(Document $document, string $fromName, string $toName, int $hours = 2): self
+    {
+        return new self(
+            event: 'auto_escalated',
+            title: "Request auto-escalated: {$document->tracking_number}",
+            body: ($document->document_type ?? 'Document')." ({$document->tracking_number}) was unattended by {$fromName} for {$hours}+ hours and reassigned to {$toName}.",
+            url: route('staff.dashboard', ['tab' => 'active', 'q' => $document->tracking_number]),
+            tracking: $document->tracking_number,
+        );
+    }
+
     /**
      * A super admin flagged an overdue document for the responsible party's
      * attention — a nudge, not a reassignment.

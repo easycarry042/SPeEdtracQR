@@ -22,6 +22,7 @@ export type AutoDispatchResult = {
  */
 export async function resolveAutoDispatch(
   requestTypeId: bigint | number | null | undefined,
+  excludeUserIds: number[] = [],
 ): Promise<AutoDispatchResult> {
   if (!requestTypeId) {
     return null;
@@ -44,8 +45,15 @@ export async function resolveAutoDispatch(
     },
   });
 
+  const excluded = new Set(excludeUserIds.map((v) => Number(v)));
+
   const activeHandlers = handlers.filter(
-    (h) => h.user && h.user.is_active && h.user.is_available && h.user.deleted_at === null,
+    (h) =>
+      h.user &&
+      h.user.is_active &&
+      h.user.is_available &&
+      h.user.deleted_at === null &&
+      !excluded.has(toId(h.user.id)),
   );
 
   if (activeHandlers.length === 0) {

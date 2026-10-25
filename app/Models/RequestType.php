@@ -47,6 +47,16 @@ class RequestType extends Model
     }
 
     /**
+     * Preferred handlers for this type, in priority order.
+     *
+     * @return HasMany<RequestTypeHandler, $this>
+     */
+    public function handlers(): HasMany
+    {
+        return $this->hasMany(RequestTypeHandler::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
      * The department that handles this type of request. Tickets of this type are
      * routed to this department's queue on submission.
      *
