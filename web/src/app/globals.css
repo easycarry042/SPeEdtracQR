@@ -1987,7 +1987,7 @@ a.dm-thumb:hover { border-color: var(--green); }
 .dm-callout-green { border: 1px solid rgba(22, 122, 58, .25); background: var(--green-wash); color: var(--green-deep); }
 .dm-callout-muted { border: 1px solid var(--hairline); background: #fafcfb; color: var(--ink-soft); }
 .dm-decision-tabs { height: 42px; }
-.dm-decision-tabs button { min-width: 0 !important; padding: 0 8px !important; }
+.dm-decision-tabs button { flex: 1 1 0 !important; min-width: 0 !important; padding: 0 8px !important; }
 .dm-decision label, .dm-decision .text-\[13px\] { font-size: var(--fs-small); }
 .dm-decision select, .dm-decision textarea { border-radius: 10px; font-size: var(--fs-small); }
 .dm-decision button[type=submit] { height: 46px; border-radius: 12px; font-size: var(--fs-small); }
@@ -2006,18 +2006,20 @@ a.dm-thumb:hover { border-color: var(--green); }
 .st-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
 
 /* Segmented tabs: one quiet track, the chosen queue lifted on a deep-green
-   pill. Every segment is the same width, so nothing shifts when it is picked. */
+   pill. Fitted tabs with comfortable padding prevent long labels from colliding. */
 .st-tabs {
     display: inline-flex; flex-shrink: 0; align-items: stretch; gap: 4px;
     height: 46px; padding: 4px;
     border: 1px solid var(--hairline-strong);
     border-radius: 12px;
     background: var(--green-wash);
+    max-width: 100%;
+    overflow-x: auto;
 }
 .st-tabs button,
 .st-tabs a {
-    display: inline-flex; flex: 1 1 0; align-items: center; justify-content: center; gap: 8px;
-    min-width: 8.5rem; padding: 0 18px;
+    display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px;
+    padding: 0 16px;
     border-radius: 8px;
     font-size: var(--fs-body); font-weight: 600; white-space: nowrap;
     color: var(--ink-soft);

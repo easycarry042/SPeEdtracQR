@@ -112,8 +112,8 @@ export function ReviewActions({
           <section className="dm-panel-strong space-y-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="pill p-brass text-xs">Review & Sign-Off</span>
-                <h4 className="font-bold text-green-deep text-sm">Review & Sign-Off</h4>
+                <span className="pill p-brass text-xs">Clearance</span>
+                <h4 className="font-bold text-green-deep text-sm">Supervisor Review & Sign-Off</h4>
               </div>
               <p className="text-xs text-ink-soft mt-1">
                 Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance and confirmation. Review requirement verifications and booking dependencies above before deciding.
@@ -448,8 +448,12 @@ export function ReviewActions({
         </section>
       ) : null}
 
-      {/* ── Status cockpit ─────────────────────────────────────────────── */}
-      {row.canAdvance && !isTerminal && !(mode === 'staff' && row.needsTriage) && !(mode === 'staff' && row.status === DocumentStatus.InReview) ? (
+      {/* ── Status cockpit (staff processing only; supervisors use the clearance / assignment panels above) ──── */}
+      {row.canAdvance &&
+      !isTerminal &&
+      mode === 'staff' &&
+      !row.needsTriage &&
+      row.status !== DocumentStatus.InReview ? (
         <div className="gate-actions mt-3">
           {mode === 'staff' && row.status === DocumentStatus.InProgress && row.remarks ? (
             <div className="mb-3 w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">

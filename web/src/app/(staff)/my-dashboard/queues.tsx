@@ -14,7 +14,7 @@ import {
   type StaffFilterState,
 } from '@/components/review/staff-table-filter';
 import { useCompletedHistory } from '@/components/review/use-completed-history';
-import { claimDocument, releaseToPoolDocument } from '@/app/actions/document';
+import { claimDocument } from '@/app/actions/document';
 
 type Tab = 'pool' | 'active' | 'returned' | 'triage' | 'completed';
 
@@ -54,9 +54,6 @@ export function StaffQueues({
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReviewRow | null>(null);
   const [claimingId, setClaimingId] = useState<number | null>(null);
-  const [releasingRow, setReleasingRow] = useState<ReviewRow | null>(null);
-  const [releaseReason, setReleaseReason] = useState('');
-  const [releasePending, setReleasePending] = useState(false);
 
   const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
@@ -150,28 +147,6 @@ export function StaffQueues({
     }
   };
 
-  const handleRelease = (row: ReviewRow) => {
-    setReleasingRow(row);
-    setReleaseReason('');
-  };
-
-  const confirmRelease = async () => {
-    if (!releasingRow || releasePending) return;
-    setReleasePending(true);
-    try {
-      const res = await releaseToPoolDocument(releasingRow.id, releaseReason.trim() || null);
-      if (res.ok) {
-        setReleasingRow(null);
-        setReleaseReason('');
-        router.refresh();
-      } else {
-        alert(res.message);
-      }
-    } finally {
-      setReleasePending(false);
-    }
-  };
-
   const hasFilter = Boolean(query.trim() || staffFilterCount(filter) > 0);
 
   return (
@@ -251,13 +226,12 @@ export function StaffQueues({
           rows={pageItems}
           onOpen={setOpen}
           onClaim={tab === 'pool' ? handleClaim : undefined}
-          onRelease={tab === 'active' ? handleRelease : undefined}
           showAssignee={false}
           showStatusPill={tab === 'active' || tab === 'returned'}
           dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
           actionLabel={
             tab === 'pool'
-              ? 'Claim / Review'
+              ? 'Inspect'
               : tab === 'returned'
                 ? 'Fix & Resubmit'
                 : tab === 'triage'
@@ -326,63 +300,6 @@ export function StaffQueues({
             }
           }}
         />
-      ) : null}
-
-      {releasingRow ? (
-        <div
-          className="dm-dialog-scrim"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="release-modal-title"
-        >
-          <div className="dm-dialog-card">
-            <h3 id="release-modal-title" className="text-base font-bold text-ink">
-              Release to Office Pool
-            </h3>
-            <p className="mt-1 text-sm text-ink-soft">
-              Leaving for field work or an emergency? Releasing{' '}
-              <strong>{releasingRow.trackingNumber}</strong> will unbind your ID, log an internal
-              audit note, and return the request to the department pool so colleagues on duty can
-              claim and continue processing it.
-            </p>
-            <label
-              htmlFor="modal-release-reason"
-              className="mt-4 block text-xs font-semibold text-ink"
-            >
-              Reason for release (optional)
-            </label>
-            <input
-              id="modal-release-reason"
-              type="text"
-              value={releaseReason}
-              onChange={(e) => setReleaseReason(e.target.value)}
-              placeholder="e.g. Field inspection, urgent errand, emergency leave"
-              className="st-filter-field mt-1.5 w-full text-sm"
-              maxLength={255}
-            />
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setReleasingRow(null);
-                  setReleaseReason('');
-                }}
-                className="cr-btn"
-                disabled={releasePending}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmRelease}
-                className="cr-btn cr-btn-primary !bg-amber-600 hover:!bg-amber-700"
-                disabled={releasePending}
-              >
-                {releasePending ? 'Releasing…' : 'Confirm & Release to Pool'}
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
     </section>
   );

@@ -30,7 +30,6 @@ export function RequestTable({
   rows,
   onOpen,
   onClaim,
-  onRelease,
   emptyTitle,
   emptyBody,
   showAssignee = true,
@@ -43,7 +42,6 @@ export function RequestTable({
   rows: ReviewRow[];
   onOpen: (row: ReviewRow) => void;
   onClaim?: (row: ReviewRow) => void;
-  onRelease?: (row: ReviewRow) => void;
   emptyTitle: string;
   emptyBody: string;
   showAssignee?: boolean;
@@ -53,7 +51,7 @@ export function RequestTable({
   actionLabel?: string;
   loading?: boolean;
 }) {
-  const colSpan = 4 + (spansDepartments ? 1 : 0) + (showAssignee ? 1 : 0);
+  const colSpan = 5 + (spansDepartments ? 1 : 0) + (showAssignee ? 1 : 0);
 
   return (
     <div className="st-scroll">
@@ -170,8 +168,8 @@ export function RequestTable({
                 <td className="mono">{row.submittedAt ?? row.dateShort ?? '—'}</td>
                 <td>{row.citizenName || '—'}</td>
                 {showAssignee ? <td>{row.assignedStaff || '—'}</td> : null}
-                <td>
-                  <div className="flex items-center gap-1.5">
+                <td className="whitespace-nowrap">
+                  <div className="flex items-center gap-3 shrink-0">
                     {onClaim && !row.assignedTo ? (
                       <button
                         type="button"
@@ -179,31 +177,18 @@ export function RequestTable({
                           e.stopPropagation();
                           onClaim(row);
                         }}
-                        className="cr-btn cr-btn-primary !px-2.5 !py-1 !text-xs font-semibold"
+                        className="cr-btn cr-btn-primary shrink-0 !px-2.5 !py-1 !text-xs font-semibold"
                         title="Claim and start processing"
                       >
                         Claim
                       </button>
                     ) : null}
-                    {onRelease && row.assignedTo ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRelease(row);
-                        }}
-                        className="cr-btn !bg-amber-50 !border-amber-300 !text-amber-800 hover:!bg-amber-100 !px-2.5 !py-1 !text-xs font-semibold transition-colors"
-                        title="Release back to office pool (field work / emergency)"
-                      >
-                        Release
-                      </button>
-                    ) : null}
                     <button
                       type="button"
                       onClick={() => onOpen(row)}
-                      className="st-action"
+                      className="st-action shrink-0"
                     >
-                      <img src="/images/staff/icon-eye.svg" alt="" />
+                      <img src="/images/staff/icon-eye.svg" alt="" className="shrink-0" />
                       <span>{actionLabel}</span>
                     </button>
                   </div>
