@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
 import { Speedy } from '@/components/citizen/speedy';
+import { HeroVideo } from '@/components/citizen/hero-video';
 import { all as faqs } from '@/lib/domain/site-faq';
 import { routes } from '@/lib/routes';
 
@@ -155,38 +156,11 @@ export default function LandingPage() {
 
       <main id="main">
         {/* ── Hero ───────────────────────────────────────────────────────────
-            City Hall photo on the right, feathered into white by the exported
-            vignette, so the copy on the left sits on clean paper. On phones the
-            photo moves under the actions instead of behind the text, where it
-            only cost contrast. */}
-        <section id="top" className="relative isolate overflow-hidden bg-white">
-          <div
-            className="pointer-events-none absolute inset-y-0 left-[36%] right-0 -z-10 hidden lg:block"
-            aria-hidden="true"
-          >
-            {/* 2.84% = the design's 36px inside a 1268px vignette: the feather
-                has to start before the photo does or its raw edge shows. */}
-            <div className="absolute inset-y-0 left-[2.84%] right-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/images/landing/hero-cityhall.jpg"
-                alt=""
-                width={2000}
-                height={1500}
-                fetchPriority="high"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/landing/hero-gradient.svg"
-              alt=""
-              className="absolute inset-0 h-full w-full"
-            />
-            {/* The vignette's top feather starts a few pixels in, which left a
-                raw strip of sky under the header; this closes it. */}
-            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white via-white/70 to-transparent" />
-          </div>
+            A muted video of the city behind the whole hero, under a white veil
+            so the copy stays readable (`--hero-veil` sets how faded it is). It
+            fades out as the page scrolls, into the white sections below. */}
+        <section id="top" className="hero-with-video relative isolate overflow-hidden bg-white">
+          <HeroVideo src="/videos/landing-hero.mp4" poster="/images/landing/hero-video-poster.jpg" />
 
           <div className="mx-auto flex max-w-[1209.5px] flex-col px-4 pb-14 pt-12 sm:px-6 sm:pt-16 lg:min-h-[min(calc(100svh/var(--ui-zoom)-72px),720px)] lg:justify-center lg:px-8 lg:py-20">
             <div className="max-w-[560px]">
@@ -243,15 +217,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/landing/hero-cityhall.jpg"
-              alt="San Pedro City Hall, Laguna"
-              width={2000}
-              height={1500}
-              loading="lazy"
-              className="mt-10 aspect-[16/10] w-full rounded-[20px] object-cover shadow-[0_1px_2px_rgba(0,0,0,0.08),0_12px_32px_-16px_rgba(0,64,4,0.45)] lg:hidden"
-            />
           </div>
         </section>
 

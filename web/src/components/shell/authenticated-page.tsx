@@ -81,7 +81,7 @@ export async function AuthenticatedPage({
     roleLabel: roleLabelOf(actor),
     departmentName: actor.departmentName,
     avatarUrl: actor.avatarPath ? routes.staffAvatar(actor.id) : null,
-    canFileInternal: actor.can('create internal requests'),
+    canFileInternal: actor.can('create internal requests') && actor.departmentId !== null,
     canScan: actor.can('scan documents') || actor.can('act on internal requests'),
     isSuperAdmin: actor.isSuperAdmin(),
     isAvailable: actor.isAvailable,

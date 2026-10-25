@@ -80,6 +80,16 @@ export function HeaderActions({
         <DutyStatusToggle isAvailable={user.isAvailable} />
       </div>
 
+      {/* On every staff page, beside Scan QR Code: filing is not tied to the Internal tab. */}
+      {user.canFileInternal ? (
+        <Link href={routes.requestsCreate()} className="header-action" title="File an internal request">
+          <svg fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+          </svg>
+          <span>File Request</span>
+        </Link>
+      ) : null}
+
       {user.canScan ? (
         <button type="button" className="header-action" onClick={() => setScanning(true)} aria-haspopup="dialog">
           <svg fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">

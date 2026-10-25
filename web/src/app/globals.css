@@ -3892,6 +3892,25 @@ a.dm-thumb:hover { border-color: var(--green); }
 .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(22, 122, 58, .14); }
 .form-input-with-icon { padding-left: 48px; }
 .form-input-with-toggle { padding-right: 48px; }
+/* Show/hide password, inside the field's right edge. Out of flow, so the
+   field keeps the input's height and the lock icon stays centred. */
+.pass-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-50%);
+    border-radius: 8px;
+    color: var(--ink-soft);
+    transition: color .15s, background-color .15s;
+}
+.pass-toggle:hover { color: var(--green); background: var(--green-wash, #eef6f0); }
+.pass-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.pass-toggle svg { width: 20px; height: 20px; }
 
 .auth-button {
     display: flex;
@@ -4471,3 +4490,31 @@ img.gs-avatar,
 img.avatar,
 img.dir-avatar,
 img.header-avatar { object-fit: cover; padding: 0; }
+
+/* ── Landing hero video ─────────────────────────────────────────────────────
+   components/citizen/hero-video.tsx. --hero-veil (0–1) is how white the veil
+   over the footage is: raise it if the copy ever loses contrast. The veil is
+   heavier on the left, where the headline sits, and on phones, where the copy
+   covers the whole width. */
+.hero-with-video { --hero-veil: 0.62; }
+.hero-video { position: absolute; inset: 0; z-index: -10; pointer-events: none; will-change: opacity; }
+.hero-video-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-video-veil {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg,
+            rgba(255, 255, 255, .92) 0%,
+            rgba(255, 255, 255, .78) 38%,
+            rgba(255, 255, 255, 0) 70%),
+        rgba(255, 255, 255, var(--hero-veil));
+}
+@media (max-width: 1023px) {
+    .hero-video-veil { background: rgba(255, 255, 255, calc(var(--hero-veil) + .2)); }
+}
+/* Top: under the header; bottom: into the next (white) section. */
+.hero-video-feather {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0) 14%, rgba(255, 255, 255, 0) 72%, #fff 100%);
+}

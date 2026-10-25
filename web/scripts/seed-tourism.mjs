@@ -17,7 +17,8 @@
  *      "S/Admin") and 8 staff, password `staff1234`. Existing accounts keep
  *      their password.
  *   4. Adds CTCAO's request types with each one's usual handlers (the
- *      workflow's assignment table) and its extra question.
+ *      workflow's assignment table), its extra question, and the Letter of
+ *      Request where the type needs one (only if missing).
  *   5. Switches every other request type off, so the public form offers only
  *      CTCAO's services. Reversible per type on the Request Types page.
  *
@@ -60,6 +61,21 @@ const PEOPLE = [
   ['Leo Pascual', 'leo.pascual@speedtraqr.com', 'staff'],
   ['Ella Manalo', 'ella.manalo@speedtraqr.com', 'staff'],
 ];
+
+/**
+ * The supporting document a request type must come with, as the Laravel
+ * catalog had it: every facility and equipment request, and Lei Making.
+ * Only added when missing — a requirement an admin added or changed stays.
+ */
+const LETTER = 'Letter of Request addressed to the Mayor';
+const REQUIREMENTS = {
+  'City Plaza Reservation': [LETTER],
+  'Gateway Park Reservation': [LETTER],
+  'Spider Banner Borrowing': [LETTER],
+  'Philippine Flag Borrowing': [LETTER],
+  'San Pedro Seal Flag Borrowing': [LETTER],
+  'Lei Making': [LETTER],
+};
 
 /**
  * CTCAO's catalog, in the paper form's order.
@@ -201,6 +217,20 @@ async function requestTypes(department, resourcesByName, peopleByHandle) {
     const type = existing
       ? await db.request_types.update({ where: { id: existing.id }, data })
       : await db.request_types.create({ data: { name, ...data, created_at: now() } });
+
+    for (const [order, label] of (REQUIREMENTS[name] ?? []).entries()) {
+      const has = await db.request_type_requirements.findFirst({
+        where: { request_type_id: type.id, label },
+        select: { id: true },
+      });
+
+      if (!has) {
+        await db.request_type_requirements.create({
+          data: { request_type_id: type.id, label, is_mandatory: true, sort_order: order, created_at: now(), updated_at: now() },
+        });
+        console.log(`  requirement added: ${name} → ${label}`);
+      }
+    }
 
     await db.request_type_handlers.deleteMany({ where: { request_type_id: type.id } });
     await db.request_type_handlers.createMany({

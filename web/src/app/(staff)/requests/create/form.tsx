@@ -775,8 +775,12 @@ export function FilingForm({
             </button>
           ) : null}
           <div className="ml-auto flex items-center gap-2">
+            {/* Separate keys: without them React reuses this element as the submit
+                button, and the click that opens step 2 finishes as a submit — the
+                request was filed before the QR could be placed. */}
             {step === 1 ? (
               <button
+                key="review"
                 type="button"
                 disabled={!canReview}
                 onClick={() => {
@@ -787,7 +791,7 @@ export function FilingForm({
                 Review →
               </button>
             ) : (
-              <button type="submit" disabled={pending} className="cr-btn cr-btn-primary">
+              <button key="file" type="submit" disabled={pending} className="cr-btn cr-btn-primary">
                 {pending ? 'Filing…' : 'File Request'}
               </button>
             )}
