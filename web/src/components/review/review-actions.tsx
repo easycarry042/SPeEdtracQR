@@ -110,11 +110,11 @@ export function ReviewActions({
           <section className="dm-panel-strong space-y-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="pill p-brass text-xs">For Clearance</span>
-                <h4 className="font-bold text-green-deep text-sm">Supervisor Clearance Review</h4>
+                <span className="pill p-brass text-xs">Review & Sign-Off</span>
+                <h4 className="font-bold text-green-deep text-sm">Review & Sign-Off</h4>
               </div>
               <p className="text-xs text-ink-soft mt-1">
-                Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance. Review requirements, attached evidence, and citizen details above before making a decision.
+                Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance and confirmation. Review requirement verifications and booking dependencies above before deciding.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
@@ -124,7 +124,7 @@ export function ReviewActions({
                 disabled={pending}
                 onClick={() => setDialog('approve_clearance')}
               >
-                Approve & Ready for Claim
+                Confirm & Release
               </button>
               <button
                 type="button"
@@ -132,7 +132,7 @@ export function ReviewActions({
                 disabled={pending}
                 onClick={() => setDialog('return_staff')}
               >
-                Return for Corrections
+                Return for Revision
               </button>
               <button
                 type="button"
@@ -140,7 +140,7 @@ export function ReviewActions({
                 disabled={pending}
                 onClick={() => setDialog('deny')}
               >
-                Deny Request
+                Deny
               </button>
               <button
                 type="button"
@@ -238,10 +238,23 @@ export function ReviewActions({
           </section>
         ) : (
           <section className="dm-panel-strong text-[length:var(--fs-small)] text-ink">
+            {row.overSla ? (
+              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 p-2.5 text-xs text-red-900">
+                <div className="flex items-center gap-1.5 font-bold text-red-800">
+                  <svg className="h-4 w-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  SLA Threshold Breached (+{row.overSla} overdue)
+                </div>
+                <p className="mt-1 text-red-850">
+                  This request has exceeded its stage budget. As supervisor, you can reassign it to an available staff member to keep processing on schedule.
+                </p>
+              </div>
+            ) : null}
             <p>
               Being handled by{' '}
               <strong className="text-green-deep">{row.assignedStaff || 'a staff member'}</strong>.
-              You can adjust the claiming date and answer the citizen from here; the stage itself is
+              You can adjust the claiming date, reassign if delayed or absent, and answer the citizen from here; the processing stages are
               theirs to advance.
             </p>
 
@@ -380,11 +393,11 @@ export function ReviewActions({
       {mode === 'staff' && row.status === DocumentStatus.InReview ? (
         <section className="dm-panel-strong space-y-2 text-sm text-ink">
           <div className="flex items-center gap-2">
-            <span className="pill p-brass text-xs">For Clearance</span>
-            <p className="font-bold text-green-deep">Awaiting Supervisor Clearance</p>
+            <span className="pill p-brass text-xs">Review & Sign-Off</span>
+            <p className="font-bold text-green-deep">Awaiting Supervisor Review</p>
           </div>
           <p className="text-xs text-ink-soft">
-            You have completed processing and submitted this request for supervisor clearance. Once approved by your supervisor, the citizen will be notified with claiming details.
+            You have completed processing and submitted this request for supervisor sign-off. Once confirmed by your supervisor, the citizen will be notified with claiming details.
           </p>
         </section>
       ) : null}
@@ -398,9 +411,10 @@ export function ReviewActions({
                 <svg className="h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                Supervisor Requested Corrections
+                Supervisor Requested Revision
               </div>
               <p className="mt-1 text-xs leading-relaxed text-amber-900">{row.remarks}</p>
+              <p className="mt-2 text-xs font-semibold text-amber-700">Please address the requested corrections and resubmit for supervisor review.</p>
             </div>
           ) : null}
 
@@ -422,9 +436,9 @@ export function ReviewActions({
                   disabled={pending}
                   onClick={() => setDialog('clearance')}
                 >
-                  {row.remarks ? 'Resubmit for Clearance' : 'Submit for Clearance'}
+                  {row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
                 </button>
-              ) : (FINISHABLE as string[]).includes(row.status) ? (
+              ) : mode !== 'staff' && (FINISHABLE as string[]).includes(row.status) ? (
                 <button
                   type="button"
                   className="btn-step btn-step-fwd"
@@ -600,10 +614,11 @@ export function ReviewActions({
 
       {dialog === 'deny' ? (
         <ReasonDialog
-          title="Deny request"
-          hint="The reason is shown to the citizen on their tracking page."
+          title="Deny Request"
+          hint="The official refusal reason is sent to the citizen and recorded on the document."
           submitLabel="Deny"
           danger
+          required
           pending={pending}
           errors={errors}
           onCancel={() => setDialog(null)}
@@ -662,9 +677,9 @@ export function ReviewActions({
 
       {dialog === 'return_staff' ? (
         <ReasonDialog
-          title="Return to Staff for Corrections"
+          title="Return for Revision"
           hint="Specify what clerical errors or missing documents need to be resolved. The citizen will NOT see these internal remarks; their public tracker remains in an active Processing state."
-          submitLabel="Return to Staff"
+          submitLabel="Return for Revision"
           required
           pending={pending}
           errors={errors}
@@ -1032,28 +1047,31 @@ function ClearanceDialog({
     row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
 
   return (
-    <DialogShell title="Submit for Supervisor Clearance" errors={errors}>
+    <DialogShell
+      title={row.remarks ? 'Resubmit for Supervisor Review' : 'Submit for Supervisor Review'}
+      errors={errors}
+    >
       <p className="gate-claim-hint">
-        Submits this request to your supervisor for clearance. Once approved by the supervisor, the request will be marked <strong>Ready for Claim</strong> and the citizen will be notified with claiming details.
+        Submits this request to your office supervisor for clearance and sign-off. A StatusGate check ensures all mandatory prerequisites and reservation dependencies are verified before submission.
       </p>
 
       {unchecked.length > 0 || bookingWaiting ? (
         <ul className="gate-checks mt-3">
           {unchecked.length > 0 ? (
             <li className="no">
-              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
+              Verify required documents first: {unchecked.map((r) => r.label).join(', ')}
             </li>
           ) : null}
           {bookingWaiting ? (
             <li className="no">
-              Approve the reservation first (in this window, or on the Resources page)
+              Awaiting resource reservation approval before this request can be submitted.
             </li>
           ) : null}
         </ul>
       ) : null}
 
       <label className="gate-claim-label mt-3 block" htmlFor={`clearance-note-${row.id}`}>
-        Staff handover note <span className="text-ink-soft">(optional)</span>
+        Handover note for supervisor <span className="text-ink-soft">(optional)</span>
       </label>
       <textarea
         id={`clearance-note-${row.id}`}
@@ -1071,7 +1089,7 @@ function ClearanceDialog({
           disabled={pending || unchecked.length > 0 || bookingWaiting}
           onClick={() => onSubmit(note.trim() || null)}
         >
-          {pending ? 'Submitting…' : 'Submit for Clearance'}
+          {pending ? 'Submitting…' : 'Submit for Supervisor Review'}
         </button>
         <button
           type="button"
@@ -1108,28 +1126,28 @@ function ApproveClearanceDialog({
     row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
 
   return (
-    <DialogShell title="Approve Clearance & Mark Ready for Claim" errors={errors}>
+    <DialogShell title="Confirm & Release" errors={errors}>
       <p className="gate-claim-hint">
-        Approving validates staff verification and marks the request <strong>Ready for Claim</strong>. The citizen will be notified with claiming instructions.
+        Confirms staff verification and marks the request <strong>Ready for Claim</strong>. Setting a release/claiming date alerts the citizen with pickup instructions and QR claim verification.
       </p>
 
       {unchecked.length > 0 || bookingWaiting ? (
         <ul className="gate-checks mt-3">
           {unchecked.length > 0 ? (
             <li className="no">
-              Check these required files first: {unchecked.map((r) => r.label).join(', ')}
+              Check required prerequisites first: {unchecked.map((r) => r.label).join(', ')}
             </li>
           ) : null}
           {bookingWaiting ? (
             <li className="no">
-              Approve the reservation first (in this window, or on the Resources page)
+              Approve reservation dependencies first
             </li>
           ) : null}
         </ul>
       ) : null}
 
       <label className="gate-claim-label mt-3 block" htmlFor={`approve-claim-date-${row.id}`}>
-        Citizen claim date <span className="text-ink-soft">(optional)</span>
+        Citizen release / claim date <span className="text-ink-soft">(optional)</span>
       </label>
       <input
         id={`approve-claim-date-${row.id}`}
@@ -1141,7 +1159,7 @@ function ApproveClearanceDialog({
       />
 
       <label className="gate-claim-label mt-3 block" htmlFor={`approve-clearance-note-${row.id}`}>
-        Approval note <span className="text-ink-soft">(optional)</span>
+        Claiming remarks / instructions <span className="text-ink-soft">(optional)</span>
       </label>
       <textarea
         id={`approve-clearance-note-${row.id}`}
@@ -1149,7 +1167,7 @@ function ApproveClearanceDialog({
         rows={3}
         value={note}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="Add an internal clearance confirmation note..."
+        placeholder="Add instructions or confirmation remarks for citizen pickup..."
       />
 
       <div className="gate-actions mt-4">
@@ -1159,7 +1177,7 @@ function ApproveClearanceDialog({
           disabled={pending || unchecked.length > 0 || bookingWaiting}
           onClick={() => onSubmit({ claimDate: claimDate || null, note: note.trim() || null })}
         >
-          {pending ? 'Approving…' : 'Approve & Ready for Claim'}
+          {pending ? 'Confirming…' : 'Confirm & Release'}
         </button>
         <button
           type="button"

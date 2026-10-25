@@ -58,11 +58,17 @@ export function DashboardQueues({
   const [tab, setTab] = useState<Tab>(activeTab);
   const [query, setQuery] = useState(search);
   const [filter, setFilter] = useState<StaffFilterState>(EMPTY_STAFF_FILTER);
+  const [oversightFilter, setOversightFilter] = useState<'all' | 'breached'>('all');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
   const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
+
+  const breachedCount = useMemo(
+    () => active.filter((r) => r.overSla !== null || r.holdOverdueDays !== null).length,
+    [active],
+  );
 
   const allLocal = useMemo(() => [...pending, ...active, ...clearance], [pending, active, clearance]);
   const typeOptions = useMemo(() => {
@@ -71,14 +77,18 @@ export function DashboardQueues({
   }, [tab, completed, allLocal]);
 
   const matches = useMemo(() => {
-    const base =
-      tab === 'pending'
-        ? pending
+    let base =
+      tab === 'clearance'
+        ? clearance
         : tab === 'inprogress'
           ? active
-          : tab === 'clearance'
-            ? clearance
+          : tab === 'pending'
+            ? pending
             : completed;
+
+    if (tab === 'inprogress' && oversightFilter === 'breached') {
+      base = base.filter((r) => r.overSla !== null || r.holdOverdueDays !== null);
+    }
     const needle = query.trim().toLowerCase();
 
     return base.filter((r) => {
@@ -95,7 +105,7 @@ export function DashboardQueues({
         (field ?? '').toLowerCase().includes(needle),
       );
     });
-  }, [tab, pending, active, clearance, completed, filter, query]);
+  }, [tab, pending, active, clearance, completed, filter, query, oversightFilter]);
 
   const pageCount =
     tab === 'completed'
@@ -147,9 +157,9 @@ export function DashboardQueues({
         <div className="st-tabs" role="tablist" aria-label="Request queues">
           {(
             [
+              ['clearance', 'Review & Sign-Off', clearance.length],
+              ['inprogress', 'Department Oversight', active.length],
               ['pending', 'Unassigned', pending.length],
-              ['inprogress', 'In Progress', active.length],
-              ['clearance', 'For Clearance', clearance.length],
               ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
@@ -160,7 +170,7 @@ export function DashboardQueues({
               aria-selected={tab === key}
               className={tab === key ? 'on' : ''}
               onClick={() => {
-                setTab(key);
+                setTab(key as Tab);
                 setPage(1);
                 const next = new URLSearchParams(params.toString());
                 next.set('tab', key);
@@ -212,6 +222,38 @@ export function DashboardQueues({
         </div>
       </div>
 
+      {tab === 'inprogress' ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-gray-50/80 px-4 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-ink-soft uppercase tracking-wider">Oversight Filter:</span>
+            <button
+              type="button"
+              className={`pill text-xs cursor-pointer transition-colors ${oversightFilter === 'all' ? 'p-green font-bold' : 'p-muted'}`}
+              onClick={() => {
+                setOversightFilter('all');
+                setPage(1);
+              }}
+            >
+              All Ongoing ({active.length})
+            </button>
+            <button
+              type="button"
+              className={`pill text-xs cursor-pointer transition-colors ${oversightFilter === 'breached' ? 'p-red font-bold' : 'p-muted'}`}
+              onClick={() => {
+                setOversightFilter('breached');
+                setPage(1);
+              }}
+              title="Filter to requests that exceeded stage SLA"
+            >
+              SLA Breached ({breachedCount})
+            </button>
+          </div>
+          <span className="text-ink-soft hidden md:inline">
+            Supervisors can review and reassign requests if the assigned staff member is delayed or absent.
+          </span>
+        </div>
+      ) : null}
+
       <div className="st-card">
         <RequestTable
           rows={pageItems}
@@ -219,7 +261,15 @@ export function DashboardQueues({
           spansDepartments={spansDepartments}
           showStatusPill={tab === 'inprogress' || tab === 'clearance'}
           dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
-          actionLabel={tab === 'pending' ? 'Review' : tab === 'clearance' ? 'Review Clearance' : 'View details'}
+          actionLabel={
+            tab === 'clearance'
+              ? 'Review & Sign-Off'
+              : tab === 'inprogress'
+                ? 'Oversight / Reassign'
+                : tab === 'pending'
+                  ? 'Review & Assign'
+                  : 'View details'
+          }
           showAssignee={tab !== 'pending'}
           loading={tab === 'completed' && history.loading && !history.data}
           emptyTitle={
@@ -227,10 +277,12 @@ export function DashboardQueues({
               ? 'Completed requests could not be loaded'
               : hasFilter
                 ? 'No requests match'
-                : tab === 'inprogress'
-                  ? 'Nothing in progress'
-                  : tab === 'clearance'
-                    ? 'No requests awaiting clearance'
+                : tab === 'clearance'
+                  ? 'No submissions awaiting review & sign-off'
+                  : tab === 'inprogress'
+                    ? oversightFilter === 'breached'
+                      ? 'No ongoing requests have breached SLA'
+                      : 'No ongoing requests in department'
                     : tab === 'completed'
                       ? 'Nothing completed yet'
                       : 'No unassigned requests'
@@ -240,10 +292,12 @@ export function DashboardQueues({
               ? 'Check your connection and open the tab again.'
               : hasFilter
                 ? 'Try another search, or loosen the filter.'
-                : tab === 'inprogress'
-                  ? 'Requests your staff are working on appear here.'
-                  : tab === 'clearance'
-                    ? 'Requests submitted by staff for supervisor sign-off will appear here.'
+                : tab === 'clearance'
+                  ? 'Completed staff submissions awaiting supervisor confirmation and release will appear here.'
+                  : tab === 'inprogress'
+                    ? oversightFilter === 'breached'
+                      ? 'All active requests in your office are currently within their SLA budgets.'
+                      : 'Requests your staff are working on appear here.'
                     : tab === 'completed'
                       ? `Every request ${officeName ?? 'your office'} finishes appears here, newest first.`
                       : 'New citizen submissions awaiting approval will appear here.'

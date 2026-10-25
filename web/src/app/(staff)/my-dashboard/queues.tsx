@@ -16,23 +16,22 @@ import {
 import { useCompletedHistory } from '@/components/review/use-completed-history';
 import { claimDocument } from '@/app/actions/document';
 
-type Tab = 'open' | 'triage' | 'active' | 'completed';
+type Tab = 'pool' | 'active' | 'returned' | 'triage' | 'completed';
 
 const PER_PAGE = 10;
 
 /**
  * The staff cockpit's queues.
  *
- * Open requests land in the department pool for staff to claim.
- * "To accept" leads for assigned work, because an unaccepted assignment blocks
- * everything after it — the stage gate for →In Progress will not pass until the
- * assignee has accepted, so nothing can move while it sits there. Completed is
- * everything this person has finished, fetched a page at a time.
+ * "Available Pool" displays unassigned requests for their office with one-click "Claim" actions.
+ * "My Active" displays requests they are currently handling.
+ * "Returned for Revision" highlights requests sent back by the supervisor with notes.
  */
 export function StaffQueues({
   openRequests,
   triage,
   active,
+  returned,
   completedCount,
   activeTab,
   openTracking,
@@ -40,6 +39,7 @@ export function StaffQueues({
   openRequests: ReviewRow[];
   triage: ReviewRow[];
   active: ReviewRow[];
+  returned: ReviewRow[];
   completedCount: number;
   activeTab: Tab;
   openTracking: string | null;
@@ -66,13 +66,15 @@ export function StaffQueues({
 
   const matches = useMemo(() => {
     const base =
-      tab === 'open'
+      tab === 'pool'
         ? openRequests
         : tab === 'triage'
           ? triage
-          : tab === 'active'
-            ? active
-            : completed;
+          : tab === 'returned'
+            ? returned
+            : tab === 'active'
+              ? active
+              : completed;
     const needle = query.trim().toLowerCase();
 
     return base.filter((r) => {
@@ -89,7 +91,7 @@ export function StaffQueues({
         (field ?? '').toLowerCase().includes(needle),
       );
     });
-  }, [tab, openRequests, triage, active, completed, filter, query]);
+  }, [tab, openRequests, triage, returned, active, completed, filter, query]);
 
   const pageCount =
     tab === 'completed'
@@ -153,10 +155,11 @@ export function StaffQueues({
         <div className="st-tabs" role="tablist" aria-label="My requests">
           {(
             [
-              ['open', 'Open Requests', openRequests.length],
-              ['triage', 'To accept', triage.length],
-              ['active', 'Ongoing', active.length],
-              ['completed', 'Done', completedCount],
+              ['pool', 'Available Pool', openRequests.length],
+              ['active', 'My Active', active.length],
+              ['returned', 'Returned for Revision', returned.length],
+              ['triage', 'To Accept', triage.length],
+              ['completed', 'Completed', completedCount],
             ] as const
           ).map(([key, label, count]) => (
             <button
@@ -166,7 +169,7 @@ export function StaffQueues({
               aria-selected={tab === key}
               className={tab === key ? 'on' : ''}
               onClick={() => {
-                setTab(key);
+                setTab(key as Tab);
                 setPage(1);
                 const next = new URLSearchParams(params.toString());
                 next.set('tab', key);
@@ -222,37 +225,49 @@ export function StaffQueues({
         <RequestTable
           rows={pageItems}
           onOpen={setOpen}
-          onClaim={tab === 'open' ? handleClaim : undefined}
+          onClaim={tab === 'pool' ? handleClaim : undefined}
           showAssignee={false}
-          showStatusPill={tab === 'active'}
+          showStatusPill={tab === 'active' || tab === 'returned'}
           dateHeading={tab === 'completed' ? 'Completed' : 'Date'}
-          actionLabel={tab === 'open' ? 'Review & Claim' : tab === 'triage' ? 'Review' : 'View details'}
+          actionLabel={
+            tab === 'pool'
+              ? 'Claim / Review'
+              : tab === 'returned'
+                ? 'Fix & Resubmit'
+                : tab === 'triage'
+                  ? 'Review'
+                  : 'View details'
+          }
           loading={tab === 'completed' && history.loading && !history.data}
           emptyTitle={
             tab === 'completed' && history.failed
               ? 'Completed requests could not be loaded'
               : hasFilter
                 ? 'No requests match'
-                : tab === 'open'
-                  ? 'No open requests in department pool'
-                  : tab === 'triage'
-                    ? 'Nothing waiting on you'
-                    : tab === 'active'
-                      ? 'No requests in progress'
-                      : 'Nothing completed yet'
+                : tab === 'pool'
+                  ? 'No unassigned requests in available pool'
+                  : tab === 'returned'
+                    ? 'No requests returned for revision'
+                    : tab === 'triage'
+                      ? 'Nothing waiting on you'
+                      : tab === 'active'
+                        ? 'No active requests in progress'
+                        : 'Nothing completed yet'
           }
           emptyBody={
             tab === 'completed' && history.failed
               ? 'Check your connection, then open the tab again.'
               : hasFilter
                 ? 'Try another search, or loosen the filter.'
-                : tab === 'open'
-                  ? 'New unassigned requests in your department will appear here for staff to claim.'
-                  : tab === 'triage'
-                    ? 'New assignments appear here. Accepting one is what lets it move past Pending.'
-                    : tab === 'active'
-                      ? 'Accept an assignment or claim an open request to start work on it.'
-                      : 'Requests you finish land here.'
+                : tab === 'pool'
+                  ? 'New unassigned requests in your office will appear here with one-click Claim actions.'
+                  : tab === 'returned'
+                    ? 'Requests sent back by your supervisor with revision notes will appear here.'
+                    : tab === 'triage'
+                      ? 'New assignments appear here. Accepting one is what lets it move past Pending.'
+                      : tab === 'active'
+                        ? 'Accept an assignment or claim an open request to start work on it.'
+                        : 'Requests you finish land here.'
           }
         />
 

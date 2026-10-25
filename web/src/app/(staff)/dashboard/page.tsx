@@ -206,18 +206,26 @@ export default async function DashboardPage({
   const completionRate =
     totalForCompletion > 0 ? Math.round((completedTotal / totalForCompletion) * 100) : null;
 
-  const activeTab =
-    tab === 'pending' || tab === 'inprogress' || tab === 'clearance' || tab === 'completed'
-      ? tab
-      : tab === 'active'
+  const normalizedTab =
+    tab === 'signoff' || tab === 'clearance'
+      ? 'clearance'
+      : tab === 'oversight' || tab === 'active' || tab === 'inprogress'
         ? 'inprogress'
-        : tab === 'done'
-          ? 'completed'
-          : clearance.length > 0
-            ? 'clearance'
-            : pending.length > 0
-              ? 'pending'
-              : 'inprogress';
+        : tab === 'pending'
+          ? 'pending'
+          : tab === 'completed' || tab === 'done'
+            ? 'completed'
+            : null;
+
+  const activeTab =
+    normalizedTab ??
+    (clearance.length > 0
+      ? 'clearance'
+      : active.length > 0
+        ? 'inprogress'
+        : pending.length > 0
+          ? 'pending'
+          : 'clearance');
 
   return (
     <AuthenticatedPage
@@ -244,25 +252,25 @@ export default async function DashboardPage({
       }
     >
       <div className="page-shell page-shell-loose">
-        {/* Headline counts, on the same gradient ramp as the staff dashboard */}
+        {/* Headline counts, leading with the Review & Sign-Off queue */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <StaffStatTile
-            label="Pending"
-            value={pendingOnly}
+            label="Review & Sign-Off"
+            value={clearance.length}
             tone="deep"
             icon="hourglass"
           />
           <StaffStatTile
-            label="Unassigned"
-            value={unassignedCount}
-            tone="mid"
-            icon="people"
-          />
-          <StaffStatTile
             label="In Progress"
             value={inProgressCount}
-            tone="bright"
+            tone="mid"
             icon="clock"
+          />
+          <StaffStatTile
+            label="Unassigned"
+            value={unassignedCount}
+            tone="bright"
+            icon="people"
           />
           <StaffStatTile
             label="Completed"

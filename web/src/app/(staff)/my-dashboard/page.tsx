@@ -81,6 +81,11 @@ export default async function StaffDashboardPage({
     collection(activeRows, actor),
   ]);
 
+  // Requests sent back by the supervisor for revision
+  const returned = active.filter(
+    (row) => Boolean(row.remarks) || row.status === DocumentStatus.Returned,
+  );
+
   // Worst first — the order a queue should be worked in.
   const pressing = atRisk(
     activeRows.map((row) => ({
@@ -94,16 +99,23 @@ export default async function StaffDashboardPage({
     })),
   );
 
+  const normalizedTab = tab === 'open' ? 'pool' : tab;
   const activeTab =
-    tab === 'open' || tab === 'triage' || tab === 'active' || tab === 'completed'
-      ? tab
-      : triage.length > 0
-        ? 'triage'
-        : active.length > 0
-          ? 'active'
-          : openRequests.length > 0
-            ? 'open'
-            : 'active';
+    normalizedTab === 'pool' ||
+    normalizedTab === 'active' ||
+    normalizedTab === 'returned' ||
+    normalizedTab === 'triage' ||
+    normalizedTab === 'completed'
+      ? normalizedTab
+      : returned.length > 0
+        ? 'returned'
+        : triage.length > 0
+          ? 'triage'
+          : active.length > 0
+            ? 'active'
+            : openRequests.length > 0
+              ? 'pool'
+              : 'active';
 
   return (
     <AuthenticatedPage title="Requests">
@@ -113,8 +125,9 @@ export default async function StaffDashboardPage({
         openRequests={openRequests}
         triage={triage}
         active={active}
+        returned={returned}
         completedCount={completedTotal}
-        activeTab={activeTab}
+        activeTab={activeTab as 'pool' | 'active' | 'returned' | 'triage' | 'completed'}
         openTracking={open ?? null}
       />
     </AuthenticatedPage>
