@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FormDepartment, FormRecipient } from '@/lib/domain/internal-request-form';
 import { fileRequest } from '@/app/actions/internal';
+import { planRoute } from '@/lib/domain/internal-route-plan';
 import { renderPdfFilePage } from '@/lib/client/pdf-preview';
 
 type QrPlacement = {
@@ -55,10 +56,16 @@ function QrGlyph() {
  */
 export function FilingForm({
   departments,
+  mandatory,
+  officeId,
   officeName,
   officeCode = null,
 }: {
+  /** Offices a request can be FOR (Action Mamamayan is never a destination). */
   departments: FormDepartment[];
+  /** Offices every request passes through first, in route order. */
+  mandatory: FormDepartment[];
+  officeId: number | null;
   officeName: string;
   officeCode?: string | null;
 }) {
@@ -120,6 +127,10 @@ export function FilingForm({
 
   const selectedDepartment =
     departments.find((d) => String(d.id) === String(firstDepartment)) ?? null;
+  // The route the server will queue: the mandatory offices, then this one.
+  const route = selectedDepartment
+    ? planRoute(mandatory, officeId, selectedDepartment)
+    : mandatory.filter((office) => office.id !== officeId);
   const selectedRecipient =
     people.find((p) => String(p.id) === String(recipientId)) ?? null;
 
@@ -269,7 +280,7 @@ export function FilingForm({
     setError(null);
 
     const form = new FormData();
-    form.set('first_department_id', firstDepartment);
+    form.set('destination_department_id', firstDepartment);
     form.set('purpose', purpose.trim());
     form.set('has_hard_copy', hasHardCopy ? '1' : '0');
 
@@ -394,29 +405,18 @@ export function FilingForm({
               <div className="flex flex-col gap-5">
                 <div>
                   <label htmlFor="route-select" className="st-filter-label">
-                    First Department Route <span className="text-status-red">*</span>
+                    Destination Office <span className="text-status-red">*</span>
                   </label>
 
-                  <div
-                    className={`ff-route${selectedDepartment ? ' is-set' : ''}`}
-                    aria-hidden="true"
-                  >
-                    <div className="ff-route-track">
-                      <span className="ff-route-node is-own" />
-                      <span className="ff-route-line" />
-                      <span className="ff-route-node is-next" />
-                    </div>
-                    <div className="ff-route-labels">
-                      <span className="is-own">{officeName}</span>
-                      <span className="is-next">
-                        {selectedDepartment ? selectedDepartment.name : 'Next Route'}
-                      </span>
-                    </div>
-                  </div>
+                  <RouteStrip officeName={officeName} route={route} destinationChosen={selectedDepartment !== null} />
+                  <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">
+                    Every internal request is validated by {mandatory.map((office) => office.name).join(', then ')} before it
+                    reaches the office it is for.
+                  </p>
 
                   <select
                     id="route-select"
-                    name="first_department_id"
+                    name="destination_department_id"
                     value={firstDepartment}
                     onChange={(event) => {
                       setFirstDepartment(event.target.value);
@@ -425,7 +425,7 @@ export function FilingForm({
                     required
                     className="st-filter-field mt-3"
                   >
-                    <option value="">Select a Department…</option>
+                    <option value="">Which office is this request for?…</option>
                     {departments.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name} ({d.code})
@@ -465,12 +465,12 @@ export function FilingForm({
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[length:var(--fs-small)] font-semibold text-ink">
-                        A hard copy goes to the first office
+                        A hard copy travels with it
                       </span>
                       <span className="block text-[length:var(--fs-caption)] text-ink-soft">
                         {hasHardCopy
-                          ? 'Someone from your office hands over the paper; they scan its QR to receive it.'
-                          : 'Soft copy only: it reaches the person you choose below as soon as you file.'}
+                          ? 'The paper goes office to office along the route; each office scans its QR to receive it.'
+                          : 'Soft copy only: no paper. Each office on the route receives it on screen; at the destination, the person you choose below.'}
                       </span>
                     </span>
                   </label>
@@ -479,7 +479,7 @@ export function FilingForm({
                 {!hasHardCopy ? (
                   <div>
                     <label htmlFor="recipient-select" className="st-filter-label">
-                      Who in the first office receives it?{' '}
+                      Who at the destination office receives it?{' '}
                       <span className="text-status-red">*</span>
                     </label>
                     <select
@@ -494,7 +494,7 @@ export function FilingForm({
                       <option value="">
                         {firstDepartment
                           ? 'Select a person…'
-                          : 'Choose the first department first'}
+                          : 'Choose the destination office first'}
                       </option>
                       {people.map((person) => (
                         <option key={person.id} value={person.id}>
@@ -593,19 +593,7 @@ export function FilingForm({
               <div className="flex flex-col">
                 <p className="st-filter-label">Summary</p>
 
-                <div className="ff-route is-set" aria-hidden="true">
-                  <div className="ff-route-track">
-                    <span className="ff-route-node is-own" />
-                    <span className="ff-route-line" />
-                    <span className="ff-route-node is-next" />
-                  </div>
-                  <div className="ff-route-labels">
-                    <span className="is-own">{officeName}</span>
-                    <span className="is-next">
-                      {selectedDepartment ? selectedDepartment.name : 'Next Route'}
-                    </span>
-                  </div>
-                </div>
+                <RouteStrip officeName={officeName} route={route} destinationChosen={selectedDepartment !== null} />
 
                 <dl className="dm-info mt-2">
                   <div className="dm-info-row">
@@ -616,12 +604,16 @@ export function FilingForm({
                     </dd>
                   </div>
                   <div className="dm-info-row">
-                    <dt>First department</dt>
+                    <dt>Destination office</dt>
                     <dd>
                       {selectedDepartment
                         ? `${selectedDepartment.name} (${selectedDepartment.code})`
                         : '—'}
                     </dd>
+                  </div>
+                  <div className="dm-info-row">
+                    <dt>Route</dt>
+                    <dd>{route.map((office) => office.code).join(' → ')}</dd>
                   </div>
                   <div className="dm-info-row">
                     <dt>Request</dt>
@@ -631,7 +623,7 @@ export function FilingForm({
                     <dt>Hard copy</dt>
                     <dd>
                       {hasHardCopy
-                        ? 'Yes — paper goes to the first office'
+                        ? 'Yes — the paper travels with it'
                         : 'No — soft copy only'}
                     </dd>
                   </div>
@@ -885,6 +877,46 @@ export function FilingForm({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The route as a strip: the filing office, then each office the request will
+ * pass through. The destination is drawn dashed until one is chosen.
+ */
+function RouteStrip({
+  officeName,
+  route,
+  destinationChosen,
+}: {
+  officeName: string;
+  route: FormDepartment[];
+  destinationChosen: boolean;
+}) {
+  const stops = [
+    { key: 'own', label: officeName, own: true },
+    ...route.map((office) => ({ key: String(office.id), label: office.name, own: false })),
+    ...(destinationChosen ? [] : [{ key: 'pending', label: 'Destination office', own: false }]),
+  ];
+
+  return (
+    <div className={`ff-route${destinationChosen ? ' is-set' : ''}`} aria-hidden="true">
+      <div className="ff-route-track" style={{ padding: `0 ${50 / stops.length}%` }}>
+        {stops.map((stop, index) => (
+          <Fragment key={stop.key}>
+            {index > 0 ? <span className="ff-route-line" /> : null}
+            <span className={`ff-route-node ${stop.own || stop.key !== 'pending' ? 'is-own' : 'is-next'}`} />
+          </Fragment>
+        ))}
+      </div>
+      <div className="ff-route-labels" style={{ gridTemplateColumns: `repeat(${stops.length}, minmax(0, 1fr))` }}>
+        {stops.map((stop) => (
+          <span key={stop.key} className={stop.key === 'pending' ? 'is-next' : 'is-own'} title={stop.label}>
+            {stop.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

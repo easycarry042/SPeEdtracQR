@@ -50,16 +50,13 @@ const ROLES = {
     'act on internal requests',
     'manage inventory',
   ],
-  // Clerk: the staff permissions under its own name (ported from the last
-  // Laravel seeder edit). The app does not treat Clerks as staff yet — they are
-  // not in the Assign list or usual-handler picker.
+  // Clerk: Action Mamamayan's one-person account. Every internal request is
+  // validated there first, so it receives the paper (staff), decides on it
+  // (supervisor) and can file its own — and has nothing for citizen requests.
   Clerk: [
     'scan documents',
-    'advance documents',
-    'accept documents',
-    'manage bookings',
-    'manage inventory',
     'create internal requests',
+    'act on internal requests',
   ],
   super_admin: PERMISSIONS,
 };

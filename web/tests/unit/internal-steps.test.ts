@@ -369,6 +369,16 @@ describe('finishing and halting', () => {
     });
   });
 
+  it('refuses Done while the filed route still has offices to go (Action Mamamayan → OM → destination)', async () => {
+    stepFindFirst.mockResolvedValueOnce({ department: { name: 'Office of the Mayor' } });
+
+    await expect(steps.complete(7, actor(), { documentScan: TRACKING })).rejects.toThrow(
+      'This request still goes to Office of the Mayor. Approve it to pass it on',
+    );
+    expect(documentUpdate).not.toHaveBeenCalled();
+    expect(stepUpdateMany).not.toHaveBeenCalled();
+  });
+
   it('attributes a denial so the tracker can name who decided', async () => {
     await steps.deny(7, actor(), { documentScan: TRACKING, remarks: 'Outside the budget line.' });
 

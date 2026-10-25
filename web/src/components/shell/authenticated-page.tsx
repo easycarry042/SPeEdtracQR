@@ -64,6 +64,7 @@ export async function AuthenticatedPage({
     id: actor.id,
     isSuperAdmin: actor.isSuperAdmin(),
     isSupervisor: actor.isSupervisor(),
+    isClerk: actor.isClerk(),
     canManageUsers: actor.can('manage users'),
     canManageSystem: actor.can('manage system'),
     canManageBookings: actor.can('manage bookings'),

@@ -309,9 +309,15 @@ export const routes = {
 export function landingFor(actor: {
   isSuperAdmin(): boolean;
   isSupervisor(): boolean;
+  isClerk?(): boolean;
 }): string {
   if (actor.isSuperAdmin()) {
     return routes.adminDashboard();
+  }
+
+  // Action Mamamayan's Clerk only ever handles internal requests.
+  if (actor.isClerk?.()) {
+    return routes.requestsIndex();
   }
 
   return actor.isSupervisor() ? routes.dashboard() : routes.staffDashboard();

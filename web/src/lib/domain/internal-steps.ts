@@ -468,6 +468,21 @@ export async function complete(
   const signer = actor as Actor;
   const remarks = requireRemarks(input, false);
 
+  // The route queued at filing (Action Mamamayan → Office of the Mayor → the
+  // destination) must be walked to the end: an office on the way approves it
+  // on, it never closes it early.
+  const queued = await db.request_steps.findFirst({
+    where: { document_id: document.id, status: STEP_STATUS.Pending },
+    orderBy: [{ step_order: 'asc' }, { id: 'asc' }],
+    select: { department: { select: { name: true } } },
+  });
+
+  if (queued) {
+    throw new ActionError(
+      `This request still goes to ${queued.department.name}. Approve it to pass it on — it can be marked done at the end of its route.`,
+    );
+  }
+
   await confirmScannedFolder(document, signer, input);
 
   await closeStep(step.id, STEP_STATUS.Approved, signer, remarks);
@@ -598,15 +613,31 @@ export async function resend(
     }
   }
 
+  // The revision is reviewed BEFORE the rest of the route queued at filing
+  // (the Office of the Mayor, the destination), so it takes the place of the
+  // first waiting hop and those move one down — the trail stays in route order.
+  const firstWaiting = await db.request_steps.aggregate({
+    where: { document_id: document.id, status: STEP_STATUS.Pending },
+    _min: { step_order: true },
+  });
   const highest = await db.request_steps.aggregate({
     where: { document_id: document.id },
     _max: { step_order: true },
   });
+  let stepOrder = (highest._max.step_order ?? 0) + 1;
+
+  if (firstWaiting._min.step_order !== null && firstWaiting._min.step_order !== undefined) {
+    stepOrder = firstWaiting._min.step_order;
+    await db.request_steps.updateMany({
+      where: { document_id: document.id, status: STEP_STATUS.Pending },
+      data: { step_order: { increment: 1 }, updated_at: now() },
+    });
+  }
 
   const step = await db.request_steps.create({
     data: {
       document_id: document.id,
-      step_order: (highest._max.step_order ?? 0) + 1,
+      step_order: stepOrder,
       department_id: id(departmentId),
       recipient_id: recipientId === null ? null : id(recipientId),
       action: 'Review the revision',

@@ -137,7 +137,7 @@ export async function fileRequest(form: FormData): Promise<InternalResult> {
   const recipient = form.get('recipient_id');
 
   const input: FilingInput = {
-    firstDepartmentId: Number(form.get('first_department_id') ?? 0),
+    destinationDepartmentId: Number(form.get('destination_department_id') ?? 0),
     purpose: String(form.get('purpose') ?? ''),
     // Absent means paper, as every request was before the choice existed.
     hasHardCopy: hasHardCopy === null ? true : hasHardCopy === '1' || hasHardCopy === 'true',

@@ -1,5 +1,6 @@
 import { db, id, toId } from '@/lib/db';
-import { MODEL_TYPE, ROLE_STAFF, ROLE_SUPERVISOR } from '@/lib/auth/rbac';
+import { MODEL_TYPE, ROLE_CLERK, ROLE_STAFF, ROLE_SUPERVISOR } from '@/lib/auth/rbac';
+import { MANDATORY_ROUTE_CODES } from '@/lib/domain/internal-route-plan';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -19,6 +20,23 @@ export function canFile(actor: Actor | null): boolean {
   return actor !== null && actor.can('create internal requests') && actor.departmentId !== null;
 }
 
+/**
+ * The offices every internal request passes through before its destination,
+ * in route order — the ones that exist and are active.
+ */
+export async function mandatoryRouteOffices(): Promise<FormDepartment[]> {
+  const rows = await db.departments.findMany({
+    where: { is_active: true, code: { in: [...MANDATORY_ROUTE_CODES] } },
+    select: { id: true, name: true, code: true },
+  });
+
+  return MANDATORY_ROUTE_CODES.flatMap((code) => {
+    const row = rows.find((office) => office.code === code);
+
+    return row ? [{ id: toId(row.id), name: row.name, code: row.code }] : [];
+  });
+}
+
 /** The offices a request can be routed to first. */
 export async function activeDepartments(): Promise<FormDepartment[]> {
   const rows = await db.departments.findMany({
@@ -30,7 +48,7 @@ export async function activeDepartments(): Promise<FormDepartment[]> {
   return rows.map((row) => ({ id: toId(row.id), name: row.name, code: row.code }));
 }
 
-const RECEIVING_ROLES = [ROLE_STAFF, ROLE_SUPERVISOR];
+const RECEIVING_ROLES = [ROLE_STAFF, ROLE_SUPERVISOR, ROLE_CLERK];
 
 /**
  * Who can be named to receive a soft copy at each office: its active staff and

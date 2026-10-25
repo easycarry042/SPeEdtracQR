@@ -1,15 +1,18 @@
 import { db, id, toId } from '@/lib/db';
 
 /**
- * Roles and permissions, read straight out of Spatie's tables so the Laravel
- * seeder stays the source of truth and both stacks agree on who can do what.
+ * Roles and permissions, read out of Spatie-shaped tables (seeded by
+ * `scripts/seed-roles.mjs`).
  *
- * Canonical roles (`RolesAndPermissionsSeeder`): `staff`, `Supervisor`,
- * `super_admin`. Guests are the unauthenticated public and hold no role.
+ * Roles: `staff`, `Supervisor`, `super_admin`, and `Clerk` — the single
+ * account of an office that is one person (Action Mamamayan): it receives and
+ * decides on internal requests, so it holds staff and supervisor permissions
+ * for those, and nothing for citizen requests. Guests hold no role.
  */
 export const ROLE_STAFF = 'staff';
 export const ROLE_SUPERVISOR = 'Supervisor';
 export const ROLE_SUPER_ADMIN = 'super_admin';
+export const ROLE_CLERK = 'Clerk';
 
 /** Every permission the seeder defines. Used to type-check `can()` call sites. */
 export const PERMISSIONS = [

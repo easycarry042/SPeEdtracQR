@@ -5,7 +5,7 @@ import { now } from '@/lib/time';
 import { readSession } from '@/lib/auth/session';
 import {
   type Permission,
-  ROLE_SUPERVISOR,
+  ROLE_CLERK, ROLE_SUPERVISOR,
   ROLE_SUPER_ADMIN,
   grantsFor,
 } from '@/lib/auth/rbac';
@@ -32,6 +32,8 @@ export type Actor = {
   hasRole(role: string): boolean;
   isSuperAdmin(): boolean;
   isSupervisor(): boolean;
+  /** Action Mamamayan's one-person account: internal requests only. */
+  isClerk(): boolean;
 };
 
 type UserRow = {
@@ -66,6 +68,7 @@ function build(user: UserRow, roles: string[], permissions: string[]): Actor {
     hasRole: (role) => roleSet.has(role),
     isSuperAdmin: () => roleSet.has(ROLE_SUPER_ADMIN),
     isSupervisor: () => roleSet.has(ROLE_SUPERVISOR),
+    isClerk: () => roleSet.has(ROLE_CLERK),
   };
 }
 

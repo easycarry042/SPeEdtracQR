@@ -1240,8 +1240,8 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
               ['approve', 'Approve'],
               // Done is the only action that completes a request: approving
               // just passes the paper along, and the chain grows as each office
-              // scans it.
-              ['done', 'Done'],
+              // scans it. Not while the filed route has offices left to go.
+              ...(detail.queuedNext ? [] : ([['done', 'Done']] as const)),
               ['return', 'Return'],
               ['deny', 'Deny'],
             ] as const
@@ -1264,7 +1264,9 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
 
         <p className="text-[length:var(--fs-small)] text-ink-soft">
           {mode === 'approve'
-            ? 'Approving affixes your registered e-signature and passes the request to the office you choose below.'
+            ? detail.queuedNext
+              ? 'Approving affixes your registered e-signature and passes the request to the next office on its route.'
+              : 'Approving affixes your registered e-signature and passes the request to the office you choose below.'
             : mode === 'done'
               ? 'Marking this done completes the request — use it when your office is the last to handle the paper.'
               : mode === 'return'
@@ -1275,7 +1277,7 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
         {mode === 'approve' ? (
           detail.queuedNext ? (
             <p className="dm-note">
-              Next office (set when this request was filed):{' '}
+              Next on this request's route:{' '}
               <b>{detail.queuedNext.office}</b> <span className="stamp">{detail.queuedNext.officeCode}</span>
             </p>
           ) : (

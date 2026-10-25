@@ -21,6 +21,8 @@ export type NavUser = {
   id: number;
   isSuperAdmin: boolean;
   isSupervisor: boolean;
+  /** Action Mamamayan's Clerk: internal requests only, so no citizen Dashboard. */
+  isClerk: boolean;
   canManageUsers: boolean;
   canManageSystem: boolean;
   canManageBookings: boolean;
@@ -176,14 +178,16 @@ export function SidebarLinks({ user, badges }: { user: NavUser; badges: Badges }
 
   return (
     <>
-      <Row href={homeRoute} active={homeActive}>
-        <span className={GLYPH}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/staff/nav-home.svg" alt="" className="sb-icon" />
-        </span>
-        <span className={LABEL}>Dashboard</span>
-        <NavBadge name="home" initial={badges.home} what="new" />
-      </Row>
+      {!user.isClerk ? (
+        <Row href={homeRoute} active={homeActive}>
+          <span className={GLYPH}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/staff/nav-home.svg" alt="" className="sb-icon" />
+          </span>
+          <span className={LABEL}>Dashboard</span>
+          <NavBadge name="home" initial={badges.home} what="new" />
+        </Row>
+      ) : null}
 
       {/* No "Look Up" row: the desk it opened was a second copy of this role's
           own dashboard queue. The QR hub it also served is still a click away

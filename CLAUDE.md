@@ -22,6 +22,7 @@ npm run db:deploy            # apply prisma/migrations (DIRECT_URL)
 node scripts/seed-roles.mjs        # roles + permissions (Spatie-shaped tables)
 node scripts/seed-departments.mjs  # the city offices
 npm run db:seed:tourism            # CTCAO office, resources, placeholder staff, request types
+npm run db:seed:am                 # Action Mamamayan office + its Clerk account (after seed-roles)
 ```
 
 - **Tests and the database:** `tests/setup.ts` loads `web/.env`, and `web/.env` points at **Supabase**. The integration tests (`tests/integration`) and some unit tests that only partly mock `db` then read (and the rate-limit test writes) the live database. Run tests against a local Postgres instead: `DATABASE_URL=postgresql://postgres@127.0.0.1:5432/speedtraqr_ctcao npx vitest run`. Local Postgres 18 runs on this PC (trust auth); `speedtraqr_ctcao` has the migrations and the tourism seed.
@@ -33,7 +34,7 @@ npm run db:seed:tourism            # CTCAO office, resources, placeholder staff,
 - **Only types may cross into a `'use client'` component from a domain module.** Constants the browser needs live in client-safe modules (`request-kinds.ts`, `resource-kinds.ts`, `route-template.ts`). A function a server page calls must not live in a `'use client'` file.
 - **Database is Postgres** (`prisma/schema.prisma`). Every schema change is a migration in `prisma/migrations` (never `prisma db push` alone — a fresh database is built only from migrations); every new table gets `ENABLE ROW LEVEL SECURITY` (no policies). Lookups that need case-insensitivity use `mode: 'insensitive'`.
 - **Time:** timestamps are stored as naive Manila wall-clock (`lib/time.ts`). Compare stored times with `time.now()` / `addHours(now(), …)`, never `Date.now()` (8 hours off). Seal/QR maths that need a real epoch use `time.unixTimestamp()`.
-- **Roles** live in Spatie-shaped tables (`roles`, `permissions`, `model_has_roles`, `model_type = 'App\\Models\\User'`), seeded by `scripts/seed-roles.mjs`: `staff`, `Supervisor`, `super_admin`, `Clerk` (Clerk is not yet treated as staff by the app). Department scoping: `lib/domain/scope.ts`.
+- **Roles** live in Spatie-shaped tables (`roles`, `permissions`, `model_has_roles`, `model_type = 'App\\Models\\User'`), seeded by `scripts/seed-roles.mjs`: `staff`, `Supervisor`, `super_admin`, `Clerk`. The Clerk is Action Mamamayan's one-person account (`isClerk()`): it receives and decides on internal requests (`scan documents`, `act on internal requests`, `create internal requests`) and has nothing for citizen requests — it lands on Internal and its sidebar has no Dashboard. Department scoping: `lib/domain/scope.ts`.
 - **URLs are byte-identical to the old app's** (`lib/routes.ts`) — QR stickers and emails already in people's hands encode them.
 - **Files** go through `lib/storage.ts`: Supabase buckets `private` (uploads, served only by office-checked routes) and `public` (QR images, via `/storage/*`). Without `SUPABASE_URL`, files live in `web/storage/app` (gitignored). Never write to the filesystem directly — Vercel's is read-only.
 - **Live updates:** `lib/realtime.ts` relays only PUBLIC `documents.{tracking}` events to Supabase Realtime (the client treats an event as "re-read", never as data). Without Supabase, an SSE route serves local dev.
@@ -68,6 +69,8 @@ Other rules:
 - Speedy (`components/citizen/speedy*`, `lib/domain/ai/*`) answers from the FAQ (`site-faq.ts`) and the request; staff replies are always labelled as staff, never as the bot. The citizen thread opens only after they confirm the email/mobile on file.
 
 ## Internal requests (`INT-`, office to office)
+
+**Every internal request goes Action Mamamayan → Office of the Mayor → the office it is for** (`lib/domain/internal-route-plan.ts`, `MANDATORY_ROUTE_CODES = ['AM', 'OM']`; the client is still confirming this process, so expect it to change). The filer picks only the destination (Action Mamamayan is never one); `internal-filing.ts` queues the whole route at filing — first hop current, the rest pending — and approving a hop opens the next, so no office on the way can redirect it or mark it Done (`internal-steps.complete` refuses while a hop is queued). The filing office skips its own place on the route; the Office of the Mayor as destination ends the route there. A soft copy's named recipient sits on the destination's hop; at AM and OM anyone with `act on internal requests` receives it. A resent revision takes the place of the first waiting hop, so the trail stays in route order. Requests filed before this keep their old route.
 
 Hard copy (a folder each office scans in with the camera) vs soft copy (a named recipient receives it by scanning its QR on screen). Anyone at the holding office may scan a paper folder in; only the office's supervisor or a soft copy's named recipient decides (approve / return / deny / complete). Returned requests are resent or withdrawn by the filing office. Logic in `internal-*.ts`, `custody.ts`, `request-step.ts`; manual test cases in `TESTING-INTERNAL-PROCESS.md`.
 

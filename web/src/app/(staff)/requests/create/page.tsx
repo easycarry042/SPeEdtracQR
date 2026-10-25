@@ -4,7 +4,8 @@ import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { requireActor } from '@/lib/auth/actor';
 import { db, id } from '@/lib/db';
 import { routes } from '@/lib/routes';
-import { activeDepartments, canFile } from '@/lib/domain/internal-request-form';
+import { activeDepartments, canFile, mandatoryRouteOffices } from '@/lib/domain/internal-request-form';
+import { isDestination } from '@/lib/domain/internal-route-plan';
 import { FilingForm } from './form';
 
 export const metadata: Metadata = { title: 'File Internal Request' };
@@ -19,8 +20,9 @@ export default async function FileInternalRequestPage() {
     redirect(routes.requestsIndex());
   }
 
-  const [departments, office] = await Promise.all([
+  const [departments, mandatory, office] = await Promise.all([
     activeDepartments(),
+    mandatoryRouteOffices(),
     actor.departmentId
       ? db.departments.findFirst({
           where: { id: id(actor.departmentId) },
@@ -34,7 +36,9 @@ export default async function FileInternalRequestPage() {
       <div className="page-shell">
         <div className="dm-card mx-auto w-full max-w-[940px]">
           <FilingForm
-            departments={departments}
+            departments={departments.filter(isDestination)}
+            mandatory={mandatory}
+            officeId={actor.departmentId}
             officeName={office?.name ?? actor.departmentName ?? 'your office'}
             officeCode={office?.code ?? null}
           />

@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "db:seed:tourism": "node scripts/seed-tourism.mjs"
+    "db:seed:tourism": "node scripts/seed-tourism.mjs",
+    "db:seed:am": "node scripts/seed-action-mamamayan.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

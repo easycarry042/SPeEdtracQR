@@ -9,7 +9,8 @@ import { ORIGIN_INTERNAL } from '@/lib/domain/scope';
 import { STEP_STATUS } from '@/lib/domain/request-step';
 import * as qr from '@/lib/domain/qr-service';
 import { checkPaperScan } from '@/lib/domain/upload-rules';
-import { isRecipientAt } from '@/lib/domain/internal-request-form';
+import { isRecipientAt, mandatoryRouteOffices } from '@/lib/domain/internal-request-form';
+import { isDestination, planRoute } from '@/lib/domain/internal-route-plan';
 import { tellTheHop } from '@/lib/domain/internal-events';
 import { ensureStampedCopy, NO_PLACEMENT, type StampPlacement } from '@/lib/domain/qr-stamp';
 import type { Actor } from '@/lib/auth/actor';
@@ -17,20 +18,27 @@ import type { Actor } from '@/lib/auth/actor';
 /**
  * Filing an internal office-to-office request.
  *
- * Port of `InternalRequestController@store`. Filing is the requesting office's
- * own sign-off, so the request goes straight to the office the filer chose:
- * that hop is current from the start, and further offices are added by whoever
- * handles it there rather than presumed here.
+ * Every request takes the same route (`internal-route-plan`): Action Mamamayan
+ * validates it, the Office of the Mayor approves it, then it reaches the office
+ * it was filed for. The whole route is queued at filing — the first office's
+ * hop current, the rest pending — and approving a hop opens the next one, so
+ * nobody along the way can send it elsewhere. Past the destination, offices add
+ * hops as before.
  *
  * The signed paper IS the request, so the scan is required: filing without it
  * leaves the receiving office nothing to act on.
  */
 export type FilingInput = {
-  firstDepartmentId: number;
+  /** The office the request is for; it reaches it after the mandatory offices. */
+  destinationDepartmentId: number;
   purpose: string;
-  /** Paper that will be carried to the first office, or a soft copy. */
+  /** Paper carried along the route, or a soft copy. */
   hasHardCopy: boolean;
-  /** Who receives a soft copy at the first office (required when there is no paper). */
+  /**
+   * Who receives a soft copy at the destination (required when there is no
+   * paper). At Action Mamamayan and the Office of the Mayor anyone there who
+   * decides on internal requests receives it.
+   */
   recipientId: number | null;
   paperScan: File | null;
   /** Where the filer dragged the QR on the scan; null fields mean bottom-right. */
@@ -87,26 +95,30 @@ export async function fileInternalRequest(
     throw new ActionError(`Keep the purpose to ${PURPOSE_LIMIT} characters.`);
   }
 
-  const first = await db.departments.findFirst({
-    where: { id: id(input.firstDepartmentId), is_active: true },
+  const destinationRow = await db.departments.findFirst({
+    where: { id: id(input.destinationDepartmentId), is_active: true },
     select: { id: true, name: true, code: true },
   });
 
-  if (!first) {
-    throw new ActionError('Choose an active office to route this request to first.');
+  if (!destinationRow || !isDestination(destinationRow)) {
+    throw new ActionError('Choose an active office this request is for.');
   }
+
+  const destination = { id: toId(destinationRow.id), name: destinationRow.name, code: destinationRow.code };
+  const route = planRoute(await mandatoryRouteOffices(), office.id, destination);
+  const first = route[0];
 
   const recipientId = input.hasHardCopy ? null : input.recipientId;
 
   if (!input.hasHardCopy) {
     if (recipientId === null) {
       throw new ActionError(
-        'Without a hard copy, choose who in the first office receives this request.',
+        `Without a hard copy, choose who at ${destination.name} receives this request.`,
       );
     }
 
-    if (!(await isRecipientAt(recipientId, toId(first.id)))) {
-      throw new ActionError('Choose someone who works in the first office.');
+    if (!(await isRecipientAt(recipientId, destination.id))) {
+      throw new ActionError(`Choose someone who works at ${destination.name}.`);
     }
   }
 
@@ -139,22 +151,35 @@ export async function fileInternalRequest(
   const documentId = toId(document.id);
 
   try {
-    const step = await db.request_steps.create({
-      data: {
-        document_id: document.id,
-        // step_order 0 was the filing office's own endorsement hop, which older
-        // requests may still carry; new ones start at the office chosen.
-        step_order: 1,
-        department_id: first.id,
-        recipient_id: recipientId === null ? null : id(recipientId),
-        action: 'Review and action',
-        status: STEP_STATUS.Current,
-        started_at: now(),
-        created_at: now(),
-        updated_at: now(),
-      },
-      select: { id: true, department_id: true, recipient_id: true, action: true },
-    });
+    // The whole route, queued now: the first hop current, the rest waiting.
+    // (step_order 0 was the filing office's own endorsement hop, which older
+    // requests may still carry.) A soft copy's named recipient belongs to the
+    // destination's hop.
+    const steps = [];
+
+    for (const [index, hop] of route.entries()) {
+      const isFirst = index === 0;
+      const isDestinationHop = hop.id === destination.id;
+
+      steps.push(
+        await db.request_steps.create({
+          data: {
+            document_id: document.id,
+            step_order: index + 1,
+            department_id: id(hop.id),
+            recipient_id: isDestinationHop && recipientId !== null ? id(recipientId) : null,
+            action: isDestinationHop ? 'Review and action' : hopAction(hop.code),
+            status: isFirst ? STEP_STATUS.Current : STEP_STATUS.Pending,
+            started_at: isFirst ? now() : null,
+            created_at: now(),
+            updated_at: now(),
+          },
+          select: { id: true, department_id: true, recipient_id: true, action: true },
+        }),
+      );
+    }
+
+    const step = steps[0];
 
     // The filing office physically holds the paper it just created, so the trail
     // starts with it. The receiving office still scans the folder to take custody
@@ -204,9 +229,9 @@ export async function fileInternalRequest(
 
     await logSystemComment(
       documentId,
-      `Internal request filed by ${filer.name} (${office.name}), routed first to ${first.name} (${first.code})${
-        input.hasHardCopy ? '' : ` — soft copy only, received by ${recipientName ?? 'the office'}`
-      }.`,
+      `Internal request filed by ${filer.name} (${office.name}) for ${destination.name} — route: ${route
+        .map((hop) => hop.code)
+        .join(' → ')}${input.hasHardCopy ? '' : ` — soft copy only, received at ${destination.code} by ${recipientName ?? 'the office'}`}.`,
     );
 
     // Ping the first hop: its supervisors, and for a soft copy the person named
@@ -223,7 +248,7 @@ export async function fileInternalRequest(
     );
 
     return {
-      message: `Filed as ${tracking} — routed to ${first.name}.`,
+      message: `Filed as ${tracking} — it goes to ${first.name} first.`,
       url: `/requests/${documentId}/created`,
     };
   } catch (error) {
@@ -241,4 +266,9 @@ async function nameOf(userId: number): Promise<string | null> {
   const user = await db.users.findFirst({ where: { id: id(userId) }, select: { name: true } });
 
   return user?.name ?? null;
+}
+
+/** What each mandatory office does with a request on its way through. */
+function hopAction(code: string): string {
+  return code === 'AM' ? 'Validate and confirm' : code === 'OM' ? 'Approve for the Mayor' : 'Review and action';
 }
