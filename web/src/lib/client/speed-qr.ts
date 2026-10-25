@@ -187,6 +187,24 @@ export async function hasCamera(): Promise<boolean> {
 }
 
 /**
+ * A .qr-surface (see .qr-viewport in globals.css) is laid out at a real
+ * decoding size and only drawn small. Its width is set before the camera
+ * starts, because html5-qrcode reads it then to size the video: 1280px
+ * for a landscape feed, 720px where the screen is portrait.
+ */
+function prepareSurface(elementId: string): void {
+  const element = document.getElementById(elementId);
+
+  if (!element || !element.classList.contains('qr-surface')) {
+    return;
+  }
+
+  element.classList.remove('is-fitted');
+  element.style.transform = '';
+  element.style.width = `${window.innerHeight > window.innerWidth ? 720 : 1280}px`;
+}
+
+/**
  * html5-qrcode measures its container when it starts. Callers reveal the box
  * and call start() in the same tick, so the div can still be absent from the DOM
  * or 0px wide at that moment — wait for it to actually be laid out.
@@ -207,7 +225,13 @@ function waitForBox(elementId: string, timeoutMs = 4000): Promise<HTMLElement> {
         return;
       }
 
-      if (element.getClientRects().length > 0 && element.offsetWidth > 0) {
+      // Prepare the surface width as soon as the element mounts in the DOM;
+      // otherwise an empty position:absolute .qr-surface stays 0px wide forever.
+      prepareSurface(elementId);
+
+      const box = element.parentElement ?? element;
+
+      if (box.getClientRects().length > 0 && box.offsetWidth > 0 && element.offsetWidth > 0) {
         resolve(element);
         return;
       }
@@ -226,24 +250,6 @@ function waitForBox(elementId: string, timeoutMs = 4000): Promise<HTMLElement> {
 
     check();
   });
-}
-
-/**
- * A .qr-surface (see .qr-viewport in globals.css) is laid out at a real
- * decoding size and only drawn small. Its width is set before the camera
- * starts, because html5-qrcode reads it then to size the video: 1280px
- * for a landscape feed, 720px where the screen is portrait.
- */
-function prepareSurface(elementId: string): void {
-  const element = document.getElementById(elementId);
-
-  if (!element || !element.classList.contains('qr-surface')) {
-    return;
-  }
-
-  element.classList.remove('is-fitted');
-  element.style.transform = '';
-  element.style.width = `${window.innerHeight > window.innerWidth ? 720 : 1280}px`;
 }
 
 /**
@@ -275,25 +281,34 @@ function fitSurface(elementId: string): void {
   const apply = (): boolean => {
     const video = target.querySelector('video');
 
-    if (!video || !video.videoWidth || !video.videoHeight) {
+    if (!video) {
       return false;
     }
 
-    const width = target.offsetWidth;
-    const height = video.offsetHeight;
+    const boxW = box.clientWidth;
+    const boxH = box.clientHeight || boxW;
 
-    if (!width || !height || !box.clientWidth) {
+    if (!boxW) {
       return false;
     }
 
-    const scale = Math.max(box.clientWidth / width, box.clientHeight / height);
-    const x = (box.clientWidth - width * scale) / 2;
-    const y = (box.clientHeight - height * scale) / 2;
+    const width = target.offsetWidth || video.videoWidth || boxW;
+    const height =
+      video.offsetHeight ||
+      (video.videoWidth && video.videoHeight ? (width * video.videoHeight) / video.videoWidth : 0);
+
+    if (!height) {
+      return false;
+    }
+
+    const scale = Math.max(boxW / width, boxH / height);
+    const x = (boxW - width * scale) / 2;
+    const y = (boxH - height * scale) / 2;
 
     target.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     target.classList.add('is-fitted');
 
-    return true;
+    return Boolean(video.videoWidth && video.videoHeight);
   };
 
   const startedAt = Date.now();
@@ -302,13 +317,30 @@ function fitSurface(elementId: string): void {
       if (Date.now() - startedAt < 5000) {
         requestAnimationFrame(fitWhenReady);
       } else {
-        // Fallback: make visible anyway if metadata is slow
+        // Fallback: scale by width and make visible even if metadata was not reported
+        const boxW = box?.clientWidth || 320;
+        const width = target.offsetWidth || boxW;
+        const scale = boxW / width;
+        target.style.transform = `scale(${scale})`;
         target.classList.add('is-fitted');
       }
     }
   }
 
   fitWhenReady();
+
+  const video = target.querySelector('video');
+  if (video) {
+    video.addEventListener('loadedmetadata', () => {
+      apply();
+    });
+    video.addEventListener('playing', () => {
+      apply();
+    });
+    video.addEventListener('resize', () => {
+      apply();
+    });
+  }
 
   if (fitObserver) {
     fitObserver.disconnect();
@@ -337,7 +369,7 @@ function scanConfig(camera?: MediaTrackConstraints) {
   return {
     fps: 10,
     qrbox,
-    videoConstraints: Object.assign({}, camera, HD),
+    videoConstraints: camera ? Object.assign({}, camera, HD) : undefined,
   };
 }
 
@@ -354,6 +386,17 @@ function scannerOptions() {
   };
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return (
+    name === 'NotAllowedError' ||
+    name === 'PermissionDeniedError' ||
+    name === 'SecurityError' ||
+    /NotAllowed|Permission denied|Permission dismissed/i.test(message)
+  );
+}
+
 /**
  * Launch the scanner: prefer the rear environment camera, but gracefully fall back
  * to whatever camera this machine has (e.g. laptop / desktop webcams).
@@ -362,58 +405,65 @@ async function launch(
   elementId: string,
   onDecode: (text: string) => void,
 ): Promise<void> {
-  const activeScanner = new Html5Qrcode(elementId, scannerOptions());
-  scanner = activeScanner;
-
-  try {
-    await activeScanner.start(
-      { facingMode: 'environment' },
-      scanConfig({ facingMode: 'environment' }),
+  const tryStart = async (
+    cameraIdOrConfig: string | MediaTrackConstraints,
+    withHdConstraints: boolean,
+  ): Promise<void> => {
+    prepareSurface(elementId);
+    const instance = new Html5Qrcode(elementId, scannerOptions());
+    scanner = instance;
+    const constraints =
+      withHdConstraints && typeof cameraIdOrConfig === 'object' ? cameraIdOrConfig : undefined;
+    await instance.start(
+      cameraIdOrConfig,
+      scanConfig(constraints),
       (decodedText) => onDecode(decodedText),
       () => {},
     );
+  };
+
+  try {
+    await tryStart({ facingMode: 'environment' }, true);
     return;
-  } catch (error) {
+  } catch (firstError) {
+    if (isPermissionDenied(firstError)) {
+      throw firstError;
+    }
+
+    // Retry environment without custom HD videoConstraints (some mobile browsers reject ideal HD)
+    try {
+      await tryStart({ facingMode: 'environment' }, false);
+      return;
+    } catch (envError) {
+      if (isPermissionDenied(envError)) {
+        throw envError;
+      }
+    }
+
     // Desktops with only a built-in webcam reject "environment"
     // outright (OverconstrainedError), so retry by device id.
     try {
       const cameras = await Html5Qrcode.getCameras();
       if (cameras && cameras.length > 0) {
-        const camera = { deviceId: { exact: cameras[0].id } };
-        await activeScanner.start(
-          camera,
-          scanConfig(camera),
-          (decodedText) => onDecode(decodedText),
-          () => {},
-        );
-        return;
+        const preferred =
+          cameras.find((cam) => /back|rear|environment/i.test(cam.label)) ?? cameras[0];
+        try {
+          await tryStart({ deviceId: { exact: preferred.id } }, true);
+          return;
+        } catch {
+          await tryStart(preferred.id, false);
+          return;
+        }
       }
     } catch {
       // Fall through to user-facing mode
     }
 
     try {
-      await activeScanner.start(
-        { facingMode: 'user' },
-        scanConfig({ facingMode: 'user' }),
-        (decodedText) => onDecode(decodedText),
-        () => {},
-      );
+      await tryStart({ facingMode: 'user' }, false);
       return;
     } catch {
-      // Fall through to basic constraints
-    }
-
-    try {
-      await activeScanner.start(
-        {},
-        { fps: 10, qrbox },
-        (decodedText) => onDecode(decodedText),
-        () => {},
-      );
-      return;
-    } catch {
-      throw error;
+      throw firstError;
     }
   }
 }
@@ -441,9 +491,6 @@ export function start(
       await waitForBox(elementId);
       if (scanId !== activeScanId) return;
 
-      prepareSurface(elementId);
-      if (scanId !== activeScanId) return;
-
       await launch(elementId, onDecoded);
       if (scanId !== activeScanId) {
         await stopInternal();
@@ -459,8 +506,6 @@ export function start(
 }
 
 async function stopInternal(): Promise<void> {
-  activeScanId++;
-
   if (fitObserver) {
     fitObserver.disconnect();
     fitObserver = null;
@@ -496,6 +541,7 @@ async function stopInternal(): Promise<void> {
 }
 
 export function stop(): Promise<void> {
+  activeScanId++;
   return enqueue(stopInternal);
 }
 

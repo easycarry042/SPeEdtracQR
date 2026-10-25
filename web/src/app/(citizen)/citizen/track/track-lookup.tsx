@@ -162,21 +162,32 @@ export function TrackLookup({ notFound }: { notFound: string | null }) {
             <label htmlFor="tracking" className="form-label">
               Tracking number
             </label>
-            <input
-              id="tracking"
-              type="text"
-              value={value}
-              onChange={(event) => {
-                setValue(event.target.value);
-                setResult(null);
-              }}
-              required
-              autoComplete="off"
-              spellCheck={false}
-              autoCapitalize="characters"
-              placeholder="SPD-20260728-K7M9Q2"
-              className="form-input mono uppercase"
-            />
+            <div className="field-shell">
+              <span className="field-icon" aria-hidden="true">
+                <svg fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"
+                  />
+                </svg>
+              </span>
+              <input
+                id="tracking"
+                type="text"
+                value={value}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setResult(null);
+                }}
+                required
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="characters"
+                placeholder="SPD-20260728-K7M9Q2"
+                className="form-input form-input-with-icon mono uppercase"
+              />
+            </div>
           </div>
 
           <div className="it-actions">
