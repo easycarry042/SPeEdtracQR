@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { DocumentStatus, label as statusLabel } from '@/lib/domain/document-status';
+import { DocumentStatus, citizenLabel, label as statusLabel } from '@/lib/domain/document-status';
 import { citizenTrackingUrl, statusOf } from '@/lib/domain/document';
 import { canBeVerified, isVerified, verifiedTrackingNumbers } from '@/lib/domain/citizen-thread-access';
 import { unreadCount, type TrackableDocument } from '@/lib/domain/citizen-thread';
@@ -40,7 +40,7 @@ export async function contextFor(document: TrackableDocument): Promise<SpeedyCon
   return {
     tracking: document.tracking_number,
     type,
-    status: statusLabel(statusOf(document)),
+    status: citizenLabel(statusOf(document)),
     url: citizenTrackingUrl(document.tracking_number),
     suggestions,
     verified,

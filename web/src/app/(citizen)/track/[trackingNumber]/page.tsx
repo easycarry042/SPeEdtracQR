@@ -18,6 +18,7 @@ import { LiveStatus } from './live-status';
 import {
   DocumentStatus,
   citizenCases,
+  citizenLabel,
   description as statusDescription,
   label as statusLabel,
 } from '@/lib/domain/document-status';
@@ -235,7 +236,7 @@ export default async function TrackShowPage({
 
               <div className="flex flex-wrap items-center gap-4">
                 <span id="statusBadge" className={`pill ${pillClass}`}>
-                  <span id="statusLabel">{statusLabel(stage)}</span>
+                  <span id="statusLabel">{citizenLabel(stage)}</span>
                 </span>
 
                 {/* The office, never the person: staff stay anonymous on every
@@ -289,7 +290,7 @@ export default async function TrackShowPage({
                 <dl className="mt-2 space-y-1.5 border-t border-hairline pt-2">
                   {citizenCases().map((status) => (
                     <div key={status} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
-                      <dt className="shrink-0 font-semibold text-ink sm:w-40">{statusLabel(status)}</dt>
+                      <dt className="shrink-0 font-semibold text-ink sm:w-40">{citizenLabel(status)}</dt>
                       <dd className="text-ink-soft">{statusDescription(status)}</dd>
                     </div>
                   ))}

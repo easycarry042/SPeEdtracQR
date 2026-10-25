@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { DocumentStatus, FLOW, label as statusLabel, position } from '@/lib/domain/document-status';
+import { DocumentStatus, FLOW, citizenLabel, label as statusLabel, position } from '@/lib/domain/document-status';
 import { statusOf } from '@/lib/domain/document';
 import { predict } from '@/lib/domain/completion-predictor';
 import { llm as defaultLlm, type Llm } from '@/lib/domain/ai/llm';
@@ -75,7 +75,7 @@ async function factsFor(trackingNumber: string): Promise<Facts | null> {
               ? 'current'
               : 'upcoming';
 
-    return { name: statusLabel(status), stage: state };
+    return { name: citizenLabel(status), stage: state };
   });
 
   const prediction = await predict(document);
@@ -94,7 +94,7 @@ async function factsFor(trackingNumber: string): Promise<Facts | null> {
     trackingNumber: document.tracking_number,
     documentType: document.document_type,
     applicant: document.citizen_name,
-    statusLabel: statusLabel(stage),
+    statusLabel: citizenLabel(stage),
     handler: document.department?.name ?? null,
     submitted: document.created_at ? formatNaive(document.created_at, 'M d, Y') : null,
     lastUpdate: lastUpdate ? formatNaive(lastUpdate, 'M d, Y') : null,

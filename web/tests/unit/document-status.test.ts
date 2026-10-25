@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CITIZEN_LABELS,
+  CITIZEN_RAIL_STAGES,
   DEFAULT_SLA_HOURS,
   DocumentStatus,
   FINISHABLE,
@@ -8,6 +10,7 @@ import {
   activeValues,
   band,
   citizenCases,
+  citizenLabel,
   description,
   fromLoose,
   isTerminal,
@@ -185,6 +188,35 @@ describe('DocumentStatus', () => {
       for (const status of values()) {
         expect(fromLoose(status)).toBe(status);
       }
+    });
+  });
+
+  describe('citizen-facing status labels and rail stages', () => {
+    it('maps every status to its clear citizen-facing label', () => {
+      expect(citizenLabel(DocumentStatus.Pending)).toBe('Received & Queued');
+      expect(citizenLabel(DocumentStatus.InProgress)).toBe('Processing with Office');
+      expect(citizenLabel(DocumentStatus.InReview)).toBe('Under Final Review & Quality Check');
+      expect(citizenLabel(DocumentStatus.Completed)).toBe('Ready for Pickup / Claiming');
+    });
+
+    it('has the four citizen rail stages in order', () => {
+      expect(CITIZEN_RAIL_STAGES.map((s) => s.label)).toEqual([
+        'Received & Queued',
+        'Processing with Office',
+        'Under Final Review & Quality Check',
+        'Ready for Pickup / Claiming',
+      ]);
+    });
+
+    it('label() supports surface parameter', () => {
+      expect(label(DocumentStatus.Pending, 'citizen')).toBe('Received & Queued');
+      expect(label(DocumentStatus.Pending, 'staff')).toBe('Pending');
+      expect(label(DocumentStatus.InProgress, 'citizen')).toBe('Processing with Office');
+      expect(label(DocumentStatus.InProgress, 'staff')).toBe('Ongoing');
+      expect(label(DocumentStatus.InReview, 'citizen')).toBe('Under Final Review & Quality Check');
+      expect(label(DocumentStatus.InReview, 'staff')).toBe('Pending Approval');
+      expect(label(DocumentStatus.Completed, 'citizen')).toBe('Ready for Pickup / Claiming');
+      expect(label(DocumentStatus.Completed, 'staff')).toBe('Ready for Claim');
     });
   });
 });

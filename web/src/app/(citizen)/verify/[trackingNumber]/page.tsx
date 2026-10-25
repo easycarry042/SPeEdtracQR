@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
 import { verify } from '@/lib/domain/document-seal';
-import { DocumentStatus, label as statusLabel } from '@/lib/domain/document-status';
+import { DocumentStatus, citizenLabel, label as statusLabel } from '@/lib/domain/document-status';
 import { statusOf } from '@/lib/domain/document';
 import { routes } from '@/lib/routes';
 import { formatNaive } from '@/lib/time';
@@ -77,7 +77,7 @@ export default async function VerifyPage({
                   </div>
                   <div>
                     <dt>Current status</dt>
-                    <dd>{statusLabel(statusOf(genuine))}</dd>
+                    <dd>{citizenLabel(statusOf(genuine))}</dd>
                   </div>
                   {isIssued && genuine.completed_at ? (
                     <div>

@@ -1,4 +1,10 @@
-import { DocumentStatus, RAIL_STAGES, fromLoose, railStage } from '@/lib/domain/document-status';
+import {
+  DocumentStatus,
+  RAIL_STAGES,
+  CITIZEN_RAIL_STAGES,
+  fromLoose,
+  railStage,
+} from '@/lib/domain/document-status';
 
 /**
  * The four-stage rail, as the Review modal on the dashboards draws it.
@@ -55,10 +61,12 @@ export function StageBar({
     .filter(Boolean)
     .join(' ');
 
+  const steps = surface === 'citizen' ? CITIZEN_RAIL_STAGES : RAIL_STAGES;
+
   return (
     <>
       <ol className={classes} aria-label="Progress">
-        {RAIL_STAGES.map((railStep, index) => {
+        {steps.map((railStep, index) => {
           const position = index + 1;
 
           // A completed request has nothing left in progress, so its final

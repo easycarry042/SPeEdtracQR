@@ -66,13 +66,32 @@ const LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Withdrawn]: 'Withdrawn',
 };
 
+/**
+ * Citizen-facing labels for public tracking and status displays:
+ *   - Pending          → "Received & Queued"
+ *   - InProgress       → "Processing with Office"
+ *   - InReview         → "Under Final Review & Quality Check"
+ *   - Completed        → "Ready for Pickup / Claiming"
+ */
+export const CITIZEN_LABELS: Record<DocumentStatus, string> = {
+  [DocumentStatus.Pending]: 'Received & Queued',
+  [DocumentStatus.InProgress]: 'Processing with Office',
+  [DocumentStatus.InReview]: 'Under Final Review & Quality Check',
+  [DocumentStatus.Approved]: 'Ready for Pickup / Claiming',
+  [DocumentStatus.Completed]: 'Ready for Pickup / Claiming',
+  [DocumentStatus.Returned]: 'Returned / For Revision',
+  [DocumentStatus.OnHold]: 'On Hold',
+  [DocumentStatus.Denied]: 'Denied',
+  [DocumentStatus.Withdrawn]: 'Withdrawn',
+};
+
 /** Plain-language, citizen-facing explanation of what each status means. */
 const DESCRIPTIONS: Record<DocumentStatus, string> = {
-  [DocumentStatus.Pending]: 'We received your request and it is waiting to be processed.',
-  [DocumentStatus.InProgress]: 'A staff member has claimed your request and is actively processing it.',
-  [DocumentStatus.InReview]: 'Staff has completed processing and submitted your request for supervisor review and clearance.',
-  [DocumentStatus.Approved]: 'Your request has been approved and is being finalized.',
-  [DocumentStatus.Completed]: 'Your request is complete and ready for claiming. Please check the claiming instructions below.',
+  [DocumentStatus.Pending]: 'We received your request and it is queued for review by the office.',
+  [DocumentStatus.InProgress]: 'The handling office has claimed your request and is actively processing it.',
+  [DocumentStatus.InReview]: 'Processing is complete and your request is undergoing final review and quality check.',
+  [DocumentStatus.Approved]: 'Your request has been approved and is ready for pickup / claiming.',
+  [DocumentStatus.Completed]: 'Your request is complete and ready for pickup / claiming. Please review the claiming instructions below.',
   [DocumentStatus.Returned]: 'Something needs to be corrected. Please check for a message from staff.',
   [DocumentStatus.OnHold]: 'Your request is paused, usually waiting on a requirement. Staff will resume it.',
   [DocumentStatus.Denied]: 'Your request could not be approved. Staff should have included a reason.',
@@ -125,8 +144,23 @@ export const RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatu
   { label: 'Ready for Claim', statuses: [DocumentStatus.Completed, ...RETIRED] },
 ];
 
-export function label(status: DocumentStatus): string {
-  return LABELS[status];
+/**
+ * The four stages shown on citizen-facing progress rails.
+ * Uses public-facing terminology: Received & Queued → Processing with Office → Under Final Review & Quality Check → Ready for Pickup / Claiming.
+ */
+export const CITIZEN_RAIL_STAGES: ReadonlyArray<{ label: string; statuses: DocumentStatus[] }> = [
+  { label: 'Received & Queued', statuses: [DocumentStatus.Pending] },
+  { label: 'Processing with Office', statuses: [DocumentStatus.InProgress] },
+  { label: 'Under Final Review & Quality Check', statuses: [DocumentStatus.InReview] },
+  { label: 'Ready for Pickup / Claiming', statuses: [DocumentStatus.Completed, ...RETIRED] },
+];
+
+export function citizenLabel(status: DocumentStatus): string {
+  return CITIZEN_LABELS[status] ?? LABELS[status] ?? status;
+}
+
+export function label(status: DocumentStatus, surface: 'staff' | 'citizen' = 'staff'): string {
+  return surface === 'citizen' ? citizenLabel(status) : LABELS[status];
 }
 
 export function description(status: DocumentStatus): string {

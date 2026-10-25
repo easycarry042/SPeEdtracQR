@@ -1,8 +1,9 @@
 import { db, id, toId } from '@/lib/db';
-import { now, startOfDay, parseNaive, today } from '@/lib/time';
+import { now, startOfDay, parseNaive, today, formatNaive } from '@/lib/time';
 import { tracking } from '@/lib/config';
 import { logOnDocument } from '@/lib/activity';
 import { queueMail } from '@/lib/mail/send';
+import { queueSms } from '@/lib/sms/send';
 import { assignmentNoticeMail } from '@/lib/mail/assignment-notice';
 import { broadcastStatusUpdated } from '@/lib/realtime';
 import { logSystemComment, postComment, AUTHOR, VISIBILITY } from '@/lib/domain/comments';
@@ -35,8 +36,10 @@ const SELECT = {
   assigned_to: true,
   accepted_at: true,
   department_id: true,
+  department: { select: { name: true } },
   citizen_name: true,
   citizen_email: true,
+  citizen_contact: true,
   notify_citizen: true,
   created_at: true,
   claim_date: true,
@@ -482,11 +485,24 @@ export async function approveClearance(
     });
   }
 
+  let claimDay: Date | null = null;
+  if (input?.claimDate) {
+    const parsed = parseNaive(input.claimDate);
+    if (parsed) {
+      claimDay = startOfDay(parsed);
+      const refusal = await followClaimDate(documentId, claimDay);
+      if (refusal) {
+        throw new ActionError(refusal);
+      }
+    }
+  }
+
   const stamp = now();
   await db.documents.update({
     where: { id: document.id },
     data: {
       ...statusChangeData(DocumentStatus.Completed),
+      ...(claimDay ? { claim_date: claimDay } : {}),
       decided_by: id(actor.id),
       decided_at: stamp,
       completed_at: stamp,
@@ -507,7 +523,10 @@ export async function approveClearance(
     `Clearance approved by ${actor.name} — marked Ready for Claim`,
   );
 
-  // Notify citizen that request is approved & ready for claim
+  const officeName = document.department?.name ?? 'the office';
+  const effectiveClaimDate = claimDay ?? document.claim_date;
+
+  // 1. Dispatch Email claim notification to citizen
   if (document.citizen_email && tracking.notifyCitizen.enabled && tracking.notifyCitizen.stages[DocumentStatus.Completed]) {
     queueMail(
       statusUpdatedMail({
@@ -515,9 +534,51 @@ export async function approveClearance(
         trackingNumber: document.tracking_number,
         citizenName: document.citizen_name,
         stage: DocumentStatus.Completed,
+        officeName,
+        claimDate: effectiveClaimDate,
       }),
     );
+
+    await logOnDocument(
+      documentId,
+      `Dispatched claim notification email to citizen (${document.citizen_email})`,
+      actor.id,
+    );
   }
+
+  // 2. Dispatch SMS claim notification to citizen (if contact number is provided)
+  if (document.citizen_contact) {
+    const claimDateText = effectiveClaimDate
+      ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
+      : '';
+    const smsText = `SPeED TraQR: Your request ${document.tracking_number} has been approved and is Ready for Pickup / Claiming${claimDateText} at ${officeName}. Bring your QR code or claim slip to the counter.`;
+
+    queueSms({
+      to: document.citizen_contact,
+      text: smsText,
+      trackingNumber: document.tracking_number,
+    });
+
+    await logOnDocument(
+      documentId,
+      `Dispatched claim notification SMS to citizen (${document.citizen_contact})`,
+      actor.id,
+    );
+  }
+
+  // 3. Dispatch claim notification to Speedy message thread (public citizen-visible message)
+  const claimNoticeDateText = effectiveClaimDate
+    ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}`
+    : '';
+  const speedyBody = `Good news! Your request has been approved by the supervisor and is now Ready for Pickup / Claiming${claimNoticeDateText}. Please bring your QR code (from your confirmation email or printed slip) to the ${officeName} counter. If you have any questions, you can reply directly in this thread.`;
+
+  await postComment({
+    documentId,
+    body: speedyBody,
+    authorId: actor.id,
+    authorType: AUTHOR.Staff,
+    visibility: VISIBILITY.Public,
+  });
 
   // Notify assigned staff handler that their submission was approved
   const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { content, payload, trackingNumber } from '@/lib/domain/tracking-qr';
 
 /**
@@ -14,6 +14,10 @@ const GOLDEN: Record<string, string> = {
   'INT-20260915-ZZ3Q4R': 'SPDQR1:JFHFILJSGAZDMMBZGE2S2WS2GNITIUVO43GXMKUCHDRQ',
   'SPD-20250101-234567': 'SPDQR1:KNIEILJSGAZDKMBRGAYS2MRTGQ2TMN2QPTWDSWJKVKMQ',
 };
+
+beforeAll(() => {
+  process.env.APP_KEY = 'base64:sUh8T7gqxzGSoBs+b13X/EnCf8xfkxtOFpOkhf9V18Y=';
+});
 
 describe('TrackingQr', () => {
   it('produces the same payloads as the Laravel implementation', () => {
