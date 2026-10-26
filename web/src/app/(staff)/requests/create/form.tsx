@@ -4,7 +4,12 @@ import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FormDepartment, FormRecipient } from '@/lib/domain/internal-request-form';
 import { fileRequest } from '@/app/actions/internal';
-import { planRoute } from '@/lib/domain/internal-route-plan';
+import {
+  ROUTE_DIRECT,
+  ROUTE_THROUGH,
+  planRoute,
+  type RouteMode,
+} from '@/lib/domain/internal-route-plan';
 import { renderPdfFilePage } from '@/lib/client/pdf-preview';
 import { useConfirm } from '@/components/confirm-dialog';
 
@@ -62,9 +67,9 @@ export function FilingForm({
   officeName,
   officeCode = null,
 }: {
-  /** Offices a request can be FOR (Action Mamamayan is never a destination). */
+  /** Offices a request can go straight to (Action Mamamayan is never a destination). */
   departments: FormDepartment[];
-  /** Offices every request passes through first, in route order. */
+  /** Action Mamamayan and the Office of the Mayor, in route order. */
   mandatory: FormDepartment[];
   officeId: number | null;
   officeName: string;
@@ -76,7 +81,9 @@ export function FilingForm({
   const [error, setError] = useState<string | null>(null);
 
   const [step, setStep] = useState<1 | 2>(1);
+  const [routeMode, setRouteMode] = useState<RouteMode>(ROUTE_THROUGH);
   const [firstDepartment, setFirstDepartment] = useState('');
+  const direct = routeMode === ROUTE_DIRECT;
   const [purpose, setPurpose] = useState('');
   const [hasHardCopy, setHasHardCopy] = useState(true);
   const [recipientId, setRecipientId] = useState('');
@@ -98,7 +105,7 @@ export function FilingForm({
   const paperInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (hasHardCopy || firstDepartment === '') {
+    if (hasHardCopy || !direct || firstDepartment === '') {
       setPeople([]);
       return;
     }
@@ -117,7 +124,7 @@ export function FilingForm({
     return () => {
       live = false;
     };
-  }, [firstDepartment, hasHardCopy]);
+  }, [firstDepartment, hasHardCopy, direct]);
 
   useEffect(() => {
     return () => {
@@ -127,12 +134,18 @@ export function FilingForm({
     };
   }, [previewUrl]);
 
-  const selectedDepartment =
-    departments.find((d) => String(d.id) === String(firstDepartment)) ?? null;
-  // The route the server will queue: the mandatory offices, then this one.
-  const route = selectedDepartment
-    ? planRoute(mandatory, officeId, selectedDepartment)
-    : mandatory.filter((office) => office.id !== officeId);
+  const selectedDepartment = direct
+    ? (departments.find((d) => String(d.id) === String(firstDepartment)) ?? null)
+    : null;
+  // The route the server will queue.
+  const route = planRoute(mandatory, officeId, routeMode, selectedDepartment);
+  // The stop still to be decided: the office the Mayor's office chooses, or
+  // the one the filer has yet to pick.
+  const openStop = direct
+    ? selectedDepartment
+      ? null
+      : 'Choose an office'
+    : 'Mayor chooses';
   const selectedRecipient =
     people.find((p) => String(p.id) === String(recipientId)) ?? null;
 
@@ -273,10 +286,11 @@ export function FilingForm({
   };
 
   const canReview =
-    Boolean(firstDepartment) &&
+    (!direct || selectedDepartment !== null) &&
+    route.length > 0 &&
     purpose.trim() !== '' &&
     scan !== null &&
-    (hasHardCopy || selectedRecipient !== null);
+    (hasHardCopy || !direct || selectedRecipient !== null);
 
   const submit = async (): Promise<void> => {
     const confirmed = await confirm({
@@ -292,11 +306,16 @@ export function FilingForm({
     setError(null);
 
     const form = new FormData();
-    form.set('destination_department_id', firstDepartment);
+    form.set('route', routeMode);
+
+    if (direct) {
+      form.set('destination_department_id', firstDepartment);
+    }
+
     form.set('purpose', purpose.trim());
     form.set('has_hard_copy', hasHardCopy ? '1' : '0');
 
-    if (!hasHardCopy) {
+    if (!hasHardCopy && direct) {
       form.set('recipient_id', recipientId);
     }
 
@@ -415,36 +434,71 @@ export function FilingForm({
           {step === 1 ? (
             <div className="grid min-h-full grid-cols-1 gap-6 md:grid-cols-2 md:grid-rows-[1fr]">
               <div className="flex flex-col gap-5">
-                <div>
-                  <label htmlFor="route-select" className="st-filter-label">
-                    Destination Office <span className="text-status-red">*</span>
-                  </label>
+                <fieldset className="min-w-0">
+                  <legend className="st-filter-label">
+                    How should it be sent? <span className="text-status-red">*</span>
+                  </legend>
 
-                  <RouteStrip officeName={officeName} route={route} destinationChosen={selectedDepartment !== null} />
+                  <div className="st-tabs ff-route-mode mt-1 w-full" role="radiogroup" aria-label="How it is sent">
+                    {(
+                      [
+                        [ROUTE_THROUGH, 'Through Action Mamamayan & the Mayor'],
+                        [ROUTE_DIRECT, 'Straight to an office'],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={routeMode === mode}
+                        className={`text-center${routeMode === mode ? ' on' : ''}`}
+                        onClick={() => {
+                          setRouteMode(mode);
+                          setRecipientId('');
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <RouteStrip officeName={officeName} route={route} openStop={openStop} />
                   <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">
-                    Every internal request is validated by {mandatory.map((office) => office.name).join(', then ')} before it
-                    reaches the office it is for.
+                    {direct
+                      ? 'It goes straight to the office you choose, skipping Action Mamamayan and the Office of the Mayor.'
+                      : route.length > 1
+                        ? 'Action Mamamayan validates it, then the Office of the Mayor approves it and chooses the office it goes to.'
+                        : route.length === 1
+                          ? 'The Office of the Mayor approves it and chooses the office it goes to.'
+                        : 'Action Mamamayan and the Office of the Mayor are not set up yet. Send it straight to an office instead.'}
                   </p>
 
-                  <select
-                    id="route-select"
-                    name="destination_department_id"
-                    value={firstDepartment}
-                    onChange={(event) => {
-                      setFirstDepartment(event.target.value);
-                      setRecipientId('');
-                    }}
-                    required
-                    className="st-filter-field mt-3"
-                  >
-                    <option value="">Which office is this request for?…</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  {direct ? (
+                    <>
+                      <label htmlFor="route-select" className="st-filter-label mt-3 block">
+                        Which office is it for? <span className="text-status-red">*</span>
+                      </label>
+                      <select
+                        id="route-select"
+                        name="destination_department_id"
+                        value={firstDepartment}
+                        onChange={(event) => {
+                          setFirstDepartment(event.target.value);
+                          setRecipientId('');
+                        }}
+                        required
+                        className="st-filter-field mt-1"
+                      >
+                        <option value="">Choose an office…</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({d.code})
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : null}
+                </fieldset>
 
                 <div>
                   <label htmlFor="purpose" className="st-filter-label">
@@ -482,16 +536,18 @@ export function FilingForm({
                       <span className="block text-[length:var(--fs-caption)] text-ink-soft">
                         {hasHardCopy
                           ? 'The paper goes office to office along the route; each office scans its QR to receive it.'
-                          : 'Soft copy only: no paper. Each office on the route receives it on screen; at the destination, the person you choose below.'}
+                          : direct
+                            ? 'Soft copy only: no paper. The person you choose below receives it on screen.'
+                            : 'Soft copy only: no paper. Each office receives it on screen; the Office of the Mayor chooses who receives it next.'}
                       </span>
                     </span>
                   </label>
                 </div>
 
-                {!hasHardCopy ? (
+                {!hasHardCopy && direct ? (
                   <div>
                     <label htmlFor="recipient-select" className="st-filter-label">
-                      Who at the destination office receives it?{' '}
+                      Who at that office receives it?{' '}
                       <span className="text-status-red">*</span>
                     </label>
                     <select
@@ -605,7 +661,7 @@ export function FilingForm({
               <div className="flex flex-col">
                 <p className="st-filter-label">Summary</p>
 
-                <RouteStrip officeName={officeName} route={route} destinationChosen={selectedDepartment !== null} />
+                <RouteStrip officeName={officeName} route={route} openStop={openStop} />
 
                 <dl className="dm-info mt-2">
                   <div className="dm-info-row">
@@ -616,11 +672,15 @@ export function FilingForm({
                     </dd>
                   </div>
                   <div className="dm-info-row">
+                    <dt>Sent</dt>
+                    <dd>{direct ? 'Straight to an office' : 'Through Action Mamamayan & the Mayor'}</dd>
+                  </div>
+                  <div className="dm-info-row">
                     <dt>Destination office</dt>
                     <dd>
                       {selectedDepartment
                         ? `${selectedDepartment.name} (${selectedDepartment.code})`
-                        : '—'}
+                        : 'Chosen by the Office of the Mayor'}
                     </dd>
                   </div>
                   <div className="dm-info-row">
@@ -639,7 +699,7 @@ export function FilingForm({
                         : 'No — soft copy only'}
                     </dd>
                   </div>
-                  {!hasHardCopy ? (
+                  {!hasHardCopy && direct ? (
                     <div className="dm-info-row">
                       <dt>Received by</dt>
                       <dd>
@@ -904,20 +964,21 @@ export function FilingForm({
 function RouteStrip({
   officeName,
   route,
-  destinationChosen,
+  openStop,
 }: {
   officeName: string;
   route: FormDepartment[];
-  destinationChosen: boolean;
+  /** The stop not yet decided, drawn hollow; null when the route is complete. */
+  openStop: string | null;
 }) {
   const stops = [
     { key: 'own', label: officeName, own: true },
     ...route.map((office) => ({ key: String(office.id), label: office.name, own: false })),
-    ...(destinationChosen ? [] : [{ key: 'pending', label: 'Destination office', own: false }]),
+    ...(openStop ? [{ key: 'pending', label: openStop, own: false }] : []),
   ];
 
   return (
-    <div className={`ff-route${destinationChosen ? ' is-set' : ''}`} aria-hidden="true">
+    <div className={`ff-route${openStop === null || route.length > 0 ? ' is-set' : ''}`} aria-hidden="true">
       <div className="ff-route-track" style={{ padding: `0 ${50 / stops.length}%` }}>
         {stops.map((stop, index) => (
           <Fragment key={stop.key}>

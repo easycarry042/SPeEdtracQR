@@ -18,6 +18,7 @@ import {
 import { currentCustody, custodyTrail, captureLabel, type CustodyEntry } from '@/lib/domain/custody';
 import { activeDepartments, recipients, type FormDepartment, type FormRecipient } from '@/lib/domain/internal-request-form';
 import { ensureStampedCopy, isStampable, isStampedPath } from '@/lib/domain/qr-stamp';
+import { officeStampCode } from '@/lib/domain/office-stamp';
 import { privateExists } from '@/lib/storage';
 import type { Actor } from '@/lib/auth/actor';
 
@@ -69,6 +70,10 @@ export type InternalRequestDetail = {
   attachments: Array<{ id: number; url: string; label: string; ext: string; isStamped: boolean }>;
   /** Primary QR-stamped attachment (or first attachment) to open when snipping the QR on screen. */
   stampedAttachment: { id: number; url: string; label: string; ext: string } | null;
+  /** The newest image or PDF — the one an office's RECEIVED stamp goes on. */
+  stampTarget: { url: string; ext: string } | null;
+  /** Office stamps already on the file, so the next one starts clear of them. */
+  officeStampCount: number;
   currentStep: {
     id: number;
     office: string;
@@ -149,10 +154,15 @@ export async function internalRequestDetail(
   const mappedAttachments = rawAttachments
     .map((attachment) => {
       const isStamped = isStampedPath(attachment.file_path);
+      const stampedBy = officeStampCode(attachment.file_path);
       return {
         id: toId(attachment.id),
         url: routes.attachmentsShow(toId(attachment.id)),
-        label: isStamped ? 'QR-stamped copy' : 'Original upload',
+        label: isStamped
+          ? 'QR-stamped copy'
+          : stampedBy
+            ? `Stamped RECEIVED by ${stampedBy}`
+            : 'Original upload',
         ext: extensionOf(attachment.file_path),
         isStamped,
       };
@@ -161,6 +171,15 @@ export async function internalRequestDetail(
 
   const stampedAttachment =
     mappedAttachments.find((a) => a.isStamped) ?? mappedAttachments[0] ?? null;
+
+  // Attachments are read in upload order, so the last stampable one is newest.
+  const newestStampable = [...rawAttachments].reverse().find((row) => isStampable(row.file_path));
+  const stampTarget = newestStampable
+    ? {
+        url: routes.attachmentsShow(toId(newestStampable.id)),
+        ext: extensionOf(newestStampable.file_path).toLowerCase(),
+      }
+    : null;
 
   const requestingDepartmentId =
     document.requesting_department_id === null
@@ -273,6 +292,8 @@ export async function internalRequestDetail(
     custodyTrail: trail,
     heldBy: held ? { name: held.userName, how: captureLabel(held.method) } : null,
     attachments: mappedAttachments,
+    stampTarget,
+    officeStampCount: rawAttachments.filter((row) => officeStampCode(row.file_path) !== null).length,
     stampedAttachment: stampedAttachment
       ? {
           id: stampedAttachment.id,

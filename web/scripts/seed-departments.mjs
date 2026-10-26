@@ -19,6 +19,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const DEPARTMENTS = [
   ['OM', 'Office of the Mayor'],
+  ['CADM', 'Office of the City Administrator'],
   ['BO', 'Municipal Budget Office'],
   ['ACC', 'Municipal Accounting Office'],
   ['BAC', 'Bids and Awards Committee'],

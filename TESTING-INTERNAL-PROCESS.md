@@ -115,6 +115,23 @@ write what happened in *Comments/Suggestion*. `☐` = not yet run.
 | TC-INT-064 | Decision — approve never completes | Approving at the last office does **not** silently complete the request; it asks for the next office or for **Done** | Press **Approve** leaving the next office unchosen | (no office chosen) | ☐ | ☐ | Functional Suitability | |
 | TC-INT-065 | Decision — closed request is final | A completed or denied request offers no further decision buttons, and the action URL refuses to act | Open REQ-A (completed) and REQ-C (denied) as the last holding head | REQ-A, REQ-C | ☐ | ☐ | Reliability | |
 
+## G. Routing choice and RECEIVED stamps (added 2026-10-26)
+
+Accounts: `om.head@speedtraqr.com` (Office of the Mayor), `cadm.head@speedtraqr.com` (Office of the City Administrator, CADM), Action Mamamayan's Clerk; all `staff1234`. Run `node scripts/seed-departments.mjs` and `seed-team.mjs` first so CADM exists.
+
+| Test Case Scenario ID | Name of the Module Function | Test Case Scenario | Action | Actual Input | Pass | Fail | Product Quality Component | Comments/Suggestion |
+|---|---|---|---|---|---|---|---|---|
+| TC-INT-080 | Route toggle — default | The filing form opens on **Through Action Mamamayan & the Mayor**, with no office to choose; the route strip reads your office → Action Mamamayan → Office of the Mayor → *Office the Mayor chooses* | Open **＋ File request** | — | ☐ | ☐ | Usability |  |
+| TC-INT-081 | Route toggle — through, filed | Filing through the Mayor queues exactly two hops: Action Mamamayan (current) then the Office of the Mayor (pending) | File with the toggle left on through | purpose `Request for 20 monoblock chairs`, scan `request-scan.jpg` | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-082 | Route toggle — through, soft copy | Through the Mayor, a soft copy asks for **no** recipient at filing; the review screen says the destination is chosen by the Office of the Mayor | Untick hard copy, review | soft copy | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-083 | Mayor chooses the office | At the Office of the Mayor, **Approve** asks *Send to which office next?* (and, for a soft copy, who receives it); the request moves there | Log in as the Mayor's office head, take custody, approve choosing an office | `om.head@speedtraqr.com`, next office `Office of the City Administrator (CADM)` | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-084 | Destination passes it on | The office the Mayor chose can approve and pass it to another office, or press **Done** | Log in as that office's head, approve to another office | `cadm.head@speedtraqr.com`, next office `GSO` | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-085 | Straight to an office | **Straight to an office** shows the office list (Office of the Mayor included, Action Mamamayan never); filing queues only that office | Switch the toggle, pick an office, file | office `General Services Office (GSO)` | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-086 | Straight to an office — soft copy | Sent straight, a soft copy must name who at that office receives it; filing without one is refused | Switch the toggle, untick hard copy, leave the person empty, then choose one | `Paolo Mendoza` | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-087 | RECEIVED stamp — optional | Approving with the stamp box unticked works exactly as before and adds no file | Approve without ticking **Add our RECEIVED stamp** | — | ☐ | ☐ | Functional Suitability |  |
+| TC-INT-088 | RECEIVED stamp — image | Ticking the stamp shows the file with a draggable, resizable stamp; after approving, a new file *Stamped RECEIVED by {office}* carries the office, RECEIVED, the approver and the date and time at that spot; the earlier files are unchanged | Tick the stamp, drag it to a clear margin, approve, open the new file | image scan | ☐ | ☐ | Usability |  |
+| TC-INT-089 | RECEIVED stamp — PDF and trail | On a PDF the stamp goes on the chosen page; at the next office the preview shows the earlier stamp, and the new stamp is added beside it | Approve with a stamp at two offices in turn | PDF scan, page `1` | ☐ | ☐ | Compatibility |  |
+
 ## F. Audit trail, history and exposure
 
 | Test Case Scenario ID | Name of the Module Function | Test Case Scenario | Action | Actual Input | Pass | Fail | Product Quality Component | Comments/Suggestion |

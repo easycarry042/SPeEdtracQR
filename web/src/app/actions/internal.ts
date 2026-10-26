@@ -8,6 +8,7 @@ import * as steps from '@/lib/domain/internal-steps';
 import * as custody from '@/lib/domain/custody';
 import { fileInternalRequest, type FilingInput } from '@/lib/domain/internal-filing';
 import { placementNumber } from '@/lib/domain/qr-stamp';
+import { ROUTE_THROUGH, isRouteMode } from '@/lib/domain/internal-route-plan';
 
 /**
  * The internal request write paths: receiving a folder, the four hop decisions,
@@ -136,8 +137,13 @@ export async function fileRequest(form: FormData): Promise<InternalResult> {
   const hasHardCopy = form.get('has_hard_copy');
   const recipient = form.get('recipient_id');
 
+  const route = form.get('route');
+  const destination = form.get('destination_department_id');
+
   const input: FilingInput = {
-    destinationDepartmentId: Number(form.get('destination_department_id') ?? 0),
+    // Absent means through Action Mamamayan and the Mayor, the official process.
+    route: isRouteMode(route) ? route : ROUTE_THROUGH,
+    destinationDepartmentId: destination ? Number(destination) : null,
     purpose: String(form.get('purpose') ?? ''),
     // Absent means paper, as every request was before the choice existed.
     hasHardCopy: hasHardCopy === null ? true : hasHardCopy === '1' || hasHardCopy === 'true',

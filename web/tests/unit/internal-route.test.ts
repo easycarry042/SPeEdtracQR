@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Actor } from '@/lib/auth/actor';
 import { STEP_STATUS } from '@/lib/domain/request-step';
-import { isDestination, planRoute } from '@/lib/domain/internal-route-plan';
+import { ROUTE_DIRECT, ROUTE_THROUGH, isDestination, planRoute } from '@/lib/domain/internal-route-plan';
 
 /**
- * Every internal request goes to Action Mamamayan to be validated, then to the
- * Office of the Mayor, and only then to the office it was filed for. The whole
- * route is queued when the request is filed.
+ * An internal request goes one of two ways. Through Action Mamamayan and the
+ * Mayor (the default): AM validates it, then the Office of the Mayor approves
+ * it and chooses the office it goes to. Straight to an office: just that one.
+ * The queued route is created when the request is filed.
  */
 const AM = { id: 11, name: 'Action Mamamayan', code: 'AM' };
 const OM = { id: 1, name: 'Office of the Mayor', code: 'OM' };
@@ -14,21 +15,29 @@ const GSO = { id: 5, name: 'General Services Office', code: 'GSO' };
 const CTCAO = { id: 8, name: 'City Tourism, Culture and Arts Office', code: 'CTCAO' };
 
 describe('planRoute', () => {
-  it('sends a request through Action Mamamayan and the Office of the Mayor to its destination', () => {
-    expect(planRoute([AM, OM], CTCAO.id, GSO).map((office) => office.code)).toEqual(['AM', 'OM', 'GSO']);
+  const codes = (route: Array<{ code: string }>) => route.map((office) => office.code);
+
+  it('sends a request through Action Mamamayan and the Office of the Mayor, with no destination yet', () => {
+    expect(codes(planRoute([AM, OM], CTCAO.id, ROUTE_THROUGH, null))).toEqual(['AM', 'OM']);
   });
 
-  it('ends at the Office of the Mayor when that is the destination', () => {
-    expect(planRoute([AM, OM], CTCAO.id, OM).map((office) => office.code)).toEqual(['AM', 'OM']);
+  it('ignores a destination when going through the Mayor (the Mayor chooses it)', () => {
+    expect(codes(planRoute([AM, OM], CTCAO.id, ROUTE_THROUGH, GSO))).toEqual(['AM', 'OM']);
   });
 
-  it("skips the filing office's own place on the route", () => {
-    expect(planRoute([AM, OM], AM.id, GSO).map((office) => office.code)).toEqual(['OM', 'GSO']);
-    expect(planRoute([AM, OM], OM.id, GSO).map((office) => office.code)).toEqual(['AM', 'GSO']);
+  it('sends a request straight to the chosen office, the Office of the Mayor included', () => {
+    expect(codes(planRoute([AM, OM], CTCAO.id, ROUTE_DIRECT, GSO))).toEqual(['GSO']);
+    expect(codes(planRoute([AM, OM], CTCAO.id, ROUTE_DIRECT, OM))).toEqual(['OM']);
+    expect(planRoute([AM, OM], CTCAO.id, ROUTE_DIRECT, null)).toEqual([]);
+  });
+
+  it("skips Action Mamamayan's own place, but the Mayor's office always keeps its hop", () => {
+    expect(codes(planRoute([AM, OM], AM.id, ROUTE_THROUGH, null))).toEqual(['OM']);
+    expect(codes(planRoute([AM, OM], OM.id, ROUTE_THROUGH, null))).toEqual(['AM', 'OM']);
   });
 
   it('leaves out a mandatory office that does not exist rather than block filing', () => {
-    expect(planRoute([OM], CTCAO.id, GSO).map((office) => office.code)).toEqual(['OM', 'GSO']);
+    expect(codes(planRoute([OM], CTCAO.id, ROUTE_THROUGH, null))).toEqual(['OM']);
   });
 
   it('never offers Action Mamamayan as a destination', () => {
@@ -109,71 +118,124 @@ beforeEach(() => {
 });
 
 describe('filing an internal request', () => {
-  it('queues Action Mamamayan (current), the Office of the Mayor, then the destination', async () => {
+  const base = { purpose: 'Twenty monoblock chairs', paperScan: scan };
+
+  it('through the Mayor: queues Action Mamamayan (current) and the Office of the Mayor only', async () => {
     const result = await fileInternalRequest(filer, {
-      destinationDepartmentId: GSO.id,
-      purpose: 'Twenty monoblock chairs',
+      ...base,
+      route: ROUTE_THROUGH,
+      destinationDepartmentId: null,
       hasHardCopy: true,
       recipientId: null,
-      paperScan: scan,
     });
 
     const created = stepCreate.mock.calls.map(([{ data }]) => data);
     expect(created.map((step) => [Number(step.department_id), step.status, step.step_order])).toEqual([
       [AM.id, STEP_STATUS.Current, 1],
       [OM.id, STEP_STATUS.Pending, 2],
-      [GSO.id, STEP_STATUS.Pending, 3],
     ]);
-    expect(created.map((step) => step.action)).toEqual([
-      'Validate and confirm',
-      'Approve for the Mayor',
-      'Review and action',
-    ]);
+    expect(created.map((step) => step.action)).toEqual(['Validate and confirm', 'Approve for the Mayor']);
 
     // Only the first office hears about it now.
     expect(tellTheHop).toHaveBeenCalledTimes(1);
     expect(tellTheHop.mock.calls[0][1]).toMatchObject({ department_id: AM.id });
     expect(result.message).toBe('Filed as INT-20261026-ROUTE1 — it goes to Action Mamamayan first.');
-    expect(logSystemComment).toHaveBeenCalledWith(70, expect.stringContaining('route: AM → OM → GSO'));
+    expect(logSystemComment).toHaveBeenCalledWith(70, expect.stringContaining('route: AM → OM'));
   });
 
-  it("puts a soft copy's named recipient on the destination's hop, checked against that office", async () => {
+  it('goes through the Mayor when no route is given', async () => {
     await fileInternalRequest(filer, {
+      ...base,
       destinationDepartmentId: GSO.id,
-      purpose: 'Twenty monoblock chairs',
+      hasHardCopy: true,
+      recipientId: null,
+    });
+
+    expect(stepCreate.mock.calls.map(([{ data }]) => Number(data.department_id))).toEqual([AM.id, OM.id]);
+  });
+
+  it('through the Mayor, a soft copy names no recipient at filing', async () => {
+    await fileInternalRequest(filer, {
+      ...base,
+      route: ROUTE_THROUGH,
+      destinationDepartmentId: null,
       hasHardCopy: false,
       recipientId: 9,
-      paperScan: scan,
+    });
+
+    expect(isRecipientAt).not.toHaveBeenCalled();
+    expect(stepCreate.mock.calls.map(([{ data }]) => data.recipient_id)).toEqual([null, null]);
+  });
+
+  it('straight to an office: queues only that office', async () => {
+    const result = await fileInternalRequest(filer, {
+      ...base,
+      route: ROUTE_DIRECT,
+      destinationDepartmentId: GSO.id,
+      hasHardCopy: true,
+      recipientId: null,
+    });
+
+    const created = stepCreate.mock.calls.map(([{ data }]) => data);
+    expect(created.map((step) => [Number(step.department_id), step.status, step.action])).toEqual([
+      [GSO.id, STEP_STATUS.Current, 'Review and action'],
+    ]);
+    expect(result.message).toBe('Filed as INT-20261026-ROUTE1 — it goes straight to General Services Office.');
+  });
+
+  it('straight to the Office of the Mayor', async () => {
+    await fileInternalRequest(filer, {
+      ...base,
+      route: ROUTE_DIRECT,
+      destinationDepartmentId: OM.id,
+      hasHardCopy: true,
+      recipientId: null,
+    });
+
+    expect(stepCreate.mock.calls.map(([{ data }]) => Number(data.department_id))).toEqual([OM.id]);
+  });
+
+  it("straight to an office, a soft copy's named recipient is checked against that office", async () => {
+    await fileInternalRequest(filer, {
+      ...base,
+      route: ROUTE_DIRECT,
+      destinationDepartmentId: GSO.id,
+      hasHardCopy: false,
+      recipientId: 9,
     });
 
     expect(isRecipientAt).toHaveBeenCalledWith(9, GSO.id);
-    const created = stepCreate.mock.calls.map(([{ data }]) => data);
-    expect(created.map((step) => step.recipient_id)).toEqual([null, null, 9n]);
+    expect(stepCreate.mock.calls.map(([{ data }]) => data.recipient_id)).toEqual([9n]);
   });
 
-  it('refuses Action Mamamayan as a destination', async () => {
-    await expect(
-      fileInternalRequest(filer, {
-        destinationDepartmentId: AM.id,
-        purpose: 'Twenty monoblock chairs',
-        hasHardCopy: true,
-        recipientId: null,
-        paperScan: scan,
-      }),
-    ).rejects.toThrow('Choose an active office this request is for.');
+  it('refuses Action Mamamayan, or no office, as a direct destination', async () => {
+    for (const destinationDepartmentId of [AM.id, null]) {
+      await expect(
+        fileInternalRequest(filer, {
+          ...base,
+          route: ROUTE_DIRECT,
+          destinationDepartmentId,
+          hasHardCopy: true,
+          recipientId: null,
+        }),
+      ).rejects.toThrow('Choose an active office to send this request to.');
+    }
     expect(documentCreate).not.toHaveBeenCalled();
   });
 
-  it('when Action Mamamayan files, the route starts at the Office of the Mayor', async () => {
-    await fileInternalRequest({ ...filer, departmentId: AM.id } as Actor, {
-      destinationDepartmentId: GSO.id,
-      purpose: 'Program supplies',
-      hasHardCopy: true,
-      recipientId: null,
-      paperScan: scan,
-    });
+  it('refuses to go through the Mayor when neither mandatory office is set up', async () => {
+    mandatoryRouteOffices.mockResolvedValue([]);
 
-    expect(stepCreate.mock.calls.map(([{ data }]) => Number(data.department_id))).toEqual([OM.id, GSO.id]);
+    await expect(
+      fileInternalRequest(filer, {
+        ...base,
+        route: ROUTE_THROUGH,
+        destinationDepartmentId: null,
+        hasHardCopy: true,
+        recipientId: null,
+      }),
+    ).rejects.toThrow('Send it straight to an office instead.');
+    expect(documentCreate).not.toHaveBeenCalled();
   });
 });
 

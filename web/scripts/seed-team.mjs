@@ -32,6 +32,7 @@ const TEAM = [
 
   // Department heads — one per office, so no route can dead-end.
   ['Ramon Bautista', 'om.head@speedtraqr.com', 'Supervisor', 'OM'],
+  ['Victor Salazar', 'cadm.head@speedtraqr.com', 'Supervisor', 'CADM'],
   ['Elena Marquez', 'budget.head@speedtraqr.com', 'Supervisor', 'BO'],
   ['Teresa Lim', 'accounting.head@speedtraqr.com', 'Supervisor', 'ACC'],
   ['Noel Aguilar', 'bac.head@speedtraqr.com', 'Supervisor', 'BAC'],

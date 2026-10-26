@@ -1982,6 +1982,9 @@ a.dm-thumb:hover { border-color: var(--green); }
 .ff-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
 
 .ff-qr-box { position: absolute; cursor: move; border: 2px solid var(--green); border-radius: 3px; background: rgba(255, 255, 255, .85); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+/* An office's RECEIVED stamp, placed at approval (stamp-placer.tsx); ink matches office-stamp.ts. */
+.office-stamp-box { position: absolute; cursor: move; touch-action: none; border: 2px solid #1d3f91; border-radius: 6px; background: rgba(255, 255, 255, .82); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.office-stamp-box:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 
 /* Internal request page: the modal card, in the page flow. */
 .dm-page-card { overflow: visible; }
@@ -2030,6 +2033,9 @@ a.dm-thumb:hover { border-color: var(--green); }
     color: var(--ink-soft);
     transition: background-color .15s, color .15s, box-shadow .15s;
 }
+/* The filing form's route toggle: two equal halves that wrap rather than scroll. */
+.st-tabs.ff-route-mode { display: flex; height: auto; min-height: 46px; overflow: visible; }
+.st-tabs.ff-route-mode button { flex: 1 1 0; min-width: 0; padding: 6px 12px; white-space: normal; line-height: 1.25; }
 .st-tabs button:hover:not(.on),
 .st-tabs a:hover:not(.on) { background: rgba(255, 255, 255, .7); color: var(--green-deep); }
 .st-tabs button:focus-visible,

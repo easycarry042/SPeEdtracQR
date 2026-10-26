@@ -72,7 +72,13 @@ Other rules:
 
 ## Internal requests (`INT-`, office to office)
 
-**Every internal request goes Action Mamamayan → Office of the Mayor → the office it is for** (`lib/domain/internal-route-plan.ts`, `MANDATORY_ROUTE_CODES = ['AM', 'OM']`; the client is still confirming this process, so expect it to change). The filer picks only the destination (Action Mamamayan is never one); `internal-filing.ts` queues the whole route at filing — first hop current, the rest pending — and approving a hop opens the next, so no office on the way can redirect it or mark it Done (`internal-steps.complete` refuses while a hop is queued). The filing office skips its own place on the route; the Office of the Mayor as destination ends the route there. A soft copy's named recipient sits on the destination's hop; at AM and OM anyone with `act on internal requests` receives it. A resent revision takes the place of the first waiting hop, so the trail stays in route order. Requests filed before this keep their old route.
+**The filer chooses the route** with a toggle on the filing form (`lib/domain/internal-route-plan.ts`, `RouteMode`):
+- **Through Action Mamamayan and the Mayor** (default, `ROUTE_THROUGH`): no destination is picked. `MANDATORY_ROUTE_CODES = ['AM', 'OM']` are queued at filing (first hop current, the rest pending); Action Mamamayan filing skips its own place, the Office of the Mayor always keeps its hop. When OM approves, nothing is queued after it, so it **chooses the next office** (and, for a soft copy, the person who receives it).
+- **Straight to an office** (`ROUTE_DIRECT`): the filer picks any office (the Office of the Mayor included; Action Mamamayan never) and, for a soft copy, its recipient; only that hop is queued.
+
+Past the queued route, whichever office holds it may pass it on (Approve → choose the next office) or mark it Done (`internal-steps.complete` refuses while a hop is still queued). A resent revision takes the place of the first waiting hop. Requests filed before this keep their old route. The Office of the City Administrator (`CADM`) is one of the offices (`seed-departments.mjs`).
+
+**RECEIVED stamp (optional, at approval):** the approver may tick *Add our RECEIVED stamp* and drag it onto the newest image/PDF (`stamp-placer.tsx`). `office-stamp.ts` draws the office, RECEIVED, the approver and the date/time on a **new** attachment (`…-office-stamp-{stepId}-{CODE}.ext`), so earlier copies and stamps stay; a failed stamp never blocks the approval.
 
 Hard copy (a folder each office scans in with the camera) vs soft copy (a named recipient receives it by scanning its QR on screen). Anyone at the holding office may scan a paper folder in; only the office's supervisor or a soft copy's named recipient decides (approve / return / deny / complete). Returned requests are resent or withdrawn by the filing office. Logic in `internal-*.ts`, `custody.ts`, `request-step.ts`; manual test cases in `TESTING-INTERNAL-PROCESS.md`.
 

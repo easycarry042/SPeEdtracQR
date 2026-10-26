@@ -7,6 +7,7 @@ import { CameraModal } from '@/components/camera-modal';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import * as SpeedQr from '@/lib/client/speed-qr';
 import { renderPdfUrlPage } from '@/lib/client/pdf-preview';
+import { StampPlacer, type StampChoice } from './stamp-placer';
 import {
   approveStep,
   completeStep,
@@ -1105,6 +1106,8 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
   const [payload, setPayload] = useState('');
   const [manualOpen, setManualOpen] = useState(false);
   const [override, setOverride] = useState('');
+  const [stampWanted, setStampWanted] = useState(false);
+  const [stampChoice, setStampChoice] = useState<StampChoice | null>(null);
 
   const expected = detail.trackingNumber.toUpperCase();
   const people = nextDepartment ? (detail.forwardRecipients[Number(nextDepartment)] ?? []) : [];
@@ -1190,13 +1193,16 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
     scanOverrideReason: override.trim() || null,
     nextDepartmentId: nextDepartment ? Number(nextDepartment) : null,
     nextRecipientId: nextRecipient ? Number(nextRecipient) : null,
+    stamp: mode === 'approve' && stampWanted && detail.stampTarget ? stampChoice : null,
   };
 
   const submit = (): void => {
     if (mode === 'approve') {
       void run(() => approveStep(detail.id, input), {
         title: 'Approve and sign this step?',
-        message: 'Your e-signature is placed on it and the request moves to the next office.',
+        message: input.stamp
+          ? 'Your e-signature is placed on it, your office’s RECEIVED stamp goes on a new copy of the file, and the request moves to the next office.'
+          : 'Your e-signature is placed on it and the request moves to the next office.',
         confirmLabel: 'Approve & sign',
       });
     } else if (mode === 'done') {
@@ -1400,6 +1406,36 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
               ) : null}
             </div>
           )
+        ) : null}
+
+        {mode === 'approve' ? (
+          <div>
+            <label className="flex items-start gap-2 text-[length:var(--fs-small)] font-semibold text-ink">
+              <input
+                type="checkbox"
+                checked={stampWanted}
+                disabled={!detail.stampTarget}
+                onChange={(event) => setStampWanted(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-green"
+              />
+              <span>
+                Add our RECEIVED stamp to the file <span className="font-normal text-ink-soft">(optional)</span>
+              </span>
+            </label>
+            <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+              {detail.stampTarget
+                ? 'Drag the stamp to a clear spot. It goes on a new copy, so the earlier copies and stamps stay as they are.'
+                : 'There is no image or PDF on this request to stamp.'}
+            </p>
+            {stampWanted && detail.stampTarget ? (
+              <StampPlacer
+                target={detail.stampTarget}
+                office={detail.currentStep?.office ?? 'Your office'}
+                stampsBefore={detail.officeStampCount}
+                onChange={setStampChoice}
+              />
+            ) : null}
+          </div>
         ) : null}
 
         <div>

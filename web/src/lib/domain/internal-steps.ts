@@ -20,6 +20,8 @@ import { trackingNumber as decodeScan, FOREIGN_CODE_MESSAGE } from '@/lib/domain
 import { internalOutcome, tellTheHop } from '@/lib/domain/internal-events';
 import { isRecipientAt } from '@/lib/domain/internal-request-form';
 import { checkPaperScan } from '@/lib/domain/upload-rules';
+import { addOfficeStamp, cleanStampPlacement } from '@/lib/domain/office-stamp';
+import type { StampPlacement } from '@/lib/domain/qr-stamp';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -70,6 +72,8 @@ export type StepDecisionInput = {
   nextDepartmentId?: number | null;
   /** Who receives it there (approve only, soft copies). */
   nextRecipientId?: number | null;
+  /** Where to put this office's RECEIVED stamp on the file (approve only, optional). */
+  stamp?: StampPlacement | null;
 };
 
 async function loadOrFail(documentId: number): Promise<StepDocument> {
@@ -267,8 +271,9 @@ async function applyStatus(
  * Approve this hop and pass the paper on.
  *
  * A hop queued at filing already says where it goes; past that, the office
- * holding it chooses, which is how the chain grows. "Nowhere" is not an empty
- * approval — it is the Done action.
+ * holding it chooses, which is how the chain grows — and how the Office of the
+ * Mayor sends a request filed through it to the office it is for. "Nowhere" is
+ * not an empty approval — it is the Done action.
  */
 export async function approve(
   documentId: number,
@@ -330,6 +335,21 @@ export async function approve(
   const signature = await freezeSignature(document, step, signer);
 
   await closeStep(step.id, STEP_STATUS.Approved, signer, remarks, signature);
+
+  // The office's RECEIVED stamp, when it chose to add one. Never blocks the
+  // approval: a failed stamp is logged and the request moves on.
+  const stampPlacement = cleanStampPlacement(input.stamp);
+
+  if (stampPlacement) {
+    const stamped = await addOfficeStamp(toId(document.id), step, signer, stampPlacement);
+
+    if (stamped) {
+      await logSystemComment(
+        toId(document.id),
+        `${step.departmentName} stamped the file RECEIVED (${signer.name}).`,
+      );
+    }
+  }
 
   if (statusOf(document) === DocumentStatus.Pending) {
     await applyStatus(toId(document.id), DocumentStatus.InProgress);
