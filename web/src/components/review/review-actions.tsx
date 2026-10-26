@@ -24,6 +24,7 @@ import {
   unholdDocument,
 } from '@/app/actions/document';
 import { NotifyButton } from './notify-dialog';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 
 export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 
@@ -67,7 +68,20 @@ export function ReviewActions({
     row.assignedTo ? '' : String(suggested?.id ?? ''),
   );
 
-  const run = (action: () => Promise<ActionResult>, closeOnSuccess = true): void => {
+  const confirm = useConfirm();
+  const nameOf = (staffId: number): string =>
+    assignableStaff.find((staff) => staff.id === staffId)?.name ?? 'this staff member';
+
+  /** One-click actions ask first (`ask`); the ones with their own dialog do not. */
+  const run = async (
+    action: () => Promise<ActionResult>,
+    closeOnSuccess = true,
+    ask?: ConfirmOptions,
+  ): Promise<void> => {
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
+
     setErrors([]);
 
     startTransition(async () => {
@@ -170,7 +184,13 @@ export function ReviewActions({
                           key={colleague.id}
                           type="button"
                           disabled={pending}
-                          onClick={() => run(() => assignDocument(row.id, colleague.id), false)}
+                          onClick={() =>
+                            void run(() => assignDocument(row.id, colleague.id), false, {
+                              title: `Reassign to ${colleague.name}?`,
+                              message: 'It moves to their queue and they are notified.',
+                              confirmLabel: 'Reassign',
+                            })
+                          }
                           className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
                           title={`Click to reassign to ${colleague.name} (On Duty)`}
                         >
@@ -199,7 +219,13 @@ export function ReviewActions({
                   <button
                     type="button"
                     disabled={!assignee || pending}
-                    onClick={() => run(() => assignDocument(row.id, Number(assignee)), false)}
+                    onClick={() =>
+                      void run(() => assignDocument(row.id, Number(assignee)), false, {
+                        title: `Reassign to ${nameOf(Number(assignee))}?`,
+                        message: 'It moves to their queue and they are notified.',
+                        confirmLabel: 'Reassign',
+                      })
+                    }
                     className="cr-btn cr-btn-primary text-xs"
                   >
                     Reassign
@@ -242,7 +268,13 @@ export function ReviewActions({
                 type="button"
                 className="cr-btn cr-btn-primary"
                 disabled={pending || assignee === ''}
-                onClick={() => run(() => assignDocument(row.id, Number(assignee)))}
+                onClick={() =>
+                  void run(() => assignDocument(row.id, Number(assignee)), true, {
+                    title: `Approve and assign to ${nameOf(Number(assignee))}?`,
+                    message: 'They are notified and must accept it before work starts.',
+                    confirmLabel: 'Approve & Assign',
+                  })
+                }
               >
                 {pending ? 'Approving…' : 'Approve & Assign'}
               </button>
@@ -319,7 +351,13 @@ export function ReviewActions({
                             key={colleague.id}
                             type="button"
                             disabled={pending}
-                            onClick={() => run(() => assignDocument(row.id, colleague.id), false)}
+                            onClick={() =>
+                            void run(() => assignDocument(row.id, colleague.id), false, {
+                              title: `Reassign to ${colleague.name}?`,
+                              message: 'It moves to their queue and they are notified.',
+                              confirmLabel: 'Reassign',
+                            })
+                          }
                             className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
                             title={`Click to reassign to ${colleague.name} (On Duty)`}
                           >
@@ -358,7 +396,13 @@ export function ReviewActions({
                     <button
                       type="button"
                       disabled={!assignee || pending}
-                      onClick={() => run(() => assignDocument(row.id, Number(assignee)), false)}
+                      onClick={() =>
+                      void run(() => assignDocument(row.id, Number(assignee)), false, {
+                        title: `Reassign to ${nameOf(Number(assignee))}?`,
+                        message: 'It moves to their queue and they are notified.',
+                        confirmLabel: 'Reassign',
+                      })
+                    }
                       className="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Reassign
@@ -387,7 +431,13 @@ export function ReviewActions({
               type="button"
               className="cr-btn cr-btn-primary"
               disabled={pending}
-              onClick={() => run(() => claimDocument(row.id), false)}
+              onClick={() =>
+                void run(() => claimDocument(row.id), false, {
+                  title: 'Claim this request?',
+                  message: 'It becomes yours and moves to Ongoing.',
+                  confirmLabel: 'Claim',
+                })
+              }
             >
               {pending ? 'Claiming…' : 'Claim / Start Processing'}
             </button>
@@ -409,7 +459,13 @@ export function ReviewActions({
               type="button"
               className="cr-btn cr-btn-primary"
               disabled={pending}
-              onClick={() => run(() => acceptAssignment(row.id), false)}
+              onClick={() =>
+                void run(() => acceptAssignment(row.id), false, {
+                  title: 'Accept this assignment?',
+                  message: 'It moves to Ongoing and your supervisor is told you have started.',
+                  confirmLabel: 'Accept',
+                })
+              }
             >
               {pending ? 'Accepting…' : 'Accept'}
             </button>
@@ -471,7 +527,13 @@ export function ReviewActions({
               type="button"
               className="cr-btn cr-btn-primary"
               disabled={pending}
-              onClick={() => run(() => unholdDocument(row.id), false)}
+              onClick={() =>
+                void run(() => unholdDocument(row.id), false, {
+                  title: 'Lift the hold?',
+                  message: 'The request picks up where it stopped.',
+                  confirmLabel: 'Lift hold',
+                })
+              }
             >
               Lift hold
             </button>
@@ -503,13 +565,14 @@ export function ReviewActions({
                   className="btn-step btn-step-fwd"
                   disabled={pending}
                   onClick={() =>
-                    run(
+                    void run(
                       () =>
                         setDocumentStatus(row.id, {
                           expectedStatus: row.status,
                           status: DocumentStatus.InProgress,
                         }),
                       false,
+                      { title: 'Resume this request?', message: 'It goes back to Ongoing.', confirmLabel: 'Resume' },
                     )
                   }
                 >

@@ -554,6 +554,11 @@ html { zoom: var(--ui-zoom); }
 .cr-btn-sm { height: var(--control-h-sm); padding: 0 9px; font-size: 11.5px; }
 .cr-btn-danger { color: var(--red); border-color: #ecd2d2; }
 .cr-btn-danger:hover { background: var(--red-wash); }
+.cr-btn-danger-solid { background: var(--red); border-color: var(--red); color: #fff; }
+.cr-btn-danger-solid:hover { background: #742020; }
+
+/* The confirm step sits above every other dialog (review modal, scanner). */
+.gate-modal.confirm-modal { z-index: 130; }
 
 /* Small status/scope chip (e.g. "All offices") */
 .chip { font-size: 11px; color: var(--green-deep); background: var(--green-wash); border: 1px solid var(--hairline); padding: 3px 9px; border-radius: 20px; }
@@ -4517,4 +4522,39 @@ img.header-avatar { object-fit: cover; padding: 0; }
     position: absolute;
     inset: 0;
     background: linear-gradient(180deg, rgba(255, 255, 255, .6) 0%, rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0) 80%, #fff 100%);
+}
+
+
+/* ── Sienna accessibility toolbar ─────────────────────────────────────────
+   Loaded in the root layout. Recoloured from its stock blue to the municipal
+   green through its own --asw-primary property: the launcher reads it from an
+   injected stylesheet (so !important outranks it); the panel sets it inline
+   with !important on .asw-menu, so the panel is re-themed via .asw-menu *,
+   where our value is what descendants inherit. */
+.asw-widget,
+.asw-menu-btn {
+    --asw-primary: var(--green, #167a3a) !important;
+}
+.asw-menu * {
+    --asw-primary: var(--green, #167a3a) !important;
+    --asw-primary-subtle: color-mix(in srgb, var(--green, #167a3a), transparent 90%) !important;
+    --asw-primary-faint: color-mix(in srgb, var(--green, #167a3a), transparent 95%) !important;
+}
+.asw-menu .asw-footer {
+    border-top-color: color-mix(in srgb, var(--green, #167a3a), transparent 90%) !important;
+}
+.asw-menu .asw-footer-powered {
+    color: var(--green, #167a3a) !important;
+    outline-color: var(--green, #167a3a) !important;
+}
+/* Signed-in pages open the toolbar from the sidebar's Accessibility row, so
+   the vendor launcher is parked off-screen there. It stays in the DOM with its
+   click handler, because the sidebar row opens the panel by clicking it. */
+body:has(.admin-shell) .asw-menu-btn {
+    position: fixed !important;
+    left: -9999px !important;
+    top: auto !important;
+    bottom: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }

@@ -6,6 +6,7 @@ import type { FormDepartment, FormRecipient } from '@/lib/domain/internal-reques
 import { fileRequest } from '@/app/actions/internal';
 import { planRoute } from '@/lib/domain/internal-route-plan';
 import { renderPdfFilePage } from '@/lib/client/pdf-preview';
+import { useConfirm } from '@/components/confirm-dialog';
 
 type QrPlacement = {
   ready: boolean;
@@ -70,6 +71,7 @@ export function FilingForm({
   officeCode?: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -276,7 +278,17 @@ export function FilingForm({
     scan !== null &&
     (hasHardCopy || selectedRecipient !== null);
 
-  const submit = (): void => {
+  const submit = async (): Promise<void> => {
+    const confirmed = await confirm({
+      title: 'File this request?',
+      message: 'It starts on the route shown in the review, and the first office is notified.',
+      confirmLabel: 'File request',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setError(null);
 
     const form = new FormData();
@@ -382,7 +394,7 @@ export function FilingForm({
           if (step === 1) {
             if (canReview) setStep(2);
           } else {
-            submit();
+            void submit();
           }
         }}
         className="flex min-h-0 flex-1 flex-col"

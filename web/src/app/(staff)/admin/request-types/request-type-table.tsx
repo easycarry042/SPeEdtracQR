@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import type { RequestTypeRow } from '@/lib/domain/admin-catalog';
 import { routes } from '@/lib/routes';
 import { removeRequestType, toggleRequestTypeActive } from '@/app/actions/admin';
+import { useConfirm } from '@/components/confirm-dialog';
 
 /**
  * The catalog table.
@@ -22,6 +23,7 @@ export function RequestTypeTable({
   flash: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(
@@ -143,7 +145,22 @@ export function RequestTypeTable({
                             type="button"
                             className="cr-btn cr-btn-sm"
                             disabled={pending}
-                            onClick={() => run(() => toggleRequestTypeActive(type.id))}
+                            onClick={async () => {
+                              const confirmed = await confirm(
+                                type.isActive
+                                  ? {
+                                      title: `Deactivate ${type.name}?`,
+                                      message: 'Citizens can no longer file it. Requests already filed carry on.',
+                                      confirmLabel: 'Deactivate',
+                                      tone: 'danger',
+                                    }
+                                  : { title: `Activate ${type.name}?`, confirmLabel: 'Activate' },
+                              );
+
+                              if (confirmed) {
+                                run(() => toggleRequestTypeActive(type.id));
+                              }
+                            }}
                           >
                             {type.isActive ? 'Deactivate' : 'Activate'}
                           </button>

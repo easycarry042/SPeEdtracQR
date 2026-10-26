@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { routes } from '@/lib/routes';
 import { removeRouteTemplate, toggleRouteTemplateActive } from '@/app/actions/admin';
+import { useConfirm } from '@/components/confirm-dialog';
 
 type TemplateRow = {
   id: number;
@@ -23,6 +24,7 @@ export function TemplateTable({
   flash: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(
@@ -118,7 +120,22 @@ export function TemplateTable({
                             type="button"
                             className="cr-btn cr-btn-sm"
                             disabled={pending}
-                            onClick={() => run(() => toggleRouteTemplateActive(template.id))}
+                            onClick={async () => {
+                              const confirmed = await confirm(
+                                template.isActive
+                                  ? {
+                                      title: `Deactivate ${template.name}?`,
+                                      message: 'New requests can no longer use it. Requests already on it carry on.',
+                                      confirmLabel: 'Deactivate',
+                                      tone: 'danger',
+                                    }
+                                  : { title: `Activate ${template.name}?`, confirmLabel: 'Activate' },
+                              );
+
+                              if (confirmed) {
+                                run(() => toggleRouteTemplateActive(template.id));
+                              }
+                            }}
                           >
                             {template.isActive ? 'Deactivate' : 'Activate'}
                           </button>

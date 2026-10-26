@@ -7,6 +7,7 @@ import type { DepartmentRow } from '@/lib/domain/admin-departments';
 import { fromHours } from '@/lib/domain/duration';
 import { routes } from '@/lib/routes';
 import { toggleDepartmentActive } from '@/app/actions/admin';
+import { useConfirm } from '@/components/confirm-dialog';
 
 /**
  * The office table, with Activate / Deactivate in the row it belongs to.
@@ -22,12 +23,28 @@ export function OfficeTable({
   flash: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(
     flash ? { ok: true, message: flash } : null,
   );
 
-  const toggle = (office: DepartmentRow): void => {
+  const toggle = async (office: DepartmentRow): Promise<void> => {
+    const confirmed = await confirm(
+      office.isActive
+        ? {
+            title: `Deactivate ${office.name}?`,
+            message: 'It stops receiving new requests until it is activated again.',
+            confirmLabel: 'Deactivate',
+            tone: 'danger',
+          }
+        : { title: `Activate ${office.name}?`, confirmLabel: 'Activate' },
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     startTransition(async () => {
       const result = await toggleDepartmentActive(office.id);
       setNotice(result);
@@ -109,7 +126,7 @@ export function OfficeTable({
                           type="button"
                           className="cr-btn cr-btn-sm"
                           disabled={pending}
-                          onClick={() => toggle(office)}
+                          onClick={() => void toggle(office)}
                         >
                           {office.isActive ? 'Deactivate' : 'Activate'}
                         </button>

@@ -72,23 +72,14 @@ export default async function DashboardPage({
   const scope = documentScope(actor);
 
   const [
-    dept,
     pendingRows,
     activeRows,
     clearanceRows,
     completedTotal,
-    pendingOnly,
     inProgressCount,
     staff,
     glance,
   ] = await Promise.all([
-    departmentId
-      ? db.departments.findFirst({
-          where: { id: id(departmentId) },
-          select: { id: true, name: true, code: true },
-        })
-      : Promise.resolve(null),
-
     // Awaiting approval: still Pending and not yet assigned. Assigning removes
     // it from this queue.
     db.documents.findMany({
@@ -128,14 +119,6 @@ export default async function DashboardPage({
     // Finished work is the whole history, paged by the Completed tab itself
     // (history.data); only its count is needed here.
     completedCount(actor),
-
-    // Headline count: all Pending citizen requests in scope.
-    db.documents.count({
-      where: {
-        AND: [scope, citizenBase, unroutedScope],
-        status: DocumentStatus.Pending,
-      },
-    }),
 
     // Headline count: open non-Pending requests (or assigned active requests).
     db.documents.count({
@@ -204,9 +187,6 @@ export default async function DashboardPage({
   const allIdle = staffWorkload.every((m) => m.active_count === 0 && m.completed_count === 0);
 
   const unassignedCount = pending.length;
-  const totalForCompletion = pendingOnly + inProgressCount + completedTotal;
-  const completionRate =
-    totalForCompletion > 0 ? Math.round((completedTotal / totalForCompletion) * 100) : null;
 
   const normalizedTab =
     tab === 'signoff' || tab === 'clearance'
@@ -232,26 +212,6 @@ export default async function DashboardPage({
   return (
     <AuthenticatedPage
       title="Dashboard"
-      pageActions={
-        dept ? (
-          <>
-            <span className="hidden min-w-0 items-center gap-2 rounded-full border border-hairline-strong bg-green-wash px-3 py-1 sm:inline-flex">
-              <span className="truncate text-sm font-bold text-green-deep">
-                {dept.name}{' '}
-                {dept.code ? <span className="font-medium text-green">({dept.code})</span> : null}
-              </span>
-            </span>
-            {completionRate !== null ? (
-              <span className="hidden shrink-0 items-center gap-1.5 text-sm md:inline-flex">
-                <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Completion
-                </span>
-                <span className="font-bold text-green-deep">{completionRate}%</span>
-              </span>
-            ) : null}
-          </>
-        ) : undefined
-      }
     >
       <div className="page-shell page-shell-loose">
         {/* Headline counts, leading with the Review & Sign-Off queue */}

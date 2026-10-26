@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { app } from '@/lib/config';
 import './globals.css';
 
@@ -31,6 +32,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         {children}
+        {/* Sienna accessibility toolbar (contrast, text size, dyslexia font…),
+            https://accessibility-widget.pages.dev. Loaded after hydration so it
+            never blocks first paint or touches the server-rendered markup.
+            Themed and, inside the signed-in shell, tucked away in globals.css. */}
+        {app.accessibilityWidget ? (
+          <Script
+            src="https://cdn.jsdelivr.net/npm/sienna-accessibility@2.2.333/dist/sienna-accessibility.umd.js"
+            strategy="afterInteractive"
+          />
+        ) : null}
       </body>
     </html>
   );

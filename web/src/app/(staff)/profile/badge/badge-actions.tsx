@@ -3,9 +3,11 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reissueBadge } from '@/app/actions/profile';
+import { useConfirm } from '@/components/confirm-dialog';
 
 export function BadgeActions() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
@@ -24,8 +26,15 @@ export function BadgeActions() {
           type="button"
           disabled={pending}
           className="cr-btn cr-btn-sm"
-          onClick={() => {
-            if (window.confirm('Issue a new badge? The card you printed before will stop working.')) {
+          onClick={async () => {
+            const confirmed = await confirm({
+              title: 'Issue a new badge?',
+              message: 'The card you printed before will stop working.',
+              confirmLabel: 'Issue new badge',
+              tone: 'danger',
+            });
+
+            if (confirmed) {
               startTransition(async () => {
                 const result = await reissueBadge();
                 setMessage(result.message);

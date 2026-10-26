@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { routes } from '@/lib/routes';
+import { useConfirm } from '@/components/confirm-dialog';
 import { saveUser } from '@/app/actions/admin';
 
 /**
@@ -32,6 +33,7 @@ export function UserForm({
   offices: Array<{ id: number; name: string; code: string }>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
@@ -42,8 +44,23 @@ export function UserForm({
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = (event: React.FormEvent): void => {
+  const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
+
+    // Asked before the transition, so the button does not read "Saving…" while
+    // the question is still open.
+    const confirmed = await confirm({
+      title: user === null ? 'Create this account?' : 'Save changes to this account?',
+      message:
+        user === null
+          ? `${name.trim() || 'This person'} can sign in as soon as it is created.`
+          : 'Role and office changes take effect on their next page load.',
+      confirmLabel: user === null ? 'Create account' : 'Save changes',
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await saveUser(user?.id ?? null, {

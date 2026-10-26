@@ -106,5 +106,6 @@ export async function logout(): Promise<void> {
   }
 
   await destroySession();
-  redirect(routes.welcome());
+  // Back to the staff sign-in, not the public landing page.
+  redirect(routes.login());
 }

@@ -12,6 +12,7 @@ import {
   type ProfileResult,
 } from '@/app/actions/profile';
 import { routes } from '@/lib/routes';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 
 /** The Profile page's forms — ports of `profile/partials/*`. */
 function Notice({ result }: { result: ProfileResult | null }) {
@@ -32,10 +33,20 @@ function Notice({ result }: { result: ProfileResult | null }) {
 
 function useAction() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ProfileResult | null>(null);
 
-  const run = (action: () => Promise<ProfileResult>, after?: (result: ProfileResult) => void): void => {
+  /** Runs a profile change; with `ask`, the person confirms first. */
+  const run = async (
+    action: () => Promise<ProfileResult>,
+    after?: (result: ProfileResult) => void,
+    ask?: ConfirmOptions,
+  ): Promise<void> => {
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
+
     startTransition(async () => {
       const outcome = await action();
       setResult(outcome);
@@ -90,7 +101,10 @@ export function AvatarForm({ avatarUrl, initials }: { avatarUrl: string | null; 
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          run(() => uploadAvatar(form), (outcome) => outcome.ok && reset());
+          void run(() => uploadAvatar(form), (outcome) => outcome.ok && reset(), {
+            title: 'Use this as your profile picture?',
+            confirmLabel: 'Upload',
+          });
         }}
       >
         <div className="flex flex-wrap items-center gap-5">
@@ -141,11 +155,14 @@ export function AvatarForm({ avatarUrl, initials }: { avatarUrl: string | null; 
           type="button"
           disabled={pending}
           className="mt-3 text-[13px] font-semibold text-status-red hover:underline"
-          onClick={() => {
-            if (window.confirm('Remove your profile picture? Your initials will be shown instead.')) {
-              run(() => deleteAvatar());
-            }
-          }}
+          onClick={() =>
+            void run(() => deleteAvatar(), undefined, {
+              title: 'Remove your profile picture?',
+              message: 'Your initials will be shown instead.',
+              confirmLabel: 'Remove',
+              tone: 'danger',
+            })
+          }
         >
           Remove picture
         </button>
@@ -168,7 +185,10 @@ export function DetailsForm({ name, email }: { name: string; email: string }) {
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          run(() => updateProfileDetails(form));
+          void run(() => updateProfileDetails(form), undefined, {
+            title: 'Save your profile details?',
+            confirmLabel: 'Save',
+          });
         }}
       >
         <div>
@@ -210,7 +230,11 @@ export function PasswordForm() {
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          run(() => updatePassword(form), (outcome) => outcome.ok && formRef.current?.reset());
+          void run(() => updatePassword(form), (outcome) => outcome.ok && formRef.current?.reset(), {
+            title: 'Change your password?',
+            message: 'Use the new password the next time you sign in.',
+            confirmLabel: 'Change password',
+          });
         }}
       >
         {[
@@ -299,15 +323,15 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
               type="button"
               disabled={pending}
               className="text-[13px] font-semibold text-status-red hover:underline"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Remove your registered signature? You will not be able to approve internal requests until you draw a new one.',
-                  )
-                ) {
-                  run(() => deleteSignature());
-                }
-              }}
+              onClick={() =>
+                void run(() => deleteSignature(), undefined, {
+                  title: 'Remove your registered signature?',
+                  message:
+                    'You will not be able to approve internal requests until you draw a new one.',
+                  confirmLabel: 'Remove',
+                  tone: 'danger',
+                })
+              }
             >
               Remove
             </button>
@@ -358,12 +382,20 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
           className={`cr-btn cr-btn-primary${dirty ? '' : ' cursor-not-allowed opacity-40'}`}
           onClick={() => {
             const dataUrl = canvasRef.current?.toDataURL('image/png') ?? '';
-            run(() => saveSignature(dataUrl), (outcome) => {
-              if (outcome.ok) {
-                clear();
-                setVersion((v) => v + 1);
-              }
-            });
+            void run(
+              () => saveSignature(dataUrl),
+              (outcome) => {
+                if (outcome.ok) {
+                  clear();
+                  setVersion((v) => v + 1);
+                }
+              },
+              {
+                title: 'Save this as your signature?',
+                message: 'It is placed on every internal request step you approve.',
+                confirmLabel: 'Save signature',
+              },
+            );
           }}
         >
           Save signature

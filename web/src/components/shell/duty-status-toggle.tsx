@@ -6,6 +6,7 @@ import {
   toggleMyAvailabilityAction,
   toggleUserAvailabilityAction,
 } from '@/app/actions/availability';
+import { useConfirm } from '@/components/confirm-dialog';
 
 export function DutyStatusToggle({
   isAvailable,
@@ -21,12 +22,36 @@ export function DutyStatusToggle({
   const router = useRouter();
   const [available, setAvailable] = useState(isAvailable);
   const [isPending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
-  const handleToggle = (e: React.MouseEvent) => {
+  const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     const next = !available;
+    const self = userId === undefined;
+
+    // Going On Leave hands their not-yet-accepted requests to someone else.
+    const confirmed = await confirm(
+      next
+        ? {
+            title: self ? 'Mark yourself On Duty?' : 'Mark them On Duty?',
+            message: 'New requests can be assigned again straight away.',
+            confirmLabel: 'On Duty',
+          }
+        : {
+            title: self ? 'Go On Leave?' : 'Put them On Leave?',
+            message:
+              'Requests assigned but not yet accepted are handed to another on-duty handler, or to the office pool. Work already accepted stays put.',
+            confirmLabel: 'On Leave',
+            tone: 'danger',
+          },
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     setAvailable(next);
 
     startTransition(async () => {

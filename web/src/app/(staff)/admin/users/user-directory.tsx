@@ -7,6 +7,7 @@ import type { UserListing, UserRow } from '@/lib/domain/admin-users';
 import type { BulkAction } from '@/lib/domain/admin-users';
 import { DutyStatusToggle } from '@/components/shell/duty-status-toggle';
 import { routes } from '@/lib/routes';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import {
   archiveUserAccount,
   bulkUserAction,
@@ -97,8 +98,17 @@ export function UserDirectory({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [term]);
 
-  const run = (action: () => Promise<{ ok: boolean; message: string }>): void => {
+  const confirm = useConfirm();
+
+  const run = async (
+    action: () => Promise<{ ok: boolean; message: string }>,
+    ask?: ConfirmOptions,
+  ): Promise<void> => {
     setConfirming(null);
+
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await action();
@@ -198,7 +208,13 @@ export function UserDirectory({
                 type="button"
                 className="cr-btn cr-btn-sm"
                 disabled={pending}
-                onClick={() => run(() => bulkUserAction(action, selected))}
+                onClick={() =>
+                  void run(() => bulkUserAction(action, selected), {
+                    title: `${label} ${selected.length} account${selected.length === 1 ? '' : 's'}?`,
+                    confirmLabel: label,
+                    tone: action === 'activate' ? 'default' : 'danger',
+                  })
+                }
               >
                 {label}
               </button>
@@ -408,7 +424,7 @@ function RowActions({
   pending: boolean;
   confirming: Pending;
   onConfirm: (pending: Pending) => void;
-  onRun: (action: () => Promise<{ ok: boolean; message: string }>) => void;
+  onRun: (action: () => Promise<{ ok: boolean; message: string }>, ask?: ConfirmOptions) => void;
 }) {
   const asking = confirming?.id === row.id ? confirming.action : null;
 
@@ -445,7 +461,12 @@ function RowActions({
             type="button"
             className="cr-btn cr-btn-sm"
             disabled={pending}
-            onClick={() => onRun(() => restoreUserAccount(row.id))}
+            onClick={() =>
+              onRun(() => restoreUserAccount(row.id), {
+                title: `Restore ${row.name}'s account?`,
+                confirmLabel: 'Restore',
+              })
+            }
           >
             Restore
           </button>
@@ -470,7 +491,19 @@ function RowActions({
                 type="button"
                 className="cr-btn cr-btn-sm"
                 disabled={pending}
-                onClick={() => onRun(() => toggleUserActive(row.id))}
+                onClick={() =>
+                  onRun(
+                    () => toggleUserActive(row.id),
+                    row.isActive
+                      ? {
+                          title: `Deactivate ${row.name}?`,
+                          message: 'They cannot sign in until the account is activated again.',
+                          confirmLabel: 'Deactivate',
+                          tone: 'danger',
+                        }
+                      : { title: `Activate ${row.name}?`, confirmLabel: 'Activate' },
+                  )
+                }
               >
                 {row.isActive ? 'Deactivate' : 'Activate'}
               </button>

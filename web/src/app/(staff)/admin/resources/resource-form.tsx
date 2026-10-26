@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { KIND_EQUIPMENT, KIND_FACILITY } from '@/lib/domain/resource-kinds';
 import { routes } from '@/lib/routes';
+import { useConfirm } from '@/components/confirm-dialog';
 import { saveResource } from '@/app/actions/admin';
 
 /**
@@ -31,6 +32,7 @@ export function ResourceForm({
   } | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(resource?.name ?? '');
   const [kind, setKind] = useState(resource?.kind ?? KIND_EQUIPMENT);
@@ -42,8 +44,23 @@ export function ResourceForm({
 
   const isEquipment = kind === KIND_EQUIPMENT;
 
-  const submit = (event: React.FormEvent): void => {
+  const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
+
+    // Asked before the transition, so the button does not read "Saving…" while
+    // the question is still open.
+    const confirmed = await confirm({
+      title: resource === null ? 'Add this item?' : 'Save changes to this item?',
+      message:
+        resource === null
+          ? `“${name.trim() || 'This item'}” is added to the catalog and can be lent or booked.`
+          : 'The catalog is updated for everyone right away.',
+      confirmLabel: resource === null ? 'Add item' : 'Save changes',
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await saveResource(resource?.id ?? null, {

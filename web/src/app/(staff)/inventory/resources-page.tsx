@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { Desk, EquipmentRow, FacilityRow, LoanRow, Tiles } from '@/lib/domain/inventory-desk';
 import { routes } from '@/lib/routes';
 import { StaffStatTile } from '@/components/staff-stat-tile';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import {
   approveLoan,
   cancelLoan,
@@ -478,8 +479,17 @@ function LoanRowBody({
   const [lost, setLost] = useState<number>(0);
   const [notes, setNotes] = useState('');
   const [returnBy, setReturnBy] = useState(loan.defaultReturnDate ?? '');
+  const confirm = useConfirm();
 
-  const run = (action: () => Promise<{ ok: boolean; message: string }>): void => {
+  /** Runs a desk action, asking first when `ask` is given. */
+  const run = async (
+    action: () => Promise<{ ok: boolean; message: string }>,
+    ask?: ConfirmOptions,
+  ): Promise<void> => {
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
+
     startTransition(async () => {
       const result = await action();
       onNotice(result);
@@ -557,7 +567,12 @@ function LoanRowBody({
                   className="cr-btn cr-btn-sm"
                   disabled={pending}
                   title={loan.email ? `Email ${loan.email}` : 'No email on file'}
-                  onClick={() => run(() => remindBorrower(loan.bookingId))}
+                  onClick={() =>
+                    void run(() => remindBorrower(loan.bookingId), {
+                      title: 'Send the borrower a reminder?',
+                      confirmLabel: 'Send reminder',
+                    })
+                  }
                 >
                   Send reminder
                 </button>
@@ -600,11 +615,14 @@ function LoanRowBody({
                     type="button"
                     className="cr-btn cr-btn-sm cr-btn-danger"
                     disabled={pending}
-                    onClick={() => {
-                      if (window.confirm('Decline this request? The borrower is emailed.')) {
-                        run(() => cancelLoan(loan.bookingId));
-                      }
-                    }}
+                    onClick={() =>
+                      void run(() => cancelLoan(loan.bookingId), {
+                        title: 'Decline this request?',
+                        message: 'The borrower is emailed.',
+                        confirmLabel: 'Decline',
+                        tone: 'danger',
+                      })
+                    }
                   >
                     Decline
                   </button>
@@ -632,7 +650,13 @@ function LoanRowBody({
                     type="button"
                     className="cr-btn cr-btn-sm cr-btn-primary"
                     disabled={pending || !canApproveQty}
-                    onClick={() => run(() => approveLoan(loan.bookingId, qty))}
+                    onClick={() =>
+                      void run(() => approveLoan(loan.bookingId, qty), {
+                        title: `Approve ${qty} for ${loan.borrower ?? 'this borrower'}?`,
+                        message: 'The items are set aside for them and the borrower is told.',
+                        confirmLabel: 'Approve',
+                      })
+                    }
                   >
                     Approve
                   </button>
@@ -640,11 +664,14 @@ function LoanRowBody({
                     type="button"
                     className="cr-btn cr-btn-sm cr-btn-danger"
                     disabled={pending}
-                    onClick={() => {
-                      if (window.confirm('Decline this request? The borrower is emailed.')) {
-                        run(() => cancelLoan(loan.bookingId));
-                      }
-                    }}
+                    onClick={() =>
+                      void run(() => cancelLoan(loan.bookingId), {
+                        title: 'Decline this request?',
+                        message: 'The borrower is emailed.',
+                        confirmLabel: 'Decline',
+                        tone: 'danger',
+                      })
+                    }
                   >
                     Decline
                   </button>
@@ -675,7 +702,13 @@ function LoanRowBody({
                     type="button"
                     className="cr-btn cr-btn-sm cr-btn-primary"
                     disabled={pending || loan.clash}
-                    onClick={() => run(() => approveLoan(loan.bookingId, null))}
+                    onClick={() =>
+                      void run(() => approveLoan(loan.bookingId, null), {
+                        title: 'Approve this reservation?',
+                        message: 'The slot is held for them and the borrower is told.',
+                        confirmLabel: 'Approve',
+                      })
+                    }
                   >
                     Approve
                   </button>
@@ -683,11 +716,14 @@ function LoanRowBody({
                     type="button"
                     className="cr-btn cr-btn-sm cr-btn-danger"
                     disabled={pending}
-                    onClick={() => {
-                      if (window.confirm('Decline this request? The borrower is emailed.')) {
-                        run(() => cancelLoan(loan.bookingId));
-                      }
-                    }}
+                    onClick={() =>
+                      void run(() => cancelLoan(loan.bookingId), {
+                        title: 'Decline this request?',
+                        message: 'The borrower is emailed.',
+                        confirmLabel: 'Decline',
+                        tone: 'danger',
+                      })
+                    }
                   >
                     Decline
                   </button>
@@ -724,7 +760,13 @@ function LoanRowBody({
                   type="button"
                   className="cr-btn cr-btn-sm cr-btn-primary"
                   disabled={pending}
-                  onClick={() => run(() => releaseLoan(loan.bookingId))}
+                  onClick={() =>
+                    void run(() => releaseLoan(loan.bookingId), {
+                      title: 'Hand over the items?',
+                      message: 'This records that the borrower has them now.',
+                      confirmLabel: 'Hand over',
+                    })
+                  }
                 >
                   Hand over
                 </button>
@@ -732,11 +774,15 @@ function LoanRowBody({
                   type="button"
                   className="cr-btn cr-btn-sm cr-btn-danger"
                   disabled={pending}
-                  onClick={() => {
-                    if (window.confirm('Cancel this borrowing? The items are freed for others.')) {
-                      run(() => cancelLoan(loan.bookingId));
-                    }
-                  }}
+                  onClick={() =>
+                    void run(() => cancelLoan(loan.bookingId), {
+                      title: 'Cancel this borrowing?',
+                      message: 'The items are freed for others.',
+                      confirmLabel: 'Cancel borrowing',
+                      cancelLabel: 'Keep it',
+                      tone: 'danger',
+                    })
+                  }
                 >
                   Cancel
                 </button>
@@ -887,13 +933,21 @@ function LoanRowBody({
                 className="cr-btn cr-btn-primary cr-btn-sm"
                 disabled={pending || !canSaveReturn}
                 onClick={() =>
-                  run(() =>
-                    receiveLoan(loan.bookingId, {
-                      returned: back,
-                      damaged,
-                      lost,
-                      notes: notes.trim() || null,
-                    }),
+                  void run(
+                    () =>
+                      receiveLoan(loan.bookingId, {
+                        returned: back,
+                        damaged,
+                        lost,
+                        notes: notes.trim() || null,
+                      }),
+                    {
+                      title: 'Save this return?',
+                      message: `${back} back${damaged ? `, ${damaged} damaged` : ''}${
+                        lost ? `, ${lost} missing` : ''
+                      }. Damaged ones go out of service; missing ones come off the count.`,
+                      confirmLabel: 'Save return',
+                    },
                   )
                 }
               >
@@ -940,7 +994,12 @@ function LoanRowBody({
                 type="button"
                 className="cr-btn cr-btn-primary cr-btn-sm"
                 disabled={pending || returnBy === ''}
-                onClick={() => run(() => extendLoan(loan.bookingId, returnBy))}
+                onClick={() =>
+                  void run(() => extendLoan(loan.bookingId, returnBy), {
+                    title: 'Change the return date?',
+                    confirmLabel: 'Save return date',
+                  })
+                }
               >
                 Save return date
               </button>
@@ -974,6 +1033,7 @@ function EquipmentRowView({
   const [location, setLocation] = useState(item.location ?? '');
   const [owned, setOwned] = useState(String(item.owned));
   const [damaged, setDamaged] = useState(String(item.damaged));
+  const confirm = useConfirm();
 
   const serviceable = Math.max(0, item.owned - item.damaged);
   const pct =
@@ -1084,7 +1144,17 @@ function EquipmentRowView({
                   type="button"
                   className="cr-btn cr-btn-primary cr-btn-sm"
                   disabled={pending}
-                  onClick={() =>
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: `Save the counts for ${item.name}?`,
+                      message: 'What can be lent changes for everyone straight away.',
+                      confirmLabel: 'Save',
+                    });
+
+                    if (!confirmed) {
+                      return;
+                    }
+
                     startTransition(async () => {
                       const result = await updateStock(item.id, {
                         totalQuantity: owned === '' ? null : Number(owned),
@@ -1096,8 +1166,8 @@ function EquipmentRowView({
                       if (result.ok) {
                         router.refresh();
                       }
-                    })
-                  }
+                    });
+                  }}
                 >
                   Save
                 </button>
@@ -1141,6 +1211,7 @@ function FacilityRowView({
   const [capacity, setCapacity] = useState(
     facility.capacity !== null ? String(facility.capacity) : '',
   );
+  const confirm = useConfirm();
 
   const detail =
     facility.tone === 'busy' && facility.busyWith
@@ -1180,12 +1251,14 @@ function FacilityRowView({
                 type="button"
                 className="cr-btn cr-btn-sm cr-btn-primary"
                 disabled={pending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Mark ${facility.name} done? It will show as free straight away.`,
-                    )
-                  ) {
+                onClick={async () => {
+                  const confirmed = await confirm({
+                    title: `Mark ${facility.name} done?`,
+                    message: 'It will show as free straight away.',
+                    confirmLabel: 'Mark done',
+                  });
+
+                  if (confirmed) {
                     startTransition(async () => {
                       const result = await finishLoan(facility.bookingId!);
                       onNotice(result);
@@ -1243,7 +1316,16 @@ function FacilityRowView({
                   type="button"
                   className="cr-btn cr-btn-primary cr-btn-sm"
                   disabled={pending}
-                  onClick={() =>
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: `Save the details for ${facility.name}?`,
+                      confirmLabel: 'Save',
+                    });
+
+                    if (!confirmed) {
+                      return;
+                    }
+
                     startTransition(async () => {
                       const result = await updateStock(facility.id, {
                         totalQuantity: null,
@@ -1255,8 +1337,8 @@ function FacilityRowView({
                       if (result.ok) {
                         router.refresh();
                       }
-                    })
-                  }
+                    });
+                  }}
                 >
                   Save
                 </button>
@@ -1314,6 +1396,7 @@ function CatalogActions({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const confirm = useConfirm();
 
   const run = (action: () => Promise<{ ok: boolean; message: string }>): void => {
     setConfirming(false);
@@ -1340,7 +1423,22 @@ function CatalogActions({
         type="button"
         className="cr-btn cr-btn-sm"
         disabled={pending}
-        onClick={() => run(() => toggleResourceActive(item.id))}
+        onClick={async () => {
+          const confirmed = await confirm(
+            item.isActive
+              ? {
+                  title: `Deactivate ${item.name}?`,
+                  message: 'Nobody can ask for it until it is activated again. Its history stays.',
+                  confirmLabel: 'Deactivate',
+                  tone: 'danger',
+                }
+              : { title: `Activate ${item.name}?`, confirmLabel: 'Activate' },
+          );
+
+          if (confirmed) {
+            run(() => toggleResourceActive(item.id));
+          }
+        }}
       >
         {item.isActive ? 'Deactivate' : 'Activate'}
       </button>

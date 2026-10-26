@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
-import { QrCamera } from '@/components/qr-camera';
+import { CameraModal } from '@/components/camera-modal';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import * as SpeedQr from '@/lib/client/speed-qr';
 import { renderPdfUrlPage } from '@/lib/client/pdf-preview';
 import {
@@ -361,14 +362,22 @@ export function RequestPanels({ detail }: { detail: InternalRequestDetail }) {
   return null;
 }
 
-/** Shared plumbing: run an action, show its refusal where the button is. */
+/**
+ * Shared plumbing: run an action, show its refusal where the button is. With
+ * `ask`, the person confirms first.
+ */
 function useAction() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const run = (action: () => Promise<InternalResult>): void => {
+  const run = async (action: () => Promise<InternalResult>, ask?: ConfirmOptions): Promise<void> => {
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
+
     setError(null);
 
     startTransition(async () => {
@@ -426,7 +435,7 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
     captureMethod: 'scan' | 'image' | 'screen' | 'manual',
     scannedValue: string | null = null,
   ): void =>
-    run(() =>
+    void run(() =>
       receiveRequest(detail.id, {
         captureMethod,
         scannedValue,
@@ -656,16 +665,22 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
             </span>
           </div>
 
-          {scanning ? (
-            <div className="custody-scan">
-              <p className="cs-hint">
+          <CameraModal
+            open={scanning}
+            readerId="custodyReader"
+            title={detail.isSoftCopy ? 'Receive this request' : 'Scan to take custody'}
+            hint={
+              <>
                 Point the camera at{' '}
                 <b>{detail.isSoftCopy ? "this request's QR" : "this folder's QR"}</b> to confirm you{' '}
                 {detail.isSoftCopy ? 'received it' : 'physically hold it'}.
-              </p>
-              <QrCamera id="custodyReader" />
-            </div>
-          ) : null}
+              </>
+            }
+            onClose={() => {
+              void SpeedQr.stop();
+              setScanning(false);
+            }}
+          />
 
           {/* Audited fallback for paper folders when QR is torn or machine has no camera. */}
           {!detail.isSoftCopy ? (
@@ -701,7 +716,21 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
                     type="button"
                     className="cr-btn cr-btn-sm"
                     disabled={pending || reason.trim() === ''}
-                    onClick={() => receive('manual')}
+                    onClick={() =>
+                      void run(
+                        () =>
+                          receiveRequest(detail.id, {
+                            captureMethod: 'manual',
+                            scannedValue: null,
+                            overrideReason: reason.trim(),
+                          }),
+                        {
+                          title: 'Record custody without a scan?',
+                          message: 'The reason you gave is kept on the audit trail.',
+                          confirmLabel: 'Record custody',
+                        },
+                      )
+                    }
                   >
                     Record custody manually
                   </button>
@@ -738,7 +767,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
     captureMethod: 'scan' | 'image' | 'screen' | 'manual',
     scannedValue: string | null = null,
   ): void =>
-    run(() =>
+    void run(() =>
       receiveRequest(detail.id, {
         captureMethod,
         scannedValue,
@@ -988,11 +1017,16 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
               </button>
             </div>
 
-            {scanning ? (
-              <div className="custody-scan mt-2">
-                <QrCamera id="custodyStatusReader" />
-              </div>
-            ) : null}
+            <CameraModal
+              open={scanning}
+              readerId="custodyStatusReader"
+              title="Re-scan this folder"
+              hint="Point the camera at the QR on this folder."
+              onClose={() => {
+                void SpeedQr.stop();
+                setScanning(false);
+              }}
+            />
 
             {!detail.isSoftCopy ? (
               <div className="custody-manual mt-2 pt-2 border-t border-hairline">
@@ -1027,7 +1061,21 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
                       type="button"
                       className="cr-btn cr-btn-sm"
                       disabled={pending || reason.trim() === ''}
-                      onClick={() => receive('manual')}
+                      onClick={() =>
+                      void run(
+                        () =>
+                          receiveRequest(detail.id, {
+                            captureMethod: 'manual',
+                            scannedValue: null,
+                            overrideReason: reason.trim(),
+                          }),
+                        {
+                          title: 'Record custody without a scan?',
+                          message: 'The reason you gave is kept on the audit trail.',
+                          confirmLabel: 'Record custody',
+                        },
+                      )
+                    }
                     >
                       Record custody manually
                     </button>
@@ -1146,13 +1194,30 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
 
   const submit = (): void => {
     if (mode === 'approve') {
-      run(() => approveStep(detail.id, input));
+      void run(() => approveStep(detail.id, input), {
+        title: 'Approve and sign this step?',
+        message: 'Your e-signature is placed on it and the request moves to the next office.',
+        confirmLabel: 'Approve & sign',
+      });
     } else if (mode === 'done') {
-      run(() => completeStep(detail.id, input));
+      void run(() => completeStep(detail.id, input), {
+        title: 'Mark this request as done?',
+        message: 'This completes the request. The filing office is told.',
+        confirmLabel: 'Mark as done',
+      });
     } else if (mode === 'return') {
-      run(() => returnStep(detail.id, input));
+      void run(() => returnStep(detail.id, input), {
+        title: 'Return this request for revision?',
+        message: 'It goes back to the office that filed it.',
+        confirmLabel: 'Return',
+      });
     } else {
-      run(() => denyStep(detail.id, input));
+      void run(() => denyStep(detail.id, input), {
+        title: 'Deny this request?',
+        message: 'Denying ends the request for good.',
+        confirmLabel: 'Deny request',
+        tone: 'danger',
+      });
     }
   };
 
@@ -1433,14 +1498,17 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
                   </label>
                 </div>
 
-                {scanning ? (
-                  <div className="mt-3">
-                    <QrCamera id="folderReader" />
-                    <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-                      Point the camera at the QR sticker on this folder.
-                    </p>
-                  </div>
-                ) : null}
+                <CameraModal
+                  open={scanning}
+                  readerId="folderReader"
+                  title="Scan this folder"
+                  hint="Point the camera at the QR sticker on this folder."
+                  error={error}
+                  onClose={() => {
+                    void SpeedQr.stop();
+                    setScanning(false);
+                  }}
+                />
 
                 <div className="mt-2">
                   <button
@@ -1534,7 +1602,11 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
       form.set('paper_scan', scan);
     }
 
-    run(() => resendRequest(detail.id, form));
+    void run(() => resendRequest(detail.id, form), {
+      title: `Resend to ${office}?`,
+      message: 'They receive it again and pick up where they returned it.',
+      confirmLabel: 'Resend',
+    });
   };
 
   return (
@@ -1673,7 +1745,14 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
               type="button"
               className="cr-btn cr-btn-danger w-full justify-center"
               disabled={pending || !ack}
-              onClick={() => run(() => withdrawRequest(detail.id, reason.trim() || null))}
+              onClick={() =>
+                void run(() => withdrawRequest(detail.id, reason.trim() || null), {
+                  title: 'Withdraw this request?',
+                  message: 'It is closed for good and cannot be reopened.',
+                  confirmLabel: 'Withdraw request',
+                  tone: 'danger',
+                })
+              }
             >
               {pending ? 'Saving…' : 'Withdraw request'}
             </button>

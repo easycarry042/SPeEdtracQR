@@ -12,7 +12,6 @@ import {
   staffFilterCount,
   type StaffFilterState,
 } from '@/components/review/staff-table-filter';
-import { routes } from '@/lib/routes';
 
 type Tab = 'awaiting' | 'filed' | 'closed';
 
@@ -75,6 +74,15 @@ export function InternalQueues({ inbox, activeTab }: { inbox: Inbox; activeTab: 
   const current = Math.min(page, pageCount);
   const pageItems = matches.slice((current - 1) * PER_PAGE, current * PER_PAGE);
   const hasFilter = Boolean(query.trim() || staffFilterCount(filter) > 0);
+
+  // A row opens in the request modal over this queue (`?open=`), keeping the tab.
+  const openHref = (id: number): string => {
+    const next = new URLSearchParams(params.toString());
+    next.set('tab', tab);
+    next.set('open', String(id));
+
+    return `${pathname}?${next.toString()}`;
+  };
 
   const go = (next: URLSearchParams): void =>
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
@@ -222,7 +230,9 @@ export function InternalQueues({ inbox, activeTab }: { inbox: Inbox; activeTab: 
                     </td>
                   </tr>
                 ) : (
-                  pageItems.map((row) => <InternalRow key={row.id} row={row} />)
+                  pageItems.map((row) => (
+                    <InternalRow key={row.id} row={row} href={openHref(row.id)} />
+                  ))
                 )}
               </tbody>
             </table>
@@ -242,7 +252,7 @@ export function InternalQueues({ inbox, activeTab }: { inbox: Inbox; activeTab: 
   );
 }
 
-function InternalRow({ row }: { row: InboxRow }) {
+function InternalRow({ row, href }: { row: InboxRow; href: string }) {
   return (
     <tr>
       <td>
@@ -253,7 +263,8 @@ function InternalRow({ row }: { row: InboxRow }) {
           </span>
           <div className="min-w-0">
             <Link
-              href={routes.requestsShow(row.id)}
+              href={href}
+              scroll={false}
               className="st-name block truncate hover:text-green hover:underline"
             >
               {row.purpose || 'Internal Request'}
@@ -285,7 +296,7 @@ function InternalRow({ row }: { row: InboxRow }) {
         <span className={`pill ${bandClass(row.band)}`}>{row.statusLabel}</span>
       </td>
       <td>
-        <Link href={routes.requestsShow(row.id)} className="st-action">
+        <Link href={href} scroll={false} className="st-action">
           <img src="/images/staff/icon-eye.svg" alt="" />
           Open
         </Link>

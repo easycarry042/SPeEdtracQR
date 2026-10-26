@@ -6,10 +6,15 @@ import { app } from '@/lib/config';
 import type { Badges } from '@/lib/domain/nav-badges';
 import { SidebarLinks, type NavUser } from './sidebar-links';
 import { HeaderActions, type BellNotification, type HeaderUser } from './header-actions';
+import { ConfirmProvider } from '@/components/confirm-dialog';
 
 /**
  * One shell for every signed-in role: a pinned sidebar whose link set is chosen
  * by role, and a page bar carrying the title and the account actions.
+ *
+ * The page bar always reads "Dashboard" (the client's call): which page this
+ * is shows in the sidebar's active row and the browser tab, so `title` only
+ * labels the main region for screen readers.
  *
  * `fixedHeight` is for pages that fill the viewport and never scroll (their own
  * panels scroll internally) — the lock has to reach the root element, which is
@@ -25,6 +30,7 @@ export function AppShell({
   pageActions,
   header,
   fixedHeight = false,
+  accessibilityWidget = false,
   children,
 }: {
   title: string;
@@ -36,6 +42,7 @@ export function AppShell({
   pageActions?: React.ReactNode;
   header?: React.ReactNode;
   fixedHeight?: boolean;
+  accessibilityWidget?: boolean;
   children: React.ReactNode;
 }) {
   const [mobileNav, setMobileNav] = useState(false);
@@ -46,6 +53,7 @@ export function AppShell({
       : '/my-dashboard';
 
   return (
+    <ConfirmProvider>
     <div
       className={`admin-shell flex min-h-screen ${mobileNav ? 'mobile-nav-open' : ''} ${
         fixedHeight ? 'app-fixed-height' : ''
@@ -81,6 +89,24 @@ export function AppShell({
         <nav className="nav-scroll sb-nav" aria-labelledby="sb-menu-label">
           <SidebarLinks user={navUser} badges={badges} />
         </nav>
+
+        {/* Opens the Sienna toolbar, whose own launcher is parked off-screen
+            inside the shell (globals.css). */}
+        {accessibilityWidget ? (
+          <div className="sb-foot">
+            <button
+              type="button"
+              onClick={() => document.querySelector<HTMLElement>('.asw-menu-btn')?.click()}
+              className="sb-row sb-row-accent"
+            >
+              <span className="sb-glyph">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/staff/nav-accessibility.svg" alt="" className="sb-icon" />
+              </span>
+              <span className="nav-text whitespace-nowrap">Accessibility</span>
+            </button>
+          </div>
+        ) : null}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -119,7 +145,7 @@ export function AppShell({
               {/* No role badge here: the identity chip on the right already
                   names the role and the desk. */}
               <h1 className="layout-title" tabIndex={-1}>
-                {title}
+                Dashboard
               </h1>
             </div>
 
@@ -136,7 +162,7 @@ export function AppShell({
           </div>
         ) : null}
 
-        <main id="main" className={`flex-1 pb-10 pt-2 ${fixedHeight ? 'main-fixed' : ''}`}>
+        <main id="main" aria-label={title} className={`flex-1 pb-10 pt-2 ${fixedHeight ? 'main-fixed' : ''}`}>
           <div className="app-frame">{children}</div>
         </main>
 
@@ -145,5 +171,6 @@ export function AppShell({
             between the user and the bottom of their list. */}
       </div>
     </div>
+    </ConfirmProvider>
   );
 }

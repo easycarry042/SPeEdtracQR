@@ -11,6 +11,7 @@ import {
   type RequestKind,
 } from '@/lib/domain/request-kinds';
 import { routes } from '@/lib/routes';
+import { useConfirm } from '@/components/confirm-dialog';
 import { saveRequestType } from '@/app/actions/admin';
 
 /**
@@ -44,6 +45,7 @@ export function RequestTypeForm({
   staff: Array<{ id: number; name: string; department_id: number | null }>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(requestType?.name ?? '');
   const [kind, setKind] = useState(requestType?.kind ?? 'document');
@@ -70,8 +72,23 @@ export function RequestTypeForm({
       current.includes(handlerId) ? current.filter((entry) => entry !== handlerId) : [...current, handlerId],
     );
 
-  const submit = (event: React.FormEvent): void => {
+  const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
+
+    // Asked before the transition, so the button does not read "Saving…" while
+    // the question is still open.
+    const confirmed = await confirm({
+      title: requestType === null ? 'Add this request type?' : 'Save changes to this request type?',
+      message:
+        requestType === null
+          ? 'Citizens can file it as soon as it is switched on.'
+          : 'New requests use the changes; requests already filed keep what they were filed with.',
+      confirmLabel: requestType === null ? 'Add request type' : 'Save changes',
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await saveRequestType(requestType?.id ?? null, {

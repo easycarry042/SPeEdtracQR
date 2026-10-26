@@ -2,6 +2,7 @@ import { requireActor, touchLastActive, type Actor } from '@/lib/auth/actor';
 import { badgesFor } from '@/lib/domain/nav-badges';
 import { bellFor, unreadCountFor } from '@/lib/domain/notifications';
 import { routes } from '@/lib/routes';
+import { app } from '@/lib/config';
 import { AppShell } from './app-shell';
 import type { NavUser } from './sidebar-links';
 import type { HeaderUser } from './header-actions';
@@ -98,6 +99,7 @@ export async function AuthenticatedPage({
       pageActions={pageActions}
       header={header}
       fixedHeight={fixedHeight}
+      accessibilityWidget={app.accessibilityWidget}
     >
       {children}
     </AppShell>

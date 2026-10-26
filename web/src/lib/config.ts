@@ -65,4 +65,6 @@ export const app = {
   name: process.env.APP_NAME ?? 'SPeED TraQR',
   url: (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
   timezone: 'Asia/Manila',
+  /** The Sienna accessibility toolbar; ACCESSIBILITY_WIDGET=false switches it off. */
+  accessibilityWidget: bool(process.env.ACCESSIBILITY_WIDGET, true),
 } as const;

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { DEFAULT_INTERNAL_STEP_HOURS } from '@/lib/domain/department';
 import { routes } from '@/lib/routes';
+import { useConfirm } from '@/components/confirm-dialog';
 import { saveDepartment } from '@/app/actions/admin';
 
 /**
@@ -20,6 +21,7 @@ export function DepartmentForm({
   department: { id: number; name: string; code: string; internalStepHours: number } | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(department?.name ?? '');
   const [code, setCode] = useState(department?.code ?? '');
@@ -28,8 +30,19 @@ export function DepartmentForm({
   );
   const [error, setError] = useState<string | null>(null);
 
-  const submit = (event: React.FormEvent): void => {
+  const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
+
+    // Asked before the transition, so the button does not read "Saving…" while
+    // the question is still open.
+    const confirmed = await confirm({
+      title: department === null ? 'Add this office?' : 'Save changes to this office?',
+      confirmLabel: department === null ? 'Add office' : 'Save changes',
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await saveDepartment(department?.id ?? null, {

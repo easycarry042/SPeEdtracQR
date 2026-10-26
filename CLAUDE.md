@@ -40,6 +40,8 @@ npm run db:seed:am                 # Action Mamamayan office + its Clerk account
 - **Live updates:** `lib/realtime.ts` relays only PUBLIC `documents.{tracking}` events to Supabase Realtime (the client treats an event as "re-read", never as data). Without Supabase, an SSE route serves local dev.
 - **Background work** uses `after()` (`queueMail`, `queueSms`). Mail needs `MAIL_HOST`; SMS needs `SMS_GATEWAY_URL` (`smsConfigured()`); without them nothing is sent and nothing is logged as sent.
 - **Cron** (`vercel.json`, UTC; Hobby plan = once a day per job): `/api/cron/daily` at 07:00 Manila (SLA, holds, overdue loans) and `/api/cron/reclaim-unaccepted` at 10:00 Manila. Calls need `Authorization: Bearer $CRON_SECRET`.
+- **UI conventions:** the page bar always reads "Dashboard" (`AppShell`; `title` only labels `<main>`). Every critical action asks first through `useConfirm()` (`components/confirm-dialog.tsx`, mounted by `AppShell`) — never `window.confirm`. Internal requests open in a modal over the Internal page (`/requests?open=<id>`); `/requests/[id]` sends anyone with the Internal page there. The internal scan camera opens in `CameraModal`. Logging out lands on `/login`.
+- **Accessibility toolbar:** Sienna (accessibility-widget.pages.dev), loaded in the root layout from jsDelivr (pinned version), themed green in `globals.css`; inside the shell the sidebar's Accessibility row opens it. `ACCESSIBILITY_WIDGET=false` switches it off.
 - **Public endpoints** are throttled in Postgres (`lib/rate-limit.ts`) and refuse cross-site `Origin`s.
 - **Uploads on Vercel:** server actions accept 10 MB, but Vercel refuses bodies over 4.5 MB (direct-to-Storage uploads not built yet).
 

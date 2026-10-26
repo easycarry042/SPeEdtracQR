@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { approveBooking, cancelBooking, rescheduleBooking } from '@/app/actions/bookings';
 import type { CalendarBooking, CalendarData } from '@/lib/domain/booking-calendar';
+import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 
 /** Port of the `bookingCalendar` Alpine component. */
 const DOWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -319,7 +320,17 @@ function DayItem({ booking, onNotice }: { booking: CalendarBooking; onNotice: (n
   const [starts, setStarts] = useState(booking.startsLocal);
   const [ends, setEnds] = useState(booking.endsLocal);
 
-  const run = (action: () => Promise<{ ok: boolean; message: string }>): void => {
+  const confirm = useConfirm();
+
+  /** Runs a booking change; with `ask`, the person confirms first. */
+  const run = async (
+    action: () => Promise<{ ok: boolean; message: string }>,
+    ask?: ConfirmOptions,
+  ): Promise<void> => {
+    if (ask && !(await confirm(ask))) {
+      return;
+    }
+
     startTransition(async () => {
       const result = await action();
       onNotice(result);
@@ -358,7 +369,14 @@ function DayItem({ booking, onNotice }: { booking: CalendarBooking; onNotice: (n
             className="flex items-center gap-1.5"
             onSubmit={(event) => {
               event.preventDefault();
-              run(() => approveBooking(booking.id, booking.isEquipment ? Number(quantity) : null));
+              void run(
+                () => approveBooking(booking.id, booking.isEquipment ? Number(quantity) : null),
+                {
+                  title: `Approve this booking of ${booking.resource}?`,
+                  message: 'The slot is held and the requester is told.',
+                  confirmLabel: 'Approve',
+                },
+              );
             }}
           >
             {/* Equipment: how many are being lent, defaulting to the citizen's ask. */}
@@ -397,11 +415,15 @@ function DayItem({ booking, onNotice }: { booking: CalendarBooking; onNotice: (n
           type="button"
           disabled={pending}
           className="cr-btn cr-btn-sm cr-btn-danger"
-          onClick={() => {
-            if (window.confirm('Cancel this booking? The slot will be freed.')) {
-              run(() => cancelBooking(booking.id));
-            }
-          }}
+          onClick={() =>
+            void run(() => cancelBooking(booking.id), {
+              title: 'Cancel this booking?',
+              message: 'The slot will be freed.',
+              confirmLabel: 'Cancel booking',
+              cancelLabel: 'Keep it',
+              tone: 'danger',
+            })
+          }
         >
           Cancel
         </button>
@@ -412,7 +434,11 @@ function DayItem({ booking, onNotice }: { booking: CalendarBooking; onNotice: (n
           className="mt-3 space-y-2 border-t border-hairline pt-3"
           onSubmit={(event) => {
             event.preventDefault();
-            run(() => rescheduleBooking(booking.id, starts, ends));
+            void run(() => rescheduleBooking(booking.id, starts, ends), {
+              title: 'Move this booking?',
+              message: 'The requester is told the new time.',
+              confirmLabel: 'Reschedule',
+            });
           }}
         >
           <div>

@@ -9,6 +9,7 @@ import {
   type StepCondition,
 } from '@/lib/domain/route-template';
 import { routes } from '@/lib/routes';
+import { useConfirm } from '@/components/confirm-dialog';
 import { saveRouteTemplate } from '@/app/actions/admin';
 
 /**
@@ -46,6 +47,7 @@ export function TemplateForm({
   offices: Array<{ id: number; name: string; code: string }>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(template?.name ?? '');
   const [description, setDescription] = useState(template?.description ?? '');
@@ -66,8 +68,19 @@ export function TemplateForm({
       current.map((step, position) => (position === index ? { ...step, ...patch } : step)),
     );
 
-  const submit = (event: React.FormEvent): void => {
+  const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
+
+    // Asked before the transition, so the button does not read "Saving…" while
+    // the question is still open.
+    const confirmed = await confirm({
+      title: template === null ? 'Add this route template?' : 'Save changes to this route?',
+      confirmLabel: template === null ? 'Add template' : 'Save changes',
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await saveRouteTemplate(template?.id ?? null, {
