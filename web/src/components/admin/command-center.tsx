@@ -180,12 +180,6 @@ export function CommandCenter({ data }: { data: CommandCenterData }) {
   const isInternal = data.filters.view === 'internal';
   const pagePath = isOffice ? '/reports' : '/admin/dashboard';
 
-  /** Office mode sends a supervisor to the citizen tracking page they can open. */
-  const requestUrl = (tracking: string): string =>
-    isOffice
-      ? `/track/${encodeURIComponent(tracking)}`
-      : `/admin/requests?open=${encodeURIComponent(tracking)}`;
-
   const query = (overrides: Record<string, string | number | null>): string => {
     const params = new URLSearchParams();
     const merged = {
@@ -203,6 +197,10 @@ export function CommandCenter({ data }: { data: CommandCenterData }) {
 
     return `${pagePath}?${params.toString()}`;
   };
+
+  /** Office mode opens the request in the review modal over Reports, filters kept. */
+  const requestUrl = (tracking: string): string =>
+    isOffice ? query({ open: tracking }) : `/admin/requests?open=${encodeURIComponent(tracking)}`;
 
   return (
     <div className="page-shell">
