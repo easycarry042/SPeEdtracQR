@@ -4564,3 +4564,28 @@ body:has(.admin-shell) .asw-menu-btn {
     opacity: 0 !important;
     pointer-events: none !important;
 }
+
+/* ── Internal request: "What to do next" guide (requests/[document]/next-steps.tsx) ──
+   The current step is green and says "Do this now"; done steps are ticked;
+   later ones are muted. The control for the current step gets .ns-focus (a
+   green ring) and the final button .ns-focus-btn, so the eye goes from the
+   list to the thing to press. */
+.ns { border: 1px solid var(--hairline); border-radius: 12px; background: #fbfdfb; padding: 12px 14px; }
+.ns-title { margin-bottom: 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.ns-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ns-step { display: flex; align-items: flex-start; gap: 10px; font-size: var(--fs-small); color: #8a9a90; }
+.ns-dot { display: inline-flex; flex: none; width: 22px; height: 22px; align-items: center; justify-content: center; border: 1.5px solid #cdd9d2; border-radius: 9999px; background: #fff; font-size: 11.5px; font-weight: 800; }
+.ns-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; line-height: 22px; }
+.ns-hint { display: block; margin-top: 2px; font-size: var(--fs-caption); color: var(--ink-soft); }
+.ns-step.is-done { color: var(--ink-soft); }
+.ns-step.is-done .ns-dot { border-color: var(--green); background: var(--green); color: #fff; }
+.ns-step.is-done .ns-label { text-decoration: line-through; text-decoration-color: rgba(22, 122, 58, .35); }
+.ns-step.is-current { margin: -4px -6px; padding: 4px 6px; border-radius: 10px; background: var(--green-wash, #eef6f0); color: var(--ink); font-weight: 700; }
+.ns-step.is-current .ns-dot { border-color: var(--green); background: var(--green); color: #fff; box-shadow: 0 0 0 4px rgba(22, 122, 58, .16); }
+.ns-now { border-radius: 9999px; background: var(--green); padding: 1px 8px; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; color: #fff; text-transform: uppercase; line-height: 18px; }
+.ns-focus { border-radius: 12px; outline: 2px solid var(--green); outline-offset: 4px; box-shadow: 0 0 0 8px rgba(22, 122, 58, .08); }
+.ns-focus-btn { box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(22, 122, 58, .45); }
+@media (prefers-reduced-motion: no-preference) {
+    .ns-focus, .ns-focus-btn { animation: ns-pulse 2.4s ease-in-out infinite; }
+}
+@keyframes ns-pulse { 50% { box-shadow: 0 0 0 10px rgba(22, 122, 58, .02); } }

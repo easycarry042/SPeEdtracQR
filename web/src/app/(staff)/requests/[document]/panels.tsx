@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
+import { NextSteps, currentStepIndex, stepFocus, type NextStep } from './next-steps';
 import { CameraModal } from '@/components/camera-modal';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import * as SpeedQr from '@/lib/client/speed-qr';
@@ -571,6 +572,27 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
       <div className="dm-body space-y-4">
         <Feedback error={error} notice={notice} />
 
+        <NextSteps
+          steps={[
+            {
+              label: detail.isSoftCopy ? "Scan the request's QR to receive it" : 'Scan the QR on the document to take custody',
+              hint: (
+                <>
+                  Click <b>Select the QR on screen</b> below and drag a box around the QR
+                  {detail.isSoftCopy ? ' — or use the camera.' : ' — or press I have this folder to use the camera.'}
+                </>
+              ),
+              done: false,
+            },
+            {
+              label: detail.canAct
+                ? 'Review it, then approve, return or deny it'
+                : 'Your supervisor reviews it and decides',
+              done: false,
+            },
+          ]}
+        />
+
         {detail.isSoftCopy ? (
           <p className="text-[length:var(--fs-small)] text-ink-soft">
             {detail.currentStep?.recipient
@@ -594,7 +616,7 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
           </p>
         )}
 
-        <div className="custody-box">
+        <div className={`custody-box ${stepFocus(true)}`}>
           <div className="custody-strip">
             <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 3h11v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
@@ -893,6 +915,20 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
 
       <div className="dm-body space-y-4">
         <Feedback error={error} notice={notice} />
+
+        <NextSteps
+          steps={[
+            { label: detail.isSoftCopy ? 'Received' : 'Document received', done: true },
+            {
+              label: detail.currentStep?.recipient
+                ? `${detail.currentStep.recipient} reviews it and decides`
+                : "Your office's supervisor reviews it and decides",
+              hint: 'Nothing more for you to do here — they approve, return or deny it.',
+              done: false,
+              waiting: true,
+            },
+          ]}
+        />
 
         <div className="dm-callout dm-callout-green" role="status">
           <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -1263,6 +1299,69 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
 
   const needsReason = mode === 'return' || mode === 'deny';
 
+  // The guide: received → (paper) scan the document's QR → choose → (approve
+  // without an e-signature) register one → press the button.
+  const scanned = payload !== '' || (manualOpen && override.trim().length >= 10);
+  const chosen =
+    mode === 'approve'
+      ? detail.queuedNext !== null || (nextDepartment !== '' && (!detail.isSoftCopy || nextRecipient !== ''))
+      : mode === 'deny'
+        ? remarks.trim() !== '' && denyAck
+        : mode === 'return'
+          ? remarks.trim() !== ''
+          : true;
+  const buttonLabel =
+    mode === 'approve'
+      ? 'Approve & sign'
+      : mode === 'done'
+        ? 'Mark as done'
+        : mode === 'return'
+          ? 'Return for revision'
+          : 'Deny request';
+  const guide: Array<NextStep & { key: string }> = [
+    { key: 'received', label: detail.isSoftCopy ? 'Received' : 'Document received', done: true },
+    ...(detail.isSoftCopy
+      ? []
+      : [
+          {
+            key: 'scan',
+            label: 'Scan the QR on the document to confirm',
+            hint: <>Click <b>Select the QR on screen</b> and drag a box around it, or use the camera.</>,
+            done: scanned,
+          },
+        ]),
+    {
+      key: 'choose',
+      label: 'Choose what to do — Approve, Return or Deny',
+      hint:
+        mode === 'approve' && !detail.queuedNext
+          ? 'Pick the office it goes to next.'
+          : mode === 'return' || mode === 'deny'
+            ? `Write the reason — ${detail.filedByOffice ?? 'the filing office'} sees it.${mode === 'deny' ? ' Then tick the box.' : ''}`
+            : undefined,
+      done: chosen,
+    },
+    ...(mode === 'approve' && !detail.hasSignature
+      ? [
+          {
+            key: 'signature',
+            label: 'Register your e-signature on your Profile',
+            hint: (
+              <>
+                Approving signs with it.{' '}
+                <a href="/profile" className="cr-link">
+                  Open your Profile
+                </a>
+              </>
+            ),
+            done: false,
+          },
+        ]
+      : []),
+    { key: 'submit', label: <>Press <b>{buttonLabel}</b></>, done: false },
+  ];
+  const nowKey = guide[currentStepIndex(guide)]?.key;
+
   return (
     <section className="dm-card dm-page-card dm-decision lg:sticky lg:top-24">
       <div className="dm-head">
@@ -1305,172 +1404,7 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
           </div>
         ) : null}
 
-        <div className="st-tabs dm-decision-tabs w-full" role="tablist" aria-label="Decision">
-          {(
-            [
-              ['approve', 'Approve'],
-              // Done is the only action that completes a request: approving
-              // just passes the paper along, and the chain grows as each office
-              // scans it. Not while the filed route has offices left to go.
-              ...(detail.queuedNext ? [] : ([['done', 'Done']] as const)),
-              ['return', 'Return'],
-              ['deny', 'Deny'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={mode === key}
-              className={`flex-1 justify-center${mode === key ? ' on' : ''}`}
-              onClick={() => {
-                setMode(key);
-                setDenyAck(false);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-[length:var(--fs-small)] text-ink-soft">
-          {mode === 'approve'
-            ? detail.queuedNext
-              ? 'Approving affixes your registered e-signature and passes the request to the next office on its route.'
-              : 'Approving affixes your registered e-signature and passes the request to the office you choose below.'
-            : mode === 'done'
-              ? 'Marking this done completes the request — use it when your office is the last to handle the paper.'
-              : mode === 'return'
-                ? `Returning sends the request back to ${detail.filedByOffice ?? 'the filing office'} for revision.`
-                : 'Denying ends this request permanently. The filing office is notified.'}
-        </p>
-
-        {mode === 'approve' ? (
-          detail.queuedNext ? (
-            <p className="dm-note">
-              Next on this request's route:{' '}
-              <b>{detail.queuedNext.office}</b> <span className="stamp">{detail.queuedNext.officeCode}</span>
-            </p>
-          ) : (
-            <div>
-              <label className="gate-claim-label" htmlFor="next-department">
-                Send to which office next? <span className="text-status-red">*</span>
-              </label>
-              <select
-                id="next-department"
-                className="st-filter-field mt-1"
-                value={nextDepartment}
-                onChange={(event) => {
-                  setNextDepartment(event.target.value);
-                  setNextRecipient('');
-                }}
-              >
-                <option value="">Select a department…</option>
-                {detail.forwardDepartments.map((office) => (
-                  <option key={office.id} value={office.id}>
-                    {office.name} ({office.code})
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-                If your office is the last to handle this, use <strong>Done</strong> instead.
-              </p>
-
-              {/* No paper to hand across, so name who receives it there — as
-                  the filing office did for the first hop. */}
-              {detail.isSoftCopy ? (
-                <div className="mt-3">
-                  <label className="gate-claim-label" htmlFor="next-recipient">
-                    Who in that office receives it? <span className="text-status-red">*</span>
-                  </label>
-                  <select
-                    id="next-recipient"
-                    className="st-filter-field mt-1"
-                    value={nextRecipient}
-                    disabled={nextDepartment === ''}
-                    onChange={(event) => setNextRecipient(event.target.value)}
-                  >
-                    <option value="">
-                      {nextDepartment ? 'Select a person…' : 'Choose the office first'}
-                    </option>
-                    {people.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name} · {person.role}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-                    This request has no paper copy, so it goes straight to the person you choose.
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          )
-        ) : null}
-
-        {mode === 'approve' ? (
-          <div>
-            <label className="flex items-start gap-2 text-[length:var(--fs-small)] font-semibold text-ink">
-              <input
-                type="checkbox"
-                checked={stampWanted}
-                disabled={!detail.stampTarget}
-                onChange={(event) => setStampWanted(event.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-green"
-              />
-              <span>
-                Add our RECEIVED stamp to the file <span className="font-normal text-ink-soft">(optional)</span>
-              </span>
-            </label>
-            <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
-              {detail.stampTarget
-                ? 'Drag the stamp to a clear spot. It goes on a new copy, so the earlier copies and stamps stay as they are.'
-                : 'There is no image or PDF on this request to stamp.'}
-            </p>
-            {stampWanted && detail.stampTarget ? (
-              <StampPlacer
-                target={detail.stampTarget}
-                office={detail.currentStep?.office ?? 'Your office'}
-                stampsBefore={detail.officeStampCount}
-                onChange={setStampChoice}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        <div>
-          <label className="gate-claim-label" htmlFor="req-remarks">
-            Remarks {needsReason ? <span className="text-status-red">*</span> : <span className="text-ink-soft">(optional)</span>}
-          </label>
-          <textarea
-            id="req-remarks"
-            className="st-filter-field mt-1 h-auto py-2"
-            rows={3}
-            maxLength={500}
-            value={remarks}
-            onChange={(event) => setRemarks(event.target.value)}
-            placeholder={
-              needsReason
-                ? 'Explain the decision so the filing office knows what to fix'
-                : 'Optional note for the record'
-            }
-          />
-        </div>
-
-        {mode === 'deny' ? (
-          <label className="dm-callout dm-callout-red flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={denyAck}
-              onChange={(event) => setDenyAck(event.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red"
-            />
-            <span>
-              I understand denying <strong>permanently ends</strong> this request and cannot be
-              undone.
-            </span>
-          </label>
-        ) : null}
+        <NextSteps steps={guide} />
 
         {/* The decision is confirmed against the folder itself. A soft copy has
             no folder, so there is nothing to scan. */}
@@ -1480,7 +1414,7 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
             name.
           </p>
         ) : (
-          <div>
+          <div className={`rounded-xl p-3 ${stepFocus(nowKey === 'scan')}`}>
             <p className="gate-claim-label">
               Scan this request&apos;s QR <span className="text-status-red">*</span>
             </p>
@@ -1589,11 +1523,180 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
           </div>
         )}
 
+        <div className="st-tabs dm-decision-tabs w-full" role="tablist" aria-label="Decision">
+          {(
+            [
+              ['approve', 'Approve'],
+              // Done is the only action that completes a request: approving
+              // just passes the paper along, and the chain grows as each office
+              // scans it. Not while the filed route has offices left to go.
+              ...(detail.queuedNext ? [] : ([['done', 'Done']] as const)),
+              ['return', 'Return'],
+              ['deny', 'Deny'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={mode === key}
+              className={`flex-1 justify-center${mode === key ? ' on' : ''}`}
+              onClick={() => {
+                setMode(key);
+                setDenyAck(false);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[length:var(--fs-small)] text-ink-soft">
+          {mode === 'approve'
+            ? detail.queuedNext
+              ? 'Approving affixes your registered e-signature and passes the request to the next office on its route.'
+              : 'Approving affixes your registered e-signature and passes the request to the office you choose below.'
+            : mode === 'done'
+              ? 'Marking this done completes the request — use it when your office is the last to handle the paper.'
+              : mode === 'return'
+                ? `Returning sends the request back to ${detail.filedByOffice ?? 'the filing office'} for revision.`
+                : 'Denying ends this request permanently. The filing office is notified.'}
+        </p>
+
+        {mode === 'approve' ? (
+          detail.queuedNext ? (
+            <p className="dm-note">
+              Next on this request's route:{' '}
+              <b>{detail.queuedNext.office}</b> <span className="stamp">{detail.queuedNext.officeCode}</span>
+            </p>
+          ) : (
+            <div className={stepFocus(nowKey === 'choose')}>
+              <label className="gate-claim-label" htmlFor="next-department">
+                Send to which office next? <span className="text-status-red">*</span>
+              </label>
+              <select
+                id="next-department"
+                className="st-filter-field mt-1"
+                value={nextDepartment}
+                onChange={(event) => {
+                  setNextDepartment(event.target.value);
+                  setNextRecipient('');
+                }}
+              >
+                <option value="">Select a department…</option>
+                {detail.forwardDepartments.map((office) => (
+                  <option key={office.id} value={office.id}>
+                    {office.name} ({office.code})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+                If your office is the last to handle this, use <strong>Done</strong> instead.
+              </p>
+
+              {/* No paper to hand across, so name who receives it there — as
+                  the filing office did for the first hop. */}
+              {detail.isSoftCopy ? (
+                <div className="mt-3">
+                  <label className="gate-claim-label" htmlFor="next-recipient">
+                    Who in that office receives it? <span className="text-status-red">*</span>
+                  </label>
+                  <select
+                    id="next-recipient"
+                    className="st-filter-field mt-1"
+                    value={nextRecipient}
+                    disabled={nextDepartment === ''}
+                    onChange={(event) => setNextRecipient(event.target.value)}
+                  >
+                    <option value="">
+                      {nextDepartment ? 'Select a person…' : 'Choose the office first'}
+                    </option>
+                    {people.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} · {person.role}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+                    This request has no paper copy, so it goes straight to the person you choose.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          )
+        ) : null}
+
+        {mode === 'approve' ? (
+          <div>
+            <label className="flex items-start gap-2 text-[length:var(--fs-small)] font-semibold text-ink">
+              <input
+                type="checkbox"
+                checked={stampWanted}
+                disabled={!detail.stampTarget}
+                onChange={(event) => setStampWanted(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-green"
+              />
+              <span>
+                Add our RECEIVED stamp to the file <span className="font-normal text-ink-soft">(optional)</span>
+              </span>
+            </label>
+            <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
+              {detail.stampTarget
+                ? 'Drag the stamp to a clear spot. It goes on a new copy, so the earlier copies and stamps stay as they are.'
+                : 'There is no image or PDF on this request to stamp.'}
+            </p>
+            {stampWanted && detail.stampTarget ? (
+              <StampPlacer
+                target={detail.stampTarget}
+                office={detail.currentStep?.office ?? 'Your office'}
+                stampsBefore={detail.officeStampCount}
+                onChange={setStampChoice}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className={stepFocus(nowKey === 'choose' && needsReason && remarks.trim() === '')}>
+          <label className="gate-claim-label" htmlFor="req-remarks">
+            Remarks {needsReason ? <span className="text-status-red">*</span> : <span className="text-ink-soft">(optional)</span>}
+          </label>
+          <textarea
+            id="req-remarks"
+            className="st-filter-field mt-1 h-auto py-2"
+            rows={3}
+            maxLength={500}
+            value={remarks}
+            onChange={(event) => setRemarks(event.target.value)}
+            placeholder={
+              needsReason
+                ? 'Explain the decision so the filing office knows what to fix'
+                : 'Optional note for the record'
+            }
+          />
+        </div>
+
+        {mode === 'deny' ? (
+          <label
+            className={`dm-callout dm-callout-red flex items-start gap-2 ${stepFocus(nowKey === 'choose' && remarks.trim() !== '' && !denyAck)}`}
+          >
+            <input
+              type="checkbox"
+              checked={denyAck}
+              onChange={(event) => setDenyAck(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-status-red"
+            />
+            <span>
+              I understand denying <strong>permanently ends</strong> this request and cannot be
+              undone.
+            </span>
+          </label>
+        ) : null}
+
         <button
           type="button"
           className={`cr-btn w-full justify-center ${
             mode === 'deny' ? 'cr-btn-danger' : mode === 'return' ? '' : 'cr-btn-primary'
-          }`}
+          } ${nowKey === 'submit' ? 'ns-focus-btn' : ''}`}
           disabled={
             pending ||
             (mode === 'approve' && !detail.hasSignature) ||
@@ -1671,6 +1774,23 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
           </div>
         ) : null}
 
+        <NextSteps
+          steps={[
+            { label: 'Read why it was returned', done: true },
+            mode === 'resend'
+              ? {
+                  label: 'Say what you changed',
+                  hint: 'Attach the revised scan too, if there is one.',
+                  done: note.trim() !== '',
+                }
+              : { label: 'Tick the box to confirm', done: ack },
+            {
+              label: mode === 'resend' ? <>Press <b>Resend to {office}</b></> : <>Press <b>Withdraw request</b></>,
+              done: false,
+            },
+          ]}
+        />
+
         <div className="st-tabs dm-decision-tabs w-full" role="tablist" aria-label="What to do">
           {(
             [
@@ -1703,7 +1823,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
                 : 'Take the revised paper there — they scan it in again, then decide.'}
             </p>
 
-            <div>
+            <div className={stepFocus(note.trim() === '')}>
               <label className="gate-claim-label" htmlFor="resend-note">
                 What did you change? <span className="text-status-red">*</span>
               </label>
@@ -1736,7 +1856,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
 
             <button
               type="button"
-              className="cr-btn cr-btn-primary w-full justify-center"
+              className={`cr-btn cr-btn-primary w-full justify-center ${note.trim() !== '' ? 'ns-focus-btn' : ''}`}
               disabled={pending || note.trim() === ''}
               onClick={resend}
             >
@@ -1765,7 +1885,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
               />
             </div>
 
-            <label className="dm-callout dm-callout-red flex items-start gap-2">
+            <label className={`dm-callout dm-callout-red flex items-start gap-2 ${stepFocus(!ack)}`}>
               <input
                 type="checkbox"
                 checked={ack}
@@ -1779,7 +1899,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
 
             <button
               type="button"
-              className="cr-btn cr-btn-danger w-full justify-center"
+              className={`cr-btn cr-btn-danger w-full justify-center ${ack ? 'ns-focus-btn' : ''}`}
               disabled={pending || !ack}
               onClick={() =>
                 void run(() => withdrawRequest(detail.id, reason.trim() || null), {
