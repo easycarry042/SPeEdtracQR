@@ -3281,7 +3281,6 @@ a.dm-thumb:hover { border-color: var(--green); }
     .cz-btn-primary {
         background: var(--cz-green);
         color: #fff;
-        box-shadow: 0 1px 2px rgba(0, 64, 4, .3), 0 8px 20px -8px rgba(1, 114, 26, .7);
     }
 
     .cz-btn-primary:not(:disabled):hover { background: var(--cz-deep); }
@@ -4589,3 +4588,60 @@ body:has(.admin-shell) .asw-menu-btn {
     .ns-focus, .ns-focus-btn { animation: ns-pulse 2.4s ease-in-out infinite; }
 }
 @keyframes ns-pulse { 50% { box-shadow: 0 0 0 10px rgba(22, 122, 58, .02); } }
+
+/* ── Landing page (app/(citizen)/page.tsx, components/citizen/landing-motion.tsx) ──
+   Entrances: an element below the fold is held back with .lp-pending and rises
+   in when .lp-in lands. Only the script adds .lp-pending, so without it
+   nothing is hidden. */
+.lp-pending { opacity: 0; transform: translateY(24px); }
+.lp-pending.lp-in {
+    opacity: 1;
+    transform: none;
+    transition: opacity .6s cubic-bezier(.2, .7, .2, 1), transform .6s cubic-bezier(.2, .7, .2, 1);
+    transition-delay: var(--lp-delay, 0ms);
+}
+
+/* How it works: the line fills to --fill (0–1, set from the scroll) and each
+   step lights up once it is reached. Without the script every step shows as
+   reached and the line is full. */
+.lp-steps { --fill: 1; }
+.lp-steps-fill { transform: scaleX(var(--fill)); transform-origin: left; }
+.lp-step .lp-step-dot { background: #eef8ea; color: #7d8c81; }
+.lp-step .lp-step-title { color: #77857b; }
+.lp-step .lp-step-body { color: #5f6d63; }
+.lp-step-dot, .lp-step-title, .lp-step-body { transition: background-color .3s ease, color .3s ease; }
+.lp-steps:not([style]) .lp-step .lp-step-dot,
+.lp-step[data-on] .lp-step-dot { background: #01721a; color: #fff; }
+.lp-steps:not([style]) .lp-step .lp-step-title,
+.lp-step[data-on] .lp-step-title { color: #1a1b1a; }
+.lp-steps:not([style]) .lp-step .lp-step-body,
+.lp-step[data-on] .lp-step-body { color: #4b5a50; }
+
+/* Feature cards: flat white at rest; on hover (or, on a touch screen, while
+   crossing the middle of it) a pale green step, a green edge, a 4px lift, and
+   the outline icon gives way to the filled one. */
+.lp-card { transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.lp-card:hover,
+.lp-card[data-active] {
+    background: #eef8ea;
+    box-shadow: inset 0 0 0 2px #01721a;
+    transform: translateY(-4px);
+}
+.lp-icon { display: grid; }
+.lp-icon > svg { grid-area: 1 / 1; transition: opacity .2s ease, transform .2s ease; }
+.lp-icon-solid { opacity: 0; transform: scale(.85); }
+.lp-card:hover .lp-icon-line,
+.lp-card[data-active] .lp-icon-line { opacity: 0; }
+.lp-card:hover .lp-icon-solid,
+.lp-card[data-active] .lp-icon-solid { opacity: 1; transform: none; }
+
+/* Hover lifts on the landing's own controls. */
+.lp-press { transition: transform .15s ease, background-color .15s ease; }
+.lp-press:hover { transform: translateY(-2px); }
+.lp-press:active { transform: translateY(0) scale(.98); }
+
+@media (prefers-reduced-motion: reduce) {
+    .lp-pending { opacity: 1; transform: none; }
+    .lp-steps-fill, .lp-card, .lp-press, .lp-icon > svg { transition: none; }
+    .lp-card:hover, .lp-card[data-active], .lp-press:hover { transform: none; }
+}

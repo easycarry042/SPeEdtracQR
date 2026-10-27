@@ -11,20 +11,25 @@ import { routes } from '@/lib/routes';
  * staff sidebar), so a doormat here only repeated those links a second time.
  *
  * The plate is the brand's dark green so it reads as the end of the page on
- * every backdrop it sits on.
+ * every backdrop it sits on. It closes on the name set at full width. The
+ * landing page passes its closing call to action as `children`, so the
+ * invitation and the footer read as one dark-green close.
  *
  * The office hours below are the ordinary LGU schedule, not a value read from
  * the system — correct them here if San Pedro's windows differ.
  */
-export function SiteFooter() {
+export function SiteFooter({ children }: { children?: React.ReactNode }) {
   return (
     /* The plate needs air above it — the page's content should finish and
        settle before the dark green starts. `mt-auto` keeps a short page's
        footer at the bottom. */
     <div className="mt-auto pt-[120px]">
-      <footer className="bg-[#004004] text-white">
-        <div className="mx-auto w-full max-w-[1512px] px-6 py-[48px] sm:px-10 lg:py-[56px]">
-          <div className="grid gap-x-12 gap-y-[40px] md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr]">
+      <div className="bg-[#004004] text-white">
+        {children}
+        {/* Bottom padding keeps the legal lines clear of the two floating
+            corner buttons (accessibility, Speedy). */}
+        <footer className="mx-auto w-full max-w-[1209.5px] px-4 pb-28 pt-12 sm:px-6 lg:px-8">
+          <div className="grid gap-x-12 gap-y-[40px] rounded-[24px] bg-[#0a4b0d] p-7 sm:p-10 md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr] lg:p-12">
             {/* Brand: what this is and who it belongs to, for anyone who landed
                 deep in the site from a QR code or an emailed link. */}
             <div className="max-w-[520px]">
@@ -45,7 +50,7 @@ export function SiteFooter() {
                 </span>
               </div>
 
-              <p className="mt-[18px] text-[15px] leading-relaxed text-white/75">
+              <p className="mt-[18px] text-[16px] leading-relaxed text-white/75">
                 The document tracking system of the City Government of San Pedro, Laguna. Every
                 request carries a QR-coded tracking number from the counter where it is filed to
                 the desk that releases it.
@@ -68,16 +73,16 @@ export function SiteFooter() {
             {/* Privacy: the one page every form's consent box points to, so it
                 has to be reachable from anywhere, not only from the form. */}
             <div>
-              <h2 className="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">
-                Your Privacy
+              <h2 className="font-display text-[24px] font-bold leading-tight text-white">
+                Your privacy
               </h2>
-              <p className="mt-[18px] max-w-[300px] text-[15px] leading-relaxed text-white/75">
+              <p className="mt-3 max-w-[300px] text-[16px] leading-relaxed text-white/75">
                 Your personal details are used only to process your request, and are masked on the
                 public tracking page.
               </p>
               <Link
                 href={routes.privacy()}
-                className="footer-link mt-[12px] inline-flex items-center gap-[6px] text-[15px] font-semibold"
+                className="footer-link mt-4 inline-flex items-center gap-[6px] text-[16px] font-bold"
               >
                 Read the privacy notice
                 <svg
@@ -96,11 +101,11 @@ export function SiteFooter() {
             {/* Contact. The email is a real mailbox, so it is a mailto rather
                 than plain text — on a phone that is the whole interaction. */}
             <div>
-              <h2 className="text-[13px] font-black uppercase tracking-[0.18em] text-[#8dff3c]">
-                Get in Touch
+              <h2 className="font-display text-[24px] font-bold leading-tight text-white">
+                Get in touch
               </h2>
 
-              <ul className="mt-[18px] space-y-[14px] text-[15px] text-white/75">
+              <ul className="mt-3 space-y-[14px] text-[16px] text-white/75">
                 <li className="flex items-start gap-[10px]">
                   <svg
                     className="mt-[3px] h-[17px] w-[17px] shrink-0 text-[#8dff3c]"
@@ -144,21 +149,31 @@ export function SiteFooter() {
             </div>
           </div>
 
-          {/* Legal bar: the copyright line, and the two statutes the system's
-              behaviour is actually built on — the SLA clock, and what the public
-              tracking page is allowed to show. */}
-          <div className="mt-[40px] flex flex-col gap-[14px] border-t border-white/15 pt-[24px] text-[13.5px] text-white/60 lg:flex-row lg:items-center lg:justify-between">
+          {/* The name, at full width: the page's last word. */}
+          <p
+            className="mt-14 whitespace-nowrap text-center text-[clamp(56px,14vw,190px)] leading-[0.85] tracking-[-0.02em]"
+            translate="no"
+            aria-hidden="true"
+          >
+            <span className="font-display font-black text-white">SPeED</span>{' '}
+            <span className="font-sans font-bold text-[#8dff3c]">TraQR</span>
+          </p>
+
+          {/* Legal lines: the copyright, and the two statutes the system's
+              behaviour is actually built on — the SLA clock, and what the
+              public tracking page is allowed to show. */}
+          <div className="mt-12 flex flex-col gap-[14px] text-[14px] text-white/60 lg:flex-row lg:items-start lg:justify-between">
             <p>
               &copy; {new Date().getFullYear()} {app.name} — Document Tracking System. All rights
               reserved.
             </p>
-            <p className="lg:text-right">
+            <p className="lg:max-w-[560px] lg:text-right">
               Processing times follow RA&nbsp;11032 (Ease of Doing Business Act). Personal data is
               handled under RA&nbsp;10173 (Data Privacy Act of 2012).
             </p>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }

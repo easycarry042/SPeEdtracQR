@@ -49,7 +49,7 @@ export function PortalHeader({ landing = false }: { landing?: boolean }) {
               <span className="font-display font-black text-[#004004]">SPeED</span>{' '}
               <span className="font-sans font-bold text-[#017209]">TraQR</span>
             </span>
-            <span className="mt-1 truncate text-[12px] font-semibold leading-none text-[#4b5a50] sm:text-[13px]">
+            <span className="mt-1 truncate text-[13px] font-semibold leading-none text-[#4b5a50] sm:text-[13px]">
               City of San Pedro, Laguna
             </span>
           </span>
