@@ -205,6 +205,30 @@ const FEATURES: Array<{
   },
 ];
 
+/** The city's own photographs (public/images/landing/city), for the landmark strip. */
+const CITY_PHOTOS = [
+  {
+    src: '/images/landing/city/welcome-arch.webp',
+    alt: 'The Welcome to San Pedro arch, with a rooster statue on each side',
+    caption: 'The Welcome to San Pedro arch',
+  },
+  {
+    src: '/images/landing/city/san-pedro-apostol-parish.webp',
+    alt: 'The yellow façade and bell tower of San Pedro Apostol Parish',
+    caption: 'San Pedro Apostol Parish',
+  },
+  {
+    src: '/images/landing/city/plaza-clock-tower.webp',
+    alt: 'The plaza clock tower beside two white statues',
+    caption: 'The plaza clock tower',
+  },
+  {
+    src: '/images/landing/city/laguna-boundary.webp',
+    alt: 'A tricycle on the national road passing the Laguna boundary marker',
+    caption: 'Entering Laguna on the national road',
+  },
+];
+
 const SECTION_HEADING = 'font-display text-[36px] font-black leading-[1.05] text-[#1a1b1a] sm:text-[52px]';
 const SECTION_INTRO = 'text-pretty text-[18px] leading-[1.6] text-[#4b5a50]';
 
@@ -388,6 +412,35 @@ export default async function LandingPage() {
                 ))}
               </ol>
             </div>
+
+            {/* The last step happens here: the building, and when it is open. */}
+            <div className="mt-20 grid items-center gap-8 lg:mt-28 lg:grid-cols-[1.2fr_1fr] lg:gap-16" data-reveal>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/landing/city/city-hall.webp"
+                alt="The front of San Pedro City Hall under a blue sky"
+                width={960}
+                height={720}
+                loading="lazy"
+                decoding="async"
+                className="aspect-[4/3] w-full rounded-[20px] object-cover"
+              />
+              <div>
+                <h3 className="font-display text-[32px] font-black leading-[1.05] text-[#1a1b1a] sm:text-[40px]">
+                  Claimed at City Hall
+                </h3>
+                <p className={`${SECTION_INTRO} mt-4 max-w-[440px]`}>
+                  When your request is Ready for Pickup, bring your QR code or tracking number to the
+                  office that handled it at San Pedro City Hall.
+                </p>
+                <p className="mt-4 text-[18px] font-bold leading-[1.5] text-[#004004]">
+                  Monday to Friday, 8:00&nbsp;AM – 5:00&nbsp;PM
+                  <span className="block text-[16px] font-medium text-[#4b5a50]">
+                    Excluding public holidays
+                  </span>
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -426,6 +479,51 @@ export default async function LandingPage() {
                     {feature.title}
                   </h3>
                   <p className="mt-2 text-[18px] leading-[1.55] text-[#4b5a50]">{feature.body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* ── The city ───────────────────────────────────────────────────────
+            Whose service this is, shown rather than said: four San Pedro
+            landmarks (the city's own photographs). */}
+        <section
+          aria-labelledby="city-heading"
+          className="relative isolate bg-white px-4 pt-24 sm:px-6 lg:px-8 lg:pt-32"
+        >
+          <div className="mx-auto max-w-[1145.5px]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" data-reveal>
+              <h2 id="city-heading" className={SECTION_HEADING}>
+                Built for San Pedro, Laguna
+              </h2>
+              <p className={`${SECTION_INTRO} lg:max-w-[440px] lg:text-right`}>
+                The city’s own system, for the requests its residents and offices file every day.
+              </p>
+            </div>
+
+            <ul className="mt-12 grid grid-cols-2 gap-4 lg:mt-14 lg:grid-cols-4 lg:gap-5">
+              {CITY_PHOTOS.map((photo, index) => (
+                <li
+                  key={photo.src}
+                  data-reveal
+                  style={{ '--lp-delay': `${index * 80}ms` } as React.CSSProperties}
+                >
+                  <figure>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.src}
+                      alt={photo.alt}
+                      width={960}
+                      height={720}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-[3/4] w-full rounded-[20px] object-cover"
+                    />
+                    <figcaption className="mt-3 text-[16px] font-semibold leading-snug text-[#1a1b1a]">
+                      {photo.caption}
+                    </figcaption>
+                  </figure>
                 </li>
               ))}
             </ul>
