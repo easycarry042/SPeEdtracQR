@@ -12,8 +12,8 @@ import { renderPdfUrlPage } from '@/lib/client/pdf-preview';
  */
 export type StampChoice = { x: number; y: number; size: number; page: number };
 
-/** Height : width of the stamp, as `office-stamp.ts` draws it. */
-const ASPECT = 0.46;
+/** Height : width of the stamp — keep equal to `OFFICE_STAMP_ASPECT` in `office-stamp.ts`. */
+const ASPECT = 0.4;
 const MIN_SIZE = 0.2;
 const MAX_SIZE = 0.6;
 const DEFAULT_SIZE = 0.36;
@@ -227,18 +227,35 @@ export function StampPlacer({
   );
 }
 
-/** A preview of the stamp's words, scaled with the box. */
+/** A preview of the stamp, laid out like `office-stamp.ts` draws it (same 100 × 40 grid). */
 function StampGlyph({ office }: { office: string }) {
+  const ink = '#262626';
+  const pen = '#1a3d8f';
+  const label = office.toUpperCase();
+
   return (
-    <svg viewBox="0 0 100 46" className="block h-full w-full" aria-hidden="true">
-      <g fill="#1d3f91" fontFamily="Arial, Helvetica, sans-serif" textAnchor="middle">
-        <text x="50" y="8.5" fontSize="4" fontWeight="600">CITY OF SAN PEDRO, LAGUNA</text>
-        <text x="50" y="16.5" fontSize={Math.min(5, 100 / Math.max(1, office.length * 0.62))} fontWeight="700">
-          {office.toUpperCase()}
+    <svg viewBox="0 0 100 40" className="block h-full w-full" aria-hidden="true">
+      <g fill={ink} fontFamily="Arial, Helvetica, sans-serif" opacity={0.9}>
+        <text x="50" y="8" fontSize={Math.min(4.8, 90 / Math.max(1, label.length * 0.68))} textAnchor="middle">
+          {label}
         </text>
-        <text x="50" y="28" fontSize="9" fontWeight="800">RECEIVED</text>
-        <text x="50" y="36" fontSize="4" fontWeight="600">BY: your name</text>
-        <text x="50" y="42.5" fontSize="3.8" fontWeight="600">DATE · TIME of approval</text>
+        <text x="50" y="21.2" fontSize="10.8" fontWeight="800" textAnchor="middle">
+          RECEIVED
+        </text>
+        <text x="5" y="32" fontSize="4">BY:</text>
+        <text x="5" y="38" fontSize="4">DATE:</text>
+        <text x="58.5" y="38" fontSize="4">TIME</text>
+        <g stroke={ink} strokeWidth="0.5">
+          <line x1="15" y1="32" x2="94" y2="32" />
+          <line x1="19" y1="38" x2="56" y2="38" />
+          <line x1="73" y1="38" x2="94" y2="38" />
+        </g>
+      </g>
+      <g fill={pen} fontFamily="Arial, Helvetica, sans-serif" fontWeight="600">
+        <path d="M22 30.5c3-5 6 1 9-2s4-3 6 0 4-1 7-1" fill="none" stroke={pen} strokeWidth="0.7" />
+        <text x="93" y="30.6" fontSize="3.2" textAnchor="end">your name</text>
+        <text x="37.5" y="37" fontSize="3.2" textAnchor="middle">date</text>
+        <text x="83.5" y="37" fontSize="3.2" textAnchor="middle">time</text>
       </g>
     </svg>
   );

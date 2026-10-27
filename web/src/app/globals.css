@@ -1983,8 +1983,9 @@ a.dm-thumb:hover { border-color: var(--green); }
 
 .ff-qr-box { position: absolute; cursor: move; border: 2px solid var(--green); border-radius: 3px; background: rgba(255, 255, 255, .85); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
 /* An office's RECEIVED stamp, placed at approval (stamp-placer.tsx); ink matches office-stamp.ts. */
-.office-stamp-box { position: absolute; cursor: move; touch-action: none; border: 2px solid #1d3f91; border-radius: 6px; background: rgba(255, 255, 255, .82); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
-.office-stamp-box:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+.office-stamp-box { position: absolute; cursor: move; touch-action: none; outline: 1.5px dashed var(--green); outline-offset: 2px; background: transparent; }
+.office-stamp-box:hover { background: rgba(255, 255, 255, .25); }
+.office-stamp-box:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
 
 /* Internal request page: the modal card, in the page flow. */
 .dm-page-card { overflow: visible; }

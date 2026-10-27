@@ -19,7 +19,9 @@ describe('office stamp', () => {
   it('names the office, RECEIVED, who received it and when', () => {
     expect(text.office).toBe('OFFICE OF THE MAYOR');
     expect(text.received).toBe('RECEIVED');
-    expect(text.by).toBe('BY: Ramon Bautista');
+    expect(text.name).toBe('Ramon Bautista');
+    expect(text.date).toMatch(/2026/);
+    expect(text.time).toMatch(/(AM|PM)$/);
   });
 
   it("reads the office back from a stamped copy's path", () => {
@@ -32,9 +34,9 @@ describe('office stamp', () => {
   it('keeps the box on the page and its size within bounds', () => {
     expect(stampBox(1000, 1400, { x: 0.95, y: 0.99, size: 0.9, page: null })).toEqual({
       left: 400,
-      top: 1124,
+      top: 1160,
       width: 600,
-      height: 276,
+      height: 240,
     });
     expect(stampBox(1000, 1400, { x: null, y: null, size: null, page: null }).width).toBe(360);
   });
@@ -56,11 +58,27 @@ describe('office stamp', () => {
     expect(stamped.equals(scan)).toBe(false);
   });
 
+  it("puts the approver's signature on the BY line", async () => {
+    const scan = await sharp({ create: { width: 800, height: 1100, channels: 3, background: '#ffffff' } })
+      .png()
+      .toBuffer();
+    const signature = await sharp({ create: { width: 300, height: 100, channels: 4, background: '#000000ff' } })
+      .png()
+      .toBuffer();
+    const without = await stampImage(scan, 'png', text, placement);
+    const withSignature = await stampImage(scan, 'png', text, placement, signature);
+
+    expect(withSignature.equals(without)).toBe(false);
+  });
+
   it('stamps the chosen PDF page', async () => {
     const pdf = await PDFDocument.create();
     pdf.addPage([612, 792]);
     pdf.addPage([612, 792]);
-    const stamped = await stampPdf(Buffer.from(await pdf.save()), text, { ...placement, page: 2 });
+    const signature = await sharp({ create: { width: 300, height: 100, channels: 4, background: '#000000ff' } })
+      .png()
+      .toBuffer();
+    const stamped = await stampPdf(Buffer.from(await pdf.save()), text, { ...placement, page: 2 }, signature);
 
     expect((await PDFDocument.load(stamped)).getPageCount()).toBe(2);
   });

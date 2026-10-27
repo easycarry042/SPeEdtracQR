@@ -1142,6 +1142,7 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
   const [payload, setPayload] = useState('');
   const [manualOpen, setManualOpen] = useState(false);
   const [override, setOverride] = useState('');
+  // The stamp is optional: the office ticks it when it wants one.
   const [stampWanted, setStampWanted] = useState(false);
   const [stampChoice, setStampChoice] = useState<StampChoice | null>(null);
 
@@ -1637,12 +1638,12 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
                 className="mt-0.5 h-4 w-4 rounded border-hairline-strong text-green"
               />
               <span>
-                Add our RECEIVED stamp to the file <span className="font-normal text-ink-soft">(optional)</span>
+                Stamp the file RECEIVED <span className="font-normal text-ink-soft">(optional)</span>
               </span>
             </label>
             <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">
               {detail.stampTarget
-                ? 'Drag the stamp to a clear spot. It goes on a new copy, so the earlier copies and stamps stay as they are.'
+                ? 'Your e-signature, name, and the date and time are filled in when you approve. Drag the stamp to a clear spot; it goes on a new copy, so earlier copies and stamps stay as they are.'
                 : 'There is no image or PDF on this request to stamp.'}
             </p>
             {stampWanted && detail.stampTarget ? (

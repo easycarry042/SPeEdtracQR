@@ -341,7 +341,7 @@ export async function approve(
   const stampPlacement = cleanStampPlacement(input.stamp);
 
   if (stampPlacement) {
-    const stamped = await addOfficeStamp(toId(document.id), step, signer, stampPlacement);
+    const stamped = await addOfficeStamp(toId(document.id), step, signer, stampPlacement, signature);
 
     if (stamped) {
       await logSystemComment(
