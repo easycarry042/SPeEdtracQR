@@ -4646,3 +4646,11 @@ body:has(.admin-shell) .asw-menu-btn {
     .lp-steps-fill, .lp-card, .lp-press, .lp-icon > svg { transition: none; }
     .lp-card:hover, .lp-card[data-active], .lp-press:hover { transform: none; }
 }
+
+/* The filing form's modal (requests/create/filing-modal.tsx). On a phone it
+   takes the whole screen: a two-step form with an upload is too cramped in a
+   floating card. */
+@media (max-width: 639px) {
+    .request-modal:has(.ff-modal-card) { padding: 0; }
+    .ff-modal-card.dm-fixed.dm-fit { height: calc(100dvh / var(--ui-zoom)); border-radius: 0; }
+}

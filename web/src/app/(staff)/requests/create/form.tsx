@@ -66,6 +66,8 @@ export function FilingForm({
   officeId,
   officeName,
   officeCode = null,
+  onClose,
+  onDirtyChange,
 }: {
   /** Offices a request can go straight to (Action Mamamayan is never a destination). */
   departments: FormDepartment[];
@@ -74,6 +76,10 @@ export function FilingForm({
   officeId: number | null;
   officeName: string;
   officeCode?: string | null;
+  /** In the modal: the header's ✕. */
+  onClose?: () => void;
+  /** In the modal: told whether anything has been entered, so closing can ask first. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -99,6 +105,12 @@ export function FilingForm({
   const [pdfRendering, setPdfRendering] = useState(false);
   const [pdfError, setPdfError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+
+  const dirty = purpose.trim() !== '' || scan !== null || firstDepartment !== '' || recipientId !== '';
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const [qr, setQr] = useState<QrPlacement>(INITIAL_QR);
   const [qrModal, setQrModal] = useState(false);
@@ -350,7 +362,7 @@ export function FilingForm({
       {/* Header: title, filing office, and the two steps */}
       <div className="dm-head">
         <div className="min-w-0">
-          <p className="dm-title">File a Request</p>
+          <p id="file-request-title" className="dm-title">File a Request</p>
           <p className="text-[length:var(--fs-small)] text-ink">
             Filing from the {officeName}
           </p>
@@ -404,6 +416,13 @@ export function FilingForm({
               );
             })}
           </ol>
+          {onClose ? (
+            <button type="button" onClick={onClose} className="dm-close" aria-label="Close" title="Close">
+              <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
 

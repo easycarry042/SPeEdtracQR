@@ -5,9 +5,11 @@ import { routes } from '@/lib/routes';
 import { AuthenticatedPage } from '@/components/shell/authenticated-page';
 import { inboxFor } from '@/lib/domain/internal-inbox';
 import { internalRequestDetail } from '@/lib/domain/internal-request';
+import { canFile, filingFormData } from '@/lib/domain/internal-request-form';
 import { InternalQueues } from './queues';
 import { RequestModal } from './request-modal';
 import { InternalRequestView } from './[document]/request-detail';
+import { FilingModal } from './create/filing-modal';
 
 export const metadata: Metadata = { title: 'Internal Requests' };
 
@@ -17,13 +19,14 @@ export const dynamic = 'force-dynamic';
 /**
  * The Internal tab: office-to-office requests (`requests/index.blade.php`).
  *
- * `?open=<id>` opens that request in a modal over the queue; closing it keeps
- * the tab and search the queue had.
+ * `?open=<id>` opens that request in a modal over the queue, and `?file=1`
+ * the filing form (the header's File Request); closing either keeps the tab
+ * and search the queue had.
  */
 export default async function InternalRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; open?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; open?: string; file?: string }>;
 }) {
   const actor = await requireActor();
 
@@ -31,12 +34,14 @@ export default async function InternalRequestsPage({
     redirect(routes.welcome());
   }
 
-  const { tab, q, open } = await searchParams;
+  const { tab, q, open, file } = await searchParams;
   const openId = open && /^\d+$/.test(open) ? Number(open) : null;
+  const filing = file === '1' && openId === null && canFile(actor);
 
-  const [inbox, detail] = await Promise.all([
+  const [inbox, detail, form] = await Promise.all([
     inboxFor(actor, q ?? ''),
     openId !== null ? internalRequestDetail(openId, actor) : Promise.resolve(null),
+    filing ? filingFormData(actor) : Promise.resolve(null),
   ]);
 
   const closeHref = routes.requestsIndex({
@@ -55,6 +60,7 @@ export default async function InternalRequestsPage({
           <InternalRequestView detail={detail} closeHref={closeHref} />
         </RequestModal>
       ) : null}
+      {form ? <FilingModal closeHref={closeHref} {...form} /> : null}
     </AuthenticatedPage>
   );
 }

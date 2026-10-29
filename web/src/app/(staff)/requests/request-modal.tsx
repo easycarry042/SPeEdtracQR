@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -10,25 +10,41 @@ import { useRouter } from 'next/navigation';
  * The open request lives in the URL (`?open=…`), so a reload, a shared link or
  * the back button all land on the same view. Closing (✕, Escape, or a click on
  * the backdrop) replaces the URL with `closeHref`, the queue as it was.
+ *
+ * `beforeClose` may hold Escape and the backdrop back (the filing form asks
+ * before throwing away what was typed); it settles true to let them close.
  */
 export function RequestModal({
   closeHref,
   labelledBy,
+  beforeClose,
   children,
 }: {
   closeHref: string;
   labelledBy: string;
+  beforeClose?: () => boolean | Promise<boolean>;
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const guard = useRef(beforeClose);
 
   useEffect(() => {
-    const close = (): void => router.replace(closeHref, { scroll: false });
+    guard.current = beforeClose;
+  }, [beforeClose]);
 
+  const close = useCallback(async (): Promise<void> => {
+    if (guard.current && !(await guard.current())) {
+      return;
+    }
+
+    router.replace(closeHref, { scroll: false });
+  }, [closeHref, router]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       // Leave Escape to a dialog stacked on top (QR viewer, scanner, confirm).
       if (event.key === 'Escape' && !event.defaultPrevented && !stackedDialogOpen()) {
-        close();
+        void close();
       }
     };
 
@@ -40,7 +56,7 @@ export function RequestModal({
       document.body.style.overflow = previous;
       document.removeEventListener('keydown', onKey);
     };
-  }, [closeHref, router]);
+  }, [close]);
 
   return (
     <div
@@ -50,7 +66,7 @@ export function RequestModal({
       aria-labelledby={labelledBy}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          router.replace(closeHref, { scroll: false });
+          void close();
         }
       }}
     >
@@ -58,7 +74,7 @@ export function RequestModal({
         className="mx-auto w-full max-w-[1240px]"
         onClick={(event) => {
           if (event.target === event.currentTarget) {
-            router.replace(closeHref, { scroll: false });
+            void close();
           }
         }}
       >

@@ -1,6 +1,6 @@
 import { db, id, toId } from '@/lib/db';
 import { MODEL_TYPE, ROLE_CLERK, ROLE_STAFF, ROLE_SUPERVISOR } from '@/lib/auth/rbac';
-import { MANDATORY_ROUTE_CODES } from '@/lib/domain/internal-route-plan';
+import { MANDATORY_ROUTE_CODES, isDestination } from '@/lib/domain/internal-route-plan';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -136,4 +136,34 @@ export async function isRecipientAt(userId: number, departmentId: number): Promi
   ]);
 
   return user !== null && role !== null;
+}
+
+export type FilingFormData = {
+  departments: FormDepartment[];
+  mandatory: FormDepartment[];
+  officeId: number | null;
+  officeName: string;
+  officeCode: string | null;
+};
+
+/** Everything the filing form opens with, for an actor who may file. */
+export async function filingFormData(actor: Actor): Promise<FilingFormData> {
+  const [departments, mandatory, office] = await Promise.all([
+    activeDepartments(),
+    mandatoryRouteOffices(),
+    actor.departmentId
+      ? db.departments.findFirst({
+          where: { id: id(actor.departmentId) },
+          select: { name: true, code: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    departments: departments.filter(isDestination),
+    mandatory,
+    officeId: actor.departmentId,
+    officeName: office?.name ?? actor.departmentName ?? 'your office',
+    officeCode: office?.code ?? null,
+  };
 }

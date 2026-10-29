@@ -82,7 +82,7 @@ export function HeaderActions({
 
       {/* On every staff page, beside Scan QR Code: filing is not tied to the Internal tab. */}
       {user.canFileInternal ? (
-        <Link href={routes.requestsCreate()} className="header-action" title="File an internal request">
+        <Link href={routes.requestsIndex({ file: '1' })} scroll={false} className="header-action" title="File an internal request">
           <svg fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" d="M12 5v14M5 12h14" />
           </svg>
