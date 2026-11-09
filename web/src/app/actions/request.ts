@@ -44,6 +44,9 @@ export type SubmitResult = {
 
 const text = (form: FormData, key: string): string => String(form.get(key) ?? '').trim();
 
+const alreadyBooked = (place: string): string =>
+  `${place} is already booked during that time. Please choose another slot.`;
+
 function fail(errors: Record<string, string>, form: FormData): SubmitResult {
   const values: Record<string, string> = {};
 
@@ -136,21 +139,16 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   const { quantity, neededBy, reservation } = resolved.schedule;
 
   // A facility cannot be double-booked, and only the database knows what else
-  // is on it — so this check lives here rather than in the pure resolver.
-  if (reservation && type?.kind === submission.KIND_BOOKING && type.resource) {
-    const clashes = await lending.conflicts(
-      toId(type.resource.id),
-      reservation.starts_at,
-      reservation.ends_at,
-    );
+  // is on it — so this check lives here rather than in the pure resolver. It
+  // answers early; the binding check runs again under a lock as the request
+  // and its booking are saved (below).
+  const bookable = reservation && type?.kind === submission.KIND_BOOKING && type.resource ? type.resource : null;
+
+  if (reservation && bookable) {
+    const clashes = await lending.conflicts(toId(bookable.id), reservation.starts_at, reservation.ends_at);
 
     if (clashes.length > 0) {
-      return fail(
-        {
-          booking_date: `${type.resource.name} is already booked during that time. Please choose another slot.`,
-        },
-        form,
-      );
+      return fail({ booking_date: alreadyBooked(bookable.name) }, form);
     }
   }
 
@@ -180,40 +178,85 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   // and the document enters the unassigned Department Pool (Option A).
   const autoAssignee = type?.id ? await resolveAutoDispatch(type.id) : null;
 
-  const document = await db.documents.create({
-    data: {
-      tracking_number: trackingNumber,
-      document_type: documentType,
-      // Auto-route to the request type's handling department. Null if the type has no dept.
-      department_id: type?.department_id ?? null,
-      citizen_name: citizenName,
-      citizen_email: citizenEmail,
-      citizen_contact: citizenContact,
-      purpose: purpose === '' ? null : purpose,
-      description: description === '' ? null : description,
-      requester_office: requesterOffice === '' ? null : requesterOffice,
-      details: type?.details_label && details !== '' ? details : null,
-      quantity,
-      needed_by: neededBy === null ? null : parseNaive(neededBy),
-      status: DocumentStatus.Pending,
-      status_changed_at: timestamp,
-      source: 'online',
-      // Routing is automatic, never a choice on the form: anything filed through
-      // the public form is an EXTERNAL (citizen) request and enters the citizen
-      // flow; dept-to-dept requests are created only through the internal
-      // wizard. Set explicitly rather than relying on the column default so the
-      // flow is visible here.
-      origin: ORIGIN_EXTERNAL,
-      created_by: null, // submitted by a citizen, not a staff user
-      assigned_to: autoAssignee ? id(autoAssignee.id) : null,
-      assigned_by: null, // auto-dispatched by system
-      assigned_at: autoAssignee ? timestamp : null,
-      accepted_at: null,
-      created_at: timestamp,
-      updated_at: timestamp,
-    },
+  // The request and its reservation are saved together. For a facility the
+  // resource's bookings are locked first and the clash check runs again, so
+  // two submissions a moment apart (a double click, two people on the same
+  // slot) cannot both get it: the second waits, then sees the first.
+  const saved = await db.$transaction(async (tx) => {
+    if (reservation && bookable) {
+      await lending.lockResourceBookings(tx, toId(bookable.id));
+
+      const clashes = await lending.conflicts(
+        toId(bookable.id),
+        reservation.starts_at,
+        reservation.ends_at,
+        null,
+        tx,
+      );
+
+      if (clashes.length > 0) {
+        return null;
+      }
+    }
+
+    const created = await tx.documents.create({
+      data: {
+        tracking_number: trackingNumber,
+        document_type: documentType,
+        // Auto-route to the request type's handling department. Null if the type has no dept.
+        department_id: type?.department_id ?? null,
+        citizen_name: citizenName,
+        citizen_email: citizenEmail,
+        citizen_contact: citizenContact,
+        purpose: purpose === '' ? null : purpose,
+        description: description === '' ? null : description,
+        requester_office: requesterOffice === '' ? null : requesterOffice,
+        details: type?.details_label && details !== '' ? details : null,
+        quantity,
+        needed_by: neededBy === null ? null : parseNaive(neededBy),
+        status: DocumentStatus.Pending,
+        status_changed_at: timestamp,
+        source: 'online',
+        // Routing is automatic, never a choice on the form: anything filed through
+        // the public form is an EXTERNAL (citizen) request and enters the citizen
+        // flow; dept-to-dept requests are created only through the internal
+        // wizard. Set explicitly rather than relying on the column default so the
+        // flow is visible here.
+        origin: ORIGIN_EXTERNAL,
+        created_by: null, // submitted by a citizen, not a staff user
+        assigned_to: autoAssignee ? id(autoAssignee.id) : null,
+        assigned_by: null, // auto-dispatched by system
+        assigned_at: autoAssignee ? timestamp : null,
+        accepted_at: null,
+        created_at: timestamp,
+        updated_at: timestamp,
+      },
+    });
+
+    if (reservation && type?.resource_id) {
+      // Facility/equipment request: the pending reservation (staff
+      // approve/reschedule on the calendar; approval re-checks conflicts).
+      await tx.bookings.create({
+        data: {
+          document_id: created.id,
+          resource_id: type.resource_id,
+          starts_at: reservation.starts_at,
+          ends_at: reservation.ends_at,
+          status: 'pending',
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      });
+    }
+
+    return created;
   });
 
+  if (!saved) {
+    return fail({ booking_date: alreadyBooked(bookable?.name ?? 'That facility') }, form);
+  }
+
+  const document = saved;
   const documentId = toId(document.id);
 
   const qrResult = await qr.generateAndStore(trackingNumber);
@@ -221,22 +264,6 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
     await db.documents.update({
       where: { id: document.id },
       data: { qr_code_path: qrResult.relativePath },
-    });
-  }
-
-  if (reservation && type?.resource_id) {
-    // Facility/equipment request: create the pending reservation (staff
-    // approve/reschedule on the calendar; approval re-checks conflicts).
-    await db.bookings.create({
-      data: {
-        document_id: document.id,
-        resource_id: type.resource_id,
-        starts_at: reservation.starts_at,
-        ends_at: reservation.ends_at,
-        status: 'pending',
-        created_at: timestamp,
-        updated_at: timestamp,
-      },
     });
   }
 

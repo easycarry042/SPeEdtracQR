@@ -120,6 +120,9 @@ describe('Citizen Experience & Tracking (Item 4)', () => {
   });
 
   describe('Claim Notification Dispatch on Supervisor Approval', () => {
+    // A week ahead: approval refuses a claiming date in the past.
+    const CLAIM_DATE = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
     const supervisorActor = {
       id: 2,
       name: 'Maria Santos',
@@ -145,7 +148,7 @@ describe('Citizen Experience & Tracking (Item 4)', () => {
       citizen_contact: '09171234567',
       notify_citizen: true,
       created_at: new Date(),
-      claim_date: new Date('2026-10-30'),
+      claim_date: new Date(CLAIM_DATE),
       remarks: null,
     };
 
@@ -162,7 +165,7 @@ describe('Citizen Experience & Tracking (Item 4)', () => {
       } as any);
 
       await approveClearance(100, supervisorActor, {
-        claimDate: '2026-10-30',
+        claimDate: CLAIM_DATE,
         note: 'Verified requirements and approved release.',
       });
 

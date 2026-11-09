@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { db, id, toId } from '@/lib/db';
 import { now } from '@/lib/time';
 import { KIND_EQUIPMENT } from '@/lib/domain/resource-kinds';
@@ -370,14 +371,17 @@ export async function unitsOnHand(resource: ResourceCore): Promise<number> {
 /**
  * Non-cancelled bookings on this resource that overlap the given window.
  * Overlap: `existing.starts_at < ends AND existing.ends_at > starts`.
+ *
+ * `client` lets a transaction run the check (see `lockResourceBookings`).
  */
 export async function conflicts(
   resourceId: number,
   starts: Date,
   ends: Date,
   ignoreBookingId: number | null = null,
+  client: Prisma.TransactionClient = db,
 ): Promise<BookingCore[]> {
-  const rows = await db.bookings.findMany({
+  const rows = await client.bookings.findMany({
     where: {
       resource_id: id(resourceId),
       status: { not: BOOKING_STATUS.Cancelled },
@@ -391,6 +395,19 @@ export async function conflicts(
   });
 
   return rows.map(hydrateBooking);
+}
+
+/** Namespace for the per-resource booking lock (any constant unique to it). */
+const BOOKING_LOCK = 42_017;
+
+/**
+ * Hold this resource's bookings until the transaction ends, so a clash check
+ * and the insert after it cannot interleave with another request's. Without
+ * it, two submissions a moment apart (a double click) both pass the check and
+ * both book the same slot.
+ */
+export async function lockResourceBookings(tx: Prisma.TransactionClient, resourceId: number): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOKING_LOCK}::int, ${resourceId}::int)`;
 }
 
 /**

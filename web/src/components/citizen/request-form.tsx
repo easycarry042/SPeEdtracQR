@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { submitRequest, type SubmitResult } from '@/app/actions/request';
 import * as uploadRules from '@/lib/domain/upload-rules';
@@ -17,6 +18,61 @@ import * as uploadRules from '@/lib/domain/upload-rules';
  * React cannot, so the fallback is gone; the panels are driven by state instead
  * of `hidden` toggling.
  */
+/**
+ * The form's Submit. It reads the pending state from the form itself
+ * (`useFormStatus`): state set inside a form action is held back until the
+ * action ends, so a flag set there would never show while the request is on
+ * its way. A spinner and a note show for the whole send, and the button stays
+ * disabled through the move to the receipt page and a short pause after a
+ * refusal.
+ */
+function SubmitButton({ coolingDown }: { coolingDown: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <>
+      <button
+        type="submit"
+        disabled={pending || coolingDown}
+        aria-busy={pending}
+        className="cz-btn cz-btn-primary w-full"
+      >
+        {pending ? (
+          <>
+            <svg className="animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".3" strokeWidth="3" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+            Submitting your request…
+          </>
+        ) : coolingDown ? (
+          'One moment…'
+        ) : (
+          'Submit request'
+        )}
+      </button>
+      {pending ? (
+        <p className="mt-2 text-center text-[14px] text-[#4b5a50]" role="status">
+          This can take a few seconds. Please don’t close or refresh the page.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** How long Submit stays disabled after a refusal. */
+const RESUBMIT_PAUSE_MS = 3000;
+
+/** Next.js signals a server-action redirect by throwing; that is success here. */
+function isRedirect(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    String((error as { digest: unknown }).digest).startsWith('NEXT_REDIRECT')
+  );
+}
+
 export type RequirementOption = { id: number; label: string; mandatory: boolean };
 
 export type TypeOption = {
@@ -55,7 +111,19 @@ export function RequestForm({
 }) {
   const [selected, setSelected] = useState('');
   const [result, setResult] = useState<SubmitResult | null>(null);
-  const [pending, setPending] = useState(false);
+  // Held for a few seconds after a refusal, so a hurried second press does not
+  // send the same request again before the message has been read.
+  const [coolingDown, setCoolingDown] = useState(false);
+  // Set synchronously: a double click lands before React re-renders the
+  // disabled button, and must not send a second request.
+  const busy = useRef(false);
+  const cooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (cooldown.current) {
+      clearTimeout(cooldown.current);
+    }
+  }, []);
 
   const byName = useMemo(() => new Map(types.map((type) => [type.name, type])), [types]);
   const grouped = useMemo(
@@ -67,17 +135,35 @@ export function RequestForm({
   const errors = result?.errors ?? {};
   const values = result?.values ?? {};
 
+  /** Open the button again, after a short pause. */
+  function release(): void {
+    setCoolingDown(true);
+    cooldown.current = setTimeout(() => {
+      busy.current = false;
+      setCoolingDown(false);
+    }, RESUBMIT_PAUSE_MS);
+  }
+
   async function onSubmit(form: FormData) {
-    setPending(true);
+    if (busy.current) {
+      return;
+    }
+
+    busy.current = true;
 
     try {
-      // A refusal comes back as a result; success redirects, which throws past
-      // this point by design.
+      // A refusal comes back as a result. Success redirects to the receipt:
+      // the button stays disabled until that page has replaced this one.
       const outcome = await submitRequest(form);
       setResult(outcome);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } finally {
-      setPending(false);
+      release();
+    } catch (error) {
+      if (!isRedirect(error)) {
+        release();
+      }
+
+      throw error;
     }
   }
 
@@ -504,9 +590,7 @@ export function RequestForm({
             </div>
 
             <div className="pt-1">
-              <button type="submit" disabled={pending} className="cz-btn cz-btn-primary w-full">
-                {pending ? 'Submitting…' : 'Submit request'}
-              </button>
+              <SubmitButton coolingDown={coolingDown} />
             </div>
           </div>
         </div>
