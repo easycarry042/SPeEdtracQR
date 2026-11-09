@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { app } from '@/lib/config';
+import { NavProgress } from '@/components/nav-progress';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -31,6 +32,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main" className="skip-link">
           Skip to content
         </a>
+        {/* The thin bar along the top while the next page loads. */}
+        <NavProgress />
         {children}
         {/* Sienna accessibility toolbar (contrast, text size, dyslexia font…),
             https://accessibility-widget.pages.dev. Loaded after hydration so it
