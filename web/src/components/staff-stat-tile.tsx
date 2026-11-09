@@ -61,11 +61,11 @@ export function StaffStatTile({
 
   return (
     <div
-      className={`relative isolate flex min-h-[112px] items-center overflow-hidden rounded-[13px] bg-gradient-to-r ${TONES[tone]} px-[21.5px] py-[21.5px] text-white shadow-md xl:min-h-[139px]`}
+      className={`relative isolate flex min-h-[84px] items-center overflow-hidden rounded-[13px] bg-gradient-to-r ${TONES[tone]} px-4 py-3.5 sm:min-h-[112px] sm:px-[21.5px] sm:py-[21.5px] text-white shadow-md xl:min-h-[139px]`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[16px] font-extrabold uppercase tracking-wide xl:text-[19px]">{label}</p>
-        <p className="mt-[6px] text-[42px] font-extrabold leading-none xl:text-[58px]">{value}</p>
+        <p className="text-[12.5px] font-extrabold uppercase leading-tight tracking-wide sm:text-[16px] xl:text-[19px]">{label}</p>
+        <p className="mt-[6px] text-[30px] font-extrabold leading-none sm:text-[42px] xl:text-[58px]">{value}</p>
 
         {note ? (
           /* White at 80% on every tone in the ramp still clears AA. */
@@ -80,7 +80,7 @@ export function StaffStatTile({
           src={`/images/staff/${art.file}`}
           alt=""
           aria-hidden="true"
-          className={`pointer-events-none ml-4 shrink-0 opacity-70 ${art.className}`}
+          className={`pointer-events-none ml-4 hidden shrink-0 opacity-70 sm:block ${art.className}`}
         />
       ) : null}
     </div>

@@ -112,7 +112,7 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Frosted sticky page bar so scrolled cards and tiles never bleed
             through behind the title or header controls. */}
-        <header className="sticky top-0 z-30 border-b border-hairline/60 bg-[var(--page-wash-base)]/95 py-3.5 backdrop-blur-md">
+        <header className="app-header sticky top-0 z-30 border-b border-hairline/60 bg-[var(--page-wash-base)]/95 py-3.5 backdrop-blur-md">
           <div className="app-frame flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <button

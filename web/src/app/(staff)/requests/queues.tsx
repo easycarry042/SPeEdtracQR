@@ -273,11 +273,11 @@ function InternalRow({ row, href }: { row: InboxRow; href: string }) {
           </div>
         </div>
       </td>
-      <td>
+      <td data-label="From">
         {row.filedByCode ?? row.filedBy ?? '—'}
         {row.filedByPerson ? <p className="st-sub">{row.filedByPerson}</p> : null}
       </td>
-      <td>
+      <td data-label="Current stage">
         {row.atOffice ? (
           <>
             <p className="font-medium text-ink">{row.atOffice}</p>
@@ -292,10 +292,10 @@ function InternalRow({ row, href }: { row: InboxRow; href: string }) {
           '—'
         )}
       </td>
-      <td>
+      <td data-label="Status">
         <span className={`pill ${bandClass(row.band)}`}>{row.statusLabel}</span>
       </td>
-      <td>
+      <td className="st-cell-action">
         <Link href={href} scroll={false} className="st-action">
           <img src="/images/staff/icon-eye.svg" alt="" />
           Open

@@ -215,7 +215,7 @@ export default async function DashboardPage({
     >
       <div className="page-shell page-shell-loose">
         {/* Headline counts, leading with the Review & Sign-Off queue */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
           <StaffStatTile
             label="Review & Sign-Off"
             value={clearance.length}
@@ -275,17 +275,21 @@ export default async function DashboardPage({
                             {member.name}
                           </Link>
                         </td>
-                        <td>
+                        <td data-label="Duty status">
                           <DutyStatusToggle
                             userId={member.id}
                             isAvailable={member.is_available}
                             size="sm"
                           />
                         </td>
-                        <td className="font-semibold text-green-deep">{member.active_count}</td>
-                        <td className="text-ink-soft">{member.completed_count}</td>
-                        <td>
-                          <div className="h-2 w-32 overflow-hidden rounded-full bg-[#e6ece8]">
+                        <td className="font-semibold text-green-deep" data-label="Active">
+                          {member.active_count}
+                        </td>
+                        <td className="text-ink-soft" data-label="Completed">
+                          {member.completed_count}
+                        </td>
+                        <td data-label="Load">
+                          <div className="mt-1.5 h-2 w-32 sm:mt-0 overflow-hidden rounded-full bg-[#e6ece8]">
                             <div
                               className={`h-2 rounded-full ${
                                 member.active_count > 0 ? 'bg-green' : 'bg-[#cdd9d2]'

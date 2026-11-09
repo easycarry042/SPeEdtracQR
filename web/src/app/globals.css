@@ -4654,3 +4654,77 @@ body:has(.admin-shell) .asw-menu-btn {
     .request-modal:has(.ff-modal-card) { padding: 0; }
     .ff-modal-card.dm-fixed.dm-fit { height: calc(100dvh / var(--ui-zoom)); border-radius: 0; }
 }
+
+/* ── Phone layer (below 640px) ───────────────────────────────────────────────
+   The screens are drawn at desktop size, and the auto-fit zoom above stops at
+   1024px, so a phone got desktop-sized type, controls and tables. This block
+   steps everything down for phones only; nothing here reaches 640px and up.
+
+   Typed text stays at 16px: below that, iPhones zoom the page in whenever a
+   field is tapped. */
+@media (max-width: 639px) {
+    :root,
+    .dm-fixed {
+        --fs-caption: 12px;
+        --fs-small: 13px;
+        --fs-label: 14px;
+        --fs-body: 15px;
+        --fs-heading: 17px;
+        --fs-title: 19px;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+
+    /* Staff page bar: one row of 42px controls. The page title is the same
+       word on every page and only fits as "D…" here, so it is kept for screen
+       readers and hidden from view. */
+    .app-header { padding-block: 10px; }
+    .app-header .layout-title {
+        position: absolute; width: 1px; height: 1px; overflow: hidden;
+        clip: rect(0 0 0 0); white-space: nowrap;
+    }
+    .header-disc,
+    .header-action { width: 42px; height: 42px; border-radius: 11px; }
+    .header-disc svg,
+    .header-action svg { width: 20px; height: 20px; }
+    .header-chip { height: 42px; gap: 4px; padding: 0 6px 0 4px; border-radius: 11px; }
+    .header-avatar { width: 32px; height: 32px; font-size: 13px; }
+
+    .page-shell-loose { gap: 1rem; }
+
+    /* Tables become a stack of cards: the first cell is the card's title, the
+       rest read "Label  value" from each cell's data-label. Only tables whose
+       cells carry labels switch; any other keeps scrolling sideways. */
+    .st-table:has(td[data-label]) { min-width: 0; }
+    /* A card list is as tall as its rows; the desktop's 320px floor only
+       leaves an empty block under a short one. */
+    .st-card:has(td[data-label]) { min-height: 0; }
+    .st-table:has(td[data-label]) thead {
+        position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+    }
+    .st-table:has(td[data-label]),
+    .st-table:has(td[data-label]) tbody,
+    .st-table:has(td[data-label]) tr,
+    .st-table:has(td[data-label]) td { display: block; }
+    .st-table:has(td[data-label]) tbody tr { padding: 14px 16px; }
+    .st-table:has(td[data-label]) td { padding: 3px 0; font-size: var(--fs-small); }
+    .st-table:has(td[data-label]) td:first-child { padding-bottom: 8px; }
+    .st-table:has(td[data-label]) td[data-label] { position: relative; padding-left: 7.25rem; min-height: 1.5em; }
+    .st-table:has(td[data-label]) td[data-label]::before {
+        content: attr(data-label);
+        position: absolute; left: 0; top: 3px; width: 6.75rem;
+        font-size: var(--fs-caption); font-weight: 700; line-height: 1.5;
+        color: var(--ink-soft);
+    }
+    .st-table:has(td[data-label]) td.st-cell-action { padding-top: 10px; }
+    .st-table:has(td[data-label]) tr.st-empty td { padding: 32px 8px; }
+
+    /* Citizen pages. */
+    .cz-title { font-size: 28px; }
+    .cz-lead { font-size: 16px; }
+
+}

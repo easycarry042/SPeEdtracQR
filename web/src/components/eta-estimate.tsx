@@ -84,7 +84,7 @@ export function EtaEstimate({
           </div>
 
           {citizen ? (
-            <p className="mt-1 font-display text-[26px] font-black leading-tight text-[#004004] sm:text-[30px]">
+            <p className="mt-1 font-display text-[22px] font-black leading-tight text-[#004004] sm:text-[30px]">
               Likely ready by {formatNaive(eta, 'M d, Y')}
             </p>
           ) : (

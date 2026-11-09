@@ -146,7 +146,7 @@ export function RequestTable({
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label="Tracking ID">
                   <div className="inline-flex items-center gap-1.5">
                     <span className="mono">{row.trackingNumber}</span>
                     {row.unreadMessages > 0 ? (
@@ -158,17 +158,19 @@ export function RequestTable({
                   </div>
                 </td>
                 {spansDepartments ? (
-                  <td>
+                  <td data-label="Department">
                     <span>{row.department || 'Not yet routed'}</span>
                     {row.thedId ? (
                       <span className="ml-1 mono text-xs text-ink-soft">· {row.thedId}</span>
                     ) : null}
                   </td>
                 ) : null}
-                <td className="mono">{row.submittedAt ?? row.dateShort ?? '—'}</td>
-                <td>{row.citizenName || '—'}</td>
-                {showAssignee ? <td>{row.assignedStaff || '—'}</td> : null}
-                <td className="whitespace-nowrap">
+                <td className="mono" data-label={dateHeading}>
+                  {row.submittedAt ?? row.dateShort ?? '—'}
+                </td>
+                <td data-label="Requested by">{row.citizenName || '—'}</td>
+                {showAssignee ? <td data-label="Handled by">{row.assignedStaff || '—'}</td> : null}
+                <td className="st-cell-action whitespace-nowrap">
                   <div className="flex items-center gap-3 shrink-0">
                     {onClaim && !row.assignedTo ? (
                       <button

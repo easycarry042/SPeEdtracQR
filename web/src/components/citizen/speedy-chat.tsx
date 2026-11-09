@@ -845,10 +845,10 @@ export function SpeedyChat({
         aria-expanded={open}
         aria-controls="speedyPanel"
         aria-label="Ask Speedy"
-        className="group relative flex h-[69px] w-[69px] touch-manipulation items-center justify-center rounded-full bg-[#135226] shadow-[0_8px_24px_-8px_rgba(0,64,4,0.7)] transition-transform hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c] motion-reduce:transition-none sm:h-[80px] sm:w-[80px]"
+        className="group relative flex h-[56px] w-[56px] touch-manipulation items-center justify-center rounded-full bg-[#135226] shadow-[0_8px_24px_-8px_rgba(0,64,4,0.7)] transition-transform hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8dff3c] motion-reduce:transition-none sm:h-[80px] sm:w-[80px]"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/portal/speedy.png" alt="" className="h-[48px] w-[59px] object-contain sm:h-[56px] sm:w-[69px]" />
+        <img src="/images/portal/speedy.png" alt="" className="h-[38px] w-[47px] object-contain sm:h-[56px] sm:w-[69px]" />
         {inbox.total > 0 ? (
           <span className="speedy-badge" aria-hidden="true">
             {inbox.total > 9 ? '9+' : inbox.total}
