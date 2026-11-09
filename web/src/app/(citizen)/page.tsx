@@ -258,7 +258,11 @@ export default async function LandingPage() {
             fades out as the page scrolls, into the white sections below. The
             example slip on the right shows what "tracked" means. */}
         <section id="top" className="hero-with-video relative isolate overflow-hidden bg-white">
-          <HeroVideo src="/videos/landing-hero.mp4" poster="/images/landing/hero-video-poster.jpg" />
+          <HeroVideo
+            src="/videos/landing-hero.mp4"
+            hdSrc="/videos/landing-hero-hd.mp4"
+            poster="/images/landing/hero-video-poster.jpg"
+          />
 
           <div className="mx-auto grid max-w-[1209.5px] items-center gap-12 px-4 pb-16 pt-12 sm:px-6 sm:pt-16 lg:min-h-[min(calc(100svh/var(--ui-zoom)-72px),760px)] lg:grid-cols-[1.25fr_1fr] lg:px-8 lg:py-20">
             <div>

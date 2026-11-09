@@ -13,8 +13,11 @@ import { useEffect, useRef } from 'react';
  *   bottom edge feathers into white, so the next section takes over smoothly.
  * - It pauses while off-screen. With reduced motion asked for, it never plays:
  *   the poster frame stands in.
+ * - `hdSrc` (1280×720, about 17 MB) plays on screens 1024px and wider, where
+ *   the footage is stretched across the whole hero; phones and tablets get
+ *   `src` (640×360, about 4 MB), so they never download the large file.
  */
-export function HeroVideo({ src, poster }: { src: string; poster: string }) {
+export function HeroVideo({ src, hdSrc, poster }: { src: string; hdSrc?: string; poster: string }) {
   const layer = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
 
@@ -75,14 +78,17 @@ export function HeroVideo({ src, poster }: { src: string; poster: string }) {
       <video
         ref={video}
         className="hero-video-media"
-        src={src}
         poster={poster}
         muted
         loop
         playsInline
         preload="auto"
         disablePictureInPicture
-      />
+      >
+        {/* The browser takes the first source whose media matches. */}
+        {hdSrc ? <source src={hdSrc} type="video/mp4" media="(min-width: 1024px)" /> : null}
+        <source src={src} type="video/mp4" />
+      </video>
       <div className="hero-video-veil" />
       <div className="hero-video-feather" />
     </div>
