@@ -40,10 +40,11 @@ export async function GET(
   const searchParams = new URL(request.url, 'http://localhost').searchParams;
   const forceDownload = searchParams.get('download') === '1';
   const forceInline = searchParams.get('inline') === '1';
+  const forceRegenerate = searchParams.get('regenerate') === '1';
 
   // Only redirect straight to Supabase public URLs when neither forced
-  // attachment download nor same-origin inline fetch is requested.
-  if (!forceDownload && !forceInline) {
+  // attachment download, same-origin inline fetch, nor regeneration is requested.
+  if (!forceDownload && !forceInline && !forceRegenerate) {
     const remote = publicObjectUrl(relative);
 
     if (remote) {
@@ -54,7 +55,29 @@ export async function GET(
     }
   }
 
-  const contents = await readPublic(relative);
+  let contents = forceRegenerate ? null : await readPublic(relative);
+
+  // Fallback for valid SPD-/INT- QR stickers if missing on disk/storage or
+  // explicitly regenerated after a partial write / environment switch.
+  if (!contents) {
+    const qrMatch = /^qrcodes\/((?:SPD|INT)-\d{8}-[A-Z0-9]{6})\.png$/i.exec(relative);
+
+    if (qrMatch) {
+      const trackingNumber = qrMatch[1].toUpperCase();
+      const [{ db }, { renderPng }] = await Promise.all([
+        import('@/lib/db'),
+        import('@/lib/domain/qr-service'),
+      ]);
+      const exists = await db.documents.findFirst({
+        where: { tracking_number: trackingNumber, deleted_at: null },
+        select: { id: true },
+      });
+
+      if (exists) {
+        contents = await renderPng(trackingNumber);
+      }
+    }
+  }
 
   if (!contents) {
     return new Response('Not found', { status: 404 });

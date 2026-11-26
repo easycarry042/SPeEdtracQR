@@ -7,6 +7,7 @@ import type { Desk, EquipmentRow, FacilityRow, LoanRow, Tiles } from '@/lib/doma
 import { routes } from '@/lib/routes';
 import { StaffStatTile } from '@/components/staff-stat-tile';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
+import { CalendarPickerField } from '@/components/calendar-picker-field';
 import {
   approveLoan,
   cancelLoan,
@@ -979,17 +980,21 @@ function LoanRowBody({
         <tr>
           <td colSpan={6} className="inv-edit">
             <div className="flex flex-wrap items-end gap-3">
-              <label className="block">
-                <span className="inv-field-label">New return date</span>
-                <input
-                  type="date"
-                  required
-                  min={loan.minReturnDate}
+              <div className="block min-w-[220px]">
+                <label htmlFor={`extend-${loan.bookingId}`} className="inv-field-label">
+                  New return date
+                </label>
+                <CalendarPickerField
+                  id={`extend-${loan.bookingId}`}
                   value={returnBy}
-                  onChange={(event) => setReturnBy(event.target.value)}
-                  className="st-filter-field inv-text"
+                  onChange={setReturnBy}
+                  minDate={loan.minReturnDate}
+                  modalTitle="Select New Return Date"
+                  placeholder="Select return date…"
+                  triggerClassName="st-filter-field cz-date-trigger inv-text mt-1 text-base"
+                  allowClear={false}
                 />
-              </label>
+              </div>
               <button
                 type="button"
                 className="cr-btn cr-btn-primary cr-btn-sm"

@@ -9,6 +9,7 @@ import { ReviewActions, type ReviewMode } from './review-actions';
 import { ReviewSidePanel } from './review-side-panel';
 import { RequirementChecks } from './requirement-checks';
 import { DownloadQrButton } from '@/components/download-qr-button';
+import { QrPreviewFrame } from '@/components/qr-preview-frame';
 
 /**
  * The shared Review modal (`partials/review-modal.blade.php`).
@@ -168,36 +169,49 @@ export function ReviewModal({
               sideState={false}
             />
 
-            {/* Claiming date, and the two side panel toggles */}
+            {/* Claiming date (hidden for services without physical pickup), and side panel toggles */}
             <div className="mt-6 flex flex-wrap items-stretch gap-2">
-              <div className="dm-date">
-                <p className="dm-date-label">Claiming Date</p>
-                <p className="dm-date-value">{row.claimDate || 'Not set yet'}</p>
-                {!row.claimDate && row.requestedClaimDate ? (
-                  <p className="text-sm text-ink-soft">
-                    Citizen asked for <span>{row.requestedClaimDate}</span>
-                  </p>
-                ) : null}
-              </div>
+              {row.claimDatePolicy !== 'none' ? (
+                <>
+                  <div className="dm-date">
+                    <p className="dm-date-label">
+                      {row.claimDatePolicy === 'optional'
+                        ? 'Claiming Date (Optional)'
+                        : 'Claiming Date'}
+                    </p>
+                    <p className="dm-date-value">
+                      {row.claimDate ||
+                        (row.claimDatePolicy === 'optional'
+                          ? 'Uses booked schedule'
+                          : 'Not set yet')}
+                    </p>
+                    {!row.claimDate && row.requestedClaimDate ? (
+                      <p className="text-sm text-ink-soft">
+                        Citizen asked for <span>{row.requestedClaimDate}</span>
+                      </p>
+                    ) : null}
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => toggleSide('date')}
-                className={`dm-tile${side === 'date' ? ' on' : ''}`}
-                aria-expanded={side === 'date'}
-              >
-                <svg
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="8.5" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" />
-                </svg>
-                <span>Adjust Date</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSide('date')}
+                    className={`dm-tile${side === 'date' ? ' on' : ''}`}
+                    aria-expanded={side === 'date'}
+                  >
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="8.5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" />
+                    </svg>
+                    <span>Adjust Date</span>
+                  </button>
+                </>
+              ) : null}
 
               <button
                 type="button"
@@ -463,14 +477,7 @@ export function ReviewModal({
                   </button>
                 </div>
 
-                {row.qrUrl ? (
-                  <div className="dm-qr-frame">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={row.qrUrl} alt={`QR code for ${row.trackingNumber}`} />
-                  </div>
-                ) : (
-                  <p className="dm-qr-missing">No QR code has been generated for this request.</p>
-                )}
+                <QrPreviewFrame qrUrl={row.qrUrl} trackingNumber={row.trackingNumber} />
 
                 <p className="mono mt-3 text-center text-[length:var(--fs-body)] font-bold tracking-wide text-ink">
                   {row.trackingNumber}
@@ -516,7 +523,7 @@ export function ReviewModal({
         </div>
 
         {/* ── Right: the calendar, or the conversation ──────────────────── */}
-        {side ? (
+        {side === 'messages' || (side === 'date' && row.claimDatePolicy !== 'none') ? (
           <ReviewSidePanel row={row} side={side} onClose={() => setSide(null)} />
         ) : null}
       </div>
@@ -535,6 +542,7 @@ function BookingCard({
   const [pending, startTransition] = useTransition();
   const [qty, setQty] = useState<number>(booking.requested || 1);
   const [error, setError] = useState<string>('');
+  const [notice, setNotice] = useState<string>('');
 
   const free = booking.free ?? 0;
   const canApproveInline =
@@ -619,12 +627,14 @@ function BookingCard({
                 disabled={pending || !qtyValid}
                 onClick={() => {
                   setError('');
+                  setNotice('');
                   startTransition(async () => {
                     const result = await approveLoan(
                       booking.id,
                       booking.isEquipment ? qty : null,
                     );
                     if (result.ok) {
+                      setNotice(result.message);
                       router.refresh();
                     } else {
                       setError(result.message);
@@ -657,9 +667,19 @@ function BookingCard({
         </div>
       ) : null}
 
+      {notice ? (
+        <p className="mt-3 text-sm font-semibold text-green-deep" role="status">
+          {notice}
+        </p>
+      ) : null}
+
       <p className="mt-3 text-sm text-ink-soft">
         {booking.state === 'pending' ? (
-          <span>The request can&rsquo;t move to Approved until this is approved. </span>
+          <span>
+            {booking.isEquipment
+              ? 'Approve the borrowing and verify requirements to submit for supervisor review. '
+              : 'Approving this reservation also checks requirements and moves to Pending Approval when ready. '}
+          </span>
         ) : null}
         {booking.state === 'reserved' || booking.state === 'missed' ? (
           <span>Handing the items over completes the request. </span>

@@ -94,10 +94,17 @@ describe('Implementation Roadmap (Item 5)', () => {
       await expect(validate({ id: 50 }, DocumentStatus.Completed, 'Approved note', supervisorActor)).resolves.not.toThrow();
     });
 
-    it('checks requirements and evidence before a request is submitted for review', async () => {
-      const checkList = await checks({ id: 50 }, DocumentStatus.InReview, 'Has work note');
+    it('checks requirements and reservation before a request is submitted for review without requiring an optional note', async () => {
+      vi.spyOn(db.bookings, 'findFirst').mockResolvedValue(null);
+      vi.spyOn(db.documents, 'findUnique').mockResolvedValue({
+        document_type: 'Lei Making',
+        claim_date: null,
+      } as never);
+
+      const checkList = await checks({ id: 50 }, DocumentStatus.InReview, null);
       expect(checkList.some((c) => c.key === 'requirements_verified')).toBe(true);
-      expect(checkList.some((c) => c.key === 'work_evidence')).toBe(true);
+      expect(checkList.some((c) => c.key === 'reservation_approved')).toBe(true);
+      expect(checkList.every((c) => c.passed)).toBe(true);
     });
   });
 

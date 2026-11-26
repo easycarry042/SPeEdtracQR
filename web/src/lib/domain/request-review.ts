@@ -33,6 +33,7 @@ import {
 import { requestNotReady, window as lendingWindow } from '@/lib/domain/lending-desk';
 import { SUBJECT } from '@/lib/activity';
 import { citizenFacing } from '@/lib/domain/scope';
+import { claimDatePolicyFor, type ClaimDatePolicy } from '@/lib/domain/request-kinds';
 
 /**
  * Shapes a document into the flat payload the Review modal needs (supervisor
@@ -50,6 +51,7 @@ export type { ReviewRequirement };
 
 export type ReviewBooking = {
   id: number;
+  resourceId: number;
   item: string;
   isEquipment: boolean;
   state: string;
@@ -77,6 +79,9 @@ export type ReviewRow = {
   qrUrl: string | null;
   slipUrl: string;
   documentType: string;
+  requestKind: string | null;
+  claimDatePolicy: ClaimDatePolicy;
+  isCoHandler: boolean;
   /** The handling office's code — the "THED ID" column. */
   thedId: string | null;
   department: string | null;
@@ -382,6 +387,7 @@ export async function collection(
       where: { name: { in: [...new Set(documents.map((document) => document.document_type))] } },
       select: {
         name: true,
+        kind: true,
         details_label: true,
         handlers: {
           orderBy: { sort_order: 'asc' },
@@ -411,14 +417,20 @@ export async function collection(
       const booking = bookingByDocument.get(key);
 
       const type = typeByName.get(document.document_type);
+      const requestKind = type?.kind ?? null;
+      const usualHandlers = (type?.handlers ?? []).map((handler) => ({
+        id: toId(handler.user.id),
+        name: handler.user.name,
+      }));
+      const isCoHandler = actor !== null && usualHandlers.some((handler) => handler.id === actor.id);
 
       return {
         ...(await forModal(document, actor, booking)),
+        requestKind,
+        claimDatePolicy: claimDatePolicyFor(requestKind, document.document_type),
+        isCoHandler,
         detailsLabel: type?.details_label ?? null,
-        usualHandlers: (type?.handlers ?? []).map((handler) => ({
-          id: toId(handler.user.id),
-          name: handler.user.name,
-        })),
+        usualHandlers,
         dateShort: document.created_at ? formatNaive(document.created_at, 'm/d/y') : null,
         logs: logs.get(key) ?? [],
         messages: thread.map((comment) =>
@@ -518,6 +530,7 @@ export async function bookingPayload(
 
   return {
     id: booking.id,
+    resourceId: resource.id,
     item: resource.name,
     isEquipment: equipment,
     state,
@@ -569,6 +582,9 @@ export async function forModal(
     qrUrl: document.qr_code_path ? routes.storage(document.qr_code_path) : null,
     slipUrl: routes.trackSlip(document.tracking_number),
     documentType: document.document_type,
+    requestKind: null,
+    claimDatePolicy: claimDatePolicyFor(null, document.document_type),
+    isCoHandler: false,
     thedId: document.department?.code ?? null,
     department: document.department?.name ?? null,
     assignedStaff: document.assignee?.name ?? null,

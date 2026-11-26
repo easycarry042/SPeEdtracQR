@@ -21,6 +21,7 @@ import { BLOCKED_BY, canBeAdvancedBy, statusChangeData, statusOf } from '@/lib/d
 import { GateError, assertExpectedStatus, validate } from '@/lib/domain/status-gate';
 import { followClaimDate } from '@/lib/domain/lending-desk';
 import { notifyOfficeOfProgress } from '@/lib/domain/office-progress';
+import { claimDatePolicyFor } from '@/lib/domain/request-kinds';
 import { notifyMany } from '@/lib/domain/notifications';
 import { routes } from '@/lib/routes';
 import type { Actor } from '@/lib/auth/actor';
@@ -444,6 +445,7 @@ export async function notifyReadyForClaim(
   document: {
     id: bigint;
     tracking_number: string;
+    document_type?: string;
     citizen_name: string | null;
     citizen_email: string | null;
     citizen_contact: string | null;
@@ -457,7 +459,10 @@ export async function notifyReadyForClaim(
 ): Promise<void> {
   const documentId = toId(document.id);
   const officeName = document.department?.name ?? 'City Hall';
-  const effectiveClaimDate = claimDay ?? document.claim_date;
+  const isServiceWithoutClaim = document.document_type
+    ? claimDatePolicyFor(null, document.document_type) === 'none'
+    : false;
+  const effectiveClaimDate = isServiceWithoutClaim ? null : (claimDay ?? document.claim_date);
   const fromDate = effectiveClaimDate ? ` starting ${formatNaive(effectiveClaimDate, 'M d, Y')}` : '';
 
   if (
@@ -477,27 +482,42 @@ export async function notifyReadyForClaim(
       }),
     );
 
-    await logOnDocument(documentId, `Emailed the citizen that it is Ready for Claim`, actor.id);
+    await logOnDocument(
+      documentId,
+      isServiceWithoutClaim
+        ? 'Emailed the citizen that the request is complete'
+        : 'Emailed the citizen that it is Ready for Claim',
+      actor.id,
+    );
   }
 
   // Only claimed as sent when there is a gateway to send it through.
   if (document.citizen_contact && document.notify_citizen && smsConfigured()) {
     queueSms({
       to: document.citizen_contact,
-      text: `SPeED TraQR: Your request ${document.tracking_number} is Ready for Pickup / Claiming${fromDate} at ${officeName}. Bring your QR code or claim slip.`,
+      text: isServiceWithoutClaim
+        ? `SPeED TraQR: Your request ${document.tracking_number} has been approved and is now Complete at ${officeName}.`
+        : `SPeED TraQR: Your request ${document.tracking_number} is Ready for Pickup / Claiming${fromDate} at ${officeName}. Bring your QR code or claim slip.`,
       trackingNumber: document.tracking_number,
     });
 
-    await logOnDocument(documentId, `Texted the citizen that it is Ready for Claim`, actor.id);
+    await logOnDocument(
+      documentId,
+      isServiceWithoutClaim
+        ? 'Texted the citizen that the request is complete'
+        : 'Texted the citizen that it is Ready for Claim',
+      actor.id,
+    );
   }
+
+  const publicMessage = isServiceWithoutClaim
+    ? `Your request has been approved and is now complete.${instructions ? `\n\n${instructions}` : ''}`
+    : `Your request is Ready for Pickup / Claiming${fromDate}. Please bring your QR code (from your confirmation email or printed slip) to the ${officeName} counter.` +
+      (instructions ? `\n\n${instructions}` : '');
 
   await postComment({
     documentId,
-    body:
-      `Your request is Ready for Pickup / Claiming${fromDate}. Please bring your QR code (from your confirmation email or printed slip) to the ${officeName} counter.` +
-      (instructions ? `
-
-${instructions}` : ''),
+    body: publicMessage,
     authorId: actor.id,
     authorType: AUTHOR.Staff,
     visibility: VISIBILITY.Public,

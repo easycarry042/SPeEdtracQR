@@ -1,12 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { submitRequest, type SubmitResult } from '@/app/actions/request';
 import * as uploadRules from '@/lib/domain/upload-rules';
-import { UnifiedCalendar, formatCalendarIso } from '@/components/unified-calendar';
+import { CalendarPickerField } from '@/components/calendar-picker-field';
 
 /**
  * The public request form.
@@ -138,141 +137,27 @@ export function RequestForm({
   const errors = result?.errors ?? {};
   const values = result?.values ?? {};
 
-  const [mounted, setMounted] = useState(false);
   const [bookingDate, setBookingDate] = useState(values.booking_date ?? '');
-  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
-  const [draftBookingDate, setDraftBookingDate] = useState('');
-  const [bookedDatesByMonth, setBookedDatesByMonth] = useState<Record<string, string[]>>({});
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
-  const fetchedKeys = useRef<Set<string>>(new Set());
-  const inFlightRequests = useRef(0);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const fetchAvailability = useCallback(
-    async (resourceId: number, monthIso: string, signal?: AbortSignal): Promise<void> => {
-      const cacheKey = `${resourceId}:${monthIso}`;
-      if (fetchedKeys.current.has(cacheKey)) {
-        return;
-      }
-
-      inFlightRequests.current += 1;
-      setLoadingAvailability(true);
-      setAvailabilityError(null);
-
-      try {
-        const res = await fetch(
-          `/api/bookings/availability?resourceId=${encodeURIComponent(String(resourceId))}&month=${encodeURIComponent(monthIso)}`,
-          { credentials: 'same-origin', signal },
-        );
-
-        if (!res.ok) {
-          throw new Error('Could not check booked dates right now.');
-        }
-
-        const payload = (await res.json()) as { bookedDates?: string[] };
-        const dates = Array.isArray(payload.bookedDates) ? payload.bookedDates : [];
-        fetchedKeys.current.add(cacheKey);
-        setBookedDatesByMonth((prev) => ({ ...prev, [cacheKey]: dates }));
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return;
-        }
-        setAvailabilityError('Unable to load booked dates. Server verification still checks availability on submit.');
-      } finally {
-        inFlightRequests.current = Math.max(0, inFlightRequests.current - 1);
-        if (inFlightRequests.current === 0) {
-          setLoadingAvailability(false);
-        }
-      }
-    },
-    [],
-  );
+  const [neededDate, setNeededDate] = useState(values.needed_date ?? '');
+  const [returnDate, setReturnDate] = useState(values.return_date ?? '');
+  const [neededBy, setNeededBy] = useState(values.needed_by ?? '');
 
   const selectRequestType = useCallback(
     (nextName: string) => {
-      const prevResourceId = type?.resourceId ?? null;
-      const nextResourceId = byName.get(nextName)?.resourceId ?? null;
+      const prevType = selected === '' ? null : (byName.get(selected) ?? null);
+      const nextType = nextName === '' ? null : (byName.get(nextName) ?? null);
       setSelected(nextName);
-      if (nextResourceId !== prevResourceId) {
+      if (nextType?.resourceId !== prevType?.resourceId || nextType?.kind !== prevType?.kind) {
         setBookingDate('');
-        setDraftBookingDate('');
-        setAvailabilityError(null);
-        setCalendarModalOpen(false);
+        setNeededDate('');
+        setReturnDate('');
+        setNeededBy('');
       }
     },
-    [byName, type?.resourceId],
+    [byName, selected],
   );
 
   const bookingResourceId = type?.kind === 'booking' ? type.resourceId : null;
-
-  useEffect(() => {
-    if (!bookingResourceId) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const initialMonth = today.slice(0, 7);
-    void fetchAvailability(bookingResourceId, initialMonth, controller.signal);
-
-    if (bookingDate && /^\d{4}-\d{2}/.test(bookingDate) && bookingDate.slice(0, 7) !== initialMonth) {
-      void fetchAvailability(bookingResourceId, bookingDate.slice(0, 7), controller.signal);
-    }
-
-    return () => controller.abort();
-  }, [bookingResourceId, bookingDate, today, fetchAvailability]);
-
-  const bookedSet = useMemo(() => {
-    const set = new Set<string>();
-    if (!bookingResourceId) {
-      return set;
-    }
-    const prefix = `${bookingResourceId}:`;
-    for (const [key, dates] of Object.entries(bookedDatesByMonth)) {
-      if (key.startsWith(prefix)) {
-        for (const day of dates) {
-          set.add(day);
-        }
-      }
-    }
-    return set;
-  }, [bookingResourceId, bookedDatesByMonth]);
-
-  useEffect(() => {
-    if (bookingDate && bookedSet.has(bookingDate)) {
-      setBookingDate('');
-    }
-  }, [bookingDate, bookedSet]);
-
-  useEffect(() => {
-    if (!calendarModalOpen) {
-      return;
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setCalendarModalOpen(false);
-      }
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [calendarModalOpen]);
-
-  const openBookingCalendar = () => {
-    setDraftBookingDate(bookingDate && !bookedSet.has(bookingDate) ? bookingDate : '');
-    setCalendarModalOpen(true);
-    if (bookingResourceId) {
-      const monthToLoad = (bookingDate || today).slice(0, 7);
-      void fetchAvailability(bookingResourceId, monthToLoad);
-    }
-  };
 
   /** Open the button again, after a short pause. */
   function release(): void {
@@ -440,30 +325,18 @@ export function RequestForm({
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label htmlFor="booking_date" className="req-label">Date</label>
-                    <input type="hidden" name="booking_date" value={bookingDate} />
-                    <button
+                    <CalendarPickerField
                       id="booking_date"
-                      type="button"
-                      onClick={openBookingCalendar}
-                      aria-invalid={Boolean(errors.booking_date)}
-                      aria-haspopup="dialog"
-                      aria-expanded={calendarModalOpen}
-                      className="req-field cz-date-trigger mt-2 text-base"
-                    >
-                      <span className={bookingDate ? 'font-semibold text-ink' : 'is-empty'}>
-                        {bookingDate ? formatCalendarIso(bookingDate) : 'Select a booking date…'}
-                      </span>
-                      <svg
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <rect x="3" y="5" width="18" height="16" rx="2.5" />
-                        <path strokeLinecap="round" d="M3 10h18M8 3v4M16 3v4" />
-                      </svg>
-                    </button>
+                      name="booking_date"
+                      value={bookingDate}
+                      onChange={setBookingDate}
+                      todayIso={today}
+                      minDate={today}
+                      modalTitle="Select Booking Date"
+                      placeholder="Select a booking date…"
+                      facilityResourceId={bookingResourceId}
+                      ariaInvalid={Boolean(errors.booking_date)}
+                    />
                     <p className={HINT_TEXT}>
                       Booked dates are disabled automatically.
                     </p>
@@ -521,25 +394,36 @@ export function RequestForm({
                   </div>
                   <div>
                     <label htmlFor="needed_date" className="req-label">Date needed</label>
-                    <input
+                    <CalendarPickerField
                       id="needed_date"
-                      type="date"
                       name="needed_date"
-                      min={today}
-                      defaultValue={values.needed_date ?? ''}
-                      className="req-field mt-2"
+                      value={neededDate}
+                      onChange={(next) => {
+                        setNeededDate(next);
+                        if (returnDate && next && returnDate < next) {
+                          setReturnDate('');
+                        }
+                      }}
+                      todayIso={today}
+                      minDate={today}
+                      modalTitle="Select Date Needed"
+                      placeholder="Select pickup date…"
+                      ariaInvalid={Boolean(errors.needed_date)}
                     />
                     <FieldError message={errors.needed_date} />
                   </div>
                   <div>
                     <label htmlFor="return_date" className="req-label">Return by</label>
-                    <input
+                    <CalendarPickerField
                       id="return_date"
-                      type="date"
                       name="return_date"
-                      min={today}
-                      defaultValue={values.return_date ?? ''}
-                      className="req-field mt-2"
+                      value={returnDate}
+                      onChange={setReturnDate}
+                      todayIso={today}
+                      minDate={neededDate || today}
+                      modalTitle="Select Return Date"
+                      placeholder="Select return date…"
+                      ariaInvalid={Boolean(errors.return_date)}
                     />
                     <FieldError message={errors.return_date} />
                   </div>
@@ -575,13 +459,16 @@ export function RequestForm({
                   </div>
                   <div>
                     <label htmlFor="needed_by" className="req-label">Date needed</label>
-                    <input
+                    <CalendarPickerField
                       id="needed_by"
-                      type="date"
                       name="needed_by"
-                      min={today}
-                      defaultValue={values.needed_by ?? ''}
-                      className="req-field mt-2"
+                      value={neededBy}
+                      onChange={setNeededBy}
+                      todayIso={today}
+                      minDate={today}
+                      modalTitle="Select Date Needed"
+                      placeholder="Select date needed…"
+                      ariaInvalid={Boolean(errors.needed_by)}
                     />
                     <FieldError message={errors.needed_by} />
                   </div>
@@ -753,93 +640,6 @@ export function RequestForm({
           </div>
         </div>
       </form>
-
-      {mounted && calendarModalOpen && type?.kind === 'booking'
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="booking-calendar-modal-title"
-              onClick={(event) => {
-                if (event.target === event.currentTarget) {
-                  setCalendarModalOpen(false);
-                }
-              }}
-            >
-              <div className="flex max-h-[calc(92vh/var(--ui-zoom,1))] w-full max-w-[600px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_19px_48px_-16px_rgba(0,64,4,0.45)]">
-                <div className="dm-head">
-                  <h2
-                    id="booking-calendar-modal-title"
-                    className="min-w-0 truncate text-xl font-semibold text-green-deep"
-                  >
-                    Select Booking Date
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarModalOpen(false)}
-                    aria-label="Close calendar"
-                    className="dm-close min-h-[40px] min-w-[40px] shrink-0"
-                  >
-                    <svg
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-                    </svg>
-                  </button>
-                </div>
-
-                <UnifiedCalendar
-                  value={draftBookingDate}
-                  onChange={setDraftBookingDate}
-                  minDate={today}
-                  todayIso={today}
-                  disabledDates={bookedSet}
-                  legendItems={[
-                    { id: 'booked', label: 'Unavailable / Booked', variant: 'booked' },
-                  ]}
-                  loading={loadingAvailability}
-                  error={availabilityError}
-                  ariaLabel={`Booking date for ${type.resource ?? 'facility'}`}
-                  onMonthChange={(year, monthIndex) => {
-                    if (bookingResourceId) {
-                      const monthIso = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-                      void fetchAvailability(bookingResourceId, monthIso);
-                    }
-                  }}
-                  onClear={() => {
-                    setDraftBookingDate('');
-                    setBookingDate('');
-                  }}
-                  onApply={() => {
-                    if (draftBookingDate && !bookedSet.has(draftBookingDate)) {
-                      setBookingDate(draftBookingDate);
-                      setCalendarModalOpen(false);
-                    }
-                  }}
-                  applyDisabled={!draftBookingDate || bookedSet.has(draftBookingDate)}
-                  applyLabel="Apply"
-                  footerSummary={
-                    draftBookingDate ? (
-                      <span>
-                        Selected date <strong>{formatCalendarIso(draftBookingDate)}</strong>
-                      </span>
-                    ) : (
-                      <span>
-                        Pick an available date for <strong>{type.resource}</strong>.
-                      </span>
-                    )
-                  }
-                />
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from '@/app/actions/document';
 import { NotifyButton } from './notify-dialog';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
+import { CalendarPickerField } from '@/components/calendar-picker-field';
 
 export type ReviewMode = 'supervisor' | 'staff' | 'oversight';
 
@@ -118,121 +119,37 @@ export function ReviewActions({
         </ul>
       ) : null}
 
-      {/* ── Supervisor: assign / reassign / clearance / deny ────────────── */}
+      {/* ── Supervisor: assign / reassign / approval / deny ────────────── */}
       {mode === 'supervisor' && !isTerminal ? (
         row.status === DocumentStatus.InReview ? (
           <section className="dm-panel-strong space-y-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="pill p-brass text-sm">Clearance</span>
-                <h4 className="font-bold text-green-deep text-base">Supervisor Review & Sign-Off</h4>
+                <span className="pill p-brass text-sm">Pending Approval</span>
+                <h4 className="font-bold text-green-deep text-base">Supervisor Approval</h4>
               </div>
               <p className="text-sm text-ink-soft mt-1">
-                Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance and confirmation. Review requirement verifications and booking dependencies above before deciding.
+                Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong>. Review verified requirements and reservation details above, then approve or deny this request.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
               <button
                 type="button"
-                className="cr-btn cr-btn-primary"
+                className="cr-btn cr-btn-primary text-base"
                 disabled={pending}
                 onClick={() => setDialog('approve_clearance')}
               >
-                Confirm & Release
+                Approve
               </button>
               <button
                 type="button"
-                className="cr-btn !border-status-amber-wash !bg-status-amber-wash !text-status-amber font-semibold"
-                disabled={pending}
-                onClick={() => setDialog('return_staff')}
-              >
-                Return for Revision
-              </button>
-              <button
-                type="button"
-                className="cr-btn cr-btn-danger"
+                className="cr-btn cr-btn-danger text-base"
                 disabled={pending}
                 onClick={() => setDialog('deny')}
               >
                 Deny
               </button>
-              <button
-                type="button"
-                onClick={() => setReassignOpen(!reassignOpen)}
-                className="cr-btn cr-btn-ghost text-base ml-auto"
-              >
-                {reassignOpen ? 'Cancel Reassign' : 'Reassign…'}
-              </button>
             </div>
-            {reassignOpen ? (
-              <div className="w-full pt-2 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
-                <label
-                  htmlFor={`reassign-${row.id}`}
-                  className="block font-bold text-base text-green-deep"
-                >
-                  Reassign to
-                </label>
-                {/* Two-click quick reassign to available colleagues */}
-                {assignableStaff.filter((m) => m.id !== row.assignedTo && m.is_available !== false).length > 0 ? (
-                  <div className="mt-1.5 mb-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm text-ink-soft">Quick reassign:</span>
-                    {assignableStaff
-                      .filter((m) => m.id !== row.assignedTo && m.is_available !== false)
-                      .slice(0, 4)
-                      .map((colleague) => (
-                        <button
-                          key={colleague.id}
-                          type="button"
-                          disabled={pending}
-                          onClick={() =>
-                            void run(() => assignDocument(row.id, colleague.id), false, {
-                              title: `Reassign to ${colleague.name}?`,
-                              message: 'It moves to their queue and they are notified.',
-                              confirmLabel: 'Reassign',
-                            })
-                          }
-                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
-                          title={`Click to reassign to ${colleague.name} (On Duty)`}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          {colleague.name}
-                        </button>
-                      ))}
-                  </div>
-                ) : null}
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <select
-                    id={`reassign-${row.id}`}
-                    value={assignee}
-                    onChange={(event) => setAssignee(event.target.value)}
-                    className="st-filter-field min-w-0 flex-1 text-base"
-                  >
-                    <option value="">Select a staff member…</option>
-                    {assignableStaff
-                      .filter((m) => m.id !== row.assignedTo)
-                      .map((staff) => (
-                        <option key={staff.id} value={staff.id}>
-                          {staff.name} {staff.is_available === false ? '(On Leave)' : '(On Duty)'}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={!assignee || pending}
-                    onClick={() =>
-                      void run(() => assignDocument(row.id, Number(assignee)), false, {
-                        title: `Reassign to ${nameOf(Number(assignee))}?`,
-                        message: 'It moves to their queue and they are notified.',
-                        confirmLabel: 'Reassign',
-                      })
-                    }
-                    className="cr-btn cr-btn-primary text-base"
-                  >
-                    Reassign
-                  </button>
-                </div>
-              </div>
-            ) : null}
           </section>
         ) : !row.assignedTo ? (
           <section className="dm-panel-strong">
@@ -551,12 +468,11 @@ export function ReviewActions({
                   </button>
                   <button
                     type="button"
-                    className="btn-step btn-step-back !text-amber-800 !border-amber-300 hover:!bg-amber-50"
+                    className="btn-step btn-step-return"
                     disabled={pending}
-                    onClick={() => setDialog('release_pool')}
-                    title="Release this task back to the unassigned department pool for colleagues to pick up"
+                    onClick={() => setDialog('return')}
                   >
-                    Release to Office Pool
+                    Return for Submission
                   </button>
                 </>
               ) : row.status === DocumentStatus.Returned ? (
@@ -590,7 +506,8 @@ export function ReviewActions({
                 </button>
               )}
 
-              {row.status !== DocumentStatus.Returned ? (
+              {row.status !== DocumentStatus.Returned &&
+              !(mode === 'staff' && row.status === DocumentStatus.InProgress) ? (
                 <>
                   {row.status !== DocumentStatus.Pending ? (
                     <button
@@ -610,16 +527,16 @@ export function ReviewActions({
                   >
                     Return for revision
                   </button>
+                  <button
+                    type="button"
+                    className="btn-step btn-step-hold"
+                    disabled={pending}
+                    onClick={() => setDialog('hold')}
+                  >
+                    Put on hold
+                  </button>
                 </>
               ) : null}
-              <button
-                type="button"
-                className="btn-step btn-step-hold"
-                disabled={pending}
-                onClick={() => setDialog('hold')}
-              >
-                Put on hold
-              </button>
             </>
           )}
         </div>
@@ -694,9 +611,9 @@ export function ReviewActions({
 
       {dialog === 'return' ? (
         <ReasonDialog
-          title="Return for revision"
+          title="Return for Submission"
           hint="Say what the citizen needs to fix — this is shown on their tracking page."
-          submitLabel="Return"
+          submitLabel="Return for Submission"
           required
           pending={pending}
           errors={errors}
@@ -758,8 +675,8 @@ export function ReviewActions({
           pending={pending}
           errors={errors}
           onCancel={() => setDialog(null)}
-          onSubmit={(note) =>
-            run(() => submitForClearanceDocument(row.id, note))
+          onSubmit={(note, claimDate) =>
+            run(() => submitForClearanceDocument(row.id, note, claimDate))
           }
         />
       ) : null}
@@ -868,14 +785,17 @@ function AdvanceDialog({
       <label className="gate-claim-label" htmlFor={`claim-${row.id}`}>
         Claiming date
       </label>
-      <input
+      <CalendarPickerField
         id={`claim-${row.id}`}
-        type="date"
-        className="st-filter-field mt-1"
         value={claimDate}
-        min={todayIso}
-        onChange={(event) => setClaimDate(event.target.value)}
-        required
+        onChange={setClaimDate}
+        todayIso={todayIso}
+        minDate={todayIso}
+        modalTitle="Select Claiming Date"
+        placeholder="Select a claiming date…"
+        triggerClassName="st-filter-field cz-date-trigger mt-1 text-base"
+        facilityResourceId={row.booking && !row.booking.isEquipment ? row.booking.resourceId : null}
+        allowClear={false}
       />
       <p className="gate-claim-hint">
         {setPassed
@@ -1034,12 +954,15 @@ function HoldDialog({
       <label className="gate-claim-label mt-3" htmlFor="hold-until">
         Expected to resume <span className="text-ink-soft">(optional)</span>
       </label>
-      <input
+      <CalendarPickerField
         id="hold-until"
-        type="date"
-        className="st-filter-field mt-1"
         value={holdUntil}
-        onChange={(event) => setHoldUntil(event.target.value)}
+        onChange={setHoldUntil}
+        todayIso={localIsoDate(new Date())}
+        minDate={localIsoDate(new Date())}
+        modalTitle="Expected Resume Date"
+        placeholder="Select resume date…"
+        triggerClassName="st-filter-field cz-date-trigger mt-1 text-base"
       />
 
       <div className="gate-actions mt-4">
@@ -1077,14 +1000,23 @@ function ClearanceDialog({
   pending: boolean;
   errors: string[];
   onCancel: () => void;
-  onSubmit: (note: string | null) => void;
+  onSubmit: (note: string | null, claimDate?: string | null) => void;
 }) {
+  const todayIso = localIsoDate(new Date());
+  const usable = (day: string | null): day is string => day !== null && day >= todayIso;
+  const requiresClaimDate = row.claimDatePolicy === 'required';
+  const [claimDate, setClaimDate] = useState(
+    usable(row.claimOn) ? row.claimOn : usable(row.requestedClaimOn) ? row.requestedClaimOn : '',
+  );
   const [note, setNote] = useState('');
   const unchecked = row.requirements.filter(
     (requirement) => requirement.isMandatory && !requirement.verified,
   );
   const bookingWaiting =
-    row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+    row.booking !== null &&
+    (row.booking.state === 'cancelled' ||
+      (row.booking.state === 'pending' && (row.booking.isEquipment || row.booking.clash)));
+  const missingClaimDate = requiresClaimDate && claimDate === '';
 
   return (
     <DialogShell
@@ -1092,7 +1024,8 @@ function ClearanceDialog({
       errors={errors}
     >
       <p className="gate-claim-hint">
-        Submits this request to your office supervisor for clearance and sign-off. A StatusGate check ensures all mandatory prerequisites and reservation dependencies are verified before submission.
+        Submits this request to your office supervisor for approval. All mandatory requirements
+        {row.booking ? ' and booking checks' : ''} are verified automatically.
       </p>
 
       {unchecked.length > 0 || bookingWaiting ? (
@@ -1104,10 +1037,31 @@ function ClearanceDialog({
           ) : null}
           {bookingWaiting ? (
             <li className="no">
-              Awaiting resource reservation approval before this request can be submitted.
+              {row.booking?.clash
+                ? 'Resolve the conflicting reservation date before submitting.'
+                : 'Approve the borrowing/reservation card above before submitting.'}
             </li>
           ) : null}
         </ul>
+      ) : null}
+
+      {requiresClaimDate ? (
+        <>
+          <label className="gate-claim-label mt-3 block" htmlFor={`clearance-claim-${row.id}`}>
+            Claiming date <span className="text-status-red">*</span>
+          </label>
+          <CalendarPickerField
+            id={`clearance-claim-${row.id}`}
+            value={claimDate}
+            onChange={setClaimDate}
+            todayIso={todayIso}
+            minDate={todayIso}
+            modalTitle="Select Claiming Date"
+            placeholder="Select pickup / claiming date…"
+            triggerClassName="st-filter-field cz-date-trigger mt-1 text-base"
+            allowClear={false}
+          />
+        </>
       ) : null}
 
       <label className="gate-claim-label mt-3 block" htmlFor={`clearance-note-${row.id}`}>
@@ -1126,8 +1080,8 @@ function ClearanceDialog({
         <button
           type="button"
           className="cr-btn cr-btn-primary"
-          disabled={pending || unchecked.length > 0 || bookingWaiting}
-          onClick={() => onSubmit(note.trim() || null)}
+          disabled={pending || unchecked.length > 0 || bookingWaiting || missingClaimDate}
+          onClick={() => onSubmit(note.trim() || null, requiresClaimDate ? claimDate : null)}
         >
           {pending ? 'Submitting…' : 'Submit for Supervisor Review'}
         </button>
@@ -1157,18 +1111,32 @@ function ApproveClearanceDialog({
   onCancel: () => void;
   onSubmit: (input: { claimDate?: string | null; note?: string | null }) => void;
 }) {
-  const [claimDate, setClaimDate] = useState(row.claimDate ?? '');
+  const todayIso = localIsoDate(new Date());
+  const usable = (day: string | null): day is string => day !== null && day >= todayIso;
+  const initialClaim =
+    row.claimDatePolicy === 'none'
+      ? ''
+      : usable(row.claimOn)
+        ? row.claimOn
+        : row.claimDatePolicy === 'required' && usable(row.requestedClaimOn)
+          ? row.requestedClaimOn
+          : '';
+  const [claimDate, setClaimDate] = useState(initialClaim);
   const [note, setNote] = useState('');
   const unchecked = row.requirements.filter(
     (requirement) => requirement.isMandatory && !requirement.verified,
   );
   const bookingWaiting =
     row.booking !== null && (row.booking.state === 'pending' || row.booking.state === 'cancelled');
+  const facilityResourceId =
+    row.booking && !row.booking.isEquipment ? row.booking.resourceId : null;
 
   return (
-    <DialogShell title="Confirm & Release" errors={errors}>
+    <DialogShell title="Approve Request" errors={errors}>
       <p className="gate-claim-hint">
-        Confirms staff verification and marks the request <strong>Ready for Claim</strong>. Setting a release/claiming date alerts the citizen with pickup instructions and QR claim verification.
+        {row.claimDatePolicy === 'none'
+          ? 'Approves staff verification and marks this service request Complete, notifying the citizen.'
+          : 'Approves staff verification and marks this request Complete / Ready for Claim, notifying the citizen.'}
       </p>
 
       {unchecked.length > 0 || bookingWaiting ? (
@@ -1186,20 +1154,42 @@ function ApproveClearanceDialog({
         </ul>
       ) : null}
 
-      <label className="gate-claim-label mt-3 block" htmlFor={`approve-claim-date-${row.id}`}>
-        Citizen release / claim date <span className="text-ink-soft">(optional)</span>
-      </label>
-      <input
-        id={`approve-claim-date-${row.id}`}
-        type="date"
-        className="st-filter-field mt-1"
-        value={claimDate}
-        min={localIsoDate(new Date())}
-        onChange={(event) => setClaimDate(event.target.value)}
-      />
+      {row.claimDatePolicy !== 'none' ? (
+        <>
+          <label className="gate-claim-label mt-3 block" htmlFor={`approve-claim-date-${row.id}`}>
+            {row.claimDatePolicy === 'optional' ? (
+              <>
+                New claiming date <span className="text-ink-soft">(optional)</span>
+              </>
+            ) : (
+              'Claiming date'
+            )}
+          </label>
+          <CalendarPickerField
+            id={`approve-claim-date-${row.id}`}
+            value={claimDate}
+            onChange={setClaimDate}
+            todayIso={todayIso}
+            minDate={todayIso}
+            modalTitle={
+              row.claimDatePolicy === 'optional'
+                ? 'Select New Claiming Date (Optional)'
+                : 'Select Claiming Date'
+            }
+            placeholder={
+              row.claimDatePolicy === 'optional'
+                ? 'Leave unset to use booked schedule…'
+                : 'Select claiming date…'
+            }
+            triggerClassName="st-filter-field cz-date-trigger mt-1 text-base"
+            facilityResourceId={row.claimDatePolicy === 'optional' ? facilityResourceId : null}
+            allowClear={row.claimDatePolicy === 'optional'}
+          />
+        </>
+      ) : null}
 
       <label className="gate-claim-label mt-3 block" htmlFor={`approve-clearance-note-${row.id}`}>
-        Claiming remarks / instructions <span className="text-ink-soft">(optional)</span>
+        Remarks / instructions <span className="text-ink-soft">(optional)</span>
       </label>
       <textarea
         id={`approve-clearance-note-${row.id}`}
@@ -1207,18 +1197,27 @@ function ApproveClearanceDialog({
         rows={3}
         value={note}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="e.g. Claim at Window 3, bring a valid ID"
+        placeholder={
+          row.claimDatePolicy === 'none'
+            ? 'Optional completion note for the requester'
+            : 'e.g. Claim at Window 3, bring a valid ID'
+        }
       />
-      <p className="gate-claim-hint mt-1">Sent to the citizen with the Ready for Claim notice.</p>
+      <p className="gate-claim-hint mt-1">Sent to the citizen with the completion notice.</p>
 
       <div className="gate-actions mt-4">
         <button
           type="button"
           className="cr-btn cr-btn-primary"
           disabled={pending || unchecked.length > 0 || bookingWaiting}
-          onClick={() => onSubmit({ claimDate: claimDate || null, note: note.trim() || null })}
+          onClick={() =>
+            onSubmit({
+              claimDate: row.claimDatePolicy === 'none' ? null : claimDate || null,
+              note: note.trim() || null,
+            })
+          }
         >
-          {pending ? 'Confirming…' : 'Confirm & Release'}
+          {pending ? 'Approving…' : 'Approve'}
         </button>
         <button
           type="button"

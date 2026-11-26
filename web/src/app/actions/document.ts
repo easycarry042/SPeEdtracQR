@@ -131,10 +131,11 @@ export async function releaseToPoolDocument(
 export async function submitForClearanceDocument(
   documentId: number,
   note?: string | null,
+  claimDate?: string | null,
 ): Promise<ActionResult> {
   const actor = await currentActor();
 
-  return run(() => review.submitForClearance(documentId, actor, note));
+  return run(() => review.submitForClearance(documentId, actor, note, claimDate));
 }
 
 export async function approveClearanceDocument(
@@ -213,7 +214,7 @@ export async function nudgeDocument(
 
 export async function setClaimDate(
   documentId: number,
-  claimDate: string,
+  claimDate: string | null,
 ): Promise<ActionResult> {
   const actor = await currentActor();
 

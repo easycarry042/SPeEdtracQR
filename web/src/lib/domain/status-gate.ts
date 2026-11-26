@@ -2,6 +2,8 @@ import { db, id } from '@/lib/db';
 import { DocumentStatus, fromLoose, label as statusLabel } from '@/lib/domain/document-status';
 import { unverifiedMandatoryRequirements } from '@/lib/domain/document';
 import { isApproved } from '@/lib/domain/lending';
+import { claimDatePolicyFor } from '@/lib/domain/request-kinds';
+import { startOfDay, today } from '@/lib/time';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -68,24 +70,23 @@ export async function checks(
     }
 
     case DocumentStatus.InReview: {
-      const hasNote = (note ?? '').trim() !== '';
-      const [unverified, attachment, staffComment] = await Promise.all([
+      const [unverified, booking, docRow] = await Promise.all([
         unverifiedMandatoryRequirements(document.id),
-        hasNote
-          ? null
-          : db.document_attachments.findFirst({
+        db.bookings?.findFirst
+          ? db.bookings.findFirst({
               where: { document_id: id(document.id) },
-              select: { id: true },
-            }),
-        hasNote
-          ? null
-          : db.document_comments.findFirst({
-              where: { document_id: id(document.id), author_type: 'staff', parent_id: null },
-              select: { id: true },
-            }),
+              select: { status: true },
+            })
+          : Promise.resolve(null),
+        db.documents?.findUnique
+          ? db.documents.findUnique({
+              where: { id: id(document.id) },
+              select: { document_type: true, claim_date: true },
+            })
+          : Promise.resolve(null),
       ]);
 
-      return [
+      const items: GateCheck[] = [
         {
           key: 'requirements_verified',
           label:
@@ -95,11 +96,34 @@ export async function checks(
           passed: unverified.length === 0,
         },
         {
-          key: 'work_evidence',
-          label: 'An attachment or work note on file',
-          passed: hasNote || attachment !== null || staffComment !== null,
+          key: 'reservation_approved',
+          label: 'The reservation is approved',
+          passed: booking === null || isApproved(booking),
         },
       ];
+
+      if (docRow) {
+        const typeRow = db.request_types?.findFirst
+          ? await db.request_types.findFirst({
+              where: { name: docRow.document_type },
+              select: { kind: true },
+            })
+          : null;
+
+        if (claimDatePolicyFor(typeRow?.kind ?? null, docRow.document_type) === 'required') {
+          const hasValidClaimDate =
+            docRow.claim_date !== null &&
+            startOfDay(docRow.claim_date).getTime() >= today().getTime();
+
+          items.push({
+            key: 'claim_date_set',
+            label: 'A valid claiming date is set for pickup',
+            passed: hasValidClaimDate,
+          });
+        }
+      }
+
+      return items;
     }
 
     // Before a request is finished (Ongoing → Done), staff must have checked

@@ -93,11 +93,19 @@ export default async function DashboardPage({
       take: 200,
     }),
 
-    // The office's work in flight (Ongoing / On Hold).
+    // The office's work in flight: assigned Pending (awaiting staff acceptance),
+    // Ongoing, On Hold, or Returned for revision.
     db.documents.findMany({
       where: {
         AND: [scope, citizenBase, deptScope],
-        status: { in: [DocumentStatus.InProgress, DocumentStatus.OnHold] },
+        status: {
+          in: [
+            DocumentStatus.Pending,
+            DocumentStatus.InProgress,
+            DocumentStatus.OnHold,
+            DocumentStatus.Returned,
+          ],
+        },
         assigned_to: { not: null },
       },
       orderBy: { status_changed_at: 'desc' },
@@ -120,13 +128,21 @@ export default async function DashboardPage({
     // (history.data); only its count is needed here.
     completedCount(actor),
 
-    // Headline count: open non-Pending requests (or assigned active requests).
+    // Headline count: open active requests (including assigned Pending requests).
     db.documents.count({
       where: {
         AND: [scope, citizenBase, deptScope],
-        status: {
-          in: activeValues().filter((s) => s !== DocumentStatus.Pending),
-        },
+        OR: [
+          {
+            status: {
+              in: activeValues().filter((s) => s !== DocumentStatus.Pending),
+            },
+          },
+          {
+            status: DocumentStatus.Pending,
+            assigned_to: { not: null },
+          },
+        ],
       },
     }),
 

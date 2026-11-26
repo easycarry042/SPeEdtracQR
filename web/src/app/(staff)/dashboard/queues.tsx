@@ -223,12 +223,12 @@ export function DashboardQueues({
       </div>
 
       {tab === 'inprogress' ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-gray-50/80 px-4 py-2.5 text-xs">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-gray-50/80 px-4 py-2.5 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-ink-soft uppercase tracking-wider">Oversight Filter:</span>
             <button
               type="button"
-              className={`pill text-xs cursor-pointer transition-colors ${oversightFilter === 'all' ? 'p-green font-bold' : 'p-muted'}`}
+              className={`pill text-sm cursor-pointer transition-colors ${oversightFilter === 'all' ? 'p-green font-bold' : 'p-muted'}`}
               onClick={() => {
                 setOversightFilter('all');
                 setPage(1);
@@ -238,7 +238,7 @@ export function DashboardQueues({
             </button>
             <button
               type="button"
-              className={`pill text-xs cursor-pointer transition-colors ${oversightFilter === 'breached' ? 'p-red font-bold' : 'p-muted'}`}
+              className={`pill text-sm cursor-pointer transition-colors ${oversightFilter === 'breached' ? 'p-red font-bold' : 'p-muted'}`}
               onClick={() => {
                 setOversightFilter('breached');
                 setPage(1);

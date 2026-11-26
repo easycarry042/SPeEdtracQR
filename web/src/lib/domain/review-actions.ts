@@ -11,6 +11,8 @@ import { statusChangeData, statusOf, unverifiedMandatoryRequirements } from '@/l
 import { canAssignWithinDepartment, canViewAll } from '@/lib/domain/scope';
 import { needsTriage } from '@/lib/domain/request-review';
 import { cancel as cancelBooking, followClaimDate } from '@/lib/domain/lending-desk';
+import { isEquipment } from '@/lib/domain/lending';
+import { claimDatePolicyFor } from '@/lib/domain/request-kinds';
 import { notifyMany } from '@/lib/domain/notifications';
 import { grantsFor, ROLE_SUPERVISOR, usersWithRole } from '@/lib/auth/rbac';
 import { ActionError, notifyReadyForClaim } from '@/lib/domain/status-actions';
@@ -396,6 +398,7 @@ export async function submitForClearance(
   documentId: number,
   actor: Actor | null,
   note?: string | null,
+  claimDate?: string | null,
 ): Promise<{ message: string }> {
   const document = await loadOrFail(documentId);
   authorizeAssignedOrAdmin(document, actor);
@@ -411,6 +414,35 @@ export async function submitForClearance(
     throw new ActionError(
       `All required documents must be checked before submitting for clearance (still to check: ${unverified.map((r) => r.label).join(', ')}).`,
     );
+  }
+
+  // If staff supplied a claiming date in the submit dialog (for equipment / physical pickup),
+  // save and validate it before checking the stage gate.
+  if (claimDate !== undefined && claimDate !== null && claimDate.trim() !== '') {
+    await setClaimDate(documentId, actor, claimDate);
+  }
+
+  // If this request holds a pending facility reservation, approve it atomically when submitting
+  // for supervisor review so the reservation never stays orphaned in pending state.
+  if (db.bookings?.findFirst) {
+    const pendingBooking = await db.bookings.findFirst({
+      where: { document_id: document.id },
+      select: { id: true, status: true, resource: { select: { kind: true } } },
+    });
+
+    if (
+      pendingBooking &&
+      pendingBooking.status === 'pending' &&
+      pendingBooking.resource &&
+      !isEquipment(pendingBooking.resource)
+    ) {
+      const { approve: approveBooking } = await import('@/lib/domain/lending-desk');
+      const refusal = await approveBooking(toId(pendingBooking.id), null);
+
+      if (refusal) {
+        throw new ActionError(refusal);
+      }
+    }
   }
 
   const trimmed = (note ?? '').trim() || null;
@@ -500,8 +532,17 @@ export async function approveClearance(
 
   await validate({ id: documentId }, DocumentStatus.Completed, trimmed, actor);
 
+  const typeRow = db.request_types?.findFirst
+    ? await db.request_types.findFirst({
+        where: { name: document.document_type },
+        select: { kind: true },
+      })
+    : null;
+  const policy = claimDatePolicyFor(typeRow?.kind ?? null, document.document_type);
+  const isServiceWithoutClaim = policy === 'none';
+
   let claimDay: Date | null = null;
-  if (input?.claimDate) {
+  if (!isServiceWithoutClaim && input?.claimDate) {
     const parsed = parseNaive(input.claimDate);
     if (parsed) {
       claimDay = startOfDay(parsed);
@@ -538,23 +579,36 @@ export async function approveClearance(
   );
 
   await broadcastStatusUpdated(documentId);
-  await logSystemComment(documentId, `Confirmed by ${actor.name} — Ready for Claim`);
+  await logSystemComment(
+    documentId,
+    isServiceWithoutClaim
+      ? `Approved by ${actor.name} — Complete`
+      : `Confirmed by ${actor.name} — Ready for Claim`,
+  );
 
-  // Email / SMS / the citizen's thread; the note goes to the citizen as claiming instructions.
+  // Email / SMS / the citizen's thread; the note goes to the citizen as instructions.
   await notifyReadyForClaim(document, actor, claimDay, trimmed);
 
   const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
   if (assignedTo && assignedTo !== actor.id) {
     await notifyMany([assignedTo], {
-      title: `Confirmed: ${document.tracking_number}`,
-      body: `${actor.name} confirmed your work on ${document.document_type}. It is Ready for Claim.`,
+      title: isServiceWithoutClaim
+        ? `Approved: ${document.tracking_number}`
+        : `Confirmed: ${document.tracking_number}`,
+      body: isServiceWithoutClaim
+        ? `${actor.name} approved your work on ${document.document_type}. It is now Complete.`
+        : `${actor.name} confirmed your work on ${document.document_type}. It is Ready for Claim.`,
       url: routes.staffDashboard({ open: document.tracking_number }),
       tracking_number: document.tracking_number,
       event: 'clearance_approved',
     });
   }
 
-  return { message: `Confirmed ${document.tracking_number}. It is now Ready for Claim.` };
+  return {
+    message: isServiceWithoutClaim
+      ? `Approved ${document.tracking_number}. It is now Complete.`
+      : `Confirmed ${document.tracking_number}. It is now Ready for Claim.`,
+  };
 }
 
 /**
@@ -635,29 +689,86 @@ export async function acceptAssignment(
   documentId: number,
   actor: Actor | null,
 ): Promise<{ message: string }> {
+  if (!actor) {
+    throw new ActionError('Only the assigned staff member can respond to this assignment.', 403);
+  }
+
   const document = await loadOrFail(documentId);
-  authorizeAssignedStaff(document, actor);
+  const assignedTo = document.assigned_to === null ? null : toId(document.assigned_to);
+  const isAssignee = assignedTo === actor.id;
+
+  if (!isAssignee) {
+    const handler =
+      document.accepted_at === null && db.request_type_handlers?.findFirst
+        ? await db.request_type_handlers.findFirst({
+            where: {
+              user_id: id(actor.id),
+              requestType: { name: document.document_type, is_active: true },
+            },
+            select: { id: true },
+          })
+        : null;
+
+    if (!handler) {
+      throw new ActionError('Only the assigned staff member can respond to this assignment.', 403);
+    }
+  }
 
   if (!needsTriage(document)) {
     throw new ActionError('This request is no longer awaiting acceptance.');
   }
 
-  if (statusOf(document) === DocumentStatus.Pending) {
-    await applyAndLog(document, DocumentStatus.InProgress, 'Accepted assignment', actor!);
-  } else {
-    await logOnDocument(documentId, 'Accepted assignment', actor!.id);
-    await logSystemComment(documentId, `Accepted assignment by ${actor!.name}`);
-  }
+  if (isAssignee) {
+    if (statusOf(document) === DocumentStatus.Pending) {
+      await applyAndLog(document, DocumentStatus.InProgress, 'Accepted assignment', actor);
+    } else {
+      await logOnDocument(documentId, 'Accepted assignment', actor.id);
+      await logSystemComment(documentId, `Accepted assignment by ${actor.name}`);
+    }
 
-  await db.documents.update({
-    where: { id: document.id },
-    data: { accepted_at: now(), updated_at: now() },
-  });
+    await db.documents.update({
+      where: { id: document.id },
+      data: { accepted_at: now(), updated_at: now() },
+    });
+  } else {
+    const stamp = now();
+    const from = statusOf(document);
+    const shouldMove = from === DocumentStatus.Pending;
+    const { count } = await db.documents.updateMany({
+      where: { id: document.id, accepted_at: null },
+      data: {
+        assigned_to: id(actor.id),
+        accepted_at: stamp,
+        ...(shouldMove ? statusChangeData(DocumentStatus.InProgress) : {}),
+        updated_at: stamp,
+      },
+    });
+
+    if (count === 0) {
+      throw new ActionError('This request was already accepted by another handler.');
+    }
+
+    if (shouldMove) {
+      await logOnDocument(
+        documentId,
+        `Accepted assignment: ${statusLabel(from)} → ${statusLabel(DocumentStatus.InProgress)}`,
+        actor.id,
+        { from, to: DocumentStatus.InProgress },
+      );
+      await logSystemComment(
+        documentId,
+        `Accepted assignment: ${statusLabel(from)} → ${statusLabel(DocumentStatus.InProgress)} (by ${actor.name})`,
+      );
+    } else {
+      await logOnDocument(documentId, 'Accepted assignment', actor.id);
+      await logSystemComment(documentId, `Accepted assignment by ${actor.name}`);
+    }
+  }
 
   await broadcastStatusUpdated(documentId);
 
   // CTCAO: accepting tells the office's supervisors it is now Ongoing.
-  await notifyOfficeOfProgress(document, actor!, 'accepted');
+  await notifyOfficeOfProgress(document, actor, 'accepted');
 
   return { message: `Accepted ${document.tracking_number}. It is now Ongoing.` };
 }
@@ -847,12 +958,40 @@ export async function requestRevision(
 export async function setClaimDate(
   documentId: number,
   actor: Actor | null,
-  claimDate: string,
+  claimDate: string | null,
 ): Promise<{ message: string }> {
   const document = await loadOrFail(documentId);
   authorizeAssignedOrAdmin(document, actor);
 
-  const parsed = parseNaive(claimDate);
+  const typeRow = db.request_types?.findFirst
+    ? await db.request_types.findFirst({
+        where: { name: document.document_type },
+        select: { kind: true },
+      })
+    : null;
+  const policy = claimDatePolicyFor(typeRow?.kind ?? null, document.document_type);
+
+  if (policy === 'none') {
+    throw new ActionError('This service request does not use a claiming date.');
+  }
+
+  const raw = (claimDate ?? '').trim();
+
+  if (raw === '') {
+    if (policy === 'optional') {
+      await db.documents.update({
+        where: { id: document.id },
+        data: { claim_date: null, updated_at: now() },
+      });
+      await logOnDocument(documentId, 'Claiming date cleared', actor.id);
+
+      return { message: 'Claiming date cleared.' };
+    }
+
+    throw new ActionError('Pick a claiming date.');
+  }
+
+  const parsed = parseNaive(raw);
 
   if (!parsed) {
     throw new ActionError('Pick a claiming date.');
@@ -877,7 +1016,7 @@ export async function setClaimDate(
     data: { claim_date: day, updated_at: now() },
   });
 
-  await logOnDocument(documentId, `Claiming date set to ${claimDate}`, actor!.id);
+  await logOnDocument(documentId, `Claiming date set to ${raw}`, actor.id);
 
   return { message: 'Claiming date saved.' };
 }

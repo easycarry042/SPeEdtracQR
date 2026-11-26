@@ -117,7 +117,7 @@ export function RequestTable({
                           </span>
                           {row.supervisorNotes && row.status === 'in_progress' ? (
                             <span
-                              className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-850"
+                              className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-850"
                               title={`Supervisor note: ${row.supervisorNotes}`}
                             >
                               <svg className="h-3 w-3 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,21 +147,21 @@ export function RequestTable({
                   </div>
                 </td>
                 <td data-label="Tracking ID">
-                  <div className="inline-flex items-center gap-1.5">
-                    <span className="mono">{row.trackingNumber}</span>
+                  <div className="inline-flex flex-wrap items-center gap-1.5">
+                    <span className="mono whitespace-nowrap">{row.trackingNumber}</span>
                     {row.unreadMessages > 0 ? (
                       <span className="st-filter-badge" title="Unread citizen message">
                         {row.unreadMessages}
                       </span>
                     ) : null}
-                    {row.needsTriage ? <span className="chip">Not accepted</span> : null}
+                    {row.needsTriage ? <span className="chip whitespace-nowrap">Not accepted</span> : null}
                   </div>
                 </td>
                 {spansDepartments ? (
                   <td data-label="Department">
                     <span>{row.department || 'Not yet routed'}</span>
                     {row.thedId ? (
-                      <span className="ml-1 mono text-xs text-ink-soft">· {row.thedId}</span>
+                      <span className="ml-1 mono text-sm text-ink-soft">· {row.thedId}</span>
                     ) : null}
                   </td>
                 ) : null}
@@ -179,7 +179,7 @@ export function RequestTable({
                           e.stopPropagation();
                           onClaim(row);
                         }}
-                        className="cr-btn cr-btn-primary shrink-0 !px-2.5 !py-1 !text-xs font-semibold"
+                        className="cr-btn cr-btn-primary shrink-0 !px-3 !py-1.5 text-sm font-semibold"
                         title="Claim and start processing"
                       >
                         Claim

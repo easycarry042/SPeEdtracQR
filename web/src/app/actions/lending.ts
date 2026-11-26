@@ -1,12 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db, id } from '@/lib/db';
+import { db, id, toId } from '@/lib/db';
 import { now, parseNaive } from '@/lib/time';
 import { currentActor } from '@/lib/auth/actor';
 import { logOnResource } from '@/lib/activity';
 import * as lending from '@/lib/domain/lending-desk';
 import { isEquipment, unitsOnLoan } from '@/lib/domain/lending';
+import { DocumentStatus } from '@/lib/domain/document-status';
+import { canBeAdvancedBy } from '@/lib/domain/document';
+import { checks } from '@/lib/domain/status-gate';
+import { submitForClearance } from '@/lib/domain/review-actions';
 
 /**
  * The Resources page's write paths.
@@ -16,7 +20,11 @@ import { isEquipment, unitsOnLoan } from '@/lib/domain/lending';
  * button. The rules themselves live in `lending-desk`, shared with the booking
  * calendar so the two can never disagree.
  */
-export type LendingResult = { ok: boolean; message: string };
+export type LendingResult = {
+  ok: boolean;
+  message: string;
+  autoSubmitted?: boolean;
+};
 
 async function requireInventoryActor() {
   const actor = await currentActor();
@@ -41,7 +49,50 @@ export async function approveLoan(bookingId: number, units: number | null): Prom
     return { ok: false, message: 'This action is unauthorized.' };
   }
 
-  return done(await lending.approve(bookingId, units), 'Booking approved.');
+  const refusal = await lending.approve(bookingId, units);
+
+  if (refusal) {
+    revalidatePath('/', 'layout');
+    return { ok: false, message: refusal };
+  }
+
+  let autoSubmitted = false;
+  let message = 'Booking approved.';
+
+  const bookingRow = await db.bookings.findUnique({
+    where: { id: id(bookingId) },
+    select: {
+      document_id: true,
+      document: { select: { status: true, assigned_to: true } },
+    },
+  });
+
+  if (bookingRow?.document && bookingRow.document.status === DocumentStatus.InProgress) {
+    const docId = toId(bookingRow.document_id);
+    const assignedTo =
+      bookingRow.document.assigned_to === null ? null : toId(bookingRow.document.assigned_to);
+
+    if (canBeAdvancedBy({ assigned_to: assignedTo }, actor)) {
+      const gateChecks = await checks({ id: docId }, DocumentStatus.InReview, null, actor);
+
+      if (gateChecks.every((check) => check.passed)) {
+        try {
+          await submitForClearance(docId, actor, null);
+          autoSubmitted = true;
+          message = 'Booking approved and submitted for supervisor review.';
+        } catch {
+          message = 'Booking approved. Click Submit for Supervisor Review when ready.';
+        }
+      } else {
+        message =
+          'Booking approved. Check any remaining required documents or claiming date below, then click Submit for Supervisor Review.';
+      }
+    }
+  }
+
+  revalidatePath('/', 'layout');
+
+  return { ok: true, message, autoSubmitted };
 }
 
 export async function releaseLoan(bookingId: number): Promise<LendingResult> {

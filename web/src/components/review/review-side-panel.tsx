@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { setClaimDate } from '@/app/actions/document';
@@ -41,7 +41,11 @@ export function ReviewSidePanel({
         <div className="dm-head">
           <h2 className="min-w-0 truncate text-xl font-semibold text-green-deep">
             {side === 'date' ? (
-              'Adjust Claiming Date'
+              row.claimDatePolicy === 'optional' ? (
+                'Adjust Claiming Date (Optional)'
+              ) : (
+                'Adjust Claiming Date'
+              )
             ) : (
               <>
                 Messages ·{' '}
@@ -80,8 +84,85 @@ function ClaimCalendar({ row }: { row: ReviewRow }) {
   const initialIso = row.claimOn ?? row.requestedClaimOn ?? '';
   const [dateValue, setDateValue] = useState(initialIso);
   const [error, setError] = useState('');
+  const [bookedByMonth, setBookedByMonth] = useState<Record<string, string[]>>({});
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const fetchedKeys = useRef<Set<string>>(new Set());
+  const inFlight = useRef(0);
 
   const todayIso = useMemo(() => toIso(new Date()), []);
+  const facilityResourceId =
+    row.booking && !row.booking.isEquipment ? row.booking.resourceId : null;
+
+  const fetchAvailability = useCallback(
+    async (resourceId: number, monthIso: string, signal?: AbortSignal): Promise<void> => {
+      const cacheKey = `${resourceId}:${monthIso}`;
+      if (fetchedKeys.current.has(cacheKey)) {
+        return;
+      }
+
+      inFlight.current += 1;
+      setLoadingAvailability(true);
+
+      try {
+        const res = await fetch(
+          `/api/bookings/availability?resourceId=${encodeURIComponent(String(resourceId))}&month=${encodeURIComponent(monthIso)}`,
+          { credentials: 'same-origin', signal },
+        );
+        if (!res.ok) return;
+        const payload = (await res.json()) as { bookedDates?: string[] };
+        const dates = Array.isArray(payload.bookedDates) ? payload.bookedDates : [];
+        fetchedKeys.current.add(cacheKey);
+        setBookedByMonth((prev) => ({ ...prev, [cacheKey]: dates }));
+      } catch {
+        // Ignore abort / offline error — server validation still enforces conflicts.
+      } finally {
+        inFlight.current = Math.max(0, inFlight.current - 1);
+        if (inFlight.current === 0) {
+          setLoadingAvailability(false);
+        }
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!facilityResourceId) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const initialMonth = (initialIso || todayIso).slice(0, 7);
+    void fetchAvailability(facilityResourceId, initialMonth, controller.signal);
+
+    if (todayIso.slice(0, 7) !== initialMonth) {
+      void fetchAvailability(facilityResourceId, todayIso.slice(0, 7), controller.signal);
+    }
+
+    return () => controller.abort();
+  }, [facilityResourceId, initialIso, todayIso, fetchAvailability]);
+
+  const bookedSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!facilityResourceId) {
+      return set;
+    }
+    const prefix = `${facilityResourceId}:`;
+    for (const [key, dates] of Object.entries(bookedByMonth)) {
+      if (key.startsWith(prefix)) {
+        for (const day of dates) {
+          set.add(day);
+        }
+      }
+    }
+    return set;
+  }, [facilityResourceId, bookedByMonth]);
+
+  // If the pre-seeded date happens to be booked on a facility, don't leave a disabled date pre-selected.
+  useEffect(() => {
+    if (facilityResourceId && dateValue && bookedSet.has(dateValue)) {
+      setDateValue('');
+    }
+  }, [facilityResourceId, dateValue, bookedSet]);
 
   const legendItems = useMemo<CalendarLegendItem[]>(() => {
     const items: CalendarLegendItem[] = [
@@ -100,8 +181,15 @@ function ClaimCalendar({ row }: { row: ReviewRow }) {
         variant: 'set',
       });
     }
+    if (facilityResourceId !== null) {
+      items.push({
+        id: 'booked',
+        label: 'Unavailable / Booked',
+        variant: 'booked',
+      });
+    }
     return items;
-  }, [row.requestedClaimDate, row.claimDate]);
+  }, [row.requestedClaimDate, row.claimDate, facilityResourceId]);
 
   const highlights = useMemo<CalendarDateHighlight[]>(() => {
     const items: CalendarDateHighlight[] = [];
@@ -122,10 +210,12 @@ function ClaimCalendar({ row }: { row: ReviewRow }) {
     return items;
   }, [row.requestedClaimOn, row.claimOn]);
 
+  const isOptional = row.claimDatePolicy === 'optional';
+
   const handleApply = () => {
     startTransition(async () => {
       setError('');
-      const result = await setClaimDate(row.id, dateValue);
+      const result = await setClaimDate(row.id, dateValue || null);
       if (result.ok) {
         router.refresh();
       } else {
@@ -134,25 +224,41 @@ function ClaimCalendar({ row }: { row: ReviewRow }) {
     });
   };
 
+  const applyDisabled =
+    pending ||
+    (dateValue ? dateValue === (row.claimOn ?? '') || bookedSet.has(dateValue) : !isOptional || !row.claimOn);
+
   return (
     <UnifiedCalendar
       value={dateValue}
       onChange={setDateValue}
       minDate={todayIso}
       todayIso={todayIso}
+      disabledDates={facilityResourceId !== null ? bookedSet : undefined}
       legendItems={legendItems}
       highlights={highlights}
+      loading={loadingAvailability}
       error={error || null}
       ariaLabel="Claiming date"
+      onMonthChange={
+        facilityResourceId !== null
+          ? (year, monthIndex) => {
+              const monthIso = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+              void fetchAvailability(facilityResourceId, monthIso);
+            }
+          : undefined
+      }
       onClear={() => setDateValue('')}
       onApply={handleApply}
-      applyDisabled={pending || !dateValue || dateValue === row.claimOn}
+      applyDisabled={applyDisabled}
       applyLabel={pending ? 'Saving…' : 'Apply'}
       footerSummary={
         dateValue ? (
           <span>
             New claiming date <strong>{formatCalendarIso(dateValue)}</strong>
           </span>
+        ) : isOptional ? (
+          <span>Optional for facility reservations — booked dates are greyed out.</span>
         ) : (
           <span>Pick a day for the citizen to claim. Advance uses it too.</span>
         )

@@ -10,6 +10,7 @@ import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import * as SpeedQr from '@/lib/client/speed-qr';
 import { renderPdfUrlToCanvas } from '@/lib/client/pdf-preview';
 import { DownloadQrButton } from '@/components/download-qr-button';
+import { QrPreviewFrame } from '@/components/qr-preview-frame';
 import { StampPlacer, type StampChoice } from './stamp-placer';
 import {
   approveStep,
@@ -22,24 +23,36 @@ import {
   type InternalResult,
 } from '@/app/actions/internal';
 
-async function openAndWaitForQr(expected: string): Promise<void> {
-  await new Promise<void>((resolve) => {
+async function openAndWaitForQr(expected: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
     let settled = false;
-    const finish = () => {
+    const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
       window.removeEventListener('request-qr-ready', onReady);
+      window.removeEventListener('request-qr-failed', onFailed);
       clearTimeout(timer);
-      requestAnimationFrame(() => setTimeout(resolve, 120));
+      if (ok) {
+        requestAnimationFrame(() => setTimeout(() => resolve(true), 120));
+      } else {
+        resolve(false);
+      }
     };
     const onReady = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
       if (!detail || detail.toUpperCase() === expected) {
-        finish();
+        finish(true);
       }
     };
-    const timer = setTimeout(finish, 4500);
+    const onFailed = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (!detail || detail.toUpperCase() === expected) {
+        finish(false);
+      }
+    };
+    const timer = setTimeout(() => finish(false), 8000);
     window.addEventListener('request-qr-ready', onReady);
+    window.addEventListener('request-qr-failed', onFailed);
     window.dispatchEvent(new CustomEvent('show-request-qr', { detail: expected }));
   });
 }
@@ -310,64 +323,61 @@ export function QrTile({
                   </div>
                 </div>
 
-                {(showingDocument && stampedAttachment) || inlineQrUrl ? (
-                  <div
-                    data-qr-snip-target="true"
-                    className="relative z-10 mt-3 flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[12px] border border-hairline bg-[#f4f7f5] p-3"
-                  >
-                    <div className="relative flex w-full items-center justify-center">
-                      {showingDocument && stampedAttachment ? (
-                        isPdf ? (
-                          <>
-                            <canvas
-                              ref={pdfCanvasRef}
-                              aria-label={`${stampedAttachment.label} page ${pdfPage} for ${trackingNumber}`}
-                              className="block max-h-[62vh] max-w-full w-auto h-auto rounded-[6px] bg-white shadow-sm"
-                            />
-                            {pdfLoading ? (
-                              <div
-                                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[6px] bg-[#f4f7f5]/90"
-                                role="status"
-                              >
-                                <svg className="h-7 w-7 animate-spin text-green" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
-                                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                                </svg>
-                                <p className="text-sm font-semibold text-ink-soft">
-                                  Loading attached PDF…
-                                </p>
-                              </div>
-                            ) : null}
-                          </>
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={stampedAttachment.url}
-                            alt={`${stampedAttachment.label} for ${trackingNumber}`}
-                            className="block max-h-[62vh] max-w-full w-auto rounded-[6px] bg-white shadow-sm"
-                            onLoad={notifyReady}
-                            onError={() => {
-                              setFallbackNotice('Unable to preview the attached file — switched to QR only view.');
-                              setViewMode('sticker');
-                            }}
+                <div
+                  data-qr-snip-target="true"
+                  className="relative z-10 mt-3 flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[12px] border border-hairline bg-[#f4f7f5] p-3"
+                >
+                  <div className="relative flex w-full items-center justify-center">
+                    {showingDocument && stampedAttachment ? (
+                      isPdf ? (
+                        <>
+                          <canvas
+                            ref={pdfCanvasRef}
+                            aria-label={`${stampedAttachment.label} page ${pdfPage} for ${trackingNumber}`}
+                            className="block max-h-[62vh] max-w-full w-auto h-auto rounded-[6px] bg-white shadow-sm"
                           />
-                        )
+                          {pdfLoading ? (
+                            <div
+                              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[6px] bg-[#f4f7f5]/90"
+                              role="status"
+                            >
+                              <svg className="h-7 w-7 animate-spin text-green" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                              </svg>
+                              <p className="text-sm font-semibold text-ink-soft">
+                                Loading attached PDF…
+                              </p>
+                            </div>
+                          ) : null}
+                        </>
                       ) : (
-                        <div className="dm-qr-frame !mt-0 my-1">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={inlineQrUrl!}
-                            alt={`QR code for ${trackingNumber}`}
-                            crossOrigin="anonymous"
-                            onLoad={notifyReady}
-                          />
-                        </div>
-                      )}
-                    </div>
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={stampedAttachment.url}
+                          alt={`${stampedAttachment.label} for ${trackingNumber}`}
+                          className="block max-h-[62vh] max-w-full w-auto rounded-[6px] bg-white shadow-sm"
+                          onLoad={notifyReady}
+                          onError={() => {
+                            setFallbackNotice('Unable to preview the attached file — switched to QR only view.');
+                            setViewMode('sticker');
+                          }}
+                        />
+                      )
+                    ) : (
+                      <QrPreviewFrame
+                        qrUrl={inlineQrUrl}
+                        trackingNumber={trackingNumber}
+                        className="!mt-0 my-1"
+                        crossOrigin="anonymous"
+                        onReady={notifyReady}
+                        onLoadFailed={() =>
+                          window.dispatchEvent(new CustomEvent('request-qr-failed', { detail: expected }))
+                        }
+                      />
+                    )}
                   </div>
-                ) : (
-                  <p className="dm-qr-missing">No QR code has been generated for this request.</p>
-                )}
+                </div>
 
                 {fallbackNotice ? (
                   <p
@@ -618,7 +628,12 @@ function ReceiveCard({ detail }: { detail: InternalRequestDetail }) {
     setError(null);
 
     if (mode === 'page') {
-      await openAndWaitForQr(expected);
+      const ready = await openAndWaitForQr(expected);
+      if (!ready) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+        setError('QR code is still loading due to a slow connection. Wait a moment and try again.');
+        return;
+      }
     }
 
     let accepted = false;
@@ -958,7 +973,12 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
     setError(null);
 
     if (mode === 'page') {
-      await openAndWaitForQr(expected);
+      const ready = await openAndWaitForQr(expected);
+      if (!ready) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+        setError('QR code is still loading due to a slow connection. Wait a moment and try again.');
+        return;
+      }
     }
 
     try {
@@ -1269,7 +1289,12 @@ function DecisionCard({ detail }: { detail: InternalRequestDetail }) {
     setError(null);
 
     if (snipMode === 'page') {
-      await openAndWaitForQr(expected);
+      const ready = await openAndWaitForQr(expected);
+      if (!ready) {
+        window.dispatchEvent(new CustomEvent('hide-request-qr', { detail: expected }));
+        setError('QR code is still loading due to a slow connection. Wait a moment and try again.');
+        return;
+      }
     }
 
     let accepted = false;

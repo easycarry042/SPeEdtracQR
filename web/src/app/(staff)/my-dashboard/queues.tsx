@@ -54,11 +54,24 @@ export function StaffQueues({
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReviewRow | null>(null);
   const [claimingId, setClaimingId] = useState<number | null>(null);
+  const [claimError, setClaimError] = useState('');
 
   const history = useCompletedHistory(tab === 'completed', query);
   const completed = history.data?.rows ?? [];
 
-  const allLocal = useMemo(() => [...openRequests, ...triage, ...active], [openRequests, triage, active]);
+  const myAll = useMemo(() => {
+    const seen = new Set(triage.map((r) => r.id));
+    return [...triage, ...active.filter((r) => !seen.has(r.id))];
+  }, [triage, active]);
+
+  const allLocal = useMemo(() => {
+    const map = new Map<number, ReviewRow>();
+    for (const row of [...openRequests, ...myAll]) {
+      map.set(row.id, row);
+    }
+    return Array.from(map.values());
+  }, [openRequests, myAll]);
+
   const typeOptions = useMemo(() => {
     const source = tab === 'completed' ? completed : allLocal;
     return source.map((r) => r.documentType);
@@ -73,7 +86,7 @@ export function StaffQueues({
           : tab === 'returned'
             ? returned
             : tab === 'active'
-              ? active
+              ? myAll
               : completed;
     const needle = query.trim().toLowerCase();
 
@@ -91,7 +104,7 @@ export function StaffQueues({
         (field ?? '').toLowerCase().includes(needle),
       );
     });
-  }, [tab, openRequests, triage, returned, active, completed, filter, query]);
+  }, [tab, openRequests, triage, returned, myAll, completed, filter, query]);
 
   const pageCount =
     tab === 'completed'
@@ -134,13 +147,14 @@ export function StaffQueues({
 
   const handleClaim = async (row: ReviewRow) => {
     if (claimingId) return;
+    setClaimError('');
     setClaimingId(row.id);
     try {
       const res = await claimDocument(row.id);
       if (res.ok) {
         router.refresh();
       } else {
-        alert(res.message);
+        setClaimError(res.message);
       }
     } finally {
       setClaimingId(null);
@@ -156,7 +170,7 @@ export function StaffQueues({
           {(
             [
               ['pool', 'Available Pool', openRequests.length],
-              ['active', 'My Active', active.length],
+              ['active', 'My Active', myAll.length],
               ['returned', 'Returned for Revision', returned.length],
               ['triage', 'To Accept', triage.length],
               ['completed', 'Completed', completedCount],
@@ -220,6 +234,12 @@ export function StaffQueues({
           />
         </div>
       </div>
+
+      {claimError ? (
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-status-red" role="alert">
+          {claimError}
+        </p>
+      ) : null}
 
       <div className="st-card">
         <RequestTable

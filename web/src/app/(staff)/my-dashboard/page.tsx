@@ -38,6 +38,12 @@ export default async function StaffDashboardPage({
       ? { department_id: id(actor.departmentId) }
       : { department_id: { lt: 0 } };
 
+  const handlerLinks = await db.request_type_handlers.findMany({
+    where: { user_id: id(actor.id) },
+    select: { requestType: { select: { name: true } } },
+  });
+  const handledTypeNames = handlerLinks.map((link) => link.requestType.name);
+
   const [openRows, triageRows, activeRows, completedTotal] = await Promise.all([
     // Department Pool ("Open Requests"): unassigned requests in staff's department
     db.documents.findMany({
@@ -53,14 +59,22 @@ export default async function StaffDashboardPage({
       take: 100,
     }),
 
-    // Assigned but not yet accepted — the decision only this person can make.
+    // Assigned to this person — OR routed to any request type they are a usual handler of — and not yet accepted.
     db.documents.findMany({
       where: {
-        ...mine,
+        deleted_at: null,
+        origin: { not: ORIGIN_INTERNAL },
+        ...deptFilter,
         accepted_at: null,
         status: { in: [DocumentStatus.Pending, DocumentStatus.InProgress] },
+        OR: [
+          { assigned_to: id(actor.id) },
+          ...(handledTypeNames.length > 0
+            ? [{ assigned_to: { not: null }, document_type: { in: handledTypeNames } }]
+            : []),
+        ],
       },
-      orderBy: { assigned_at: 'desc' },
+      orderBy: [{ assigned_at: 'desc' }, { created_at: 'desc' }],
       select: REVIEW_SELECT,
     }),
 
@@ -111,13 +125,11 @@ export default async function StaffDashboardPage({
       ? normalizedTab
       : returned.length > 0
         ? 'returned'
-        : triage.length > 0
-          ? 'triage'
-          : active.length > 0
-            ? 'active'
-            : openRequests.length > 0
-              ? 'pool'
-              : 'active';
+        : active.length > 0 || triage.length > 0
+          ? 'active'
+          : openRequests.length > 0
+            ? 'pool'
+            : 'active';
 
   return (
     <AuthenticatedPage title="Requests">

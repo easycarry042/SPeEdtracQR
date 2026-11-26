@@ -21,3 +21,58 @@ export const REQUEST_KIND_LABELS: Record<RequestKind, string> = {
   equipment: 'Equipment borrowing (a quantity of items for a date)',
   service: 'Service / Production (make a quantity by a date)',
 };
+
+/**
+ * How a request type treats the claiming date:
+ *  - `optional`: facility reservations already hold a booked schedule; staff/supervisors
+ *    may optionally set or clear a separate claiming date.
+ *  - `required`: equipment borrowings, physical flag requisitions, and document pickups
+ *    require a valid future/today claiming date before supervisor review.
+ *  - `none`: pure services without counter pickup (Lei Making, Layout Request,
+ *    Social Media Posting, Events Set-up, Program Assistance, Other Venue Request).
+ */
+export type ClaimDatePolicy = 'optional' | 'required' | 'none';
+
+const OPTIONAL_FACILITY_NAMES = new Set([
+  'city plaza reservation',
+  'gateway park reservation',
+]);
+
+const NO_CLAIM_SERVICE_NAMES = new Set([
+  'lei making',
+  'layout request',
+  'social media posting',
+  'events set-up',
+  'program assistance',
+  'other venue request',
+]);
+
+export function claimDatePolicyFor(
+  kind: string | null | undefined,
+  documentType: string | null | undefined,
+): ClaimDatePolicy {
+  const k = (kind ?? '').trim().toLowerCase();
+  const name = (documentType ?? '').trim().toLowerCase();
+
+  if (k === 'booking') {
+    return 'optional';
+  }
+
+  if (k === 'equipment' || name.includes('requisition') || k === 'document') {
+    return 'required';
+  }
+
+  if (k === 'service') {
+    return 'none';
+  }
+
+  if (OPTIONAL_FACILITY_NAMES.has(name)) {
+    return 'optional';
+  }
+
+  if (NO_CLAIM_SERVICE_NAMES.has(name)) {
+    return 'none';
+  }
+
+  return 'required';
+}

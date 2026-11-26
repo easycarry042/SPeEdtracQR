@@ -312,7 +312,7 @@ export function UnifiedCalendar({
                 cell.sunday ? 'is-sunday' : '',
                 isRequested ? 'is-requested' : '',
                 isSet ? 'is-set' : '',
-                cell.booked ? 'opacity-40 cursor-not-allowed line-through bg-gray-100' : '',
+                cell.booked ? '!text-gray-800 opacity-40 cursor-not-allowed line-through bg-gray-200' : '',
               ]
                 .filter(Boolean)
                 .join(' ');
