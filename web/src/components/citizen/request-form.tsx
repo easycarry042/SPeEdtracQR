@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { submitRequest, type SubmitResult } from '@/app/actions/request';
 import * as uploadRules from '@/lib/domain/upload-rules';
 import { CalendarPickerField } from '@/components/calendar-picker-field';
+import { ClockTimePickerField } from '@/components/clock-time-picker-field';
+import { addMinutesClamped, timeToMinutes } from '@/lib/client/clock-time';
 
 /**
  * The public request form.
@@ -138,6 +140,8 @@ export function RequestForm({
   const values = result?.values ?? {};
 
   const [bookingDate, setBookingDate] = useState(values.booking_date ?? '');
+  const [startTime, setStartTime] = useState(values.start_time ?? '09:00');
+  const [endTime, setEndTime] = useState(values.end_time ?? '10:00');
   const [neededDate, setNeededDate] = useState(values.needed_date ?? '');
   const [returnDate, setReturnDate] = useState(values.return_date ?? '');
   const [neededBy, setNeededBy] = useState(values.needed_by ?? '');
@@ -149,6 +153,8 @@ export function RequestForm({
       setSelected(nextName);
       if (nextType?.resourceId !== prevType?.resourceId || nextType?.kind !== prevType?.kind) {
         setBookingDate('');
+        setStartTime('09:00');
+        setEndTime('10:00');
         setNeededDate('');
         setReturnDate('');
         setNeededBy('');
@@ -344,23 +350,36 @@ export function RequestForm({
                   </div>
                   <div>
                     <label htmlFor="start_time" className="req-label">Start time</label>
-                    <input
+                    <ClockTimePickerField
                       id="start_time"
-                      type="time"
                       name="start_time"
-                      defaultValue={values.start_time ?? '09:00'}
-                      className="req-field mt-2"
+                      value={startTime}
+                      onChange={(nextStart) => {
+                        setStartTime(nextStart);
+                        const startMins = timeToMinutes(nextStart);
+                        const endMins = timeToMinutes(endTime);
+                        if (startMins !== null && (endMins === null || endMins <= startMins)) {
+                          setEndTime(addMinutesClamped(nextStart, 60));
+                        }
+                      }}
+                      modalTitle="Select Start Time"
+                      placeholder="Select start time…"
+                      ariaInvalid={Boolean(errors.start_time)}
                     />
                     <FieldError message={errors.start_time} />
                   </div>
                   <div>
                     <label htmlFor="end_time" className="req-label">End time</label>
-                    <input
+                    <ClockTimePickerField
                       id="end_time"
-                      type="time"
                       name="end_time"
-                      defaultValue={values.end_time ?? '10:00'}
-                      className="req-field mt-2"
+                      value={endTime}
+                      onChange={setEndTime}
+                      minTime={startTime}
+                      minTimeLabel="Start time"
+                      modalTitle="Select End Time"
+                      placeholder="Select end time…"
+                      ariaInvalid={Boolean(errors.end_time)}
                     />
                     <FieldError message={errors.end_time} />
                   </div>
