@@ -96,16 +96,21 @@ export function extractTracking(text: string | null | undefined): string | null 
     return null;
   }
 
-  if (url.origin !== window.location.origin) {
+  if (!['http:', 'https:'].includes(url.protocol)) {
     return null;
   }
 
   // An internal request's QR: a link to our internal tracker carrying the
-  // signed payload.
+  // signed payload. Verify the signed payload regardless of host so codes
+  // printed on production/preview/localhost still scan across environments.
   if (url.pathname.replace(/\/+$/, '').endsWith(INTERNAL_TRACKER_PATH)) {
     const signed = (url.searchParams.get('qr') ?? '').toUpperCase();
 
     return signed.startsWith(SIGNED_PREFIX) ? decodeSigned(signed) : null;
+  }
+
+  if (url.origin !== window.location.origin) {
+    return null;
   }
 
   const match = OUR_PATHS.exec(url.pathname);
@@ -547,22 +552,58 @@ export function stop(): Promise<void> {
 
 /* ── Still images ───────────────────────────────────────────────────────────── */
 
-/** Decodes a QR out of a picture — a saved screenshot, a photo, a drop. */
-export async function decodeImage(file: File | Blob): Promise<string> {
+interface NativeBarcodeDetector {
+  detect(source: ImageBitmapSource): Promise<Array<{ rawValue?: string }>>;
+}
+
+interface NativeBarcodeDetectorConstructor {
+  new (options?: { formats?: string[] }): NativeBarcodeDetector;
+}
+
+function createNativeQrDetector(): NativeBarcodeDetector | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const ctor = (window as unknown as { BarcodeDetector?: NativeBarcodeDetectorConstructor })
+    .BarcodeDetector;
+  if (typeof ctor !== 'function') {
+    return null;
+  }
+  try {
+    return new ctor({ formats: ['qr_code'] });
+  } catch {
+    return null;
+  }
+}
+
+async function detectWithNative(source: ImageBitmapSource): Promise<string | null> {
+  const detector = createNativeQrDetector();
+  if (!detector) {
+    return null;
+  }
+  try {
+    const results = await detector.detect(source);
+    const match = results.find((entry) => typeof entry.rawValue === 'string' && entry.rawValue.trim() !== '');
+    return match?.rawValue ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function scanWithHtml5Qrcode(blob: Blob): Promise<string> {
   // html5-qrcode needs a mounted element even for file scanning.
   const host = document.createElement('div');
   host.style.display = 'none';
   document.body.append(host);
   host.id = `speedqr-file-${Math.random().toString(36).slice(2)}`;
 
-  const reader = new Html5Qrcode(host.id, { verbose: false });
+  const reader = new Html5Qrcode(host.id, scannerOptions());
 
   try {
-    const asFile = file instanceof File ? file : new File([file], 'qr.png', { type: file.type });
+    const asFile =
+      blob instanceof File ? blob : new File([blob], 'qr.png', { type: blob.type || 'image/png' });
 
     return await reader.scanFile(asFile, false);
-  } catch {
-    throw new Error('No QR code was found in that picture. Try a clearer, closer picture of it.');
   } finally {
     try {
       reader.clear();
@@ -571,6 +612,138 @@ export async function decodeImage(file: File | Blob): Promise<string> {
     }
     host.remove();
   }
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png');
+  });
+}
+
+async function loadBlobImage(blob: Blob): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(blob);
+  try {
+    return await loadImage(url);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Renders an image onto a white-padded canvas (restoring the ISO 18004 quiet
+ * zone when a user snips tightly) with optional high-contrast binarization to
+ * recover low-contrast scans or anti-aliased PDF previews.
+ */
+function prepareDecodeCanvas(
+  image: HTMLImageElement,
+  { binarize = false }: { binarize?: boolean } = {},
+): HTMLCanvasElement {
+  const srcW = Math.max(1, image.naturalWidth);
+  const srcH = Math.max(1, image.naturalHeight);
+  const scale = Math.max(1, Math.min(4, 600 / Math.max(srcW, srcH)));
+  const drawW = Math.round(srcW * scale);
+  const drawH = Math.round(srcH * scale);
+  const pad = Math.max(32, Math.round(Math.max(drawW, drawH) * 0.15));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = drawW + pad * 2;
+  canvas.height = drawH + pad * 2;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return canvas;
+  }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = scale <= 1;
+  ctx.drawImage(image, pad, pad, drawW, drawH);
+
+  if (binarize) {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    let minLum = 255;
+    let maxLum = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+      if (lum < minLum) minLum = lum;
+      if (lum > maxLum) maxLum = lum;
+    }
+
+    const threshold = Math.round((minLum + maxLum) / 2);
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+      const v = lum < threshold ? 0 : 255;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  return canvas;
+}
+
+/**
+ * Decodes a QR out of a picture — a saved screenshot, a photo, a drop, or a
+ * screen snip. Runs multiple passes (native BarcodeDetector, QR-focused ZXing,
+ * quiet-zone-padded canvas, and high-contrast binarized fallback) so tight
+ * snips and dense INT- QR codes decode reliably.
+ */
+export async function decodeImage(file: File | Blob): Promise<string> {
+  // Pass 1: native BarcodeDetector on the raw image (fast and noise-tolerant).
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      try {
+        const nativeHit = await detectWithNative(bitmap);
+        if (nativeHit) {
+          return nativeHit;
+        }
+      } finally {
+        bitmap.close();
+      }
+    } catch {
+      // Fall through to ZXing and padded retries.
+    }
+  }
+
+  // Pass 2: html5-qrcode focused strictly on QR_CODE.
+  try {
+    return await scanWithHtml5Qrcode(file);
+  } catch {
+    // Fall through to padded and high-contrast retries.
+  }
+
+  // Pass 3 & 4: restore white quiet zone, then retry with binarization.
+  try {
+    const img = await loadBlobImage(file);
+
+    for (const binarize of [false, true]) {
+      const prepared = prepareDecodeCanvas(img, { binarize });
+      const nativeHit = await detectWithNative(prepared);
+      if (nativeHit) {
+        return nativeHit;
+      }
+
+      const png = await canvasToPngBlob(prepared);
+      if (!png) {
+        continue;
+      }
+
+      try {
+        return await scanWithHtml5Qrcode(png);
+      } catch {
+        // Try next preprocessing pass.
+      }
+    }
+  } catch {
+    // Image could not be loaded for fallback passes.
+  }
+
+  throw new Error('No QR code was found in that picture. Try a clearer, closer picture of it.');
 }
 
 /** Pulls an image out of a drag-and-drop, including a dragged <img> URL. */
@@ -851,11 +1024,46 @@ async function cropFrame(frame: Frame, rect: BoxRect): Promise<Blob> {
  * crops it directly, so no screen-capture permission is needed.
  */
 async function cropFromPage(rect: BoxRect): Promise<Blob | null> {
-  const centre = document.elementsFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  const target = centre.find(
-    (node): node is HTMLImageElement | HTMLCanvasElement =>
-      node instanceof HTMLImageElement || node instanceof HTMLCanvasElement,
-  );
+  const samplePoints: Array<[number, number]> = [
+    [rect.x + rect.width / 2, rect.y + rect.height / 2],
+    [rect.x + rect.width * 0.25, rect.y + rect.height * 0.25],
+    [rect.x + rect.width * 0.75, rect.y + rect.height * 0.25],
+    [rect.x + rect.width * 0.25, rect.y + rect.height * 0.75],
+    [rect.x + rect.width * 0.75, rect.y + rect.height * 0.75],
+  ];
+
+  let target: HTMLImageElement | HTMLCanvasElement | undefined;
+
+  for (const [px, py] of samplePoints) {
+    const hit = document
+      .elementsFromPoint(px, py)
+      .find(
+        (node): node is HTMLImageElement | HTMLCanvasElement =>
+          node instanceof HTMLImageElement || node instanceof HTMLCanvasElement,
+      );
+    if (hit) {
+      target = hit;
+      break;
+    }
+  }
+
+  if (!target) {
+    const scopedHost = document.querySelector<HTMLElement>('[data-qr-snip-target="true"]');
+    const candidates = scopedHost
+      ? Array.from(scopedHost.querySelectorAll<HTMLImageElement | HTMLCanvasElement>('img, canvas'))
+      : [];
+    target = candidates.find((el) => {
+      const b = el.getBoundingClientRect();
+      return (
+        b.width > 0 &&
+        b.height > 0 &&
+        b.left < rect.x + rect.width &&
+        b.right > rect.x &&
+        b.top < rect.y + rect.height &&
+        b.bottom > rect.y
+      );
+    });
+  }
 
   if (!target) {
     throw new Error('No QR image was found in that box. Drag it around the QR code on the document.');
@@ -905,14 +1113,21 @@ async function cropImage(
   height: number,
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
-  // Upscale small crops: the decoder needs pixels to work with.
-  const scale = Math.max(1, Math.min(4, 400 / Math.max(width, height)));
-  canvas.width = Math.round(width * scale);
-  canvas.height = Math.round(height * scale);
+  // Upscale small crops with crisp module edges and add a white quiet zone so
+  // tight selections still satisfy ISO/IEC 18004 finder-pattern detection.
+  const scale = Math.max(1, Math.min(4, 600 / Math.max(width, height)));
+  const drawW = Math.round(width * scale);
+  const drawH = Math.round(height * scale);
+  const pad = Math.max(24, Math.round(Math.max(drawW, drawH) * 0.12));
 
-  canvas
-    .getContext('2d')!
-    .drawImage(image, x, y, width, height, 0, 0, canvas.width, canvas.height);
+  canvas.width = drawW + pad * 2;
+  canvas.height = drawH + pad * 2;
+
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = scale <= 1;
+  ctx.drawImage(image, x, y, width, height, pad, pad, drawW, drawH);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -943,7 +1158,7 @@ export async function openScanned(decodedText: string, method = 'scan'): Promise
   const response = await fetch('/custody/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ payload: decodedText, capture_method: method }),
+    body: JSON.stringify({ scanned_value: decodedText, capture_method: method }),
   });
 
   const result = (await response.json().catch(() => null)) as { redirect?: string; message?: string } | null;

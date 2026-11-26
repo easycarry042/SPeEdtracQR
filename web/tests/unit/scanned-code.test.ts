@@ -53,6 +53,15 @@ describe('ScannedCode — accepts our own codes', () => {
     // This is exactly what `content()` encodes for an INT- request.
     expect(trackingNumber(trackingQr.content(code))).toBe(code);
   });
+
+  it('reads a validly HMAC-signed internal QR link even from a different host (e.g. preview or localhost)', () => {
+    const code = 'INT-20260915-ZZ3Q4R';
+    const signed = encodeURIComponent(trackingQr.payload(code));
+
+    expect(
+      trackingNumber(`https://preview-branch.vercel.app/internal-requests/track?qr=${signed}`),
+    ).toBe(code);
+  });
 });
 
 describe('ScannedCode — refuses everything else', () => {

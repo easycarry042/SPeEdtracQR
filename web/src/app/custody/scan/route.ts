@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Sign in to scan.' }, { status: 401 });
   }
 
-  let body: { scanned_value?: unknown; capture_method?: unknown };
+  let body: { scanned_value?: unknown; payload?: unknown; capture_method?: unknown };
 
   try {
     body = (await request.json()) as typeof body;
@@ -27,9 +27,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Send the scanned value.' }, { status: 422 });
   }
 
-  const scannedValue = typeof body.scanned_value === 'string' ? body.scanned_value : '';
-  // A paper folder is received by camera only; `image` is for soft copies.
-  const captureMethod = body.capture_method === 'image' ? 'image' : 'scan';
+  const scannedValue =
+    typeof body.scanned_value === 'string'
+      ? body.scanned_value
+      : typeof body.payload === 'string'
+        ? body.payload
+        : '';
+  // A paper folder is received by camera only; `image` / `screen` are for soft copies.
+  const captureMethod =
+    body.capture_method === 'image' || body.capture_method === 'screen' ? 'image' : 'scan';
 
   if (scannedValue.trim() === '' || scannedValue.length > 2000) {
     return NextResponse.json({ message: 'Send the scanned value.' }, { status: 422 });

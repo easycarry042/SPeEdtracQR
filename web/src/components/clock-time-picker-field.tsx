@@ -164,9 +164,6 @@ export function ClockTimePickerField({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (mode === 'hour') {
-      setMode('minute');
-    }
   };
 
   const handleApply = () => {
@@ -301,11 +298,45 @@ export function ClockTimePickerField({
                     </div>
                   </div>
 
-                  <p className="mt-2.5 text-center text-sm font-medium text-ink-soft">
-                    {mode === 'hour'
-                      ? 'Pick the hour on the clock face (or drag the hand).'
-                      : 'Pick the minutes on the clock face (or drag the hand).'}
-                  </p>
+                  <div className="mt-3 flex flex-col items-center gap-1.5">
+                    <div
+                      className="inline-flex rounded-lg border border-hairline bg-[#eef3ef] p-1"
+                      role="tablist"
+                      aria-label="Clock dial unit"
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={mode === 'hour'}
+                        onClick={() => setMode('hour')}
+                        className={`min-h-[40px] rounded-md px-4 text-sm font-semibold transition ${
+                          mode === 'hour'
+                            ? 'bg-white text-green-deep shadow-sm'
+                            : 'text-ink-soft hover:text-ink'
+                        }`}
+                      >
+                        Hour
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={mode === 'minute'}
+                        onClick={() => setMode('minute')}
+                        className={`min-h-[40px] rounded-md px-4 text-sm font-semibold transition ${
+                          mode === 'minute'
+                            ? 'bg-white text-green-deep shadow-sm'
+                            : 'text-ink-soft hover:text-ink'
+                        }`}
+                      >
+                        Minute
+                      </button>
+                    </div>
+                    <p className="text-center text-sm font-medium text-ink-soft">
+                      {mode === 'hour'
+                        ? 'Pick or drag the hour hand. Switch to Minute when needed.'
+                        : 'Pick or drag the minute hand.'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Analog Clock Dial */}
@@ -369,10 +400,7 @@ export function ClockTimePickerField({
                               type="button"
                               aria-label={`${h} o'clock`}
                               aria-pressed={selected}
-                              onClick={() => {
-                                setHour12(h);
-                                setMode('minute');
-                              }}
+                              onClick={() => setHour12(h)}
                               className={`absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-base font-semibold transition ${
                                 selected
                                   ? 'bg-green-deep text-white shadow-md'

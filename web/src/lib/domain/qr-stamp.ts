@@ -1,5 +1,16 @@
 import sharp from 'sharp';
-import { PDFDocument, rgb } from 'pdf-lib';
+import {
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+  type PDFPage,
+} from 'pdf-lib';
 import { db, id, toId } from '@/lib/db';
 import { now } from '@/lib/time';
 import { putPrivate, readPrivate } from '@/lib/storage';
@@ -96,7 +107,7 @@ function geometry(width: number, height: number, placement: StampPlacement, minS
   return { box, pad, stamp: box - pad * 2, left, top };
 }
 
-async function stampImage(
+export async function stampImage(
   scan: Buffer,
   ext: string,
   qrPng: Buffer,
@@ -110,7 +121,12 @@ async function stampImage(
   const { width, height } = upright.info;
   const { box, pad, stamp, left, top } = geometry(width, height, placement, 96);
 
-  const qr = await sharp(qrPng).resize(stamp, stamp, { kernel: 'nearest' }).png().toBuffer();
+  const qr = await sharp(qrPng)
+    .flatten({ background: '#ffffff' })
+    .removeAlpha()
+    .resize(stamp, stamp, { kernel: 'nearest' })
+    .png()
+    .toBuffer();
 
   const composed = sharp(upright.data).composite([
     {
@@ -122,18 +138,98 @@ async function stampImage(
   ]);
 
   if (type.format === 'jpeg') {
-    return composed.jpeg({ quality: 92 }).toBuffer();
+    // 4:4:4 chroma subsampling keeps sharp black/white QR module edges crisp.
+    return composed.jpeg({ quality: 96, chromaSubsampling: '4:4:4' }).toBuffer();
   }
 
   if (type.format === 'webp') {
-    return composed.webp({ quality: 92 }).toBuffer();
+    return composed.webp({ quality: 94 }).toBuffer();
   }
 
   return composed.png().toBuffer();
 }
 
-async function stampPdf(scan: Buffer, qrPng: Buffer, placement: StampPlacement): Promise<Buffer> {
+/**
+ * Isolate existing page content streams inside `q ... Q` so an unbalanced
+ * graphics state, transform matrix (`cm`), or open clipping path (`W`/`W*`)
+ * in an uploaded PDF cannot clip, skew, or draw white bands across the QR.
+ */
+function isolatePageContentStreams(pdf: PDFDocument, page: PDFPage): void {
+  page.node.normalize();
+  const start = PDFContentStream.of(pdf.context.obj({}), [pushGraphicsState()]);
+  const end = PDFContentStream.of(pdf.context.obj({}), [popGraphicsState()]);
+  page.node.wrapContentStreams(pdf.context.register(start), pdf.context.register(end));
+}
+
+/**
+ * Remove non-Link annotations (`/Ink`, `/Square`, `/FreeText`, `/Highlight`,
+ * `/Redact`, etc.) whose `/Rect` intersects the QR box. In PDF, `/Annots` are
+ * always painted ABOVE `/Contents`, so white-out or scanner cleanup annotations
+ * on an uploaded PDF would otherwise paint white lines right over the QR code.
+ */
+function stripOverlappingAnnotations(
+  pdf: PDFDocument,
+  page: PDFPage,
+  qrRect: { x: number; y: number; width: number; height: number },
+): void {
+  const annots = page.node.Annots();
+  if (!annots) {
+    return;
+  }
+
+  const qrRight = qrRect.x + qrRect.width;
+  const qrTop = qrRect.y + qrRect.height;
+
+  for (let i = annots.size() - 1; i >= 0; i -= 1) {
+    const raw = pdf.context.lookup(annots.get(i));
+    if (!(raw instanceof PDFDict)) {
+      continue;
+    }
+
+    const subtype = raw.lookup(PDFName.of('Subtype'));
+    if (subtype instanceof PDFName && subtype.asString() === '/Link') {
+      continue;
+    }
+
+    const rectObj = raw.lookup(PDFName.of('Rect'));
+    if (!(rectObj instanceof PDFArray) || rectObj.size() < 4) {
+      continue;
+    }
+
+    const coords: number[] = [];
+    for (let j = 0; j < 4; j += 1) {
+      const n = pdf.context.lookup(rectObj.get(j));
+      if (n instanceof PDFNumber) {
+        coords.push(n.asNumber());
+      }
+    }
+    if (coords.length < 4) {
+      continue;
+    }
+
+    const minX = Math.min(coords[0], coords[2]);
+    const maxX = Math.max(coords[0], coords[2]);
+    const minY = Math.min(coords[1], coords[3]);
+    const maxY = Math.max(coords[1], coords[3]);
+
+    const overlaps = minX < qrRight && maxX > qrRect.x && minY < qrTop && maxY > qrRect.y;
+    if (overlaps) {
+      annots.remove(i);
+    }
+  }
+}
+
+export async function stampPdf(scan: Buffer, qrPng: Buffer, placement: StampPlacement): Promise<Buffer> {
   const pdf = await PDFDocument.load(scan, { ignoreEncryption: true });
+
+  // Flatten interactive form fields into the content stream before isolating so
+  // widget annotations cannot render on top of the stamped QR.
+  try {
+    pdf.getForm().flatten();
+  } catch {
+    // Documents without AcroForms or with malformed form trees still stamp fine.
+  }
+
   const pages = pdf.getPages();
 
   if (pages.length === 0) {
@@ -142,16 +238,31 @@ async function stampPdf(scan: Buffer, qrPng: Buffer, placement: StampPlacement):
 
   const index = Math.max(0, Math.min((placement.page ?? 1) - 1, pages.length - 1));
   const page = pages[index];
-  const { width, height } = page.getSize();
+  const crop = page.getCropBox();
+  const { width, height } = crop.width > 0 && crop.height > 0 ? crop : page.getMediaBox();
+  const originX = crop.width > 0 && crop.height > 0 ? crop.x : 0;
+  const originY = crop.width > 0 && crop.height > 0 ? crop.y : 0;
+
   // 48pt ≈ 17mm: the smallest QR a phone reliably reads off A4.
   const { box, pad, stamp, left, top } = geometry(width, height, placement, 48);
 
   // PDF space starts bottom-left; the form's placement is from the top-left.
-  const y = height - top - box;
-  const image = await pdf.embedPng(qrPng);
+  const x = originX + left;
+  const y = originY + height - top - box;
 
-  page.drawRectangle({ x: left, y, width: box, height: box, color: rgb(1, 1, 1) });
-  page.drawImage(image, { x: left + pad, y: y + pad, width: stamp, height: stamp });
+  stripOverlappingAnnotations(pdf, page, { x, y, width: box, height: box });
+  isolatePageContentStreams(pdf, page);
+
+  // Strip alpha channel so pdf-lib embeds a pure opaque RGB XObject (no /SMask).
+  const opaqueQr = await sharp(qrPng)
+    .flatten({ background: '#ffffff' })
+    .removeAlpha()
+    .png()
+    .toBuffer();
+  const image = await pdf.embedPng(opaqueQr);
+
+  page.drawRectangle({ x, y, width: box, height: box, color: rgb(1, 1, 1) });
+  page.drawImage(image, { x: x + pad, y: y + pad, width: stamp, height: stamp });
 
   return Buffer.from(await pdf.save());
 }

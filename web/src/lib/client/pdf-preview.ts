@@ -1,6 +1,6 @@
 'use client';
 
-const TARGET_WIDTH = 1200;
+const TARGET_WIDTH = 1800;
 
 export type PdfPreviewResult = {
   dataUrl: string;

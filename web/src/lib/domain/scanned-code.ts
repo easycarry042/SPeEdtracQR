@@ -89,18 +89,23 @@ export function trackingNumber(payload: string): string | null {
     return null;
   }
 
-  if (!['http:', 'https:'].includes(parsed.protocol) || !isOurHost(parsed.host)) {
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
     return null;
   }
 
   const path = normalisePath(parsed.pathname);
 
   // An internal request's QR: a link to our internal tracker carrying the
-  // signed payload. The signature decides.
-  if (path === INTERNAL_TRACKER_PATH) {
+  // signed payload. The HMAC signature decides, even if scanned from a
+  // preview URL or different host than APP_URL.
+  if (path === INTERNAL_TRACKER_PATH || path.replace(/\/+$/, '').endsWith(INTERNAL_TRACKER_PATH)) {
     const signed = parsed.searchParams.get(trackingQr.URL_PARAMETER);
 
     return signed ? trackingQr.trackingNumber(signed) : null;
+  }
+
+  if (!isOurHost(parsed.host)) {
+    return null;
   }
 
   const match = PATH_PATTERN.exec(path);

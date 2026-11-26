@@ -1,5 +1,12 @@
 import sharp, { type OverlayOptions } from 'sharp';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import {
+  PDFContentStream,
+  PDFDocument,
+  StandardFonts,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+} from 'pdf-lib';
 import { db, id, toId } from '@/lib/db';
 import { formatNaive, now } from '@/lib/time';
 import { putPrivate, readPrivate } from '@/lib/storage';
@@ -256,6 +263,10 @@ export async function stampPdf(
   }
 
   const page = pages[Math.max(0, Math.min((placement.page ?? 1) - 1, pages.length - 1))];
+  page.node.normalize();
+  const startStream = PDFContentStream.of(pdf.context.obj({}), [pushGraphicsState()]);
+  const endStream = PDFContentStream.of(pdf.context.obj({}), [popGraphicsState()]);
+  page.node.wrapContentStreams(pdf.context.register(startStream), pdf.context.register(endStream));
   const { width, height } = page.getSize();
   const box = stampBox(width, height, placement);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
