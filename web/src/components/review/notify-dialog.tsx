@@ -119,7 +119,7 @@ function NotifyDialog({
   return (
     <div className="gate-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
       <div className="gate-modal-card">
-        <h3 className="text-base font-bold text-ink">Notify about this request</h3>
+        <h3 className="text-xl font-semibold text-ink">Notify about this request</h3>
         <p className="dm-subtitle mt-1">
           <span className="id-chip">{subject.tracking}</span>
           <span className="dm-chip-info">{subject.type}</span>

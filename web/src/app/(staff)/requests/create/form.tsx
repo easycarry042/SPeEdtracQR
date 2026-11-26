@@ -900,12 +900,12 @@ export function FilingForm({
         >
           <div className="flex max-h-[calc(92vh/var(--ui-zoom))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-hairline bg-paper shadow-2xl">
             <div className="dm-head">
-              <p className="dm-section">Place &amp; size the QR code</p>
+              <h2 className="text-xl font-semibold text-green-deep">Place &amp; size the QR code</h2>
               <button
                 type="button"
                 onClick={() => setQrModal(false)}
                 aria-label="Close editor"
-                className="dm-close"
+                className="dm-close min-h-[40px] min-w-[40px]"
               >
                 <svg
                   fill="none"

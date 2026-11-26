@@ -692,9 +692,14 @@ export type BoxRect = { x: number; y: number; width: number; height: number };
  */
 function dragBox(backdropDataUrl: string | null): Promise<BoxRect | null> {
   return new Promise((resolve) => {
+    const scopedHost =
+      backdropDataUrl === null
+        ? document.querySelector<HTMLElement>('[data-qr-snip-target="true"]')
+        : null;
+
     const overlay = document.createElement('div');
-    overlay.className = 'qr-snip';
-    overlay.setAttribute('role', 'dialog');
+    overlay.className = scopedHost ? 'qr-snip qr-snip-scoped' : 'qr-snip';
+    overlay.setAttribute('role', 'region');
     overlay.setAttribute('aria-label', 'Drag a box around the QR code');
 
     if (backdropDataUrl) {
@@ -714,13 +719,49 @@ function dragBox(backdropDataUrl: string | null): Promise<BoxRect | null> {
     box.hidden = true;
     overlay.append(box);
 
-    document.body.append(overlay);
+    (scopedHost ?? document.body).append(overlay);
 
     let origin: { x: number; y: number } | null = null;
+    let settled = false;
+
+    const clampPoint = (clientX: number, clientY: number) => {
+      if (!scopedHost) {
+        return { x: clientX, y: clientY };
+      }
+      const hostRect = overlay.getBoundingClientRect();
+      return {
+        x: Math.max(hostRect.left, Math.min(hostRect.right, clientX)),
+        y: Math.max(hostRect.top, Math.min(hostRect.bottom, clientY)),
+      };
+    };
+
+    const drawSelectionBox = (left: number, top: number, width: number, height: number) => {
+      if (scopedHost) {
+        const hostRect = overlay.getBoundingClientRect();
+        const safeW = Math.max(1, hostRect.width);
+        const safeH = Math.max(1, hostRect.height);
+        Object.assign(box.style, {
+          left: `${((left - hostRect.left) / safeW) * 100}%`,
+          top: `${((top - hostRect.top) / safeH) * 100}%`,
+          width: `${(width / safeW) * 100}%`,
+          height: `${(height / safeH) * 100}%`,
+        });
+      } else {
+        Object.assign(box.style, {
+          left: `${left}px`,
+          top: `${top}px`,
+          width: `${width}px`,
+          height: `${height}px`,
+        });
+      }
+    };
 
     const done = (result: BoxRect | null): void => {
+      if (settled) return;
+      settled = true;
       overlay.remove();
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('cancel-qr-snip', onCancel);
       resolve(result);
     };
 
@@ -730,10 +771,20 @@ function dragBox(backdropDataUrl: string | null): Promise<BoxRect | null> {
       }
     };
 
+    const onCancel = (): void => {
+      done(null);
+    };
+
     overlay.addEventListener('pointerdown', (event) => {
-      origin = { x: event.clientX, y: event.clientY };
+      const point = clampPoint(event.clientX, event.clientY);
+      origin = point;
       box.hidden = false;
-      Object.assign(box.style, { left: `${origin.x}px`, top: `${origin.y}px`, width: '0px', height: '0px' });
+      drawSelectionBox(origin.x, origin.y, 0, 0);
+      try {
+        overlay.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture failures on synthetic events
+      }
     });
 
     overlay.addEventListener('pointermove', (event) => {
@@ -741,12 +792,13 @@ function dragBox(backdropDataUrl: string | null): Promise<BoxRect | null> {
         return;
       }
 
-      Object.assign(box.style, {
-        left: `${Math.min(origin.x, event.clientX)}px`,
-        top: `${Math.min(origin.y, event.clientY)}px`,
-        width: `${Math.abs(event.clientX - origin.x)}px`,
-        height: `${Math.abs(event.clientY - origin.y)}px`,
-      });
+      const point = clampPoint(event.clientX, event.clientY);
+      drawSelectionBox(
+        Math.min(origin.x, point.x),
+        Math.min(origin.y, point.y),
+        Math.abs(point.x - origin.x),
+        Math.abs(point.y - origin.y),
+      );
     });
 
     overlay.addEventListener('pointerup', (event) => {
@@ -754,18 +806,22 @@ function dragBox(backdropDataUrl: string | null): Promise<BoxRect | null> {
         return done(null);
       }
 
+      const point = clampPoint(event.clientX, event.clientY);
       const rect = {
-        x: Math.min(origin.x, event.clientX),
-        y: Math.min(origin.y, event.clientY),
-        width: Math.abs(event.clientX - origin.x),
-        height: Math.abs(event.clientY - origin.y),
+        x: Math.min(origin.x, point.x),
+        y: Math.min(origin.y, point.y),
+        width: Math.abs(point.x - origin.x),
+        height: Math.abs(point.y - origin.y),
       };
 
       // A click rather than a drag: treat as a cancel, not a 0×0 crop.
       done(rect.width < 12 || rect.height < 12 ? null : rect);
     });
 
+    overlay.addEventListener('pointercancel', () => done(null));
+
     window.addEventListener('keydown', onKey);
+    window.addEventListener('cancel-qr-snip', onCancel);
   });
 }
 

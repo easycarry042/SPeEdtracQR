@@ -124,10 +124,10 @@ export function ReviewActions({
           <section className="dm-panel-strong space-y-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="pill p-brass text-xs">Clearance</span>
-                <h4 className="font-bold text-green-deep text-sm">Supervisor Review & Sign-Off</h4>
+                <span className="pill p-brass text-sm">Clearance</span>
+                <h4 className="font-bold text-green-deep text-base">Supervisor Review & Sign-Off</h4>
               </div>
-              <p className="text-xs text-ink-soft mt-1">
+              <p className="text-sm text-ink-soft mt-1">
                 Submitted by <strong>{row.assignedStaff || 'Staff handler'}</strong> for clearance and confirmation. Review requirement verifications and booking dependencies above before deciding.
               </p>
             </div>
@@ -159,7 +159,7 @@ export function ReviewActions({
               <button
                 type="button"
                 onClick={() => setReassignOpen(!reassignOpen)}
-                className="cr-btn cr-btn-ghost text-xs ml-auto"
+                className="cr-btn cr-btn-ghost text-base ml-auto"
               >
                 {reassignOpen ? 'Cancel Reassign' : 'Reassign…'}
               </button>
@@ -168,14 +168,14 @@ export function ReviewActions({
               <div className="w-full pt-2 border-t border-[var(--cr-border-subtle,#e2e8f0)]">
                 <label
                   htmlFor={`reassign-${row.id}`}
-                  className="block font-bold text-xs text-green-deep"
+                  className="block font-bold text-base text-green-deep"
                 >
                   Reassign to
                 </label>
                 {/* Two-click quick reassign to available colleagues */}
                 {assignableStaff.filter((m) => m.id !== row.assignedTo && m.is_available !== false).length > 0 ? (
                   <div className="mt-1.5 mb-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] text-ink-soft">Quick reassign:</span>
+                    <span className="text-sm text-ink-soft">Quick reassign:</span>
                     {assignableStaff
                       .filter((m) => m.id !== row.assignedTo && m.is_available !== false)
                       .slice(0, 4)
@@ -191,7 +191,7 @@ export function ReviewActions({
                               confirmLabel: 'Reassign',
                             })
                           }
-                          className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
                           title={`Click to reassign to ${colleague.name} (On Duty)`}
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -205,7 +205,7 @@ export function ReviewActions({
                     id={`reassign-${row.id}`}
                     value={assignee}
                     onChange={(event) => setAssignee(event.target.value)}
-                    className="st-filter-field min-w-0 flex-1 text-xs"
+                    className="st-filter-field min-w-0 flex-1 text-base"
                   >
                     <option value="">Select a staff member…</option>
                     {assignableStaff
@@ -226,7 +226,7 @@ export function ReviewActions({
                         confirmLabel: 'Reassign',
                       })
                     }
-                    className="cr-btn cr-btn-primary text-xs"
+                    className="cr-btn cr-btn-primary text-base"
                   >
                     Reassign
                   </button>
@@ -293,7 +293,7 @@ export function ReviewActions({
         ) : (
           <section className="dm-panel-strong text-[length:var(--fs-small)] text-ink">
             {row.overSla ? (
-              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 p-2.5 text-xs text-red-900">
+              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 p-2.5 text-sm text-red-900">
                 <div className="flex items-center gap-1.5 font-bold text-red-800">
                   <svg className="h-4 w-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -342,7 +342,7 @@ export function ReviewActions({
                   {/* Two-click quick reassign to available colleagues */}
                   {assignableStaff.filter((m) => m.id !== row.assignedTo && m.is_available !== false).length > 0 ? (
                     <div className="mt-2 mb-1 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs text-ink-soft">Quick reassign:</span>
+                      <span className="text-sm text-ink-soft">Quick reassign:</span>
                       {assignableStaff
                         .filter((m) => m.id !== row.assignedTo && m.is_available !== false)
                         .slice(0, 5)
@@ -358,7 +358,7 @@ export function ReviewActions({
                               confirmLabel: 'Reassign',
                             })
                           }
-                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
                             title={`Click to reassign to ${colleague.name} (On Duty)`}
                           >
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -491,12 +491,12 @@ export function ReviewActions({
 
       {/* ── Staff clearance pending notice ── */}
       {mode === 'staff' && row.status === DocumentStatus.InReview ? (
-        <section className="dm-panel-strong space-y-2 text-sm text-ink">
+        <section className="dm-panel-strong space-y-2 text-base text-ink">
           <div className="flex items-center gap-2">
-            <span className="pill p-brass text-xs">Review & Sign-Off</span>
+            <span className="pill p-brass text-sm">Review & Sign-Off</span>
             <p className="font-bold text-green-deep">Awaiting Supervisor Review</p>
           </div>
-          <p className="text-xs text-ink-soft">
+          <p className="text-sm text-ink-soft">
             You have completed processing and submitted this request for supervisor sign-off. Once confirmed by your supervisor, the citizen will be notified with claiming details.
           </p>
         </section>
@@ -510,15 +510,15 @@ export function ReviewActions({
       row.status !== DocumentStatus.InReview ? (
         <div className="gate-actions mt-3">
           {mode === 'staff' && row.status === DocumentStatus.InProgress && row.supervisorNotes ? (
-            <div className="mb-3 w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <div className="mb-3 w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-base text-amber-950">
               <div className="flex items-center gap-1.5 font-bold text-amber-900">
                 <svg className="h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 Supervisor Requested Revision
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-amber-900">{row.supervisorNotes}</p>
-              <p className="mt-2 text-xs font-semibold text-amber-700">Please address the requested corrections and resubmit for supervisor review.</p>
+              <p className="mt-1 text-sm leading-relaxed text-amber-900">{row.supervisorNotes}</p>
+              <p className="mt-2 text-sm font-semibold text-amber-700">Please address the requested corrections and resubmit for supervisor review.</p>
             </div>
           ) : null}
 
@@ -828,7 +828,7 @@ function DialogShell({
   return (
     <div className="gate-modal" role="dialog" aria-modal="true">
       <div className="gate-modal-card">
-        <h3 className="text-base font-bold text-ink">{title}</h3>
+        <h3 className="text-xl font-semibold text-ink">{title}</h3>
         {errors.length > 0 ? (
           <ul className="gate-errors" role="alert">
             {errors.map((error) => (

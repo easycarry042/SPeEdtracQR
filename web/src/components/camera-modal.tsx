@@ -72,7 +72,7 @@ export function CameraModal({
       <div className="relative my-auto w-full max-w-[420px] rounded-2xl bg-paper p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id={`${readerId}-title`} className="text-lg font-bold text-ink">
+            <h2 id={`${readerId}-title`} className="text-xl font-semibold text-ink">
               {title}
             </h2>
             {hint ? <p className="mt-1 text-sm text-ink-soft">{hint}</p> : null}
@@ -81,7 +81,7 @@ export function CameraModal({
             type="button"
             onClick={onClose}
             aria-label="Close scanner"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition hover:bg-green-wash"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-soft transition hover:bg-green-wash"
           >
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" className="h-5 w-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
@@ -94,13 +94,13 @@ export function CameraModal({
         </div>
 
         {error ? (
-          <p className="form-error mt-3" role="alert">
+          <p className="form-error mt-3 text-sm" role="alert">
             {error}
           </p>
         ) : null}
 
         <div className="mt-4 flex justify-end">
-          <button type="button" className="cr-btn" onClick={onClose}>
+          <button type="button" className="cr-btn min-h-[40px] text-base" onClick={onClose}>
             Cancel scan
           </button>
         </div>

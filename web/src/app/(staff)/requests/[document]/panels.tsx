@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
 import { NextSteps, currentStepIndex, stepFocus, type NextStep } from './next-steps';
 import { CameraModal } from '@/components/camera-modal';
 import { useConfirm, type ConfirmOptions } from '@/components/confirm-dialog';
 import * as SpeedQr from '@/lib/client/speed-qr';
-import { renderPdfUrlPage } from '@/lib/client/pdf-preview';
+import { renderPdfUrlToCanvas } from '@/lib/client/pdf-preview';
+import { DownloadQrButton } from '@/components/download-qr-button';
 import { StampPlacer, type StampChoice } from './stamp-placer';
 import {
   approveStep,
@@ -36,7 +38,7 @@ async function openAndWaitForQr(expected: string): Promise<void> {
         finish();
       }
     };
-    const timer = setTimeout(finish, 1800);
+    const timer = setTimeout(finish, 4500);
     window.addEventListener('request-qr-ready', onReady);
     window.dispatchEvent(new CustomEvent('show-request-qr', { detail: expected }));
   });
@@ -60,52 +62,86 @@ export function QrTile({
   stickerUrl: string;
   stampedAttachment?: { id: number; url: string; label: string; ext: string } | null;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'document' | 'sticker'>(
     stampedAttachment ? 'document' : 'sticker',
   );
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfPageCount, setPdfPageCount] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+  const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const expected = trackingNumber.toUpperCase();
   const isPdf = stampedAttachment?.ext.toUpperCase() === 'PDF';
   const showingDocument = Boolean(stampedAttachment && viewMode === 'document');
+  const inlineQrUrl = qrUrl
+    ? qrUrl.startsWith('/storage/')
+      ? `${qrUrl}${qrUrl.includes('?') ? '&' : '?'}inline=1`
+      : qrUrl
+    : null;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setViewMode(stampedAttachment ? 'document' : 'sticker');
+    setFallbackNotice(null);
+    setPdfPage(1);
   }, [stampedAttachment]);
+
+  const notifyReady = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('request-qr-ready', { detail: expected }));
+  }, [expected]);
+
+  const closeModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('cancel-qr-snip'));
+    setQrOpen(false);
+    setFallbackNotice(null);
+  }, []);
 
   useEffect(() => {
     if (!qrOpen || !showingDocument || !stampedAttachment || !isPdf) {
+      setPdfLoading(false);
       return;
     }
 
-    let active = true;
+    const canvas = pdfCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const controller = new AbortController();
     setPdfLoading(true);
 
-    void renderPdfUrlPage(stampedAttachment.url, pdfPage)
+    void renderPdfUrlToCanvas(stampedAttachment.url, canvas, pdfPage, controller.signal)
       .then((res) => {
-        if (!active) return;
-        setPdfDataUrl(res.dataUrl);
+        if (controller.signal.aborted) return;
         setPdfPageCount(res.pageCount);
         setPdfPage(res.page);
+        setFallbackNotice(null);
+        setPdfLoading(false);
+        notifyReady();
       })
-      .catch(() => {
-        if (!active) return;
-        setViewMode('sticker');
-      })
-      .finally(() => {
-        if (active) {
-          setPdfLoading(false);
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        if (
+          err instanceof Error &&
+          (err.name === 'AbortError' || err.name === 'RenderingCancelledException')
+        ) {
+          return;
         }
+        setPdfLoading(false);
+        setFallbackNotice('Unable to preview the attached PDF — switched to QR only view.');
+        setViewMode('sticker');
       });
 
     return () => {
-      active = false;
+      controller.abort();
     };
-  }, [qrOpen, showingDocument, stampedAttachment, isPdf, pdfPage]);
+  }, [qrOpen, showingDocument, stampedAttachment, isPdf, pdfPage, notifyReady]);
 
   useEffect(() => {
     const onShow = (event: Event): void => {
@@ -114,35 +150,41 @@ export function QrTile({
         if (stampedAttachment) {
           setViewMode('document');
         }
+        setFallbackNotice(null);
         setQrOpen(true);
       }
     };
     const onHide = (event: Event): void => {
       const detail = (event as CustomEvent<string>).detail;
       if (detail?.toUpperCase() === expected) {
-        setQrOpen(false);
-      }
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        setQrOpen(false);
+        closeModal();
       }
     };
 
     window.addEventListener('show-request-qr', onShow);
     window.addEventListener('hide-request-qr', onHide);
-    window.addEventListener('keydown', onKey);
 
     return () => {
       window.removeEventListener('show-request-qr', onShow);
       window.removeEventListener('hide-request-qr', onHide);
-      window.removeEventListener('keydown', onKey);
     };
-  }, [expected, stampedAttachment]);
+  }, [expected, stampedAttachment, closeModal]);
 
-  const notifyReady = () => {
-    window.dispatchEvent(new CustomEvent('request-qr-ready', { detail: expected }));
-  };
+  useEffect(() => {
+    if (!qrOpen) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeModal();
+      }
+    };
+
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [qrOpen, closeModal]);
 
   return (
     <>
@@ -152,7 +194,10 @@ export function QrTile({
           className="dm-qr-btn"
           aria-label={`Show QR code for ${trackingNumber}`}
           title="Show QR code"
-          onClick={() => setQrOpen(true)}
+          onClick={() => {
+            setFallbackNotice(null);
+            setQrOpen(true);
+          }}
         >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path
@@ -174,161 +219,206 @@ export function QrTile({
         </div>
       </div>
 
-      {qrOpen ? (
-        <div
-          className="dm-qr-layer"
-          role="dialog"
-          aria-modal="true"
-          aria-label="QR code"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setQrOpen(false);
-            }
-          }}
-        >
-          <div
-            className="dm-qr-panel"
-            style={showingDocument ? { maxWidth: 'min(92vw, 760px)' } : undefined}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="dm-section">
-                {showingDocument ? stampedAttachment?.label ?? 'Attached document' : 'QR code'}
-              </p>
+      {mounted && qrOpen
+        ? createPortal(
+            <div
+              className="dm-qr-layer"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`qr-modal-title-${trackingNumber}`}
+              onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                  closeModal();
+                }
+              }}
+            >
+              <div
+                className="dm-qr-panel relative"
+                style={showingDocument ? { maxWidth: 'min(92vw, 760px)' } : { maxWidth: '28rem' }}
+              >
+                <div className="relative z-30 flex flex-wrap items-center justify-between gap-3">
+                  <h2
+                    id={`qr-modal-title-${trackingNumber}`}
+                    className="text-xl font-semibold text-green-deep"
+                  >
+                    {showingDocument ? stampedAttachment?.label ?? 'Attached document' : 'QR code'}
+                  </h2>
 
-              <div className="flex items-center gap-2">
-                {stampedAttachment ? (
-                  <div className="flex items-center rounded-lg border border-hairline bg-[#f4f7f5] p-0.5 text-xs font-semibold">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {stampedAttachment ? (
+                      <div className="flex items-center rounded-lg border border-hairline bg-[#f4f7f5] p-1 text-sm font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFallbackNotice(null);
+                            setViewMode('document');
+                          }}
+                          className={`min-h-[40px] rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                            showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
+                          }`}
+                        >
+                          Attached file
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('sticker')}
+                          className={`min-h-[40px] rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                            !showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
+                          }`}
+                        >
+                          QR only
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {showingDocument && isPdf && pdfPageCount > 1 ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
+                          disabled={pdfPage <= 1 || pdfLoading}
+                          className="ff-page-btn !h-10 !w-10 text-base"
+                          aria-label="Previous page"
+                        >
+                          ‹
+                        </button>
+                        <span className="text-sm font-semibold text-ink-soft">
+                          {pdfPage}/{pdfPageCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPdfPage((p) => Math.min(pdfPageCount, p + 1))}
+                          disabled={pdfPage >= pdfPageCount || pdfLoading}
+                          className="ff-page-btn !h-10 !w-10 text-base"
+                          aria-label="Next page"
+                        >
+                          ›
+                        </button>
+                      </div>
+                    ) : null}
+
                     <button
                       type="button"
-                      onClick={() => setViewMode('document')}
-                      className={`rounded-md px-2.5 py-1 transition ${
-                        showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
-                      }`}
+                      aria-label="Close QR code"
+                      className="dm-close min-h-[40px] min-w-[40px]"
+                      onClick={closeModal}
                     >
-                      Attached file
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('sticker')}
-                      className={`rounded-md px-2.5 py-1 transition ${
-                        !showingDocument ? 'bg-white text-green-deep shadow-sm' : 'text-ink-soft'
-                      }`}
-                    >
-                      QR only
+                      <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+                      </svg>
                     </button>
                   </div>
-                ) : null}
+                </div>
 
-                {showingDocument && isPdf && pdfPageCount > 1 ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
-                      disabled={pdfPage <= 1 || pdfLoading}
-                      className="ff-page-btn"
-                      aria-label="Previous page"
-                    >
-                      ‹
-                    </button>
-                    <span className="text-[11px] font-semibold text-ink-soft">
-                      {pdfPage}/{pdfPageCount}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPdfPage((p) => Math.min(pdfPageCount, p + 1))}
-                      disabled={pdfPage >= pdfPageCount || pdfLoading}
-                      className="ff-page-btn"
-                      aria-label="Next page"
-                    >
-                      ›
-                    </button>
+                {(showingDocument && stampedAttachment) || inlineQrUrl ? (
+                  <div
+                    data-qr-snip-target="true"
+                    className="relative z-10 mt-3 flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[12px] border border-hairline bg-[#f4f7f5] p-3"
+                  >
+                    <div className="relative flex w-full items-center justify-center">
+                      {showingDocument && stampedAttachment ? (
+                        isPdf ? (
+                          <>
+                            <canvas
+                              ref={pdfCanvasRef}
+                              aria-label={`${stampedAttachment.label} page ${pdfPage} for ${trackingNumber}`}
+                              className="block max-h-[62vh] max-w-full w-auto h-auto rounded-[6px] bg-white shadow-sm"
+                            />
+                            {pdfLoading ? (
+                              <div
+                                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[6px] bg-[#f4f7f5]/90"
+                                role="status"
+                              >
+                                <svg className="h-7 w-7 animate-spin text-green" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
+                                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                </svg>
+                                <p className="text-sm font-semibold text-ink-soft">
+                                  Loading attached PDF…
+                                </p>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={stampedAttachment.url}
+                            alt={`${stampedAttachment.label} for ${trackingNumber}`}
+                            className="block max-h-[62vh] max-w-full w-auto rounded-[6px] bg-white shadow-sm"
+                            onLoad={notifyReady}
+                            onError={() => {
+                              setFallbackNotice('Unable to preview the attached file — switched to QR only view.');
+                              setViewMode('sticker');
+                            }}
+                          />
+                        )
+                      ) : (
+                        <div className="dm-qr-frame !mt-0 my-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={inlineQrUrl!}
+                            alt={`QR code for ${trackingNumber}`}
+                            crossOrigin="anonymous"
+                            onLoad={notifyReady}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  aria-label="Close QR code"
-                  className="dm-close"
-                  onClick={() => setQrOpen(false)}
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {showingDocument && stampedAttachment ? (
-              <div className="mt-3 flex min-h-[220px] flex-col items-center justify-center rounded-[12px] border border-hairline bg-[#f4f7f5] p-3">
-                {isPdf && (pdfLoading || !pdfDataUrl) ? (
-                  <p className="text-[length:var(--fs-small)] font-semibold text-ink-soft">
-                    Opening attached PDF…
-                  </p>
                 ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={isPdf ? pdfDataUrl! : stampedAttachment.url}
-                    alt={`${stampedAttachment.label} for ${trackingNumber}`}
-                    className="block max-h-[66vh] max-w-full w-auto rounded-[6px] bg-white shadow-sm"
-                    onLoad={notifyReady}
-                    onError={() => setViewMode('sticker')}
-                  />
+                  <p className="dm-qr-missing">No QR code has been generated for this request.</p>
                 )}
-              </div>
-            ) : qrUrl ? (
-              <div className="dm-qr-frame">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qrUrl}
-                  alt={`QR code for ${trackingNumber}`}
-                  onLoad={notifyReady}
-                />
-              </div>
-            ) : (
-              <p className="dm-qr-missing">No QR code has been generated for this request.</p>
-            )}
 
-            <p className="mono mt-3 text-center text-[length:var(--fs-body)] font-bold tracking-wide text-ink">
-              {trackingNumber}
-            </p>
-            <p className="mt-1 text-center text-[length:var(--fs-caption)] text-ink-soft">
-              {showingDocument
-                ? 'Drag the selection box around the QR code stamped on this attached document.'
-                : trackingNumber.startsWith('INT-')
-                  ? 'Any phone camera can scan it to see which office has it — no account needed.'
-                  : "Scanning it opens this request's public tracking page."}
-            </p>
+                {fallbackNotice ? (
+                  <p
+                    className="relative z-30 mt-3 rounded-[10px] border border-amber-300 bg-amber-50 px-3.5 py-2 text-center text-sm font-medium text-amber-950"
+                    role="status"
+                  >
+                    {fallbackNotice}
+                  </p>
+                ) : null}
 
-            <div className="dm-actions mt-4 justify-center">
-              {stampedAttachment ? (
-                <a
-                  href={stampedAttachment.url}
-                  target="_blank"
-                  rel="noopener"
-                  className="cr-btn"
-                >
-                  Open full file
-                </a>
-              ) : null}
-              {qrUrl ? (
-                <a href={qrUrl} download={`${trackingNumber}.png`} className="cr-btn">
-                  <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" />
-                  </svg>
-                  Download QR
-                </a>
-              ) : null}
-              <a href={stickerUrl} target="_blank" rel="noopener" className="cr-btn cr-btn-primary">
-                <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinejoin="round" d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" />
-                  <path strokeLinejoin="round" d="M7 14h10v6H7z" />
-                </svg>
-                Print slip
-              </a>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                <p className="mono relative z-30 mt-3 text-center text-base font-bold tracking-wide text-ink">
+                  {trackingNumber}
+                </p>
+                <p className="relative z-30 mt-1 text-center text-sm text-ink-soft">
+                  {showingDocument
+                    ? 'Drag the selection box around the QR code stamped on this attached document.'
+                    : trackingNumber.startsWith('INT-')
+                      ? 'Any phone camera can scan it to see which office has it — no account needed.'
+                      : "Scanning it opens this request's public tracking page."}
+                </p>
+
+                <div className="dm-actions relative z-30 mt-4 justify-center">
+                  {stampedAttachment ? (
+                    <a
+                      href={stampedAttachment.url}
+                      target="_blank"
+                      rel="noopener"
+                      className="cr-btn"
+                    >
+                      Open full file
+                    </a>
+                  ) : null}
+                  <DownloadQrButton
+                    qrUrl={qrUrl}
+                    trackingNumber={trackingNumber}
+                    label="Download QR"
+                    className="cr-btn"
+                  />
+                  <a href={stickerUrl} target="_blank" rel="noopener" className="cr-btn cr-btn-primary">
+                    <svg fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinejoin="round" d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" />
+                      <path strokeLinejoin="round" d="M7 14h10v6H7z" />
+                    </svg>
+                    Print slip
+                  </a>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
@@ -940,24 +1030,24 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
                 ? `Custody confirmed with ${detail.heldBy.name}`
                 : 'Physical custody confirmed with your office'}
             </p>
-            <p className="text-xs text-ink-soft mt-0.5">
+            <p className="text-sm text-ink-soft mt-0.5">
               Verified via {detail.heldBy?.how ?? 'QR scan'}. The physical folder is at {detail.currentStep?.office}.
             </p>
           </div>
         </div>
 
-        <p className="text-[length:var(--fs-small)] text-ink-soft">
+        <p className="text-base text-ink-soft">
           This request has been verified and received by your office. Official sign-off (approval,
           return for revision, or completion) rests with your department supervisor.
         </p>
 
         <div className="rounded-xl border border-hairline bg-[#f8faf9] p-3 space-y-2.5">
-          <p className="text-xs font-semibold text-ink uppercase tracking-wider">Office Actions</p>
+          <p className="text-sm font-semibold text-ink uppercase tracking-wider">Office Actions</p>
 
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              className="cr-btn cr-btn-primary w-full justify-center"
+              className="cr-btn cr-btn-primary w-full justify-center text-base"
               disabled={pending || reading}
               onClick={() => void snip('page')}
             >
@@ -973,7 +1063,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
                 href={detail.stickerUrl}
                 target="_blank"
                 rel="noopener"
-                className="cr-btn justify-center text-xs"
+                className="cr-btn justify-center text-sm"
               >
                 <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
                   <path strokeLinejoin="round" d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" />
@@ -987,7 +1077,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
                   href={detail.stampedAttachment.url}
                   target="_blank"
                   rel="noopener"
-                  className="cr-btn justify-center text-xs"
+                  className="cr-btn justify-center text-sm"
                 >
                   <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -998,7 +1088,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
                 <button
                   type="button"
                   onClick={() => setReScanOpen(!reScanOpen)}
-                  className="cr-btn justify-center text-xs"
+                  className="cr-btn justify-center text-sm"
                 >
                   {reScanOpen ? 'Close re-scan' : 'Re-scan / Update'}
                 </button>
@@ -1009,7 +1099,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
               <button
                 type="button"
                 onClick={() => setReScanOpen(!reScanOpen)}
-                className="cr-btn cr-btn-sm justify-center text-xs text-ink-soft hover:text-ink mt-0.5"
+                className="cr-btn cr-btn-sm justify-center text-sm text-ink-soft hover:text-ink mt-0.5"
               >
                 <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1022,7 +1112,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
 
         {reScanOpen ? (
           <div className="custody-box mt-3 pt-3 border-t border-hairline">
-            <p className="text-xs text-ink-soft mb-2 font-medium">Re-scan or transfer physical custody:</p>
+            <p className="text-sm text-ink-soft mb-2 font-medium">Re-scan or transfer physical custody:</p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -1046,7 +1136,7 @@ function CustodyStatusCard({ detail }: { detail: InternalRequestDetail }) {
               </label>
               <button
                 type="button"
-                className="qr-drop-alt text-xs"
+                className="qr-drop-alt text-sm"
                 disabled={pending || reading}
                 onClick={() => void snip('any')}
               >
@@ -1847,7 +1937,7 @@ function ReviseCard({ detail }: { detail: InternalRequestDetail }) {
                 id="resend-scan"
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.webp"
-                className="mt-1 block w-full text-[13px] text-ink file:mr-3 file:rounded-full file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-green-deep"
+                className="mt-1 block w-full text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-green-wash file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-green-deep"
                 onChange={(event) => setScan(event.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-[length:var(--fs-caption)] text-ink-soft">

@@ -5,47 +5,17 @@ import { useRouter } from 'next/navigation';
 import type { ReviewRow } from '@/lib/domain/request-review';
 import { setClaimDate } from '@/app/actions/document';
 import { postMessage } from '@/app/actions/messages';
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const SHORT_MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
+import {
+  UnifiedCalendar,
+  formatCalendarIso,
+  type CalendarDateHighlight,
+  type CalendarLegendItem,
+} from '@/components/unified-calendar';
 
 function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')}`;
-}
-
-function formatPickedIso(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  return `${SHORT_MONTHS[m - 1]} ${d}, ${y}`;
 }
 
 /**
@@ -69,7 +39,7 @@ export function ReviewSidePanel({
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="dm-head">
-          <h2 className="dm-section min-w-0 truncate">
+          <h2 className="min-w-0 truncate text-xl font-semibold text-green-deep">
             {side === 'date' ? (
               'Adjust Claiming Date'
             ) : (
@@ -84,7 +54,7 @@ export function ReviewSidePanel({
             type="button"
             onClick={onClose}
             aria-label="Close panel"
-            className="dm-close shrink-0"
+            className="dm-close min-h-[40px] min-w-[40px] shrink-0"
           >
             <svg
               fill="none"
@@ -111,214 +81,83 @@ function ClaimCalendar({ row }: { row: ReviewRow }) {
   const [dateValue, setDateValue] = useState(initialIso);
   const [error, setError] = useState('');
 
-  const today = useMemo(() => new Date(), []);
-  const todayIso = useMemo(() => toIso(today), [today]);
+  const todayIso = useMemo(() => toIso(new Date()), []);
 
-  const initialCursor = useMemo(() => {
-    if (initialIso) {
-      const [y, m] = initialIso.split('-').map(Number);
-      if (y && m) return { year: y, month: m - 1 };
+  const legendItems = useMemo<CalendarLegendItem[]>(() => {
+    const items: CalendarLegendItem[] = [
+      {
+        id: 'requested',
+        label: 'Citizen asked for',
+        value: row.requestedClaimDate || 'no date',
+        variant: 'requested',
+      },
+    ];
+    if (row.claimDate) {
+      items.push({
+        id: 'set',
+        label: 'Currently set',
+        value: row.claimDate,
+        variant: 'set',
+      });
     }
-    return { year: today.getFullYear(), month: today.getMonth() };
-  }, [initialIso, today]);
+    return items;
+  }, [row.requestedClaimDate, row.claimDate]);
 
-  const [cursor, setCursor] = useState(initialCursor);
+  const highlights = useMemo<CalendarDateHighlight[]>(() => {
+    const items: CalendarDateHighlight[] = [];
+    if (row.requestedClaimOn) {
+      items.push({
+        iso: row.requestedClaimOn,
+        variant: 'requested',
+        ariaNote: 'requested by the citizen',
+      });
+    }
+    if (row.claimOn) {
+      items.push({
+        iso: row.claimOn,
+        variant: 'set',
+        ariaNote: 'currently set',
+      });
+    }
+    return items;
+  }, [row.requestedClaimOn, row.claimOn]);
 
-  const shiftMonth = (delta: number) => {
-    setCursor((prev) => {
-      const next = new Date(prev.year, prev.month + delta, 1);
-      return { year: next.getFullYear(), month: next.getMonth() };
+  const handleApply = () => {
+    startTransition(async () => {
+      setError('');
+      const result = await setClaimDate(row.id, dateValue);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        setError(result.message);
+      }
     });
   };
 
-  const calendarToToday = () => {
-    setCursor({ year: today.getFullYear(), month: today.getMonth() });
-    setDateValue(todayIso);
-  };
-
-  const weeks = useMemo(() => {
-    const first = new Date(cursor.year, cursor.month, 1);
-    const startOffset = first.getDay();
-    const gridStart = new Date(cursor.year, cursor.month, 1 - startOffset);
-
-    const out: Array<
-      Array<{
-        iso: string;
-        day: number;
-        inMonth: boolean;
-        today: boolean;
-        past: boolean;
-        sunday: boolean;
-        label: string;
-      }>
-    > = [];
-
-    for (let w = 0; w < 6; w++) {
-      const week = [];
-      for (let d = 0; d < 7; d++) {
-        const cellDate = new Date(
-          gridStart.getFullYear(),
-          gridStart.getMonth(),
-          gridStart.getDate() + w * 7 + d,
-        );
-        const iso = toIso(cellDate);
-        week.push({
-          iso,
-          day: cellDate.getDate(),
-          inMonth: cellDate.getMonth() === cursor.month,
-          today: iso === todayIso,
-          past: iso < todayIso,
-          sunday: cellDate.getDay() === 0,
-          label: `${MONTHS[cellDate.getMonth()]} ${cellDate.getDate()}, ${cellDate.getFullYear()}`,
-        });
-      }
-      out.push(week);
-    }
-    return out;
-  }, [cursor, todayIso]);
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="dp-context">
-        <div className="dp-context-item">
-          <span className="dp-key dp-key-requested" aria-hidden="true" />
-          <span>Citizen asked for</span>
-          <strong>{row.requestedClaimDate || 'no date'}</strong>
-        </div>
-        {row.claimDate ? (
-          <div className="dp-context-item">
-            <span className="dp-key dp-key-set" aria-hidden="true" />
-            <span>Currently set</span>
-            <strong>{row.claimDate}</strong>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="dp-head">
-        <p className="dp-month" aria-live="polite">
-          {MONTHS[cursor.month]} {cursor.year}
-        </p>
-        <div className="bk-nav" role="group" aria-label="Change month">
-          <button type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
-            <svg
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-          <button type="button" onClick={calendarToToday}>
-            Today
-          </button>
-          <button type="button" onClick={() => shiftMonth(1)} aria-label="Next month">
-            <svg
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="dp-dows" aria-hidden="true">
-        {(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const).map((name, i) => (
-          <span key={name} className={i === 0 ? 'is-sunday' : undefined}>
-            {name}
+    <UnifiedCalendar
+      value={dateValue}
+      onChange={setDateValue}
+      minDate={todayIso}
+      todayIso={todayIso}
+      legendItems={legendItems}
+      highlights={highlights}
+      error={error || null}
+      ariaLabel="Claiming date"
+      onClear={() => setDateValue('')}
+      onApply={handleApply}
+      applyDisabled={pending || !dateValue || dateValue === row.claimOn}
+      applyLabel={pending ? 'Saving…' : 'Apply'}
+      footerSummary={
+        dateValue ? (
+          <span>
+            New claiming date <strong>{formatCalendarIso(dateValue)}</strong>
           </span>
-        ))}
-      </div>
-
-      <div className="dp-grid" role="grid" aria-label="Claiming date">
-        {weeks.map((week, w) => (
-          <div key={`w-${w}`} className="dp-week" role="row">
-            {week.map((cell) => {
-              const classes = [
-                'dp-day',
-                dateValue === cell.iso ? 'is-picked' : '',
-                cell.today ? 'is-today' : '',
-                !cell.inMonth ? 'is-outside' : '',
-                cell.sunday ? 'is-sunday' : '',
-                cell.iso === row.requestedClaimOn ? 'is-requested' : '',
-                cell.iso === row.claimOn ? 'is-set' : '',
-              ]
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <div key={cell.iso} className="dp-cell" role="gridcell">
-                  <button
-                    type="button"
-                    disabled={cell.past}
-                    onClick={() => setDateValue(cell.iso)}
-                    className={classes}
-                    aria-pressed={dateValue === cell.iso}
-                    aria-current={cell.today ? 'date' : undefined}
-                    aria-label={`${cell.label}${
-                      cell.iso === row.requestedClaimOn ? ', requested by the citizen' : ''
-                    }${cell.iso === row.claimOn ? ', currently set' : ''}${
-                      cell.past ? ', unavailable' : ''
-                    }`}
-                  >
-                    <span>{cell.day}</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      {error ? (
-        <p className="px-6 pt-2 text-xs font-semibold text-status-red" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="dp-foot">
-        <p className="dp-picked">
-          {dateValue ? (
-            <span>
-              New claiming date <strong>{formatPickedIso(dateValue)}</strong>
-            </span>
-          ) : (
-            <span>Pick a day for the citizen to claim. Advance uses it too.</span>
-          )}
-        </p>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {dateValue ? (
-            <button type="button" onClick={() => setDateValue('')} className="cr-btn">
-              Clear
-            </button>
-          ) : null}
-          <button
-            type="button"
-            disabled={pending || !dateValue || dateValue === row.claimOn}
-            onClick={() =>
-              startTransition(async () => {
-                setError('');
-                const result = await setClaimDate(row.id, dateValue);
-                if (result.ok) {
-                  router.refresh();
-                } else {
-                  setError(result.message);
-                }
-              })
-            }
-            className="cr-btn cr-btn-primary disabled:opacity-40"
-          >
-            {pending ? 'Saving…' : 'Apply'}
-          </button>
-        </div>
-      </div>
-    </div>
+        ) : (
+          <span>Pick a day for the citizen to claim. Advance uses it too.</span>
+        )
+      }
+    />
   );
 }
 
@@ -438,7 +277,7 @@ function Conversation({ row }: { row: ReviewRow }) {
           className="px-[23px] py-[14.5px]"
         >
           {error ? (
-            <p className="mb-2 text-xs font-semibold text-status-red" role="alert">
+            <p className="mb-2 text-sm font-semibold text-status-red" role="alert">
               {error}
             </p>
           ) : null}

@@ -23,7 +23,7 @@ const TYPES: Record<string, string> = {
 };
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
   const segments = (await params).path.map((segment) => decodeURIComponent(segment));
@@ -37,13 +37,21 @@ export async function GET(
   }
 
   const relative = segments.join('/');
-  const remote = publicObjectUrl(relative);
+  const searchParams = new URL(request.url, 'http://localhost').searchParams;
+  const forceDownload = searchParams.get('download') === '1';
+  const forceInline = searchParams.get('inline') === '1';
 
-  if (remote) {
-    return NextResponse.redirect(remote, {
-      status: 302,
-      headers: { 'Cache-Control': 'public, max-age=300' },
-    });
+  // Only redirect straight to Supabase public URLs when neither forced
+  // attachment download nor same-origin inline fetch is requested.
+  if (!forceDownload && !forceInline) {
+    const remote = publicObjectUrl(relative);
+
+    if (remote) {
+      return NextResponse.redirect(remote, {
+        status: 302,
+        headers: { 'Cache-Control': 'public, max-age=300' },
+      });
+    }
   }
 
   const contents = await readPublic(relative);
@@ -53,11 +61,22 @@ export async function GET(
   }
 
   const extension = /\.([a-z0-9]+)$/i.exec(relative)?.[1]?.toLowerCase() ?? '';
+  const headers: Record<string, string> = {
+    'Content-Type': TYPES[extension] ?? 'application/octet-stream',
+    'Cache-Control': 'public, max-age=300',
+  };
 
-  return new Response(new Uint8Array(contents), {
-    headers: {
-      'Content-Type': TYPES[extension] ?? 'application/octet-stream',
-      'Cache-Control': 'public, max-age=300',
-    },
-  });
+  if (forceDownload) {
+    const requestedName = searchParams.get('filename')?.trim();
+    const rawName =
+      requestedName && /^[A-Za-z0-9._-]+$/.test(requestedName)
+        ? requestedName
+        : segments[segments.length - 1];
+    const ascii = rawName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '');
+
+    headers['Content-Disposition'] =
+      `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(rawName)}`;
+  }
+
+  return new Response(new Uint8Array(contents), { headers });
 }

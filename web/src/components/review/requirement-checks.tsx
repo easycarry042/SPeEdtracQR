@@ -219,7 +219,7 @@ export function RequirementChecks({
                     </div>
                   )}
                   {error?.id === requirement.id ? (
-                    <p className="mt-1 text-xs font-semibold text-status-red" role="alert">
+                    <p className="mt-1 text-sm font-semibold text-status-red" role="alert">
                       {error.message}
                     </p>
                   ) : null}

@@ -18,6 +18,12 @@ function get(...path: string[]): Promise<Response> {
   });
 }
 
+function getWithQuery(query: string, ...path: string[]): Promise<Response> {
+  return GET(new Request(`http://localhost/storage/x?${query}`) as never, {
+    params: Promise.resolve({ path }),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   publicObjectUrl.mockReturnValue(null);
@@ -43,6 +49,31 @@ describe('GET /storage/*', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/png');
+  });
+
+  it('streams same-origin with Content-Disposition attachment when download=1 even with Supabase configured', async () => {
+    publicObjectUrl.mockReturnValue('https://x.supabase.co/storage/v1/object/public/public/qrcodes/a.png');
+    readPublic.mockResolvedValue(Buffer.from('png'));
+
+    const response = await getWithQuery('download=1&filename=SPD-20261126-ABC234-qr.png', 'qrcodes', 'a.png');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    expect(response.headers.get('content-disposition')).toContain('attachment;');
+    expect(response.headers.get('content-disposition')).toContain('SPD-20261126-ABC234-qr.png');
+    expect(publicObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it('streams same-origin inline when inline=1 even with Supabase configured', async () => {
+    publicObjectUrl.mockReturnValue('https://x.supabase.co/storage/v1/object/public/public/qrcodes/a.png');
+    readPublic.mockResolvedValue(Buffer.from('png'));
+
+    const response = await getWithQuery('inline=1', 'qrcodes', 'a.png');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    expect(response.headers.get('content-disposition')).toBeNull();
+    expect(publicObjectUrl).not.toHaveBeenCalled();
   });
 
   it('answers 404 for a missing file', async () => {

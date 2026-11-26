@@ -106,22 +106,22 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               }}
             >
               <div className="gate-modal-card">
-                <h3 id="confirmTitle" className="text-base font-bold text-ink">
+                <h3 id="confirmTitle" className="text-xl font-semibold text-ink">
                   {open.title}
                 </h3>
                 {open.message ? (
-                  <div id="confirmMessage" className="mt-1.5 text-[length:var(--fs-small)] text-ink-soft">
+                  <div id="confirmMessage" className="mt-2 text-base text-ink-soft">
                     {open.message}
                   </div>
                 ) : null}
                 <div className="gate-actions mt-4 justify-end">
-                  <button type="button" className="cr-btn cr-btn-ghost" onClick={() => settle(false)}>
+                  <button type="button" className="cr-btn cr-btn-ghost min-h-[40px] text-base" onClick={() => settle(false)}>
                     {open.cancelLabel ?? 'Cancel'}
                   </button>
                   <button
                     ref={confirmButton}
                     type="button"
-                    className={`cr-btn ${open.tone === 'danger' ? 'cr-btn-danger-solid' : 'cr-btn-primary'}`}
+                    className={`cr-btn min-h-[40px] text-base ${open.tone === 'danger' ? 'cr-btn-danger-solid' : 'cr-btn-primary'}`}
                     onClick={() => settle(true)}
                   >
                     {open.confirmLabel ?? 'Confirm'}

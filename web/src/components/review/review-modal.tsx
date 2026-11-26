@@ -8,6 +8,7 @@ import { StageBar } from '@/components/stage-bar';
 import { ReviewActions, type ReviewMode } from './review-actions';
 import { ReviewSidePanel } from './review-side-panel';
 import { RequirementChecks } from './requirement-checks';
+import { DownloadQrButton } from '@/components/download-qr-button';
 
 /**
  * The shared Review modal (`partials/review-modal.blade.php`).
@@ -173,7 +174,7 @@ export function ReviewModal({
                 <p className="dm-date-label">Claiming Date</p>
                 <p className="dm-date-value">{row.claimDate || 'Not set yet'}</p>
                 {!row.claimDate && row.requestedClaimDate ? (
-                  <p className="text-xs text-ink-soft">
+                  <p className="text-sm text-ink-soft">
                     Citizen asked for <span>{row.requestedClaimDate}</span>
                   </p>
                 ) : null}
@@ -443,12 +444,12 @@ export function ReviewModal({
             >
               <div className="dm-qr-panel">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="dm-section">QR code</p>
+                  <h2 className="text-xl font-semibold text-green-deep">QR code</h2>
                   <button
                     type="button"
                     onClick={() => setQrOpen(false)}
                     aria-label="Close QR code"
-                    className="dm-close"
+                    className="dm-close min-h-[40px] min-w-[40px]"
                   >
                     <svg
                       fill="none"
@@ -481,28 +482,12 @@ export function ReviewModal({
                 </p>
 
                 <div className="dm-actions mt-4 justify-center">
-                  {row.qrUrl ? (
-                    <a
-                      href={row.qrUrl}
-                      download={`${row.trackingNumber}.png`}
-                      className="cr-btn"
-                    >
-                      <svg
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"
-                        />
-                      </svg>
-                      Download PNG
-                    </a>
-                  ) : null}
+                  <DownloadQrButton
+                    qrUrl={row.qrUrl}
+                    trackingNumber={row.trackingNumber}
+                    label="Download QR"
+                    className="cr-btn"
+                  />
                   <a
                     href={row.slipUrl}
                     target="_blank"
@@ -570,7 +555,7 @@ function BookingCard({
           <p className="dm-date-label">
             {booking.isEquipment ? 'Borrowing' : 'Reservation'}
           </p>
-          <p className="text-[15px] font-bold text-ink">
+          <p className="text-base font-bold text-ink">
             <span>{booking.item}</span>
             {booking.isEquipment ? (
               <span className="font-semibold text-ink-soft">
@@ -581,7 +566,7 @@ function BookingCard({
               </span>
             ) : null}
           </p>
-          <p className="mt-1 text-[13px] text-ink-soft">
+          <p className="mt-1 text-sm text-ink-soft">
             <span>{booking.isEquipment ? 'Pickup ' : 'From '}</span>
             <span>{booking.pickup}</span>
             <span>{booking.isEquipment ? ' · Return by ' : ' · Until '}</span>
@@ -597,16 +582,16 @@ function BookingCard({
       {booking.state === 'pending' ? (
         <div className="mt-3 border-t border-hairline pt-3">
           {booking.notReady ? (
-            <p className="text-[13px] text-ink-soft">{booking.notReady}</p>
+            <p className="text-sm text-ink-soft">{booking.notReady}</p>
           ) : null}
           {!booking.notReady && booking.clash ? (
-            <p className="text-[13px] font-semibold text-status-red">
+            <p className="text-sm font-semibold text-status-red">
               Another approved reservation already holds these hours. Adjust the date, or settle it
               on the Booking calendar.
             </p>
           ) : null}
           {!booking.notReady && booking.isEquipment && booking.serviceable === 0 ? (
-            <p className="text-[13px] font-semibold text-status-red">
+            <p className="text-sm font-semibold text-status-red">
               No count is set for this item yet. Set how many the office owns on the Resources
               page.
             </p>
@@ -615,7 +600,7 @@ function BookingCard({
           {canApproveInline ? (
             <div className="flex flex-wrap items-center gap-2">
               {booking.isEquipment ? (
-                <label className="flex items-center gap-2 text-[13px] text-ink">
+                <label className="flex items-center gap-2 text-base text-ink">
                   Lend
                   <input
                     type="number"
@@ -624,7 +609,7 @@ function BookingCard({
                     inputMode="numeric"
                     value={qty}
                     onChange={(e) => setQty(Number(e.target.value))}
-                    className="st-filter-field inv-num"
+                    className="st-filter-field inv-num text-base"
                     aria-label="How many to lend"
                   />
                 </label>
@@ -652,7 +637,7 @@ function BookingCard({
               </button>
               {booking.isEquipment ? (
                 <span
-                  className={`text-[12px] ${
+                  className={`text-sm ${
                     qty > free ? 'font-semibold text-status-red' : 'text-ink-soft'
                   }`}
                 >
@@ -665,14 +650,14 @@ function BookingCard({
           ) : null}
 
           {error ? (
-            <p className="mt-2 text-[13px] font-semibold text-status-red" role="alert">
+            <p className="mt-2 text-sm font-semibold text-status-red" role="alert">
               {error}
             </p>
           ) : null}
         </div>
       ) : null}
 
-      <p className="mt-3 text-[12px] text-ink-soft">
+      <p className="mt-3 text-sm text-ink-soft">
         {booking.state === 'pending' ? (
           <span>The request can&rsquo;t move to Approved until this is approved. </span>
         ) : null}

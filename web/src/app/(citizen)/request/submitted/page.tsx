@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { PortalHeader } from '@/components/citizen/portal-header';
 import { SiteFooter } from '@/components/citizen/site-footer';
 import { Speedy } from '@/components/citizen/speedy';
+import { DownloadQrButton } from '@/components/download-qr-button';
 import { db } from '@/lib/db';
 import * as receipt from '@/lib/domain/citizen-receipt';
 import * as trackingQr from '@/lib/domain/tracking-qr';
@@ -92,18 +93,13 @@ export default async function RequestSubmittedPage() {
             <p className="mt-3 text-[16px] font-medium text-[#4b5a50]">{document.document_type}</p>
 
             <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:flex-wrap">
-              {qrPng ? (
-                <a
-                  href={qrPng}
-                  download={`${document.tracking_number}.png`}
-                  className="cz-btn cz-btn-primary"
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
-                  </svg>
-                  Download QR Code
-                </a>
-              ) : null}
+              <DownloadQrButton
+                qrUrl={qrPng}
+                fallbackSvg={qrSvg}
+                trackingNumber={document.tracking_number}
+                label="Download QR Code"
+                className="cz-btn cz-btn-primary"
+              />
 
               <Link
                 href={`/track/${document.tracking_number}/slip?from=receipt`}
@@ -119,11 +115,9 @@ export default async function RequestSubmittedPage() {
                 Print slip
               </Link>
 
-              {/* Without a QR file to download, following the request is the next
-                  step, so it takes the primary slot. */}
               <Link
                 href={citizenTrackingUrl(document.tracking_number)}
-                className={`cz-btn ${qrPng ? 'cz-btn-secondary' : 'cz-btn-primary'}`}
+                className="cz-btn cz-btn-secondary"
               >
                 Track this request
               </Link>

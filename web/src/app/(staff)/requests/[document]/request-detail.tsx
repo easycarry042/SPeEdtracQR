@@ -109,7 +109,7 @@ export function InternalRequestView({
                 <ol className="text-ink">
                   <li className="flex gap-3">
                     <div className="flex flex-col items-center">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green text-xs font-bold text-white">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green text-sm font-bold text-white">
                         ✓
                       </span>
                       {detail.chain.length > 0 || showOpenEndedNext ? (
@@ -117,10 +117,10 @@ export function InternalRequestView({
                       ) : null}
                     </div>
                     <div className="pb-5">
-                      <p className="text-[13px] font-semibold text-ink">
+                      <p className="text-base font-semibold text-ink">
                         {detail.filedByOffice ?? 'Filing office'}
                       </p>
-                      <p className="text-[12px] text-ink-soft">
+                      <p className="text-sm text-ink-soft">
                         {detail.filedBy ? (
                           <>
                             Filed by <span className="font-medium text-ink">{detail.filedBy}</span>
@@ -146,23 +146,23 @@ export function InternalRequestView({
                       <li key={step.id} className="flex gap-3">
                         <div className="flex flex-col items-center">
                           {isCurrent ? (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brass text-xs font-bold text-white ring-4 ring-status-amber-wash">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brass text-sm font-bold text-white ring-4 ring-status-amber-wash">
                               {index + 1}
                             </span>
                           ) : isApproved ? (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green text-xs font-bold text-white">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green text-sm font-bold text-white">
                               ✓
                             </span>
                           ) : isForwarded ? (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-wash text-xs font-bold text-green-deep ring-1 ring-green/40">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-wash text-sm font-bold text-green-deep ring-1 ring-green/40">
                               →
                             </span>
                           ) : isHalted ? (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-status-red text-xs font-bold text-white">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-status-red text-sm font-bold text-white">
                               ✕
                             </span>
                           ) : (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ef] text-xs font-bold text-ink-soft ring-1 ring-hairline-strong">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ef] text-sm font-bold text-ink-soft ring-1 ring-hairline-strong">
                               {index + 1}
                             </span>
                           )}
@@ -177,7 +177,7 @@ export function InternalRequestView({
 
                         <div className="pb-5">
                           <p
-                            className={`flex flex-wrap items-center gap-1.5 text-[13px] font-semibold ${
+                            className={`flex flex-wrap items-center gap-1.5 text-base font-semibold ${
                               isCurrent
                                 ? 'text-status-amber'
                                 : isHalted
@@ -186,18 +186,15 @@ export function InternalRequestView({
                             }`}
                           >
                             {step.office}
-                            <span className="rounded bg-[#eef2ef] px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
+                            <span className="rounded bg-[#eef2ef] px-2 py-0.5 font-mono text-sm text-ink-soft">
                               {step.officeCode}
                             </span>
-                            <span
-                              className={`pill ${pillFor(step.band)}`}
-                              style={{ fontSize: 10, padding: '1px 7px' }}
-                            >
+                            <span className={`pill ${pillFor(step.band)} px-2 py-0.5 text-sm`}>
                               {badgeLabel}
                             </span>
                           </p>
 
-                          <p className="text-[12px] text-ink-soft">
+                          <p className="text-sm text-ink-soft">
                             {step.action}
                             {step.recipient ? (
                               <>
@@ -209,14 +206,14 @@ export function InternalRequestView({
                           </p>
 
                           {isCurrent ? (
-                            <p className="mt-0.5 text-[12px] font-semibold text-status-amber">
+                            <p className="mt-0.5 text-sm font-semibold text-status-amber">
                               Awaiting this office
                               {detail.currentStep?.sinceHuman
                                 ? ` · here since ${detail.currentStep.sinceHuman}`
                                 : ''}
                             </p>
                           ) : step.actedAt ? (
-                            <p className="mt-0.5 text-[12px] text-ink-soft">
+                            <p className="mt-0.5 text-sm text-ink-soft">
                               {isApproved
                                 ? 'Approved'
                                 : step.status === 'denied'
@@ -229,13 +226,13 @@ export function InternalRequestView({
                               · {step.actedAt}
                             </p>
                           ) : isForwarded && step.startedAt ? (
-                            <p className="mt-0.5 text-[12px] text-ink-soft">
+                            <p className="mt-0.5 text-sm text-ink-soft">
                               Received {step.startedAt} · passed to the next office
                             </p>
                           ) : null}
 
                           {step.remarks ? (
-                            <p className="mt-1 rounded-[8px] bg-[#f6f8f7] px-2.5 py-1.5 text-[12px] italic text-ink">
+                            <p className="mt-1 rounded-[8px] bg-[#f6f8f7] px-2.5 py-1.5 text-sm italic text-ink">
                               “{step.remarks}”
                             </p>
                           ) : null}
@@ -256,13 +253,13 @@ export function InternalRequestView({
                   {showOpenEndedNext ? (
                     <li className="flex gap-3">
                       <div className="flex flex-col items-center">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-hairline-strong bg-white text-xs font-bold text-ink-soft">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-hairline-strong bg-white text-sm font-bold text-ink-soft">
                           ?
                         </span>
                       </div>
                       <div className="pb-1">
-                        <p className="text-[13px] font-semibold text-ink-soft">Next office</p>
-                        <p className="text-[12px] text-ink-soft">
+                        <p className="text-base font-semibold text-ink-soft">Next office</p>
+                        <p className="text-sm text-ink-soft">
                           Joins the chain when it scans the folder. The request completes only
                           when an office marks it done.
                         </p>

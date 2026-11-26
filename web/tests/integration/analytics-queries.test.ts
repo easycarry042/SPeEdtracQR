@@ -106,8 +106,8 @@ describe.skipIf(!reachable)('citizen analytics against the live schema', () => {
       expect(row.pct).toBeLessThanOrEqual(100);
     }
 
-    if (rows.length > 0) {
-      // Exactly the busiest row(s) sit at 100%.
+    if (rows.length > 0 && rows[0].value > 0) {
+      // Exactly the busiest row(s) sit at 100% (offices with 0 requests stay at 0%).
       expect(rows[0].busiest).toBe(true);
       expect(rows[0].pct).toBe(100);
     }
