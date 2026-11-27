@@ -8,6 +8,8 @@ import * as uploadRules from '@/lib/domain/upload-rules';
 import { CalendarPickerField } from '@/components/calendar-picker-field';
 import { ClockTimePickerField } from '@/components/clock-time-picker-field';
 import { addMinutesClamped, timeToMinutes } from '@/lib/client/clock-time';
+import { validateCitizenRequestClient } from '@/lib/client/citizen-request-validation';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 
 /**
  * The public request form.
@@ -152,6 +154,7 @@ export type TypeOption = {
   kind: string;
   resource: string | null;
   resourceId: number | null;
+  serviceableUnits?: number | null;
   /** The type's one extra question (Venue, Size…), or null for none. */
   detailsLabel: string | null;
   requirements: RequirementOption[];
@@ -192,6 +195,7 @@ export function RequestForm({
   const [coolingDown, setCoolingDown] = useState(false);
   // Set synchronously: a double click lands before React re-renders the
   // disabled button, and must not send a second request.
+  const formRef = useRef<HTMLFormElement>(null);
   const busy = useRef(false);
   const cooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -199,6 +203,51 @@ export function RequestForm({
     if (cooldown.current) {
       clearTimeout(cooldown.current);
     }
+  }, []);
+
+  const clearFieldError = useCallback((keys: string | string[]) => {
+    const list = Array.isArray(keys) ? keys : [keys];
+    setClientFieldErrors((prev) => {
+      if (!list.some((key) => key in prev)) return prev;
+      const next = { ...prev };
+      for (const key of list) {
+        delete next[key];
+      }
+      return next;
+    });
+    setResult((prev) => {
+      if (!prev || !list.some((key) => key in prev.errors)) return prev;
+      const nextErrors = { ...prev.errors };
+      for (const key of list) {
+        delete nextErrors[key];
+      }
+      return { ...prev, errors: nextErrors };
+    });
+  }, []);
+
+  const focusFirstInvalidField = useCallback((errorKeys: string[]) => {
+    const root = formRef.current;
+    if (root) {
+      for (const key of errorKeys) {
+        let selector = `#${CSS.escape(key)}`;
+        if (key.startsWith('requirements.')) {
+          const reqId = key.slice('requirements.'.length);
+          selector = `input[name="requirements[${CSS.escape(reqId)}]"]`;
+        } else if (key === 'quantity') {
+          selector = '#quantity, #service_quantity';
+        } else if (key === 'consent') {
+          selector = 'input[name="consent"]';
+        }
+
+        const el = root.querySelector<HTMLElement>(selector);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus({ preventScroll: true });
+          return;
+        }
+      }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const byName = useMemo(() => new Map(types.map((type) => [type.name, type])), [types]);
@@ -226,6 +275,17 @@ export function RequestForm({
       const prevType = selected === '' ? null : (byName.get(selected) ?? null);
       const nextType = nextName === '' ? null : (byName.get(nextName) ?? null);
       setSelected(nextName);
+      clearFieldError([
+        'document_type',
+        'details',
+        'booking_date',
+        'start_time',
+        'end_time',
+        'quantity',
+        'needed_date',
+        'return_date',
+        'needed_by',
+      ]);
       if (nextType?.resourceId !== prevType?.resourceId || nextType?.kind !== prevType?.kind) {
         setBookingDate('');
         setStartTime('09:00');
@@ -235,7 +295,7 @@ export function RequestForm({
         setNeededBy('');
       }
     },
-    [byName, selected],
+    [byName, selected, clearFieldError],
   );
 
   const bookingResourceId = type?.kind === 'booking' ? type.resourceId : null;
@@ -254,13 +314,29 @@ export function RequestForm({
       return;
     }
 
+    const fieldErrors = validateCitizenRequestClient(
+      form,
+      type
+        ? {
+            name: type.name,
+            kind: type.kind,
+            resource: type.resource,
+            serviceableUnits: type.serviceableUnits ?? null,
+            detailsLabel: type.detailsLabel,
+          }
+        : null,
+      today,
+    );
     const uploadErrors = validateRequirementUploads(form, type?.requirements ?? []);
-    if (Object.keys(uploadErrors).length > 0) {
-      const firstMessage = Object.values(uploadErrors)[0] ?? null;
+    const combinedErrors = { ...fieldErrors, ...uploadErrors };
+
+    if (Object.keys(combinedErrors).length > 0) {
+      const uploadMessage =
+        Object.keys(uploadErrors).length > 0 ? (Object.values(uploadErrors)[0] ?? null) : null;
       setClientFieldErrors({});
-      setResult({ ok: false, errors: uploadErrors, values: collectFormValues(form) });
-      setUploadNotice(firstMessage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setResult({ ok: false, errors: combinedErrors, values: collectFormValues(form) });
+      setUploadNotice(uploadMessage);
+      requestAnimationFrame(() => focusFirstInvalidField(Object.keys(combinedErrors)));
       return;
     }
 
@@ -269,11 +345,37 @@ export function RequestForm({
     setUploadNotice(null);
 
     try {
+      for (const requirement of type?.requirements ?? []) {
+        const entry = form.get(`requirements[${requirement.id}]`);
+        if (entry instanceof File && entry.size > 0) {
+          try {
+            const uploaded = await uploadFileDirect(entry, 'citizen-requirement');
+            if (uploaded.mode === 'direct') {
+              form.delete(`requirements[${requirement.id}]`);
+              form.set(`requirements_uploaded[${requirement.id}]`, uploaded.receipt);
+            }
+          } catch (uploadError) {
+            const msg =
+              uploadError instanceof Error && uploadError.message
+                ? uploadError.message
+                : 'Could not upload that file. Please try again.';
+            setResult({
+              ok: false,
+              errors: { [`requirements.${requirement.id}`]: msg },
+              values: collectFormValues(form),
+            });
+            setUploadNotice(msg);
+            release();
+            return;
+          }
+        }
+      }
+
       // A refusal comes back as a result. Success redirects to the receipt:
       // the button stays disabled until that page has replaced this one.
       const outcome = await submitRequest(form);
       setResult(outcome);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      requestAnimationFrame(() => focusFirstInvalidField(Object.keys(outcome.errors)));
       release();
     } catch (error) {
       if (isRedirect(error)) {
@@ -298,7 +400,8 @@ export function RequestForm({
     }
   }
 
-  const messages = Object.values(errors);
+  const errorEntries = Object.entries(errors);
+  const messages = errorEntries.map(([, message]) => message);
 
   return (
     <>
@@ -344,14 +447,14 @@ export function RequestForm({
             Please fix the highlighted {messages.length === 1 ? 'field' : 'fields'}:
           </p>
           <ul className="mt-1 list-inside list-disc space-y-1">
-            {messages.map((message) => (
-              <li key={message}>{message}</li>
+            {errorEntries.map(([key, message]) => (
+              <li key={key}>{message}</li>
             ))}
           </ul>
         </div>
       ) : null}
 
-      <form action={onSubmit} className="req-shell mt-8 p-5 sm:p-8 lg:p-10" noValidate>
+      <form ref={formRef} action={onSubmit} className="req-shell mt-8 p-5 sm:p-8 lg:p-10" noValidate>
         {/* Honeypot: must stay empty. Hidden from real users, and kept outside
             the columns so it does not take the first slot of the stack. */}
         <div style={{ position: 'absolute', left: '-7999px' }} aria-hidden="true">
@@ -444,6 +547,7 @@ export function RequestForm({
                         type="file"
                         name={`requirements[${requirement.id}]`}
                         accept={uploadRules.accept()}
+                        aria-invalid={Boolean(errors[`requirements.${requirement.id}`])}
                         className="req-field mt-2"
                         onChange={(event) => {
                           const input = event.currentTarget;
@@ -451,17 +555,14 @@ export function RequestForm({
                           const key = `requirements.${requirement.id}`;
 
                           if (!file || file.size === 0) {
-                            setClientFieldErrors((prev) => {
-                              const next = { ...prev };
-                              delete next[key];
-                              return next;
-                            });
+                            clearFieldError([key, 'uploads']);
                             return;
                           }
 
                           if (file.size > uploadRules.MAX_BYTES) {
                             const message = formatFileSizeError(file);
                             input.value = '';
+                            clearFieldError([key, 'uploads']);
                             setClientFieldErrors((prev) => ({ ...prev, [key]: message }));
                             setUploadNotice(message);
                             return;
@@ -470,19 +571,16 @@ export function RequestForm({
                           const problem = uploadRules.check(file);
                           if (problem) {
                             input.value = '';
+                            clearFieldError([key, 'uploads']);
                             setClientFieldErrors((prev) => ({ ...prev, [key]: problem }));
                             setUploadNotice(`${requirement.label}: ${problem}`);
                             return;
                           }
 
-                          setClientFieldErrors((prev) => {
-                            const next = { ...prev };
-                            delete next[key];
-                            if (Object.keys(next).length === 0) {
-                              setUploadNotice(null);
-                            }
-                            return next;
-                          });
+                          clearFieldError([key, 'uploads']);
+                          if (Object.keys(clientFieldErrors).length <= 1) {
+                            setUploadNotice(null);
+                          }
                         }}
                       />
                       <FieldError message={errors[`requirements.${requirement.id}`]} />
@@ -508,7 +606,10 @@ export function RequestForm({
                       id="booking_date"
                       name="booking_date"
                       value={bookingDate}
-                      onChange={setBookingDate}
+                      onChange={(nextDate) => {
+                        setBookingDate(nextDate);
+                        clearFieldError(['booking_date', 'start_time']);
+                      }}
                       todayIso={today}
                       minDate={today}
                       modalTitle="Select Booking Date"
@@ -529,6 +630,7 @@ export function RequestForm({
                       value={startTime}
                       onChange={(nextStart) => {
                         setStartTime(nextStart);
+                        clearFieldError(['start_time', 'end_time']);
                         const startMins = timeToMinutes(nextStart);
                         const endMins = timeToMinutes(endTime);
                         if (startMins !== null && (endMins === null || endMins <= startMins)) {
@@ -547,7 +649,10 @@ export function RequestForm({
                       id="end_time"
                       name="end_time"
                       value={endTime}
-                      onChange={setEndTime}
+                      onChange={(nextEnd) => {
+                        setEndTime(nextEnd);
+                        clearFieldError('end_time');
+                      }}
                       minTime={startTime}
                       minTimeLabel="Start time"
                       modalTitle="Select End Time"
@@ -580,6 +685,8 @@ export function RequestForm({
                       inputMode="numeric"
                       defaultValue={values.quantity ?? ''}
                       placeholder="e.g. 50"
+                      aria-invalid={Boolean(errors.quantity)}
+                      onChange={() => clearFieldError('quantity')}
                       className="req-field mt-2"
                     />
                     <FieldError message={errors.quantity} />
@@ -592,6 +699,7 @@ export function RequestForm({
                       value={neededDate}
                       onChange={(next) => {
                         setNeededDate(next);
+                        clearFieldError(['needed_date', 'return_date']);
                         if (returnDate && next && returnDate < next) {
                           setReturnDate('');
                         }
@@ -610,7 +718,10 @@ export function RequestForm({
                       id="return_date"
                       name="return_date"
                       value={returnDate}
-                      onChange={setReturnDate}
+                      onChange={(next) => {
+                        setReturnDate(next);
+                        clearFieldError('return_date');
+                      }}
                       todayIso={today}
                       minDate={neededDate || today}
                       modalTitle="Select Return Date"
@@ -645,6 +756,8 @@ export function RequestForm({
                       inputMode="numeric"
                       defaultValue={values.quantity ?? ''}
                       placeholder="e.g. 10"
+                      aria-invalid={Boolean(errors.quantity)}
+                      onChange={() => clearFieldError('quantity')}
                       className="req-field mt-2"
                     />
                     <FieldError message={errors.quantity} />
@@ -655,7 +768,10 @@ export function RequestForm({
                       id="needed_by"
                       name="needed_by"
                       value={neededBy}
-                      onChange={setNeededBy}
+                      onChange={(next) => {
+                        setNeededBy(next);
+                        clearFieldError('needed_by');
+                      }}
                       todayIso={today}
                       minDate={today}
                       modalTitle="Select Date Needed"
@@ -683,6 +799,7 @@ export function RequestForm({
                   required
                   maxLength={1000}
                   aria-invalid={Boolean(errors.details)}
+                  onChange={() => clearFieldError('details')}
                   className="req-field mt-2"
                 />
                 <FieldError message={errors.details} />
@@ -697,6 +814,8 @@ export function RequestForm({
                 defaultValue={values.purpose ?? ''}
                 maxLength={255}
                 placeholder="What is this request for?"
+                aria-invalid={Boolean(errors.purpose)}
+                onChange={() => clearFieldError('purpose')}
                 className="req-field mt-2"
               />
               <p className={HINT_TEXT}>
@@ -715,6 +834,8 @@ export function RequestForm({
                 maxLength={5000}
                 defaultValue={values.description ?? ''}
                 placeholder="Anything else the office should know…"
+                aria-invalid={Boolean(errors.description)}
+                onChange={() => clearFieldError('description')}
                 className="req-field mt-2"
               />
               <FieldError message={errors.description} />
@@ -735,6 +856,7 @@ export function RequestForm({
                 maxLength={255}
                 placeholder="e.g. Juan Cruz"
                 aria-invalid={Boolean(errors.citizen_name)}
+                onChange={() => clearFieldError('citizen_name')}
                 className="req-field mt-2"
               />
               <FieldError message={errors.citizen_name} />
@@ -753,6 +875,7 @@ export function RequestForm({
                 maxLength={255}
                 placeholder="e.g. City Health Office, or Barangay Landayan"
                 aria-invalid={Boolean(errors.requester_office)}
+                onChange={() => clearFieldError('requester_office')}
                 className="req-field mt-2"
               />
               <p className={HINT_TEXT}>Filing for a city office, barangay or group? Name it here.</p>
@@ -774,6 +897,7 @@ export function RequestForm({
                 maxLength={255}
                 placeholder="Your email..."
                 aria-invalid={Boolean(errors.citizen_email)}
+                onChange={() => clearFieldError('citizen_email')}
                 className="req-field mt-2"
               />
               <p className={HINT_TEXT}>We&rsquo;ll send your tracking link here.</p>
@@ -796,6 +920,7 @@ export function RequestForm({
                 maxLength={11}
                 placeholder="09123456789"
                 aria-invalid={Boolean(errors.citizen_contact)}
+                onChange={() => clearFieldError('citizen_contact')}
                 className="req-field mt-2"
               />
               <p className={HINT_TEXT}>11 digits, starting with 09 — e.g. 09123456789.</p>
@@ -803,7 +928,7 @@ export function RequestForm({
             </div>
 
             {/* Privacy notice — RA 10173 consent, which the server requires. */}
-            <div className="req-note p-5">
+            <div className="req-note p-5" data-invalid={errors.consent ? 'true' : undefined}>
               <p className="req-note-title text-[16px] sm:text-[17px]">Your privacy</p>
               <label className="mt-3 flex items-start gap-3.5 text-left">
                 <input
@@ -811,7 +936,13 @@ export function RequestForm({
                   name="consent"
                   value="1"
                   checked={consentChecked}
-                  onChange={(event) => setConsentChecked(event.target.checked)}
+                  aria-invalid={Boolean(errors.consent)}
+                  onChange={(event) => {
+                    setConsentChecked(event.target.checked);
+                    if (event.target.checked) {
+                      clearFieldError('consent');
+                    }
+                  }}
                   className="req-check mt-0.5"
                 />
                 <span className="req-note-body text-[15px] leading-relaxed">

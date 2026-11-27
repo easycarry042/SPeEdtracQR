@@ -1,10 +1,44 @@
 import { db, id, toId } from '@/lib/db';
 import { logOnDocument } from '@/lib/activity';
 import type { Actor } from '@/lib/auth/actor';
-import { canAccessDocument } from '@/lib/domain/scope';
+import {
+  canAccessDocument,
+  ORIGIN_INTERNAL,
+  toDocumentAccessSubject,
+  type DocumentAccessSubject,
+} from '@/lib/domain/scope';
 import { ActionError } from '@/lib/domain/status-actions';
 import { deletePrivate } from '@/lib/storage';
 import { now } from '@/lib/time';
+
+const ATTACHMENT_DOCUMENT_SELECT = {
+  created_by: true,
+  assigned_to: true,
+  origin: true,
+  department_id: true,
+  requesting_department_id: true,
+  accepted_at: true,
+  document_type: true,
+  request_steps: { select: { department_id: true } },
+} as const;
+
+async function resolveHandlerIds(doc: {
+  origin: string;
+  accepted_at: Date | null;
+  document_type: string;
+}): Promise<number[]> {
+  if (doc.origin === ORIGIN_INTERNAL || doc.accepted_at !== null || !doc.document_type) {
+    return [];
+  }
+
+  const handlers =
+    (await db.request_type_handlers?.findMany({
+      where: { requestType: { name: doc.document_type } },
+      select: { user_id: true },
+    })) ?? [];
+
+  return handlers.map((entry) => toId(entry.user_id));
+}
 
 /**
  * Port of `AttachmentController`'s show/destroy rules. The file itself stays
@@ -12,13 +46,13 @@ import { now } from '@/lib/time';
  */
 export async function attachmentFor(attachmentId: number): Promise<{
   filePath: string;
-  document: { created_by: number | null; assigned_to: number | null; origin: string };
+  document: DocumentAccessSubject;
 } | null> {
   const row = await db.document_attachments.findFirst({
     where: { id: id(attachmentId), document: { deleted_at: null } },
     select: {
       file_path: true,
-      document: { select: { created_by: true, assigned_to: true, origin: true } },
+      document: { select: ATTACHMENT_DOCUMENT_SELECT },
     },
   });
 
@@ -26,13 +60,11 @@ export async function attachmentFor(attachmentId: number): Promise<{
     return null;
   }
 
+  const handlerIds = await resolveHandlerIds(row.document);
+
   return {
     filePath: row.file_path,
-    document: {
-      created_by: row.document.created_by === null ? null : toId(row.document.created_by),
-      assigned_to: row.document.assigned_to === null ? null : toId(row.document.assigned_to),
-      origin: row.document.origin,
-    },
+    document: toDocumentAccessSubject(row.document, handlerIds),
   };
 }
 
@@ -50,7 +82,13 @@ export async function removeAttachment(
     select: {
       id: true,
       file_path: true,
-      document: { select: { id: true, created_by: true, assigned_to: true, attachment_path: true } },
+      document: {
+        select: {
+          id: true,
+          attachment_path: true,
+          ...ATTACHMENT_DOCUMENT_SELECT,
+        },
+      },
     },
   });
 
@@ -58,10 +96,8 @@ export async function removeAttachment(
     throw new ActionError('That attachment is already gone.');
   }
 
-  const document = {
-    created_by: row.document.created_by === null ? null : toId(row.document.created_by),
-    assigned_to: row.document.assigned_to === null ? null : toId(row.document.assigned_to),
-  };
+  const handlerIds = await resolveHandlerIds(row.document);
+  const document = toDocumentAccessSubject(row.document, handlerIds);
 
   if (
     !actor ||

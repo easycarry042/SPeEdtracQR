@@ -138,6 +138,7 @@ export function TrackLookup({ notFound }: { notFound: string | null }) {
     <div className="cz-card">
       <div className="cz-card-body">
         <form
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             const tracking = value.trim().toUpperCase();
@@ -179,7 +180,9 @@ export function TrackLookup({ notFound }: { notFound: string | null }) {
                 onChange={(event) => {
                   setValue(event.target.value);
                   setResult(null);
+                  if (error) setError('');
                 }}
+                aria-invalid={Boolean(error || (result && result.status !== 'found'))}
                 required
                 autoComplete="off"
                 spellCheck={false}

@@ -8,7 +8,9 @@ import { statusChangeData } from '@/lib/domain/document';
 import { ORIGIN_INTERNAL } from '@/lib/domain/scope';
 import { STEP_STATUS } from '@/lib/domain/request-step';
 import * as qr from '@/lib/domain/qr-service';
+import { checkFileSignature } from '@/lib/domain/file-signatures';
 import { checkPaperScan } from '@/lib/domain/upload-rules';
+import { consumeDirectUpload } from '@/lib/domain/upload-token';
 import { isRecipientAt, mandatoryRouteOffices } from '@/lib/domain/internal-request-form';
 import {
   ROUTE_DIRECT,
@@ -50,6 +52,8 @@ export type FilingInput = {
    */
   recipientId: number | null;
   paperScan: File | null;
+  /** Signed direct-to-Supabase upload receipt, when uploaded client-side. */
+  paperScanReceipt?: string | null;
   /** Where the filer dragged the QR on the scan; null fields mean bottom-right. */
   qrPlacement?: StampPlacement;
 };
@@ -148,10 +152,21 @@ export async function fileInternalRequest(
     }
   }
 
-  const scanProblem = checkPaperScan(input.paperScan);
+  const receipt = input.paperScanReceipt?.trim() || null;
+  let verifiedScanPath: string | null = null;
 
-  if (scanProblem !== null) {
-    throw new ActionError(scanProblem);
+  if (receipt) {
+    const consumed = await consumeDirectUpload(receipt, 'internal-paper');
+    if (!consumed.ok) {
+      throw new ActionError(consumed.error);
+    }
+    verifiedScanPath = consumed.path;
+  } else {
+    const scanProblem = checkPaperScan(input.paperScan) ?? (await checkFileSignature(input.paperScan));
+
+    if (scanProblem !== null) {
+      throw new ActionError(scanProblem);
+    }
   }
 
   // INT- so internal requests read distinctly from citizen tickets (SPD-).
@@ -232,13 +247,15 @@ export async function fileInternalRequest(
       });
     }
 
-    if (input.paperScan) {
-      const path = await storePrivate(input.paperScan, 'document-attachments');
+    const scanPath =
+      verifiedScanPath ??
+      (input.paperScan ? await storePrivate(input.paperScan, 'document-attachments') : null);
 
+    if (scanPath) {
       await db.document_attachments.create({
         data: {
           document_id: document.id,
-          file_path: path,
+          file_path: scanPath,
           uploaded_by: id(filer.id),
           sort_order: 0,
           created_at: now(),

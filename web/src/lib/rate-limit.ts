@@ -22,12 +22,42 @@ export const LIMITS = {
   trackStatus: { max: 60, perSeconds: 60 },
   publicLookup: { max: 30, perSeconds: 60 },
   passwordReset: { max: 6, perSeconds: 60 },
+  login: { max: 10, perSeconds: 60 },
+  citizenSubmit: { max: 8, perSeconds: 60 },
 } as const satisfies Record<string, Limit>;
+
+const memoryCounters = new Map<string, { hits: number; resetAt: number }>();
+
+/** Clear in-memory fallback counters (intended for test isolation). */
+export function resetMemoryRateLimits(): void {
+  memoryCounters.clear();
+}
+
+function memoryHit(key: string, limit: Limit): boolean {
+  const nowMs = Date.now();
+  const windowMs = limit.perSeconds * 1000;
+  const current = memoryCounters.get(key);
+
+  if (!current || current.resetAt <= nowMs) {
+    if (memoryCounters.size > 5000) {
+      for (const [entryKey, entry] of memoryCounters) {
+        if (entry.resetAt <= nowMs) {
+          memoryCounters.delete(entryKey);
+        }
+      }
+    }
+    memoryCounters.set(key, { hits: 1, resetAt: nowMs + windowMs });
+    return true;
+  }
+
+  current.hits += 1;
+  return current.hits <= limit.max;
+}
 
 /**
  * Count one hit against `key`. Returns false once the window's quota is spent.
- * A database failure lets the request through: the limiter guards against
- * abuse, and must not take the citizen pages down with it.
+ * Falls back to a per-instance in-memory window if the database query fails so
+ * abuse protection degrades gracefully instead of failing wide open.
  */
 export async function hit(key: string, limit: Limit): Promise<boolean> {
   try {
@@ -48,9 +78,9 @@ export async function hit(key: string, limit: Limit): Promise<boolean> {
 
     return (rows[0]?.hits ?? 0) <= limit.max;
   } catch (error) {
-    console.error('[rate-limit] counter unavailable, letting the request through:', error);
+    console.error('[rate-limit] counter unavailable, using in-memory fallback:', error);
 
-    return true;
+    return memoryHit(key, limit);
   }
 }
 
@@ -83,17 +113,30 @@ export function tooManyRequests(): Response {
  * lock, standing in for Laravel's CSRF token.)
  */
 export function crossSite(request: Request): boolean {
-  const origin = request.headers.get('origin');
-
-  if (!origin) {
-    return false;
-  }
-
-  try {
-    const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
-
-    return new URL(origin).host !== host;
-  } catch {
+  const secFetchSite = request.headers.get('sec-fetch-site')?.toLowerCase();
+  if (secFetchSite && !['same-origin', 'same-site', 'none'].includes(secFetchSite)) {
     return true;
   }
+
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+  const origin = request.headers.get('origin');
+
+  if (origin !== null) {
+    try {
+      return new URL(origin).host !== host;
+    } catch {
+      return true;
+    }
+  }
+
+  const referer = request.headers.get('referer');
+  if (referer !== null) {
+    try {
+      return new URL(referer).host !== host;
+    } catch {
+      return true;
+    }
+  }
+
+  return false;
 }

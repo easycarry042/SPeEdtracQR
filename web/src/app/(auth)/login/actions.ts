@@ -1,5 +1,6 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { db } from '@/lib/db';
@@ -9,6 +10,7 @@ import { verifyPassword } from '@/lib/auth/password';
 import { createSession, destroySession, readSession } from '@/lib/auth/session';
 import { actorById } from '@/lib/auth/actor';
 import { logActivity, SUBJECT } from '@/lib/activity';
+import { clientIp, hit, LIMITS } from '@/lib/rate-limit';
 import { landingFor, routes } from '@/lib/routes';
 
 /**
@@ -23,7 +25,7 @@ const schema = z.object({
   next: z.string().nullish(),
 });
 
-export type LoginState = { error?: string } | undefined;
+export type LoginState = { error?: string; field?: 'email' | 'password' | 'both' } | undefined;
 
 /**
  * Signs a staff member in.
@@ -41,10 +43,22 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Check the details you entered.' };
+    const issue = parsed.error.issues[0];
+    const field = issue?.path[0] === 'password' ? 'password' : 'email';
+    return { error: issue?.message ?? 'Check the details you entered.', field };
   }
 
   const { email, password } = parsed.data;
+
+  const hdrs = await headers().catch(() => new Headers());
+  const ip = clientIp(hdrs);
+  const [ipOk, acctOk] = await Promise.all([
+    hit(`login:ip:${ip}`, LIMITS.login),
+    hit(`login:acct:${ip}:${email.toLowerCase()}`, LIMITS.login),
+  ]);
+  if (!ipOk || !acctOk) {
+    return { error: 'Too many sign-in attempts. Please wait a minute and try again.' };
+  }
 
   const user = await db.users.findFirst({
     // Postgres compares case-sensitively; MySQL's collation did not, and people
@@ -55,14 +69,14 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
 
   // One message for a missing account, a wrong password and a disabled one, so
   // the form cannot be used to discover which addresses have accounts.
-  const GENERIC = { error: 'These credentials do not match our records.' };
+  const GENERIC: LoginState = { error: 'These credentials do not match our records.', field: 'both' };
 
   if (!user || !(await verifyPassword(password, user.password))) {
     return GENERIC;
   }
 
   if (!user.is_active) {
-    return { error: 'This account has been deactivated. Ask an administrator to restore it.' };
+    return { error: 'This account has been deactivated. Ask an administrator to restore it.', field: 'email' };
   }
 
   const userId = toId(user.id);

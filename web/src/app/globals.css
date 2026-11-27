@@ -1994,20 +1994,21 @@ button.dm-thumb:hover { border-color: var(--green); }
 .ff-route-labels .is-next { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
 .ff-route.is-set .ff-route-labels .is-next { color: var(--ink); font-weight: 600; }
 
-/* Upload area: tall, dashed, green; takes clicks and drops. */
-.ff-upload {
-    display: flex; min-height: 300px; flex: 1; margin-top: 8px; cursor: pointer;
-    flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-    padding: 20px;
-    border: 1.5px dashed rgba(22, 122, 58, .55);
-    border-radius: 14px;
-    background: #f1fbf1;
-    text-align: center;
-    transition: border-color .15s, background-color .15s;
-}
-.ff-upload:hover, .ff-upload.is-over { border-color: var(--green); background: #e6f6e8; }
-.ff-upload:focus-within { box-shadow: var(--focus-ring); }
-.ff-upload.has-file { border-style: solid; }
+    /* Upload area: tall, dashed, green; takes clicks and drops. */
+    .ff-upload {
+        display: flex; min-height: 300px; flex: 1; margin-top: 8px; cursor: pointer;
+        flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+        padding: 20px;
+        border: 1.5px dashed rgba(22, 122, 58, .55);
+        border-radius: 14px;
+        background: #f1fbf1;
+        text-align: center;
+        transition: border-color .15s, background-color .15s;
+    }
+    .ff-upload:hover, .ff-upload.is-over { border-color: var(--green); background: #e6f6e8; }
+    .ff-upload:focus-within { box-shadow: var(--focus-ring); }
+    .ff-upload.has-file { border-style: solid; }
+    .ff-upload[data-invalid="true"] { border-color: #c2410c; background-color: rgba(234, 82, 0, .08); }
 .ff-upload-icon { width: 34px; height: 34px; margin-bottom: 6px; color: var(--green); }
 .ff-upload-title { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
 .ff-upload-hint { font-size: var(--fs-caption); color: var(--ink-soft); }
@@ -2174,6 +2175,7 @@ button.dm-thumb:hover { border-color: var(--green); }
     font-size: var(--fs-label); color: var(--ink);
 }
 .st-filter-field:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 122, 58, .15); }
+.st-filter-field[aria-invalid="true"] { border-color: #c2410c; background-color: rgba(234, 82, 0, .08); }
 .st-filter-chip {
     padding: 4px 10px;
     border: 1px solid var(--hairline-strong); border-radius: 9999px;
@@ -3774,6 +3776,16 @@ button.dm-thumb:hover { border-color: var(--green); }
     outline-offset: 2px;
 }
 
+.req-check[aria-invalid="true"] {
+    border-color: #c2410c;
+    box-shadow: 0 0 0 3px rgba(234, 82, 0, .18);
+}
+
+.req-note[data-invalid="true"] {
+    border-color: #c2410c;
+    background: rgba(234, 82, 0, .06);
+}
+
 /* The submit button is the shared primary pill (.cz-btn .cz-btn-primary). */
 
 @media (min-width: 640px) {
@@ -3950,6 +3962,7 @@ button.dm-thumb:hover { border-color: var(--green); }
 .form-input::placeholder { color: #93a39a; }
 .form-input:hover { border-color: #b4c6bb; }
 .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(22, 122, 58, .14); }
+.form-input[aria-invalid="true"] { border-color: #c2410c; background-color: rgba(234, 82, 0, .08); }
 .form-input-with-icon { padding-left: 48px; }
 .form-input-with-toggle { padding-right: 48px; }
 /* Show/hide password, inside the field's right edge. Out of flow, so the

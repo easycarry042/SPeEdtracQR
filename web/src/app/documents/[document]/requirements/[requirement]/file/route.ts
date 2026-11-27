@@ -40,7 +40,7 @@ export async function GET(
     return notFound();
   }
 
-  if (!canAccessDocument({ created_by: file.createdBy, assigned_to: file.assignedTo }, actor)) {
+  if (!canAccessDocument(file.document ?? { created_by: file.createdBy, assigned_to: file.assignedTo }, actor)) {
     return forbidden();
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { PublicTrackForm } from '@/components/citizen/public-track-form';
 import { login, type LoginState } from './actions';
 
@@ -18,6 +18,21 @@ export function LoginCard({
   const [tab, setTab] = useState<'signin' | 'track'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
   const [state, formAction, pending] = useActionState<LoginState, FormData>(login, undefined);
+  const [clearedFields, setClearedFields] = useState<{ email: boolean; password: boolean }>({
+    email: false,
+    password: false,
+  });
+
+  useEffect(() => {
+    setClearedFields({ email: false, password: false });
+  }, [state]);
+
+  const emailInvalid = Boolean(
+    state?.error && (state.field === 'email' || state.field === 'both') && !clearedFields.email,
+  );
+  const passwordInvalid = Boolean(
+    state?.error && (state.field === 'password' || state.field === 'both') && !clearedFields.password,
+  );
 
   return (
     <div className="auth-right">
@@ -71,6 +86,8 @@ export function LoginCard({
                   autoFocus
                   autoComplete="username"
                   placeholder="Enter your email"
+                  aria-invalid={emailInvalid}
+                  onChange={() => setClearedFields((prev) => ({ ...prev, email: true }))}
                   className="form-input form-input-with-icon"
                 />
               </div>
@@ -94,6 +111,8 @@ export function LoginCard({
                   required
                   autoComplete="current-password"
                   placeholder="Enter your password"
+                  aria-invalid={passwordInvalid}
+                  onChange={() => setClearedFields((prev) => ({ ...prev, password: true }))}
                   className="form-input form-input-with-icon form-input-with-toggle"
                 />
 

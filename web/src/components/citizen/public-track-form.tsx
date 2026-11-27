@@ -5,6 +5,7 @@ import { routes } from '@/lib/routes';
 import { QrCamera } from '@/components/qr-camera';
 import {
   FOREIGN_CODE_MESSAGE,
+  TRACKING_RE,
   decodeImage,
   describe,
   extractTracking,
@@ -131,7 +132,25 @@ export function PublicTrackForm({
         </>
       ) : null}
 
-      <form ref={form} method="GET" action={routes.internalTrack()} className="auth-form">
+      <form
+        ref={form}
+        method="GET"
+        action={routes.internalTrack()}
+        noValidate
+        onSubmit={(event) => {
+          const raw = (input.current?.value ?? '').trim().toUpperCase();
+          if (!TRACKING_RE.test(raw)) {
+            event.preventDefault();
+            setError('Please enter a valid internal request number (e.g. INT-20261019-AB12CD).');
+            input.current?.focus();
+            return;
+          }
+          if (input.current) {
+            input.current.value = raw;
+          }
+        }}
+        className="auth-form"
+      >
         <div className="form-group">
           <label htmlFor="trackNumber" className="form-label">
             Internal request number
@@ -152,6 +171,10 @@ export function PublicTrackForm({
               type="text"
               name="number"
               defaultValue={number}
+              aria-invalid={Boolean(error)}
+              onChange={() => {
+                if (error) setError('');
+              }}
               required
               autoComplete="off"
               spellCheck={false}

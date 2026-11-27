@@ -39,7 +39,18 @@ vi.mock('@/lib/mail/send', async (original) => ({
 const uploads = await import('@/lib/domain/citizen-uploads');
 
 const TN = 'SPD-20261023-ABC234';
-const file = (name = 'id.jpg', size = 2048) => new File([new Uint8Array(size)], name, { type: 'image/jpeg' });
+const file = (name = 'id.jpg', size = 2048) => {
+  const buf = new Uint8Array(size);
+  if (/\.(jpe?g)$/i.test(name)) {
+    buf[0] = 0xff;
+    buf[1] = 0xd8;
+    buf[2] = 0xff;
+    buf[3] = 0xe0;
+  } else if (/\.pdf$/i.test(name)) {
+    buf.set([0x25, 0x50, 0x44, 0x46, 0x2d]);
+  }
+  return new File([buf], name, { type: 'image/jpeg' });
+};
 
 function request(status: string = DocumentStatus.InReview) {
   return {
@@ -87,6 +98,16 @@ describe('uploadFiles', () => {
 
   it('refuses a file type the rules do not allow', async () => {
     await expect(uploads.uploadFiles(TN, [file('run.exe')], null)).rejects.toThrow('run.exe');
+  });
+
+  it('refuses an executable spoofed with an allowed extension', async () => {
+    const mzHeader = new Uint8Array(128);
+    mzHeader[0] = 0x4d;
+    mzHeader[1] = 0x5a;
+    const spoofed = new File([mzHeader], 'fake.jpg', { type: 'image/jpeg' });
+
+    await expect(uploads.uploadFiles(TN, [spoofed], null)).rejects.toThrow('file contents');
+    expect(storePrivate).not.toHaveBeenCalled();
   });
 
   it('answers an unknown or internal request as not found', async () => {

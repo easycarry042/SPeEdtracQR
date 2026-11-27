@@ -166,6 +166,45 @@ export async function deletePrivate(relative: string): Promise<void> {
   }
 }
 
+/**
+ * Create a short-lived signed upload URL straight to Supabase Storage's private
+ * bucket so browser uploads bypass Vercel's 4.5 MB Server Action limit.
+ * Returns `null` when Supabase is unconfigured (local dev uses Server Actions).
+ */
+export async function createSignedPrivateUploadUrl(
+  directory: string,
+  filename: string,
+): Promise<{ path: string; signedUrl: string; token: string } | null> {
+  if (!supabaseConfigured()) {
+    return null;
+  }
+
+  const relative = `${directory}/${randomBytes(20).toString('hex')}.${extensionOf(filename)}`;
+  const client = supabase();
+  const buckets = candidateBuckets('private');
+  let lastError: Error | null = null;
+
+  for (const bucket of buckets) {
+    const { data, error } = await client
+      .storage.from(bucket)
+      .createSignedUploadUrl(relative, { upsert: true });
+
+    if (!error && data) {
+      return { path: relative, signedUrl: data.signedUrl, token: data.token };
+    }
+
+    lastError = new Error(
+      `Signed upload URL for ${bucket}/${relative} failed: ${error?.message ?? 'unknown error'}`,
+    );
+    const msg = error?.message?.toLowerCase() ?? '';
+    if (!msg.includes('not found') && !msg.includes('bucket')) {
+      break;
+    }
+  }
+
+  throw lastError ?? new Error(`Signed upload URL for private/${relative} failed.`);
+}
+
 /** Write a world-readable file (QR images) to the public disk. */
 export async function putPublic(relative: string, contents: Buffer, contentType?: string): Promise<void> {
   await put('public', relative, contents, contentType);

@@ -142,19 +142,62 @@ export function canEditDocument(
   return canViewAll(actor) || document.assigned_to === actor.id;
 }
 
+export type DocumentAccessSubject = {
+  created_by: number | null;
+  assigned_to: number | null;
+  origin?: string | null;
+  department_id?: number | null;
+  requesting_department_id?: number | null;
+  involved_department_ids?: number[];
+  accepted_at?: Date | null;
+  handler_user_ids?: number[];
+};
+
+type RawDocumentAccessRow = {
+  created_by: bigint | number | null;
+  assigned_to: bigint | number | null;
+  origin?: string | null;
+  department_id?: bigint | number | null;
+  requesting_department_id?: bigint | number | null;
+  accepted_at?: Date | null;
+  request_steps?: Array<{ department_id: bigint | number | null }>;
+};
+
+const toOptionalId = (value: bigint | number | null | undefined): number | null =>
+  value === null || value === undefined ? null : Number(value);
+
+/** Normalize a Prisma document row + co-handler IDs into a `DocumentAccessSubject`. */
+export function toDocumentAccessSubject(
+  row: RawDocumentAccessRow,
+  handlerUserIds: number[] = [],
+): DocumentAccessSubject {
+  return {
+    created_by: toOptionalId(row.created_by),
+    assigned_to: toOptionalId(row.assigned_to),
+    origin: row.origin ?? null,
+    department_id: toOptionalId(row.department_id),
+    requesting_department_id: toOptionalId(row.requesting_department_id),
+    involved_department_ids: (row.request_steps ?? [])
+      .map((step) => toOptionalId(step.department_id))
+      .filter((deptId): deptId is number => deptId !== null),
+    accepted_at: row.accepted_at ?? null,
+    handler_user_ids: handlerUserIds,
+  };
+}
+
+/**
+ * Who may open a document's private files or perform scoped document actions.
+ * Enforces the same office and routing-chain boundaries as `documentScope()`.
+ */
 export function canAccessDocument(
-  document: { created_by: number | null; assigned_to: number | null; origin?: string | null },
+  document: DocumentAccessSubject,
   actor: Actor | null,
 ): boolean {
   if (!actor) {
     return false;
   }
 
-  if (document.origin === ORIGIN_INTERNAL) {
-    return true;
-  }
-
-  if (canViewAll(actor)) {
+  if (actor.can('manage system') || actor.hasRole(ROLE_SUPER_ADMIN)) {
     return true;
   }
 
@@ -162,5 +205,37 @@ export function canAccessDocument(
     return true;
   }
 
-  return document.assigned_to === null && canViewUnclaimedQueue(actor);
+  if (document.origin === ORIGIN_INTERNAL) {
+    if (actor.hasRole(ROLE_SUPERVISOR) && actor.departmentId === null) {
+      return true;
+    }
+
+    if (actor.departmentId === null) {
+      return false;
+    }
+
+    return (
+      document.requesting_department_id === actor.departmentId ||
+      Boolean(document.involved_department_ids?.includes(actor.departmentId))
+    );
+  }
+
+  const inActorOffice =
+    document.department_id === undefined ||
+    document.department_id === null ||
+    (actor.departmentId !== null && document.department_id === actor.departmentId);
+
+  if (actor.hasRole(ROLE_SUPERVISOR)) {
+    return actor.departmentId === null || inActorOffice;
+  }
+
+  if (document.assigned_to === null && canViewUnclaimedQueue(actor)) {
+    return inActorOffice;
+  }
+
+  if (document.accepted_at === null && document.handler_user_ids?.includes(actor.id)) {
+    return inActorOffice;
+  }
+
+  return false;
 }

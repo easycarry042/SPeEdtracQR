@@ -60,6 +60,10 @@ export default async function RequestPage() {
     kind: type.kind,
     resource: type.resource?.name ?? null,
     resourceId: type.resource ? toId(type.resource.id) : null,
+    serviceableUnits:
+      type.resource && type.resource.total_quantity !== null
+        ? Math.max(0, type.resource.total_quantity - type.resource.damaged_quantity)
+        : null,
     detailsLabel: type.details_label,
     requirements: type.request_type_requirements.map((requirement) => ({
       id: toId(requirement.id),

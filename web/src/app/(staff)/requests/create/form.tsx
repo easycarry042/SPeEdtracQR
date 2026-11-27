@@ -11,6 +11,7 @@ import {
   type RouteMode,
 } from '@/lib/domain/internal-route-plan';
 import { renderPdfFilePage } from '@/lib/client/pdf-preview';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { useConfirm } from '@/components/confirm-dialog';
 import { MAX_BYTES, MAX_KILOBYTES } from '@/lib/domain/upload-rules';
 
@@ -115,7 +116,9 @@ export function FilingForm({
 
   const [qr, setQr] = useState<QrPlacement>(INITIAL_QR);
   const [qrModal, setQrModal] = useState(false);
+  const [attemptedReview, setAttemptedReview] = useState(false);
   const paperInputRef = useRef<HTMLInputElement>(null);
+  const step1FormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (hasHardCopy || !direct || firstDepartment === '') {
@@ -318,6 +321,59 @@ export function FilingForm({
     scan !== null &&
     (hasHardCopy || !direct || selectedRecipient !== null);
 
+  const destinationError =
+    attemptedReview && direct && !selectedDepartment
+      ? 'Please choose the destination office.'
+      : '';
+  const routeError =
+    attemptedReview && !direct && route.length === 0
+      ? 'Mandatory offices are not configured. Send it straight to an office instead.'
+      : '';
+  const purposeError =
+    attemptedReview && purpose.trim() === ''
+      ? 'Please enter what is being requested.'
+      : '';
+  const recipientError =
+    attemptedReview && !hasHardCopy && direct && !selectedRecipient
+      ? 'Please choose who at that office receives it.'
+      : '';
+  const scanError =
+    fileError ||
+    (attemptedReview && !scan
+      ? 'Please attach the scanned document (PDF, JPG, PNG, or WEBP).'
+      : '');
+
+  const tryAdvanceToReview = (): void => {
+    if (canReview) {
+      setAttemptedReview(false);
+      setStep(2);
+      return;
+    }
+
+    setAttemptedReview(true);
+    requestAnimationFrame(() => {
+      const root = step1FormRef.current;
+      if (!root) return;
+      const targetSelector =
+        direct && !selectedDepartment
+          ? '#route-select'
+          : purpose.trim() === ''
+            ? '#purpose'
+            : !hasHardCopy && direct && !selectedRecipient
+              ? '#recipient-select'
+              : !scan
+                ? '[data-paper-dropzone="true"]'
+                : null;
+      if (targetSelector) {
+        const target = root.querySelector<HTMLElement>(targetSelector);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.focus({ preventScroll: true });
+        }
+      }
+    });
+  };
+
   const submit = async (): Promise<void> => {
     const confirmed = await confirm({
       title: 'File this request?',
@@ -345,10 +401,6 @@ export function FilingForm({
       form.set('recipient_id', recipientId);
     }
 
-    if (scan) {
-      form.set('paper_scan', scan);
-    }
-
     if (qr.ready) {
       form.set('qr_x', qr.x.toFixed(4));
       form.set('qr_y', qr.y.toFixed(4));
@@ -361,6 +413,15 @@ export function FilingForm({
 
     startTransition(async () => {
       try {
+        if (scan) {
+          const uploaded = await uploadFileDirect(scan, 'internal-paper');
+          if (uploaded.mode === 'direct') {
+            form.set('paper_scan_uploaded', uploaded.receipt);
+          } else {
+            form.set('paper_scan', scan);
+          }
+        }
+
         const result = await fileRequest(form);
 
         if (result.ok && result.url) {
@@ -369,9 +430,11 @@ export function FilingForm({
         }
 
         setError(result.ok ? 'Filed, but the confirmation could not be opened.' : result.message);
-      } catch {
+      } catch (err) {
         setError(
-          `Could not submit the request. Make sure the attached file is under ${Math.floor(MAX_KILOBYTES / 1024)} MB and try again.`,
+          err instanceof Error && err.message
+            ? err.message
+            : `Could not submit the request. Make sure the attached file is under ${Math.floor(MAX_KILOBYTES / 1024)} MB and try again.`,
         );
       }
     });
@@ -447,10 +510,12 @@ export function FilingForm({
       </div>
 
       <form
+        ref={step1FormRef}
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           if (step === 1) {
-            if (canReview) setStep(2);
+            tryAdvanceToReview();
           } else {
             void submit();
           }
@@ -494,6 +559,7 @@ export function FilingForm({
                         onClick={() => {
                           setRouteMode(mode);
                           setRecipientId('');
+                          setAttemptedReview(false);
                         }}
                       >
                         {label}
@@ -502,6 +568,11 @@ export function FilingForm({
                   </div>
 
                   <RouteStrip officeName={officeName} route={route} openStop={openStop} />
+                  {routeError ? (
+                    <p className="mt-2 text-sm font-semibold text-status-red" role="alert">
+                      {routeError}
+                    </p>
+                  ) : null}
                   <p className="mt-2 text-[length:var(--fs-caption)] text-ink-soft">
                     {direct
                       ? 'It goes straight to the office you choose, skipping Action Mamamayan and the Office of the Mayor.'
@@ -521,6 +592,7 @@ export function FilingForm({
                         id="route-select"
                         name="destination_department_id"
                         value={firstDepartment}
+                        aria-invalid={Boolean(destinationError)}
                         onChange={(event) => {
                           setFirstDepartment(event.target.value);
                           setRecipientId('');
@@ -535,6 +607,11 @@ export function FilingForm({
                           </option>
                         ))}
                       </select>
+                      {destinationError ? (
+                        <p className="mt-1.5 text-sm font-semibold text-status-red" role="alert">
+                          {destinationError}
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                 </fieldset>
@@ -548,12 +625,18 @@ export function FilingForm({
                     type="text"
                     name="purpose"
                     value={purpose}
+                    aria-invalid={Boolean(purposeError)}
                     onChange={(event) => setPurpose(event.target.value)}
                     required
                     maxLength={255}
                     placeholder="e.g. 10 Monoblock chairs and a flower vase…"
                     className="st-filter-field"
                   />
+                  {purposeError ? (
+                    <p className="mt-1.5 text-sm font-semibold text-status-red" role="alert">
+                      {purposeError}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -562,7 +645,10 @@ export function FilingForm({
                       type="checkbox"
                       role="switch"
                       checked={hasHardCopy}
-                      onChange={(event) => setHasHardCopy(event.target.checked)}
+                      onChange={(event) => {
+                        setHasHardCopy(event.target.checked);
+                        setAttemptedReview(false);
+                      }}
                       className="ff-toggle-input"
                     />
                     <span className="ff-toggle-track" aria-hidden="true">
@@ -595,6 +681,7 @@ export function FilingForm({
                       value={recipientId}
                       required={!hasHardCopy}
                       disabled={hasHardCopy || !firstDepartment}
+                      aria-invalid={Boolean(recipientError)}
                       onChange={(event) => setRecipientId(event.target.value)}
                       className="st-filter-field"
                     >
@@ -609,6 +696,11 @@ export function FilingForm({
                         </option>
                       ))}
                     </select>
+                    {recipientError ? (
+                      <p className="mt-1.5 text-sm font-semibold text-status-red" role="alert">
+                        {recipientError}
+                      </p>
+                    ) : null}
                     {firstDepartment && people.length === 0 ? (
                       <p className="mt-1 text-[length:var(--fs-caption)] font-semibold text-status-amber">
                         No one in that office has an active account yet. Send a hard copy instead,
@@ -624,6 +716,9 @@ export function FilingForm({
                   Scanned Document <span className="text-status-red">*</span>
                 </p>
                 <label
+                  tabIndex={0}
+                  data-paper-dropzone="true"
+                  data-invalid={scanError ? 'true' : undefined}
                   className={`ff-upload${fileName ? ' has-file' : ''}${
                     dragOver ? ' is-over' : ''
                   }`}
@@ -675,12 +770,12 @@ export function FilingForm({
                       ? 'Click or drop another file to replace it'
                       : 'JPG, PNG, WEBP or PDF up to 10 MB'}
                   </span>
-                  {fileError ? (
+                  {scanError ? (
                     <span
-                      className="mt-2 text-[length:var(--fs-small)] font-semibold text-status-red"
+                      className="mt-2 text-sm font-semibold text-status-red"
                       role="alert"
                     >
-                      {fileError}
+                      {scanError}
                     </span>
                   ) : null}
                   <input
@@ -893,11 +988,8 @@ export function FilingForm({
               <button
                 key="review"
                 type="button"
-                disabled={!canReview}
-                onClick={() => {
-                  if (canReview) setStep(2);
-                }}
-                className="cr-btn cr-btn-primary disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={tryAdvanceToReview}
+                className="cr-btn cr-btn-primary"
               >
                 Review →
               </button>

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { reuploadRevisedRequirement, uploadSupportingFiles } from '@/app/actions/citizen';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 import * as uploadRules from '@/lib/domain/upload-rules';
 
 /**
@@ -61,17 +62,26 @@ export function RequirementReupload({
 
         startTransition(async () => {
           try {
+            if (picked instanceof File && picked.size > 0) {
+              const uploaded = await uploadFileDirect(picked, 'citizen-requirement');
+              if (uploaded.mode === 'direct') {
+                data.delete('file');
+                data.set('uploaded_file', uploaded.receipt);
+              }
+            }
+
             const result = await reuploadRevisedRequirement(trackingNumber, requirementId, data);
             setNotice(result);
 
             if (result.ok) {
               formRef.current?.reset();
             }
-          } catch {
-            setNotice({
-              ok: false,
-              message: `Could not upload that file. Make sure it is under ${Math.floor(uploadRules.MAX_KILOBYTES / 1024)} MB and try again.`,
-            });
+          } catch (err) {
+            const msg =
+              err instanceof Error && err.message
+                ? err.message
+                : `Could not upload that file. Make sure it is under ${Math.floor(uploadRules.MAX_KILOBYTES / 1024)} MB and try again.`;
+            setNotice({ ok: false, message: msg });
           }
         });
       }}
@@ -142,6 +152,7 @@ export function SupportingUpload({
 
     const next = [...files];
     const problems: string[] = [];
+    let totalBytes = next.reduce((sum, item) => sum + item.size, 0);
 
     for (const file of Array.from(picked)) {
       if (next.length >= maxFiles) {
@@ -149,14 +160,30 @@ export function SupportingUpload({
         break;
       }
 
+      const ruleProblem = uploadRules.check(file);
+      if (ruleProblem) {
+        problems.push(`${file.name}: ${ruleProblem}`);
+        continue;
+      }
+
       if (file.size > maxBytes) {
         problems.push(`${file.name} is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`);
         continue;
       }
 
-      if (!next.some((kept) => kept.name === file.name && kept.size === file.size)) {
-        next.push(file);
+      if (next.some((kept) => kept.name === file.name && kept.size === file.size)) {
+        continue;
       }
+
+      if (totalBytes + file.size > maxBytes) {
+        problems.push(
+          `Adding ${file.name} would exceed the ${Math.round(maxBytes / 1024 / 1024)} MB total upload limit.`,
+        );
+        continue;
+      }
+
+      totalBytes += file.size;
+      next.push(file);
     }
 
     setFiles(next);
@@ -172,12 +199,20 @@ export function SupportingUpload({
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        const data = new FormData();
-        files.forEach((file) => data.append('attachments', file));
-        data.append('note', note);
 
         startTransition(async () => {
           try {
+            const data = new FormData();
+            for (const file of files) {
+              const uploaded = await uploadFileDirect(file, 'citizen-supporting');
+              if (uploaded.mode === 'direct') {
+                data.append('uploaded_attachments', uploaded.receipt);
+              } else {
+                data.append('attachments', file);
+              }
+            }
+            data.append('note', note);
+
             const result = await uploadSupportingFiles(trackingNumber, data);
             setNotice(result);
 
@@ -185,11 +220,12 @@ export function SupportingUpload({
               setFiles([]);
               setNote('');
             }
-          } catch {
-            setNotice({
-              ok: false,
-              message: `Could not upload those files. Make sure the total size is under ${Math.round(maxBytes / 1024 / 1024)} MB and try again.`,
-            });
+          } catch (err) {
+            const msg =
+              err instanceof Error && err.message
+                ? err.message
+                : `Could not upload those files. Make sure the total size is under ${Math.round(maxBytes / 1024 / 1024)} MB and try again.`;
+            setNotice({ ok: false, message: msg });
           }
         });
       }}
@@ -201,7 +237,7 @@ export function SupportingUpload({
           <label htmlFor="citizen_attachments" className="req-label">
             Files (images, PDF, Word or Excel)
           </label>
-          <span className="text-xs font-semibold text-ink-soft">
+          <span className="text-sm font-semibold text-ink-soft">
             {files.length} of {maxFiles} files selected
           </span>
         </div>
@@ -229,7 +265,7 @@ export function SupportingUpload({
           <span>{files.length > 0 ? 'Add more files' : 'Choose files'}</span>
         </button>
 
-        <p className="mt-1.5 text-xs text-ink-soft">
+        <p className="mt-1.5 text-sm text-ink-soft">
           {hint}. Up to {maxFiles} files per upload.
         </p>
 
@@ -241,7 +277,7 @@ export function SupportingUpload({
                 className="flex items-center gap-3 rounded-[10px] border border-hairline px-3 py-2 text-sm"
               >
                 <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                <span className="shrink-0 text-xs text-ink-soft">{Math.max(1, Math.round(file.size / 1024))} KB</span>
+                <span className="shrink-0 text-sm text-ink-soft">{Math.max(1, Math.round(file.size / 1024))} KB</span>
                 <button
                   type="button"
                   className="shrink-0 font-semibold text-status-red hover:underline"

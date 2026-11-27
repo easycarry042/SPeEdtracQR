@@ -1,11 +1,15 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db, id, toId } from '@/lib/db';
+import { throttle } from '@/lib/rate-limit';
 import { DocumentStatus } from '@/lib/domain/document-status';
 import { ORIGIN_EXTERNAL } from '@/lib/domain/scope';
 import * as contactNumber from '@/lib/domain/contact-number';
+import { checkFileSignature } from '@/lib/domain/file-signatures';
 import * as uploadRules from '@/lib/domain/upload-rules';
+import { consumeDirectUpload } from '@/lib/domain/upload-token';
 import * as qr from '@/lib/domain/qr-service';
 import * as receipt from '@/lib/domain/citizen-receipt';
 import * as lending from '@/lib/domain/lending';
@@ -68,6 +72,14 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   // Honeypot: bots fill hidden fields. Silently bounce without creating.
   if (text(form, 'website') !== '') {
     redirect('/request?status=received');
+  }
+
+  const hdrs = await headers().catch(() => new Headers());
+  if (!(await throttle('citizenSubmit', hdrs))) {
+    return fail(
+      { form: 'Too many requests submitted recently. Please wait a minute and try again.' },
+      form,
+    );
   }
 
   const documentType = text(form, 'document_type');
@@ -155,18 +167,31 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
   // Validate every upload before creating anything, so a rejected file never
   // leaves a half-filed request behind.
   const uploads = new Map<number, File>();
+  const preuploadedPaths = new Map<number, string>();
 
   for (const requirement of type?.request_type_requirements ?? []) {
-    const entry = form.get(`requirements[${toId(requirement.id)}]`);
+    const reqId = toId(requirement.id);
+    const receipt = text(form, `requirements_uploaded[${reqId}]`);
+
+    if (receipt !== '') {
+      const consumed = await consumeDirectUpload(receipt, 'citizen-requirement');
+      if (!consumed.ok) {
+        return fail({ [`requirements.${reqId}`]: consumed.error }, form);
+      }
+      preuploadedPaths.set(reqId, consumed.path);
+      continue;
+    }
+
+    const entry = form.get(`requirements[${reqId}]`);
 
     if (entry instanceof File && entry.size > 0) {
-      const problem = uploadRules.check(entry);
+      const problem = uploadRules.check(entry) ?? (await checkFileSignature(entry));
 
       if (problem) {
-        return fail({ [`requirements.${toId(requirement.id)}`]: problem }, form);
+        return fail({ [`requirements.${reqId}`]: problem }, form);
       }
 
-      uploads.set(toId(requirement.id), entry);
+      uploads.set(reqId, entry);
     }
   }
 
@@ -275,8 +300,11 @@ export async function submitRequest(form: FormData): Promise<SubmitResult> {
     const { storePrivate } = await import('@/lib/storage');
 
     for (const requirement of type.request_type_requirements) {
-      const file = uploads.get(toId(requirement.id));
-      const path = file ? await storePrivate(file, 'document-requirements') : null;
+      const reqId = toId(requirement.id);
+      const file = uploads.get(reqId);
+      const path =
+        preuploadedPaths.get(reqId) ??
+        (file ? await storePrivate(file, 'document-requirements') : null);
 
       await db.document_requirements.create({
         data: {

@@ -134,6 +134,7 @@ export async function withdrawRequest(
 export async function fileRequest(form: FormData): Promise<InternalResult> {
   const actor = await currentActor();
   const scan = form.get('paper_scan');
+  const uploadedReceipt = form.get('paper_scan_uploaded');
   const hasHardCopy = form.get('has_hard_copy');
   const recipient = form.get('recipient_id');
 
@@ -149,6 +150,10 @@ export async function fileRequest(form: FormData): Promise<InternalResult> {
     hasHardCopy: hasHardCopy === null ? true : hasHardCopy === '1' || hasHardCopy === 'true',
     recipientId: recipient ? Number(recipient) : null,
     paperScan: scan instanceof File && scan.size > 0 ? scan : null,
+    paperScanReceipt:
+      typeof uploadedReceipt === 'string' && uploadedReceipt.trim() !== ''
+        ? uploadedReceipt.trim()
+        : null,
     qrPlacement: {
       x: placementNumber(form.get('qr_x'), 0, 1),
       y: placementNumber(form.get('qr_y'), 0, 1),

@@ -17,7 +17,7 @@ import {
 } from '@/lib/domain/document';
 import { isTerminal } from '@/lib/domain/document-status';
 import { internalReceived } from '@/lib/domain/internal-events';
-import { canAccessDocument } from '@/lib/domain/scope';
+import { canAccessDocument, toDocumentAccessSubject } from '@/lib/domain/scope';
 import type { Actor } from '@/lib/auth/actor';
 
 /**
@@ -58,6 +58,7 @@ const CUSTODY_SELECT = {
   department_id: true,
   requesting_department_id: true,
   assigned_to: true,
+  accepted_at: true,
 } as const;
 
 type CustodyDocument = {
@@ -72,6 +73,7 @@ type CustodyDocument = {
   department_id: bigint | null;
   requesting_department_id: bigint | null;
   assigned_to: bigint | null;
+  accepted_at: Date | null;
 };
 
 function howRead(method: CaptureMethod, overrideReason: string | null): string {
@@ -354,15 +356,15 @@ export async function takeCustody(
 
   const document = await loadOrFail(documentId);
   const documentId_ = toId(document.id);
+  const steps = isInternal(document)
+    ? ((await db.request_steps?.findMany({
+        where: { document_id: document.id },
+        select: { department_id: true },
+      })) ?? [])
+    : [];
 
   if (
-    !canAccessDocument(
-      {
-        assigned_to: document.assigned_to === null ? null : toId(document.assigned_to),
-        created_by: document.created_by === null ? null : toId(document.created_by),
-      },
-      actor,
-    ) &&
+    !canAccessDocument(toDocumentAccessSubject({ ...document, request_steps: steps }), actor) &&
     !actor.can('scan documents')
   ) {
     throw new ActionError('This action is unauthorized.', 403);

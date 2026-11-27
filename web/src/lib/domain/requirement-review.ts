@@ -2,6 +2,11 @@ import { db, id, toId } from '@/lib/db';
 import { logOnDocument } from '@/lib/activity';
 import type { Actor } from '@/lib/auth/actor';
 import { canBeAdvancedBy } from '@/lib/domain/document';
+import {
+  ORIGIN_INTERNAL,
+  toDocumentAccessSubject,
+  type DocumentAccessSubject,
+} from '@/lib/domain/scope';
 import { ActionError } from '@/lib/domain/status-actions';
 import { queueMail } from '@/lib/mail/send';
 import { requirementRevisionMail } from '@/lib/mail/citizen-notices';
@@ -271,12 +276,28 @@ export async function reviewRequirement(
 export async function requirementFileFor(
   documentId: number,
   requirementId: number,
-): Promise<{ path: string; createdBy: number | null; assignedTo: number | null } | null> {
+): Promise<{
+  path: string;
+  createdBy: number | null;
+  assignedTo: number | null;
+  document: DocumentAccessSubject;
+} | null> {
   const row = await db.document_requirements.findFirst({
     where: { id: id(requirementId), document_id: id(documentId), document: { deleted_at: null } },
     select: {
       uploaded_file_path: true,
-      document: { select: { created_by: true, assigned_to: true } },
+      document: {
+        select: {
+          created_by: true,
+          assigned_to: true,
+          origin: true,
+          department_id: true,
+          requesting_department_id: true,
+          accepted_at: true,
+          document_type: true,
+          request_steps: { select: { department_id: true } },
+        },
+      },
     },
   });
 
@@ -284,9 +305,22 @@ export async function requirementFileFor(
     return null;
   }
 
+  const doc = row.document;
+  const handlerRows =
+    doc.origin !== ORIGIN_INTERNAL && doc.accepted_at === null && doc.document_type
+      ? ((await db.request_type_handlers?.findMany({
+          where: { requestType: { name: doc.document_type } },
+          select: { user_id: true },
+        })) ?? [])
+      : [];
+
   return {
     path: row.uploaded_file_path,
-    createdBy: row.document.created_by === null ? null : toId(row.document.created_by),
-    assignedTo: row.document.assigned_to === null ? null : toId(row.document.assigned_to),
+    createdBy: doc.created_by === null ? null : toId(doc.created_by),
+    assignedTo: doc.assigned_to === null ? null : toId(doc.assigned_to),
+    document: toDocumentAccessSubject(
+      doc,
+      handlerRows.map((entry) => toId(entry.user_id)),
+    ),
   };
 }

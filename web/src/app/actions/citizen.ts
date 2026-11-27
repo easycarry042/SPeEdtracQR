@@ -38,9 +38,14 @@ async function run(trackingNumber: string, fn: () => Promise<{ message: string }
 
 export async function uploadSupportingFiles(trackingNumber: string, form: FormData): Promise<CitizenActionResult> {
   const files = form.getAll('attachments').filter((value): value is File => value instanceof File);
+  const uploadedReceipts = form
+    .getAll('uploaded_attachments')
+    .filter((value): value is string => typeof value === 'string' && value.trim() !== '');
   const note = form.get('note');
 
-  return run(trackingNumber, () => uploadFiles(trackingNumber, files, typeof note === 'string' ? note : null));
+  return run(trackingNumber, () =>
+    uploadFiles(trackingNumber, files, typeof note === 'string' ? note : null, uploadedReceipts),
+  );
 }
 
 export async function reuploadRevisedRequirement(
@@ -49,8 +54,14 @@ export async function reuploadRevisedRequirement(
   form: FormData,
 ): Promise<CitizenActionResult> {
   const file = form.get('file');
+  const uploadedReceipt = form.get('uploaded_file');
 
   return run(trackingNumber, () =>
-    reuploadRequirement(trackingNumber, requirementId, file instanceof File ? file : null),
+    reuploadRequirement(
+      trackingNumber,
+      requirementId,
+      file instanceof File ? file : null,
+      typeof uploadedReceipt === 'string' ? uploadedReceipt : null,
+    ),
   );
 }

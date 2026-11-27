@@ -4,8 +4,10 @@ import { DocumentStatus } from '@/lib/domain/document-status';
 import { notify } from '@/lib/domain/notifications';
 import { REVIEW_NEEDS_REVISION } from '@/lib/domain/requirement-review';
 import { ORIGIN_INTERNAL } from '@/lib/domain/scope';
+import { checkFileSignature } from '@/lib/domain/file-signatures';
 import { ActionError } from '@/lib/domain/status-actions';
 import { check as checkUpload } from '@/lib/domain/upload-rules';
+import { consumeDirectUpload } from '@/lib/domain/upload-token';
 import { citizenUploadMail } from '@/lib/mail/citizen-notices';
 import { queueMail } from '@/lib/mail/send';
 import { routes } from '@/lib/routes';
@@ -50,6 +52,7 @@ export async function uploadFiles(
   trackingNumber: string,
   files: File[],
   note: string | null,
+  uploadedReceipts: string[] = [],
 ): Promise<{ message: string }> {
   const document = await openDocument(trackingNumber);
 
@@ -58,21 +61,32 @@ export async function uploadFiles(
   }
 
   const chosen = files.filter((file) => file.size > 0);
+  const receipts = uploadedReceipts.map((r) => r.trim()).filter(Boolean);
+  const totalCount = chosen.length + receipts.length;
 
-  if (chosen.length === 0) {
+  if (totalCount === 0) {
     throw new ActionError('Choose at least one file to send.');
   }
 
-  if (chosen.length > MAX_FILES) {
+  if (totalCount > MAX_FILES) {
     throw new ActionError(`Send up to ${MAX_FILES} files at a time.`);
   }
 
   for (const file of chosen) {
-    const problem = checkUpload(file);
+    const problem = checkUpload(file) ?? (await checkFileSignature(file));
 
     if (problem) {
       throw new ActionError(`${file.name}: ${problem}`);
     }
+  }
+
+  const directPaths: string[] = [];
+  for (const receipt of receipts) {
+    const consumed = await consumeDirectUpload(receipt, 'citizen-supporting');
+    if (!consumed.ok) {
+      throw new ActionError(consumed.error);
+    }
+    directPaths.push(consumed.path);
   }
 
   const trimmedNote = note?.trim() || null;
@@ -89,9 +103,12 @@ export async function uploadFiles(
   let sort = (last._max.sort_order ?? 0) + 1;
   let first: string | null = null;
 
+  const storedPaths = [...directPaths];
   for (const file of chosen) {
-    const path = await storePrivate(file, 'document-attachments');
+    storedPaths.push(await storePrivate(file, 'document-attachments'));
+  }
 
+  for (const path of storedPaths) {
     await db.document_attachments.create({
       data: {
         document_id: document.id,
@@ -107,7 +124,7 @@ export async function uploadFiles(
   }
 
   await db.documents.update({ where: { id: document.id }, data: { attachment_path: first, updated_at: now() } });
-  await logOnDocument(toId(document.id), `Citizen uploaded ${chosen.length} file(s)`);
+  await logOnDocument(toId(document.id), `Citizen uploaded ${totalCount} file(s)`);
 
   if (document.assignee?.email) {
     queueMail(
@@ -117,7 +134,7 @@ export async function uploadFiles(
         documentType: document.document_type,
         citizenName: document.citizen_name,
         assigneeName: document.assignee.name,
-        fileCount: chosen.length,
+        fileCount: totalCount,
         citizenNote: trimmedNote,
       }),
     );
@@ -137,13 +154,18 @@ export async function reuploadRequirement(
   trackingNumber: string,
   requirementId: number,
   file: File | null,
+  uploadedReceipt: string | null = null,
 ): Promise<{ message: string }> {
   const document = await openDocument(trackingNumber);
 
-  const problem = checkUpload(file, { required: true });
+  const receipt = uploadedReceipt?.trim() || null;
 
-  if (problem) {
-    throw new ActionError(problem);
+  if (!receipt) {
+    const problem = checkUpload(file, { required: true }) ?? (await checkFileSignature(file));
+
+    if (problem) {
+      throw new ActionError(problem);
+    }
   }
 
   const requirement = await db.document_requirements.findFirst({
@@ -163,7 +185,16 @@ export async function reuploadRequirement(
     throw new ActionError('This document is not awaiting revision.');
   }
 
-  const path = await storePrivate(file as File, 'document-requirements');
+  let directPath: string | null = null;
+  if (receipt) {
+    const consumed = await consumeDirectUpload(receipt, 'citizen-requirement');
+    if (!consumed.ok) {
+      throw new ActionError(consumed.error);
+    }
+    directPath = consumed.path;
+  }
+
+  const path = directPath ?? (await storePrivate(file as File, 'document-requirements'));
 
   await db.document_requirements.update({
     where: { id: requirement.id },
