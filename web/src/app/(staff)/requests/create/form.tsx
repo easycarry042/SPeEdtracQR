@@ -12,6 +12,7 @@ import {
 } from '@/lib/domain/internal-route-plan';
 import { renderPdfFilePage } from '@/lib/client/pdf-preview';
 import { useConfirm } from '@/components/confirm-dialog';
+import { MAX_BYTES, MAX_KILOBYTES } from '@/lib/domain/upload-rules';
 
 type QrPlacement = {
   ready: boolean;
@@ -211,6 +212,19 @@ export function FilingForm({
       return;
     }
 
+    if (file.size > MAX_BYTES) {
+      if (paperInputRef.current) {
+        paperInputRef.current.value = '';
+      }
+      setScan(null);
+      setFileName('');
+      setPreviewUrl(null);
+      setFileError(
+        `"${file.name}" exceeds the ${Math.floor(MAX_KILOBYTES / 1024)} MB limit. Please choose a smaller file.`,
+      );
+      return;
+    }
+
     setScan(file);
     setFileName(file.name);
 
@@ -346,14 +360,20 @@ export function FilingForm({
     }
 
     startTransition(async () => {
-      const result = await fileRequest(form);
+      try {
+        const result = await fileRequest(form);
 
-      if (result.ok && result.url) {
-        router.push(result.url);
-        return;
+        if (result.ok && result.url) {
+          router.push(result.url);
+          return;
+        }
+
+        setError(result.ok ? 'Filed, but the confirmation could not be opened.' : result.message);
+      } catch {
+        setError(
+          `Could not submit the request. Make sure the attached file is under ${Math.floor(MAX_KILOBYTES / 1024)} MB and try again.`,
+        );
       }
-
-      setError(result.ok ? 'Filed, but the confirmation could not be opened.' : result.message);
     });
   };
 

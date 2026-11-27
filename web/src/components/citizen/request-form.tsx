@@ -76,6 +76,75 @@ function isRedirect(error: unknown): boolean {
   );
 }
 
+const MAX_MB = Math.floor(uploadRules.MAX_KILOBYTES / 1024);
+
+const FORM_VALUE_KEYS = [
+  'document_type',
+  'purpose',
+  'description',
+  'citizen_name',
+  'citizen_email',
+  'citizen_contact',
+  'requester_office',
+  'details',
+  'booking_date',
+  'start_time',
+  'end_time',
+  'quantity',
+  'needed_date',
+  'return_date',
+  'needed_by',
+] as const;
+
+export function collectFormValues(form: FormData): Record<string, string> {
+  const values: Record<string, string> = {};
+
+  for (const key of FORM_VALUE_KEYS) {
+    const raw = form.get(key);
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (value !== '') {
+      values[key] = value;
+    }
+  }
+
+  return values;
+}
+
+export function formatFileSizeError(file: { name: string; size: number }): string {
+  return `"${file.name}" exceeds the ${MAX_MB} MB limit. Please choose a smaller file.`;
+}
+
+export function validateRequirementUploads(
+  form: FormData,
+  requirements: readonly RequirementOption[],
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  let totalBytes = 0;
+
+  for (const requirement of requirements) {
+    const entry = form.get(`requirements[${requirement.id}]`);
+    if (entry instanceof File && entry.size > 0) {
+      totalBytes += entry.size;
+
+      if (entry.size > uploadRules.MAX_BYTES) {
+        errors[`requirements.${requirement.id}`] = formatFileSizeError(entry);
+        continue;
+      }
+
+      const problem = uploadRules.check(entry);
+      if (problem) {
+        errors[`requirements.${requirement.id}`] = problem;
+      }
+    }
+  }
+
+  if (Object.keys(errors).length === 0 && totalBytes > uploadRules.MAX_BYTES) {
+    errors.uploads = `The selected files exceed the ${MAX_MB} MB total upload limit. Please choose smaller files.`;
+  }
+
+  return errors;
+}
+
 export type RequirementOption = { id: number; label: string; mandatory: boolean };
 
 export type TypeOption = {
@@ -115,6 +184,9 @@ export function RequestForm({
 }) {
   const [selected, setSelected] = useState('');
   const [result, setResult] = useState<SubmitResult | null>(null);
+  const [clientFieldErrors, setClientFieldErrors] = useState<Record<string, string>>({});
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
   // Held for a few seconds after a refusal, so a hurried second press does not
   // send the same request again before the message has been read.
   const [coolingDown, setCoolingDown] = useState(false);
@@ -136,7 +208,10 @@ export function RequestForm({
   );
 
   const type = selected === '' ? null : (byName.get(selected) ?? null);
-  const errors = result?.errors ?? {};
+  const errors = useMemo(
+    () => ({ ...(result?.errors ?? {}), ...clientFieldErrors }),
+    [result?.errors, clientFieldErrors],
+  );
   const values = result?.values ?? {};
 
   const [bookingDate, setBookingDate] = useState(values.booking_date ?? '');
@@ -179,7 +254,19 @@ export function RequestForm({
       return;
     }
 
+    const uploadErrors = validateRequirementUploads(form, type?.requirements ?? []);
+    if (Object.keys(uploadErrors).length > 0) {
+      const firstMessage = Object.values(uploadErrors)[0] ?? null;
+      setClientFieldErrors({});
+      setResult({ ok: false, errors: uploadErrors, values: collectFormValues(form) });
+      setUploadNotice(firstMessage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     busy.current = true;
+    setClientFieldErrors({});
+    setUploadNotice(null);
 
     try {
       // A refusal comes back as a result. Success redirects to the receipt:
@@ -189,11 +276,25 @@ export function RequestForm({
       window.scrollTo({ top: 0, behavior: 'smooth' });
       release();
     } catch (error) {
-      if (!isRedirect(error)) {
-        release();
+      if (isRedirect(error)) {
+        throw error;
       }
 
-      throw error;
+      const detail = error instanceof Error ? error.message : '';
+      const hasFiles = (type?.requirements ?? []).some((req) => {
+        const entry = form.get(`requirements[${req.id}]`);
+        return entry instanceof File && entry.size > 0;
+      });
+      const likelySizeLimit =
+        hasFiles || /body|413|limit|payload|size|exceed|unexpected response/i.test(detail);
+      const message = likelySizeLimit
+        ? `The uploaded file exceeds the ${MAX_MB} MB limit (or the server upload limit). Please choose a smaller file and try again.`
+        : 'Something went wrong while submitting your request. Please try again.';
+
+      setResult({ ok: false, errors: { uploads: message }, values: collectFormValues(form) });
+      setUploadNotice(message);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      release();
     }
   }
 
@@ -201,6 +302,39 @@ export function RequestForm({
 
   return (
     <>
+      {uploadNotice ? (
+        <div
+          className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-[680px] items-start gap-3 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-[15px] text-red-900 shadow-lg"
+          role="alert"
+        >
+          <svg
+            className="mt-0.5 h-5 w-5 shrink-0 text-red-700"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+            />
+          </svg>
+          <p className="min-w-0 flex-1 font-medium">{uploadNotice}</p>
+          <button
+            type="button"
+            onClick={() => setUploadNotice(null)}
+            aria-label="Dismiss notification"
+            className="shrink-0 rounded-md p-1 text-red-700 transition hover:bg-red-100"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
+
       {messages.length > 0 ? (
         <div
           className="mt-8 rounded-[16px] border border-red-200 bg-red-50 px-5 py-4 text-[15px] text-red-800"
@@ -311,6 +445,45 @@ export function RequestForm({
                         name={`requirements[${requirement.id}]`}
                         accept={uploadRules.accept()}
                         className="req-field mt-2"
+                        onChange={(event) => {
+                          const input = event.currentTarget;
+                          const file = input.files?.[0];
+                          const key = `requirements.${requirement.id}`;
+
+                          if (!file || file.size === 0) {
+                            setClientFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next[key];
+                              return next;
+                            });
+                            return;
+                          }
+
+                          if (file.size > uploadRules.MAX_BYTES) {
+                            const message = formatFileSizeError(file);
+                            input.value = '';
+                            setClientFieldErrors((prev) => ({ ...prev, [key]: message }));
+                            setUploadNotice(message);
+                            return;
+                          }
+
+                          const problem = uploadRules.check(file);
+                          if (problem) {
+                            input.value = '';
+                            setClientFieldErrors((prev) => ({ ...prev, [key]: problem }));
+                            setUploadNotice(`${requirement.label}: ${problem}`);
+                            return;
+                          }
+
+                          setClientFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next[key];
+                            if (Object.keys(next).length === 0) {
+                              setUploadNotice(null);
+                            }
+                            return next;
+                          });
+                        }}
                       />
                       <FieldError message={errors[`requirements.${requirement.id}`]} />
                     </li>
@@ -633,7 +806,14 @@ export function RequestForm({
             <div className="req-note p-5">
               <p className="req-note-title text-[16px] sm:text-[17px]">Your privacy</p>
               <label className="mt-3 flex items-start gap-3.5 text-left">
-                <input type="checkbox" name="consent" value="1" className="req-check mt-0.5" />
+                <input
+                  type="checkbox"
+                  name="consent"
+                  value="1"
+                  checked={consentChecked}
+                  onChange={(event) => setConsentChecked(event.target.checked)}
+                  className="req-check mt-0.5"
+                />
                 <span className="req-note-body text-[15px] leading-relaxed">
                   I agree that the information I provided will be collected and processed by the
                   municipality solely to handle this request, in accordance with the Data Privacy Act

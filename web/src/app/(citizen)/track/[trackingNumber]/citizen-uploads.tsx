@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { reuploadRevisedRequirement, uploadSupportingFiles } from '@/app/actions/citizen';
+import * as uploadRules from '@/lib/domain/upload-rules';
 
 /**
  * The tracking page's upload forms: a corrected copy of a returned
@@ -48,13 +49,29 @@ export function RequirementReupload({
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
+        const picked = data.get('file');
+
+        if (picked instanceof File && picked.size > 0) {
+          const problem = uploadRules.check(picked, { required: true });
+          if (problem) {
+            setNotice({ ok: false, message: problem });
+            return;
+          }
+        }
 
         startTransition(async () => {
-          const result = await reuploadRevisedRequirement(trackingNumber, requirementId, data);
-          setNotice(result);
+          try {
+            const result = await reuploadRevisedRequirement(trackingNumber, requirementId, data);
+            setNotice(result);
 
-          if (result.ok) {
-            formRef.current?.reset();
+            if (result.ok) {
+              formRef.current?.reset();
+            }
+          } catch {
+            setNotice({
+              ok: false,
+              message: `Could not upload that file. Make sure it is under ${Math.floor(uploadRules.MAX_KILOBYTES / 1024)} MB and try again.`,
+            });
           }
         });
       }}
@@ -69,6 +86,20 @@ export function RequirementReupload({
           name="file"
           accept={accept}
           required
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (!file) {
+              setNotice(null);
+              return;
+            }
+            const problem = uploadRules.check(file);
+            if (problem) {
+              event.currentTarget.value = '';
+              setNotice({ ok: false, message: problem });
+              return;
+            }
+            setNotice(null);
+          }}
           className="block text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-deep"
         />
         <button type="submit" disabled={pending} className="cz-btn cz-btn-primary cz-btn-sm">
@@ -146,12 +177,19 @@ export function SupportingUpload({
         data.append('note', note);
 
         startTransition(async () => {
-          const result = await uploadSupportingFiles(trackingNumber, data);
-          setNotice(result);
+          try {
+            const result = await uploadSupportingFiles(trackingNumber, data);
+            setNotice(result);
 
-          if (result.ok) {
-            setFiles([]);
-            setNote('');
+            if (result.ok) {
+              setFiles([]);
+              setNote('');
+            }
+          } catch {
+            setNotice({
+              ok: false,
+              message: `Could not upload those files. Make sure the total size is under ${Math.round(maxBytes / 1024 / 1024)} MB and try again.`,
+            });
           }
         });
       }}
