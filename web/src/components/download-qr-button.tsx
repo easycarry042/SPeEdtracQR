@@ -9,6 +9,8 @@ export interface DownloadQrButtonProps {
   label?: string;
   className?: string;
   fallbackSvg?: string | null;
+  variant?: 'qr' | 'receipt-card';
+  documentType?: string | null;
 }
 
 /**
@@ -21,6 +23,8 @@ export function DownloadQrButton({
   label = 'Download QR',
   className = 'cr-btn',
   fallbackSvg = null,
+  variant = 'qr',
+  documentType = null,
 }: DownloadQrButtonProps) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +42,7 @@ export function DownloadQrButton({
     setError(null);
 
     try {
-      await downloadQrPng({ url: qrUrl, trackingNumber, fallbackSvg });
+      await downloadQrPng({ url: qrUrl, trackingNumber, fallbackSvg, variant, documentType });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to download QR code.');
     } finally {

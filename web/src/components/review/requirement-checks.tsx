@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reviewRequirement } from '@/app/actions/document';
 import type { ReviewRequirement } from '@/lib/domain/requirement-review';
+import { FilePreviewModal, type PreviewFileTarget } from '@/components/file-preview-modal';
 
 /**
  * The Review modal's requirement list, and the check itself.
@@ -30,6 +31,7 @@ export function RequirementChecks({
   const [requirements, setRequirements] = useState(initial);
   const [returning, setReturning] = useState<{ id: number; mode: ReturnMode; comment: string } | null>(null);
   const [error, setError] = useState<{ id: number; message: string } | null>(null);
+  const [preview, setPreview] = useState<PreviewFileTarget | null>(null);
 
   // A refresh after any action hands down fresh rows.
   useEffect(() => setRequirements(initial), [initial]);
@@ -42,6 +44,18 @@ export function RequirementChecks({
     if (canAdvance && !requirement.opened) {
       patch(requirement.id, { opened: true, openedLabel: 'Opened by you just now' });
     }
+  };
+
+  /** Show the requirement paper/file right on screen instead of auto-downloading. */
+  const openPreview = (requirement: ReviewRequirement): void => {
+    if (!requirement.openUrl) return;
+    markOpened(requirement);
+    setPreview({
+      url: requirement.openUrl,
+      downloadUrl: requirement.url ? `${requirement.url}?download=1` : undefined,
+      title: requirement.label,
+      ext: requirement.ext,
+    });
   };
 
   const review = (requirement: ReviewRequirement, status: string, comment = ''): void => {
@@ -92,12 +106,11 @@ export function RequirementChecks({
               className={`dm-file !flex-wrap${requirement.verified ? ' bg-green-wash/40' : ''}`}
             >
               {requirement.hasFile && requirement.openUrl ? (
-                <a
-                  href={requirement.openUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="dm-thumb"
-                  onClick={() => markOpened(requirement)}
+                <button
+                  type="button"
+                  className="dm-thumb cursor-pointer"
+                  aria-label={`View ${requirement.label}`}
+                  onClick={() => openPreview(requirement)}
                 >
                   {requirement.isImage && requirement.url ? (
                     // The plain URL: a thumbnail loading is not an open.
@@ -109,7 +122,7 @@ export function RequirementChecks({
                       <span>{requirement.ext}</span>
                     </span>
                   )}
-                </a>
+                </button>
               ) : (
                 <span className="dm-thumb is-missing" aria-hidden="true">
                   <WarnIcon />
@@ -143,15 +156,13 @@ export function RequirementChecks({
               </div>
 
               {requirement.hasFile && requirement.openUrl ? (
-                <a
-                  href={requirement.openUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="dm-file-open"
-                  onClick={() => markOpened(requirement)}
+                <button
+                  type="button"
+                  className="dm-file-open cursor-pointer"
+                  onClick={() => openPreview(requirement)}
                 >
                   View
-                </a>
+                </button>
               ) : null}
 
               {canAdvance && !requirement.verified ? (
@@ -229,6 +240,8 @@ export function RequirementChecks({
           );
         })}
       </ul>
+
+      <FilePreviewModal file={preview} onClose={() => setPreview(null)} />
     </section>
   );
 }

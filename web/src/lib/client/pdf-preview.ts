@@ -61,6 +61,19 @@ export async function renderPdfUrlToCanvas(
   }
 
   const bytes = await response.arrayBuffer();
+  return renderPdfBytesToCanvas(bytes, canvas, pageNumber, signal);
+}
+
+/**
+ * Renders an already-fetched PDF `ArrayBuffer` page directly onto a provided
+ * HTML `<canvas>` element with an opaque white backdrop and abort support.
+ */
+export async function renderPdfBytesToCanvas(
+  bytes: ArrayBuffer,
+  canvas: HTMLCanvasElement,
+  pageNumber = 1,
+  signal?: AbortSignal,
+): Promise<PdfCanvasResult> {
   if (bytes.byteLength === 0) {
     throw new Error('The attached PDF is empty.');
   }

@@ -11,6 +11,7 @@ import {
   type CalendarDateHighlight,
   type CalendarLegendItem,
 } from '@/components/unified-calendar';
+import { FilePreviewModal, type PreviewFileTarget } from '@/components/file-preview-modal';
 
 function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -272,6 +273,7 @@ function Conversation({ row }: { row: ReviewRow }) {
   const [pending, startTransition] = useTransition();
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
+  const [previewFile, setPreviewFile] = useState<PreviewFileTarget | null>(null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -313,11 +315,18 @@ function Conversation({ row }: { row: ReviewRow }) {
                   </p>
 
                   {msg.attachment ? (
-                    <a
-                      href={msg.attachment.url}
-                      target="_blank"
-                      rel="noopener"
-                      className={`mt-[6px] flex items-center gap-[8px] rounded-[8px] border border-hairline bg-white px-[11px] py-[8px] text-[14px] font-medium text-ink transition hover:bg-green-wash${
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ext = /\.([^.]+)$/.exec(msg.attachment?.name ?? '')?.[1] ?? '';
+                        setPreviewFile({
+                          url: msg.attachment!.url,
+                          downloadUrl: msg.attachment!.url,
+                          title: msg.attachment!.name,
+                          ext,
+                        });
+                      }}
+                      className={`mt-[6px] flex w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-hairline bg-white px-[11px] py-[8px] text-[14px] font-medium text-ink transition hover:bg-green-wash${
                         msg.from === 'citizen' ? '' : ' justify-end'
                       }`}
                     >
@@ -328,7 +337,7 @@ function Conversation({ row }: { row: ReviewRow }) {
                         style={{ width: 16, height: 16, maxWidth: 'none' }}
                       />
                       <span className="min-w-0 truncate">{msg.attachment.name}</span>
-                    </a>
+                    </button>
                   ) : null}
 
                   {msg.from !== 'citizen' ? (
@@ -421,6 +430,8 @@ function Conversation({ row }: { row: ReviewRow }) {
           to the citizen.
         </p>
       )}
+
+      <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   );
 }

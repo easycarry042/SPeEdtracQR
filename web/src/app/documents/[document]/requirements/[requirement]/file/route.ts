@@ -54,5 +54,7 @@ export async function GET(
     await markOpened(documentId, requirementId, actor);
   }
 
-  return fileResponse(file.path, contents);
+  return fileResponse(file.path, contents, {
+    download: request.nextUrl.searchParams.get('download') === '1',
+  });
 }

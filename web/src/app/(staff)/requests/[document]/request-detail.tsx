@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { DocumentStatus } from '@/lib/domain/document-status';
 import type { InternalRequestDetail } from '@/lib/domain/internal-request';
 import { formatNaive } from '@/lib/time';
+import { PreviewFileButton } from '@/components/file-preview-modal';
 import { QrTile, RequestPanels } from './panels';
 
 /**
@@ -370,14 +371,17 @@ export function InternalRequestView({
                         <p className="dm-file-name">{attachment.label}</p>
                         <p className="dm-file-meta">{attachment.ext}</p>
                       </div>
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener"
-                        className="dm-file-open"
+                      <PreviewFileButton
+                        file={{
+                          url: attachment.url,
+                          downloadUrl: `${attachment.url}?download=1`,
+                          title: attachment.label,
+                          ext: attachment.ext,
+                        }}
+                        className="dm-file-open cursor-pointer"
                       >
                         View
-                      </a>
+                      </PreviewFileButton>
                     </li>
                   ))}
                 </ul>

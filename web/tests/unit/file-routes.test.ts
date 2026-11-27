@@ -71,6 +71,20 @@ describe('requirement file', () => {
     expect(markOpened).toHaveBeenCalledWith(19, 11, staff);
   });
 
+  it('streams inline by default for docx and only sets attachment disposition with ?download=1', async () => {
+    requirementFileFor.mockResolvedValue({ path: 'requirements/letter.docx', createdBy: 2, assignedTo: 5 });
+
+    const inline = await getRequirement('?open=1');
+    expect(inline.status).toBe(200);
+    expect(inline.headers.get('content-disposition')).toBeNull();
+
+    const downloaded = await getRequirement('?download=1');
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.headers.get('content-disposition')).toBe(
+      "attachment; filename=\"letter.docx\"; filename*=UTF-8''letter.docx",
+    );
+  });
+
   it('refuses a signed-out visitor', async () => {
     currentActor.mockResolvedValue(null);
 

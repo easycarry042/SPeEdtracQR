@@ -97,6 +97,8 @@ export default async function RequestSubmittedPage() {
                 qrUrl={qrPng}
                 fallbackSvg={qrSvg}
                 trackingNumber={document.tracking_number}
+                documentType={document.document_type}
+                variant="receipt-card"
                 label="Download QR Code"
                 className="cz-btn cz-btn-primary"
               />

@@ -10,6 +10,7 @@ import { ReviewSidePanel } from './review-side-panel';
 import { RequirementChecks } from './requirement-checks';
 import { DownloadQrButton } from '@/components/download-qr-button';
 import { QrPreviewFrame } from '@/components/qr-preview-frame';
+import { FilePreviewModal, type PreviewFileTarget } from '@/components/file-preview-modal';
 
 /**
  * The shared Review modal (`partials/review-modal.blade.php`).
@@ -35,6 +36,7 @@ export function ReviewModal({
   );
   const [qrOpen, setQrOpen] = useState(false);
   const [allLogs, setAllLogs] = useState(false);
+  const [previewFile, setPreviewFile] = useState<PreviewFileTarget | null>(null);
 
   const toggleSide = (which: 'date' | 'messages') => {
     setSide((prev) => (prev === which ? null : which));
@@ -358,12 +360,19 @@ export function ReviewModal({
                 <h3 className="dm-section">Attachments</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {row.attachments.map((attachment) => (
-                    <a
+                    <button
                       key={attachment.url}
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noopener"
-                      className="dm-thumb dm-thumb-lg"
+                      type="button"
+                      onClick={() =>
+                        setPreviewFile({
+                          url: attachment.url,
+                          downloadUrl: `${attachment.url}?download=1`,
+                          title: `Attachment (${attachment.ext ? attachment.ext.toUpperCase() : 'FILE'})`,
+                          ext: attachment.ext,
+                        })
+                      }
+                      className="dm-thumb dm-thumb-lg cursor-pointer"
+                      aria-label={`View ${attachment.ext ? attachment.ext.toUpperCase() : 'file'} attachment`}
                     >
                       {attachment.isImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -388,7 +397,7 @@ export function ReviewModal({
                           <span>{attachment.ext}</span>
                         </span>
                       )}
-                    </a>
+                    </button>
                   ))}
                 </div>
               </section>
@@ -527,6 +536,8 @@ export function ReviewModal({
           <ReviewSidePanel row={row} side={side} onClose={() => setSide(null)} />
         ) : null}
       </div>
+
+      <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   );
 }
