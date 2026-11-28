@@ -52,7 +52,74 @@ export type Mailable = {
   attachments?: Array<{ filename: string; path?: string; content?: Buffer }>;
 };
 
+/**
+ * Seeded placeholder and RFC-reserved domains that have no MX records.
+ * Sending real SMTP mail to them produces repeated NXDOMAIN hard bounces that
+ * cause Gmail/SMTP providers to lock the sender account (`534-5.7.9`).
+ *
+ * Override with `MAIL_SKIP_DOMAINS` (comma-separated list) or set
+ * `MAIL_SKIP_DOMAINS=none` if `speedtraqr.com` is later given real MX records.
+ */
+const DEFAULT_SKIP_DOMAINS = [
+  'speedtraqr.com',
+  'example.com',
+  'example.org',
+  'example.net',
+  'test.local',
+  'localhost',
+  'invalid',
+] as const;
+
+function skipDomains(): string[] {
+  const raw = process.env.MAIL_SKIP_DOMAINS;
+
+  if (raw === undefined || raw.trim() === '') {
+    return [...DEFAULT_SKIP_DOMAINS];
+  }
+
+  if (raw.trim().toLowerCase() === 'none') {
+    return [];
+  }
+
+  return raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase().replace(/^@/, ''))
+    .filter((entry) => entry !== '');
+}
+
+/** Extract the lowercased domain from `user@domain` or `"Name" <user@domain>`. */
+function recipientDomain(to: string): string | null {
+  const trimmed = to.trim();
+  const angleMatch = /<([^>]+)>/.exec(trimmed);
+  const address = (angleMatch ? angleMatch[1] : trimmed).trim();
+  const at = address.lastIndexOf('@');
+
+  if (at <= 0 || at === address.length - 1) {
+    return null;
+  }
+
+  return address.slice(at + 1).trim().toLowerCase();
+}
+
+/** True when `to` targets a non-routable placeholder domain that would hard-bounce. */
+export function shouldSkipRecipient(to: string): boolean {
+  const domain = recipientDomain(to);
+
+  if (!domain) {
+    return true;
+  }
+
+  return skipDomains().some(
+    (blocked) => domain === blocked || domain.endsWith(`.${blocked}`),
+  );
+}
+
 export async function sendMail(message: Mailable): Promise<void> {
+  if (shouldSkipRecipient(message.to)) {
+    console.info(`[mail] skipped non-routable placeholder recipient ${message.to} ("${message.subject}")`);
+    return;
+  }
+
   const from = process.env.MAIL_FROM_ADDRESS
     ? `"${process.env.MAIL_FROM_NAME ?? app.name}" <${process.env.MAIL_FROM_ADDRESS}>`
     : app.name;
@@ -72,6 +139,11 @@ export async function sendMail(message: Mailable): Promise<void> {
  * that triggered it.
  */
 export function queueMail(message: Mailable): void {
+  if (shouldSkipRecipient(message.to)) {
+    console.info(`[mail] skipped non-routable placeholder recipient ${message.to} ("${message.subject}")`);
+    return;
+  }
+
   const send = (): Promise<void> =>
     sendMail(message).catch((error: unknown) => {
       console.error(`[mail] failed to send "${message.subject}" to ${message.to}:`, error);
